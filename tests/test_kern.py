@@ -163,3 +163,13 @@ def test_vorher_ohne_nachher_verschwindet_nicht(gd):
     sitzung.beende(s.id)
     e = [o for _, o, _g in g.erinnere("tool:netbox_get_vms ok:unbekannt")]
     assert len(e) == 1 and e[0].gespraech == s.serial and e[0].daten["vorher"]["ohne_nachher"]
+
+
+def test_instanz_anlegen_behaelt_rechte(tmp_path):
+    from vi_mcp import konfig
+    p = tmp_path / "config.json"
+    konfig.instanz_anlegen("a", p=p)
+    assert stat.S_IMODE(os.stat(p).st_mode) == 0o600
+    os.chmod(p, 0o640)
+    konfig.instanz_anlegen("b", p=p)
+    assert stat.S_IMODE(os.stat(p).st_mode) == 0o640 and set(konfig.lade(p).instanzen) == {"a", "b"}

@@ -85,6 +85,16 @@ def instanz_anlegen(name: str, reflexe: bool = False, p: Path | None = None) -> 
         tmp.write_text(json.dumps(roh, indent=2, ensure_ascii=False) + "\n")
     finally:
         os.umask(alte)
-    os.chmod(tmp, 0o600)
+    # Rechte einer vorhandenen Datei übernehmen (Paket: root:vi-mcp 0640, damit der Dienst sie lesen kann);
+    # eine neue Datei ist 0600 (nur der Eigentümer)
+    if p.exists():
+        st = os.stat(p)
+        os.chmod(tmp, st.st_mode & 0o777)
+        try:
+            os.chown(tmp, st.st_uid, st.st_gid)
+        except PermissionError:
+            pass
+    else:
+        os.chmod(tmp, 0o600)
     os.replace(tmp, p)
     return token

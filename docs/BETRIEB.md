@@ -1,6 +1,33 @@
 # Betrieb
 
-## Installieren
+Zwei Wege: **Debian-Paket** (Server, Systemdienst mit eigenem Nutzer — Produktion) oder **Benutzerdienst** aus dem
+Arbeitsbaum (Entwicklung).
+
+## Debian-Paket (Server)
+
+```bash
+deploy/debian/build.sh                         # → dist/vi-mcp_<version>-1_all.deb (nur dpkg-deb nötig)
+scp dist/vi-mcp_0.1.0-1_all.deb host:/tmp/ && ssh host sudo dpkg -i /tmp/vi-mcp_0.1.0-1_all.deb
+ssh host 'sudo vi-mcp instanz <name> [--reflexe]' > ~/.config/vi-mcp/token-<name>-<host>   # Token EINMAL, 0600 ablegen
+ssh host sudo systemctl restart vi-mcp
+```
+
+| Was | Wo |
+|---|---|
+| Code | `/usr/lib/python3/dist-packages/vi_mcp/`, Aufruf `/usr/bin/vi-mcp` |
+| Dienst | `vi-mcp.service` (System), Nutzer/Gruppe `vi-mcp`, gehärtet (`ProtectSystem=strict`, `ProtectHome`, keine Capabilities; `systemd-analyze security`: 3.6 OK) |
+| Konfiguration | `/etc/vi-mcp/config.json` — `root:vi-mcp 0640`, Verzeichnis `0750`; `vi-mcp instanz` behält diese Rechte |
+| Gedächtnis | `/var/lib/vi-mcp/vi.db` — `vi-mcp:vi-mcp 0600`, Verzeichnis `0700` |
+| Protokoll | `journalctl -u vi-mcp` |
+| Hook-Skript für Clients | `/usr/share/vi-mcp/hook/vi_hook.py` |
+
+`dpkg -r vi-mcp` lässt Gedächtnis und Konfiguration stehen; `dpkg -P vi-mcp` löscht beides und den Nutzer.
+Ohne Instanz bleibt der Dienst nach der Installation aus und `postinst` sagt, was zu tun ist.
+
+**Installiert auf `<host>`** (08.11.2026, als `<admin>`): Ubuntu 24.04.5, Python 3.12.3, SQLite 3.45.1
+mit FTS5; Instanz `anna` (Reflex-Recht), lauscht auf `127.0.0.1:8765`. Abnahme siehe CHANGELOG.
+
+## Benutzerdienst (Entwicklung)
 
 ```bash
 cd ~/Dev/code/vi-mcp

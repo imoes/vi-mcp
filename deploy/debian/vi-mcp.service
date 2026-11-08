@@ -1,0 +1,38 @@
+[Unit]
+Description=vi-mcp — VI-Gedächtnis als MCP-Server (Streamable HTTP, ein Prozess)
+Documentation=file:///usr/share/doc/vi-mcp/README.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vi-mcp
+Group=vi-mcp
+Environment=VI_MCP_CONFIG=/etc/vi-mcp/config.json
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -I -m vi_mcp
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+UMask=0077
+StateDirectory=vi-mcp
+StateDirectoryMode=0700
+# Härtung: nur /var/lib/vi-mcp beschreibbar, Konfiguration nur lesbar
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
