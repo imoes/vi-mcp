@@ -6,7 +6,9 @@ Pfad: $VI_MCP_CONFIG oder ~/.config/vi-mcp/config.json. Inhalt:
     "db": "~/.local/share/vi-mcp/vi.db",
     "instanzen": {"<name>": {"token_sha256": "<hex>", "reflexe": false}},
     "ttl": {"<werkzeug>": <sekunden>},
-    "origins": ["http://localhost", "http://127.0.0.1"]
+    "origins": ["http://localhost", "http://127.0.0.1"],
+    "embed": {"url": "https://host/embed/v1/embeddings", "token": "", "modell": ""},      optional (Stufe 3, im Schlaf)
+    "llm":   {"url": "https://host/qwen/v1/chat/completions", "token": "", "modell": ""}  optional (Stufe 4, im Schlaf)
   }
 Tokens stehen nur als SHA-256 in der Datei; das Token selbst wird beim Anlegen einmal ausgegeben.
 Ohne Instanz startet der Server nicht (kein offener Zugang aus Versehen) — benannt, nicht still.
@@ -39,6 +41,8 @@ class Konfig:
     instanzen: dict[str, Instanz] = field(default_factory=dict)
     ttl: dict[str, int] = field(default_factory=dict)
     origins: list[str] = field(default_factory=lambda: ["http://localhost", "http://127.0.0.1"])
+    embed: dict | None = None
+    llm: dict | None = None
 
     def instanz_zu(self, token: str | None) -> Instanz | None:
         """Instanz zum Bearer-Token oder None. Vergleich in konstanter Zeit, über alle Instanzen."""
@@ -66,6 +70,8 @@ def lade(p: Path | None = None) -> Konfig:
     k.db = Path(roh.get("db", str(k.db))).expanduser()
     k.ttl = {w: int(s) for w, s in (roh.get("ttl") or {}).items()}
     k.origins = list(roh.get("origins") or k.origins)
+    k.embed = roh.get("embed") or None
+    k.llm = roh.get("llm") or None
     for n, d in (roh.get("instanzen") or {}).items():
         k.instanzen[n] = Instanz(n, d["token_sha256"], bool(d.get("reflexe", False)))
     return k

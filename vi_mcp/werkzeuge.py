@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import zlib
 from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import gedaechtnis as g
-from . import bandit, fragen, intuition, lernen, messung, reflexe, schlaf, selbst, sitzung
+from . import bandit, fragen, intuition, lernen, messung, reflexe, schlaf, selbst, sitzung, vektor
 from .schleife import stand as loop_stand, LOOP_S
 
 _O = {"type": "object"}
@@ -74,8 +75,9 @@ TOOLS = [
                             ["text", "hashtags", "quelle"])},
     {"name": "vi_erinnere",
      "description": "VI: im Gedächtnis suchen — art:wert, !art:wert, (a OR b), Präfix art:wert*, Freitext (Volltext). Gewichtet nach "
-                    "Relevanz, Aktualität und Wichtigkeit; jeder Treffer wird verstärkt.",
-     "inputSchema": _schema({"filter": _S, "limit": {"type": "integer"}}, ["filter"])},
+                    "Relevanz, Aktualität und Wichtigkeit; jeder Treffer wird verstärkt. semantisch=true ordnet nach Bedeutungsnähe "
+                    "zum Freitext (Embedding — dauert einige Sekunden, wird genannt).",
+     "inputSchema": _schema({"filter": _S, "limit": {"type": "integer"}, "semantisch": {"type": "boolean"}}, ["filter"])},
     {"name": "vi_objekt", "description": "VI: ein Objekt mit Feldern, Hashtags, Kanten und Änderungsgeschichte.",
      "inputSchema": _schema({"id": _S}, ["id"])},
     {"name": "vi_markiere", "description": "VI: Hashtags eines Objekts ändern (hinzu/weg), mit Grund — mit Geschichte.",
@@ -266,10 +268,24 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
             raise Abgelehnt(str(e)) from e
         return f"gelernt {o.id} mit {', '.join(o.hashtags)} — {len(o.kanten())} Kanten zu Objekten mit gemeinsamen Hashtags"
     if name == "vi_erinnere":
-        treffer = g.erinnere(args.get("filter") or "", limit=min(int(args.get("limit") or 10), 50))
+        f = args.get("filter") or ""
+        treffer = g.erinnere(f, limit=min(int(args.get("limit") or 10), 50))
+        if args.get("semantisch"):
+            if not vektor.verfuegbar():
+                raise Abgelehnt("semantisch: kein Embedding-Dienst konfiguriert (konfig.embed)")
+            gruppen, weg, worte = g.lies_filter(f)
+            if not worte:
+                raise Abgelehnt("semantisch braucht Freitext im Filter (Wörter ohne art:)")
+            # Kandidaten: nur die Hashtag-Bedingungen (ohne Freitext), dann nach Bedeutungsnähe ordnen
+            nur_tags = " ".join(["(" + " OR ".join(gr) + ")" if len(gr) > 1 else gr[0] for gr in gruppen] + [f"!{w}" for w in weg])
+            kand = [o for _, o, _g in g.erinnere(nur_tags, limit=200, arten=() if gruppen else ("erkenntnis", "regel", "suche"))]
+            t0 = time.monotonic()
+            nah = vektor.aehnlich(" ".join(worte), [o.id for o in kand], limit=min(int(args.get("limit") or 10), 50))
+            by = {o.id: o for o in kand}
+            treffer = [(c, by[i], {"relevanz": round(c, 2), "aktualitaet": 0, "wichtigkeit": 0}) for i, c in nah if i in by]
+            f += f" · semantisch (Embedding {int((time.monotonic() - t0) * 1000)} ms, {len(kand)} Kandidaten geprüft)"
         for _, o, _g in treffer:
             o.zugriff()
-        f = args.get("filter") or ""
         return (f"{len(treffer)} Objekte zu „{f}“ (R Relevanz · A Aktualität · W Wichtigkeit):\n"
                 + "\n".join(_zeile(o, gw) for _, o, gw in treffer)) if treffer else f"nichts im Gedächtnis zu „{f}“"
     if name == "vi_objekt":

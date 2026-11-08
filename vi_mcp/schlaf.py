@@ -10,7 +10,9 @@ Schritte — jeder zählt, jeder steht im Bericht (Objekt `schlaf:<zeit>`, Zusta
                 (die LLM-Variante ist nicht gebaut — benannt in „Was fehlt noch“)
   5 Archiv      Erfahrungen älter als ARCHIV_TAGE, nie zugegriffen, ohne Belegkante → `archiviert` (Stummel bleibt)
   6 Selbst-Ist  Kompetenz je Skill, Schwächen, Beziehungen neu berechnen
-  7 Bericht
+  7 Vektoren    fehlende Embeddings geteilter Wissensobjekte nachziehen (Batch), semantische Nähe → Kanten / dublette:moeglich
+  8 Lernen      Router-Modell trainieren (lernen.py)
+  9 Bericht
 Erkenntnisse, Regeln, Suchen, Reflexe werden nie automatisch archiviert.
 """
 from __future__ import annotations
@@ -86,6 +88,8 @@ def lauf(grund: str) -> g.Objekt:
     schritt("4_abstraktion", lambda: _abstraktion(bericht))
     schritt("5_archiv", lambda: _archiv())
     schritt("6_selbst_ist", lambda: _selbst_ist())
+    schritt("7_vektoren", lambda: _vektoren())
+    schritt("7b_naehe", lambda: _naehe())
     schritt("8_lernen", lambda: _lernen())
     dauer = int((time.monotonic() - t0) * 1000)
     zustand = "fehler" if bericht["fehler"] else "fertig"
@@ -244,6 +248,18 @@ def hole_archiv(oid: str) -> dict | None:
     with g.sperre:
         row = g.db().execute("SELECT roh FROM archiv WHERE id = ?", (oid,)).fetchone()
     return json.loads(zlib.decompress(row[0])) if row else None
+
+
+def _vektoren() -> dict:
+    from . import vektor
+    return vektor.nachziehen()
+
+
+def _naehe() -> dict:
+    from . import vektor
+    if not vektor.verfuegbar():
+        return {"zustand": "uebersprungen", "grund": "kein Embedding-Dienst konfiguriert"}
+    return vektor.naehe_kanten()
 
 
 def _lernen() -> dict:

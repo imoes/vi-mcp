@@ -34,7 +34,7 @@ erscheint der nächsten vor der passenden Handlung als Hinweis.
 
 ```bash
 cd ~/Dev/code/vi-mcp
-python3 -m pytest -q tests          # 56 Tests (Synthetik-Test braucht scikit-learn: .venv), nur Standardbibliothek + pytest
+python3 -m pytest -q tests          # 59 Tests (Synthetik-Test braucht scikit-learn: .venv), nur Standardbibliothek + pytest
 deploy/install.sh                   # Instanz $USER anlegen, systemd-User-Dienst starten
 curl -s http://127.0.0.1:8765/gesund
 claude mcp add --transport http -s user vi-mcp http://127.0.0.1:8765/mcp \

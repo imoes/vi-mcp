@@ -3,6 +3,18 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.7.0 — 2026-11-08 — Stufe 3
+
+### Was ist neu
+
+- **Vektoren im Schlaf** (`vektor.py`, konfig `embed`): Embeddings für Erkenntnisse/Regeln/Suchen, Nähe-Kanten,
+  `dublette:moeglich` über Instanzen; `vi_erinnere(…, semantisch=true)` findet „Verbindung hängt“, wenn „Timeout“
+  gespeichert ist. *Nachweis:* `test_vektoren_im_schlaf_und_naehe_kanten`, `test_semantische_suche` (FTS findet es
+  nicht, semantisch ja), `test_ohne_dienst_benannt_uebersprungen`. Dienst auf dem Host: bge-m3, 1024 Dim.,
+  10 Texte ≈ 10 s warm (gemessen).
+- Konfiguration um `embed` und `llm` (Stufe 4) erweitert.
+- 59/59 Tests grün.
+
 ## 0.6.0 — 2026-11-08 — Stufe 2
 
 ### Was ist neu

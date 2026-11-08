@@ -226,6 +226,16 @@ und ordnet danach (`router: bandit`) — selten Gezeigtes bleibt im Spiel, oft G
 `vi_objekt` zeigt die Zähler („genützt 20 / nicht 1, Erwartung 91 %“). Rangordnung erschöpfend: `modell` > `bandit`
 > `heuristik`. Quellen: Russo et al. 2017 (arXiv 1707.02038), Agrawal & Goyal 2012 (arXiv 1209.3352).
 
+## Vektoren — Bedeutung statt Wortgleichheit (Stufe 3)
+
+`vektor.py`: Embeddings (OpenAI-kompatibler Dienst, konfig `embed`) für geteilte Wissensobjekte, als float32-BLOB in
+Tabelle `vektor` (TRAINING.md 4c). **Nur im Schlaf** (Schritt 7, Batch 16, höchstens 256 je Lauf) — der Dienst auf
+dem Produktivhost braucht ≈ 1 s je Text (gemessen 08.11.2026), zu langsam für `vi_vorher`. Schritt 7b: Kosinus ≥ 0,85
+→ Kante „semantisch ähnlich“; ≥ 0,95 zwischen **verschiedenen** Instanzen → `dublette:moeglich` (zusammenlegen
+entscheidet eine Instanz, nicht der Server). `vi_erinnere(filter, semantisch=true)` bettet den Freitext ausdrücklich
+jetzt ein und ordnet Kandidaten nach Nähe — die Dauer steht im Ergebnis. Ohne Konfiguration: Schritte benannt
+übersprungen, Werkzeug lehnt mit Grund ab.
+
 ## Loop
 
 Genau einer, alle 60 s: Antworten älter als 1 h löschen · wiederholte Fehler → Regel (test, idempotent) ·
