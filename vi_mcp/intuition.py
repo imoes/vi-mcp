@@ -31,8 +31,10 @@ HOSTKEYS = ("host", "hostname", "host_name", "node", "device")
 OFFEN_MAX_S = 3600
 
 ttl_je_werkzeug: dict[str, int] = {}
-#: vorher-Zugriffe, die auf ihr nachher warten: {vorher_id: (zeitpunkt, tool, args, zugriff)}
-_offen: dict[str, tuple[float, str, dict, dict]] = {}
+#: vorher-Zugriffe, die auf ihr nachher warten: {vorher_id: (zeitpunkt, tool, args, zugriff, instanz, lesend, gespraech)}.
+#: Kommt kein nachher, wird der Zugriff nicht still verworfen, sondern als Erfahrung mit `ok:unbekannt` gespeichert
+#: (beim Ende des Gesprächs oder nach OFFEN_MAX_S) — siehe offene_abschliessen().
+_offen: dict[str, tuple] = {}
 _offen_sperre = threading.Lock()
 
 
@@ -94,11 +96,9 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     if antwort is not None:
         erfahrung(tool, args, True, 0, None, antwort, zugriff, instanz, ist_lesend)
     else:
+        offene_abschliessen(nur_aelter_als_s=OFFEN_MAX_S)
         with _offen_sperre:
-            grenze = time.monotonic() - OFFEN_MAX_S
-            for k in [k for k, v in _offen.items() if v[0] < grenze]:
-                del _offen[k]
-            _offen[vorher_id] = (time.monotonic(), tool, args, zugriff)
+            _offen[vorher_id] = (time.monotonic(), tool, args, zugriff, instanz, ist_lesend, g.aktuelles_gespraech.get())
     return {"vorher_id": vorher_id, "antwort": antwort, "antwort_alter_s": alter_s, "antwort_ttl_s": ttl,
             "args": args, "hinweise": hinweise, "zugriff": zugriff}
 
@@ -114,16 +114,36 @@ def nachher(tool: str, args: dict, ok: bool, dauer_ms: int, fehler: str | None, 
     return {"erfahrung": o.id, "hinweise": hinweise, "vorher_gefunden": bool(offen)}
 
 
-def erfahrung(tool: str, args: dict, ok: bool, dauer_ms: int, fehler: str | None, ergebnis: str | None,
+def offene_abschliessen(gespraech: str | None = None, nur_aelter_als_s: float | None = None) -> int:
+    """vorher ohne nachher → Erfahrung mit ok:unbekannt (benannter Zustand statt stillem Verschwinden).
+    Wahl: alle eines Gesprächs (beim Sitzungsende) oder alle älter als nur_aelter_als_s."""
+    with _offen_sperre:
+        if gespraech is not None:
+            ids = [k for k, v in _offen.items() if v[6] == gespraech]
+        else:
+            grenze = time.monotonic() - (nur_aelter_als_s or 0)
+            ids = [k for k, v in _offen.items() if v[0] < grenze]
+        faelle = [_offen.pop(k) for k in ids]
+    for _t0, tool, args, zugriff, instanz, ist_lesend, serial in faelle:
+        tok = g.aktuelles_gespraech.set(serial)
+        try:
+            erfahrung(tool, args, None, 0, None, None, {**zugriff, "ohne_nachher": True}, instanz, ist_lesend)
+        finally:
+            g.aktuelles_gespraech.reset(tok)
+    return len(faelle)
+
+
+def erfahrung(tool: str, args: dict, ok: bool | None, dauer_ms: int, fehler: str | None, ergebnis: str | None,
               zugriff: dict, instanz: str | None = None, ist_lesend: bool | None = None) -> g.Objekt:
-    tags = [f"tool:{tool}", f"skill:{tool.split('_')[0]}", f"ok:{'ja' if ok else 'nein'}"]
+    tags = [f"tool:{tool}", f"skill:{tool.split('_')[0]}", f"ok:{'unbekannt' if ok is None else 'ja' if ok else 'nein'}"]
     tags += [t for t in zugriff.get("reize", []) if t.startswith(("host:", "instanz:"))]
     if fehler:
         sig = fehler_signatur(fehler)[:60].replace(" ", "_").replace("(", "_").replace(")", "_")
         if g.TAG.match(f"fehler:{sig}"):
             tags.append(f"fehler:{sig}")
     tags = [t for t in tags if g.TAG.match(t)]
-    text = f"{tool}({json.dumps(args, ensure_ascii=False)[:300]}) → " + (f"Fehler: {fehler[:300]}" if fehler else f"ok, {len(ergebnis or '')} Zeichen, {dauer_ms} ms")
+    text = f"{tool}({json.dumps(args, ensure_ascii=False)[:300]}) → " + (f"Fehler: {fehler[:300]}" if fehler else "kein Ergebnis gemeldet (vi_nachher fehlt)" if ok is None
+                                                                       else f"ok, {len(ergebnis or '')} Zeichen, {dauer_ms} ms")
     o = g.neues_objekt("erfahrung", text, tags, {"args": args, "dauer_ms": dauer_ms, "fehler": fehler, "vorher": zugriff},
                        wichtigkeit=2 if fehler else 0, grund="Werkzeugaufruf")
     for oid in zugriff.get("gefunden", []):

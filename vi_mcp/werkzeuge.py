@@ -1,0 +1,313 @@
+"""Die MCP-Werkzeuge der VI. Zwei Gruppen:
+
+  Hook (für Clients, die Handlungen melden): vi_vorher, vi_nachher
+  Gedächtnis (für das Bewusstsein — Mensch oder LLM): vi_status, vi_lerne, vi_erinnere, vi_vertiefe, vi_objekt,
+     vi_markiere, vi_bestaetige, vi_widerlege, vi_vergiss, vi_erfahrung, vi_gespraech, vi_suche_lerne,
+     vi_reflex_lerne, vi_reflex_liste, vi_reflex_schalte  — dazu je Werkzeug-Reflex ein vi_reflex_<name>.
+"""
+from __future__ import annotations
+
+import json
+import re
+import zlib
+from datetime import datetime, timedelta, timezone
+
+from . import __version__
+from . import gedaechtnis as g
+from . import intuition, reflexe, sitzung
+from .schleife import stand as loop_stand, LOOP_S
+
+_O = {"type": "object"}
+
+
+def _schema(props: dict, req: list[str] | None = None) -> dict:
+    return {"type": "object", "properties": props, **({"required": req} if req else {})}
+
+
+_S = {"type": "string"}
+_TAGS = {"type": "array", "items": _S}
+
+TOOLS = [
+    {"name": "vi_vorher",
+     "description": "VI-Hook für Clients, VOR einer Handlung: meldet Werkzeug + Argumente. Antwort (JSON): antwort (gemerktes "
+                    "Ergebnis, wenn lesend und frisch — dann nicht ausführen), hinweise (Erkenntnisse, Regeln, gelernte Suchen, "
+                    "Reflexe), args (ggf. von einem aktiven Reflex geändert), vorher_id (an vi_nachher zurückgeben). "
+                    "lesend: optional, überschreibt das Namensmuster.",
+     "inputSchema": _schema({"tool": _S, "args": _O, "lesend": {"type": "boolean"}}, ["tool"])},
+    {"name": "vi_nachher",
+     "description": "VI-Hook für Clients, NACH einer Handlung: Ergebnis melden → Erfahrung, gemerkte Antwort (wenn lesend), "
+                    "Nachher-Reflexe. ok=false mit fehler; ergebnis nur bei ok.",
+     "inputSchema": _schema({"tool": _S, "args": _O, "ok": {"type": "boolean"}, "dauer_ms": {"type": "integer"},
+                             "fehler": _S, "ergebnis": _S, "vorher_id": _S, "lesend": {"type": "boolean"}}, ["tool", "ok"])},
+    {"name": "vi_status", "description": "VI: Gedächtnis-Stand — Objekte je Art, Erfahrungen 24 h, offene Gespräche, Kanten, Loop.",
+     "inputSchema": _schema({})},
+    {"name": "vi_lerne",
+     "description": "VI: Erkenntnis als Objekt speichern — mit Hashtags art:wert (z. B. tool:graylog_search, host:web1.example, "
+                    "thema:timeout) und quelle (Pflicht). Erscheint vor passenden Handlungen als Hinweis; Objekte mit "
+                    "gemeinsamen Hashtags werden verknüpft.",
+     "inputSchema": _schema({"text": _S, "hashtags": _TAGS, "quelle": _S, "wichtigkeit": {"type": "integer", "description": "0–3 (Standard 1)"}},
+                            ["text", "hashtags", "quelle"])},
+    {"name": "vi_erinnere",
+     "description": "VI: im Gedächtnis suchen — art:wert, !art:wert, (a OR b), Präfix art:wert*, Freitext (Volltext). Gewichtet nach "
+                    "Relevanz, Aktualität und Wichtigkeit; jeder Treffer wird verstärkt.",
+     "inputSchema": _schema({"filter": _S, "limit": {"type": "integer"}}, ["filter"])},
+    {"name": "vi_objekt", "description": "VI: ein Objekt mit Feldern, Hashtags, Kanten und Änderungsgeschichte.",
+     "inputSchema": _schema({"id": _S}, ["id"])},
+    {"name": "vi_markiere", "description": "VI: Hashtags eines Objekts ändern (hinzu/weg), mit Grund — mit Geschichte.",
+     "inputSchema": _schema({"id": _S, "hinzu": _TAGS, "weg": _TAGS, "grund": _S}, ["id", "grund"])},
+    {"name": "vi_bestaetige", "description": "VI: ein Objekt bestätigen (wird wichtiger) — mit Grund.",
+     "inputSchema": _schema({"id": _S, "grund": _S}, ["id", "grund"])},
+    {"name": "vi_widerlege", "description": "VI: ein Objekt widerlegen (erscheint nicht mehr in Suchen) — mit Grund.",
+     "inputSchema": _schema({"id": _S, "grund": _S}, ["id", "grund"])},
+    {"name": "vi_vergiss", "description": "VI: gemerkte Antworten eines Werkzeugs verwerfen (nächster Aufruf fragt frisch).",
+     "inputSchema": _schema({"tool": _S}, ["tool"])},
+    {"name": "vi_erfahrung", "description": "VI: Erfahrung je Werkzeug im Zeitraum — Aufrufe, Fehler, aus Gedächtnis, Median-Dauer, letzte Fehler.",
+     "inputSchema": _schema({"tool": _S, "stunden": {"type": "number"}})},
+    {"name": "vi_gespraech",
+     "description": "VI: Gespräche (Sitzungen) — Liste mit Seriennummer YYYYMMDDNNN, eines mit Verlauf (serial), oder Volltextsuche (suche).",
+     "inputSchema": _schema({"serial": _S, "suche": _S, "limit": {"type": "integer"}})},
+    {"name": "vi_suche_lerne",
+     "description": "VI: eine Suche als Eselsbrücke lernen — die Hashtag-Kombination (UND/ODER), mit der man etwas wiederfindet. "
+                    "reize = Hashtags, bei denen die Suche vor einer Handlung automatisch läuft (z. B. tool:graylog_search, "
+                    "host:web1.example); geschichte = warum/wofür.",
+     "inputSchema": _schema({"name": _S, "filter": {"type": "string", "description": "z. B. (thema:oom OR thema:disk-full) !ok:ja"},
+                             "reize": _TAGS, "geschichte": _S, "quelle": _S}, ["name", "filter", "reize", "geschichte", "quelle"])},
+    {"name": "vi_vertiefe",
+     "description": "VI: Trichter — suchen, den auffälligsten Hashtag der Treffer ergänzen, erneut suchen (bis 3 Stufen). filter = "
+                    "Filtertext ODER id einer gelernten Suche (suche:…) / eines Objekts (dessen Hashtags werden zum Filter).",
+     "inputSchema": _schema({"filter": _S, "stufen": {"type": "integer"}}, ["filter"])},
+    {"name": "vi_reflex_lerne",
+     "description": "VI: Python-Code ins Gedächtnis schreiben (Reflex). art=werkzeug: TOOL = {description, inputSchema} + def run(args) "
+                    "-> str → Werkzeug vi_reflex_<name>. art=vorher: def run(tool, args) -> None | {'hinweis'} | {'args'}. "
+                    "art=nachher: def run(tool, args, ergebnis) -> None | str. Erlaubte Imports: " + ", ".join(sorted(reflexe.REFLEX_MODULE))
+                    + ". Start im Testmodus; scharf über vi_reflex_schalte. Nur für Instanzen mit Reflex-Recht.",
+     "inputSchema": _schema({"name": _S, "art": {"type": "string", "enum": list(reflexe.REFLEX_ARTEN)}, "code": _S,
+                             "beschreibung": _S, "quelle": _S}, ["name", "art", "code", "beschreibung", "quelle"])},
+    {"name": "vi_reflex_liste", "description": "VI: alle Reflexe mit Art, Modus, Läufen, Fehlern.",
+     "inputSchema": _schema({"code": {"type": "boolean"}})},
+    {"name": "vi_reflex_schalte",
+     "description": "VI: Modus eines Reflexes — test (nur Hinweis), aktiv (wirkt), aus. test setzt den Fehlerzähler zurück. "
+                    "Nur für Instanzen mit Reflex-Recht.",
+     "inputSchema": _schema({"name": _S, "modus": {"type": "string", "enum": ["test", "aktiv", "aus"]}}, ["name", "modus"])},
+]
+_NAMEN = {t["name"] for t in TOOLS}
+REFLEX_RECHT = ("vi_reflex_lerne", "vi_reflex_schalte")
+
+
+class Abgelehnt(Exception):
+    """Fachliche Ablehnung mit Grund — wird als Werkzeugfehler (isError) gemeldet, nicht als Protokollfehler."""
+
+
+def liste() -> list[dict]:
+    return TOOLS + reflexe.werkzeug_schemas()
+
+
+def bekannt(name: str) -> bool:
+    return name in _NAMEN or any(t["name"] == name for t in reflexe.werkzeug_schemas())
+
+
+def _zeile(o: g.Objekt, gw: dict | None = None) -> str:
+    gew = f" · R{gw['relevanz']} A{gw['aktualitaet']} W{gw['wichtigkeit']}" if gw else ""
+    tags = " ".join(t for t in o.hashtags if not t.startswith(("art:", "frage:")))[:160]
+    return f"  [{o.id[:34]}] {o.art} {o.zeit[:16]} {o.modus if o.modus != 'aktiv' else ''} {o.text[:200].replace(chr(10), ' ')}\n     {tags}{gew}"
+
+
+def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
+    """Ein Werkzeug ausführen. Liefert Text; fachliche Ablehnung als Abgelehnt(grund)."""
+    args = args or {}
+    if name.startswith("vi_reflex_") and name not in _NAMEN:
+        return reflexe.als_werkzeug(name, args)
+    if name in REFLEX_RECHT and not reflex_recht:
+        raise Abgelehnt(f"Instanz {instanz} hat kein Reflex-Recht (Konfiguration: instanzen.{instanz}.reflexe)")
+    if name == "vi_vorher":
+        if not (args.get("tool") or "").strip():
+            raise Abgelehnt("tool ist Pflicht")
+        return json.dumps(intuition.vorher(args["tool"].strip(), args.get("args") or {}, instanz, args.get("lesend")), ensure_ascii=False)
+    if name == "vi_nachher":
+        if not (args.get("tool") or "").strip() or not isinstance(args.get("ok"), bool):
+            raise Abgelehnt("tool und ok (true/false) sind Pflicht")
+        return json.dumps(intuition.nachher(args["tool"].strip(), args.get("args") or {}, args["ok"], int(args.get("dauer_ms") or 0),
+                                            args.get("fehler"), args.get("ergebnis"), args.get("vorher_id"), instanz,
+                                            args.get("lesend")), ensure_ascii=False)
+    if name == "vi_status":
+        seit = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(timespec="seconds")
+        with g.sperre:
+            arten = dict(g.db().execute("SELECT art, COUNT(*) FROM objekt GROUP BY art").fetchall())
+            n = g.db().execute("SELECT COUNT(*) FROM objekt WHERE art = 'erfahrung' AND zeit >= ?", (seit,)).fetchone()[0]
+            aus = g.db().execute("SELECT COUNT(*) FROM objekt WHERE art = 'erfahrung' AND zeit >= ? AND daten LIKE '%\"aus_gedaechtnis\": true%'",
+                                 (seit,)).fetchone()[0]
+            fehler = g.db().execute("SELECT COUNT(*) FROM tag WHERE tag = 'ok:nein' AND objekt_id IN "
+                                    "(SELECT id FROM objekt WHERE art = 'erfahrung' AND zeit >= ?)", (seit,)).fetchone()[0]
+            kanten = g.db().execute("SELECT COUNT(*) FROM kante").fetchone()[0]
+        s = sitzung.aktuelle()
+        offen = sitzung.offene()
+        ls = loop_stand
+        return (f"vi-mcp {__version__} — {len(liste())} Werkzeuge · dieses Gespräch {s.serial if s else '—'} (Instanz {instanz})\n"
+                f"Offene Gespräche: {len(offen)} (" + ", ".join(f"{x.serial}/{x.instanz}" for x in offen[:10]) + ")\n"
+                f"Objekte: " + ", ".join(f"{a} {arten.get(a, 0)}" for a in g.ARTEN) + f" · Kanten {kanten} · Volltext {'FTS5' if g.fts else 'LIKE'}\n"
+                f"Erfahrung 24 h: {n} Aufrufe, {aus} aus dem Gedächtnis, {fehler} Fehler · Antwort-TTL {intuition.TTL_STANDARD} s (max {intuition.TTL_MAX})\n"
+                f"Loop: alle {LOOP_S} s, {ls['laeufe']} Läufe, zuletzt {ls['zuletzt'] or '—'}, {ls['regeln_neu']} Regeln daraus, "
+                f"{ls['fehler']} Fehler{(' (zuletzt: ' + ls['letzter_fehler'] + ')') if ls['letzter_fehler'] else ''}")
+    if name == "vi_lerne":
+        if len((args.get("quelle") or "").strip()) < 8 or len((args.get("text") or "").strip()) < 10:
+            raise Abgelehnt("text (ein Satz) und quelle (Befehl/URL/Beobachtung, ≥ 8 Zeichen) sind Pflicht")
+        tags = [t.strip() for t in args.get("hashtags") or [] if t and t.strip()]
+        if not tags:
+            raise Abgelehnt("mindestens ein Hashtag art:wert (z. B. tool:graylog_search oder host:…)")
+        try:
+            o = g.neues_objekt("erkenntnis", args["text"].strip()[:1000], tags + [f"instanz:{instanz}"], {"quelle": args["quelle"].strip()[:500]},
+                               wichtigkeit=int(args.get("wichtigkeit") or 1), wer=f"ki@{instanz}", grund="vi_lerne")
+        except ValueError as e:
+            raise Abgelehnt(str(e)) from e
+        return f"gelernt {o.id} mit {', '.join(o.hashtags)} — {len(o.kanten())} Kanten zu Objekten mit gemeinsamen Hashtags"
+    if name == "vi_erinnere":
+        treffer = g.erinnere(args.get("filter") or "", limit=min(int(args.get("limit") or 10), 50))
+        for _, o, _g in treffer:
+            o.zugriff()
+        f = args.get("filter") or ""
+        return (f"{len(treffer)} Objekte zu „{f}“ (R Relevanz · A Aktualität · W Wichtigkeit):\n"
+                + "\n".join(_zeile(o, gw) for _, o, gw in treffer)) if treffer else f"nichts im Gedächtnis zu „{f}“"
+    if name == "vi_objekt":
+        o = g.lade(args.get("id") or "")
+        if not o:
+            raise Abgelehnt(f"Objekt {args.get('id')} unbekannt")
+        z = [_zeile(o), f"  wichtigkeit {o.wichtigkeit} · bestätigt {o.bestaetigt} · widerlegt {o.widerlegt} · zugriffe {o.zugriffe} · "
+                        f"zuletzt {o.zuletzt[:16]} · gespräch {o.gespraech or '—'}"]
+        d = {k: v for k, v in o.daten.items() if k not in ("ergebnis", "code")}
+        z.append("  daten: " + json.dumps(d, ensure_ascii=False)[:800])
+        z += [f"  Kante → {b} ({gr})" for b, gr in o.kanten()[:15]]
+        z += [f"  Änderung {a['zeit'][:16]} {a['wer']}: {a['was']} — {a['grund']}" for a in o.aenderungen[-10:]]
+        return "\n".join(z)
+    if name in ("vi_markiere", "vi_bestaetige", "vi_widerlege"):
+        o = g.lade(args.get("id") or "")
+        if not o:
+            raise Abgelehnt(f"Objekt {args.get('id')} unbekannt")
+        wer = f"ki@{instanz}"
+        try:
+            if name == "vi_markiere":
+                o.markiere(args.get("hinzu") or [], args.get("weg") or [], wer, args.get("grund", ""))
+            elif name == "vi_bestaetige":
+                o.bestaetige(wer, args.get("grund", ""))
+            else:
+                o.widerlege(wer, args.get("grund", ""))
+        except ValueError as e:
+            raise Abgelehnt(str(e)) from e
+        return _zeile(o)
+    if name == "vi_vergiss":
+        with g.sperre:
+            ids = [r[0] for r in g.db().execute("SELECT objekt_id FROM tag WHERE tag = ? AND objekt_id LIKE 'antwort:%'",
+                                                (f"tool:{args.get('tool')}",))]
+        g.loesche(ids)
+        return f"{len(ids)} gemerkte Antwort(en) von {args.get('tool')} verworfen"
+    if name == "vi_erfahrung":
+        h = float(args.get("stunden") or 24)
+        seit = (datetime.now(timezone.utc) - timedelta(hours=h)).isoformat(timespec="seconds")
+        filt = "art:erfahrung" + (f" tool:{args['tool']}" if args.get("tool") else "")
+        treffer = [o for _, o, _g in g.erinnere(filt, limit=2000) if o.zeit >= seit]
+        je: dict[str, list] = {}
+        for o in treffer:
+            je.setdefault(next((t[5:] for t in o.hashtags if t.startswith("tool:")), "?"), []).append(o)
+        z = [f"Erfahrung, letzte {h:g} h (Aufrufe / Fehler / aus Gedächtnis / Median ms):"]
+        for t, os_ in sorted(je.items(), key=lambda kv: -len(kv[1])):
+            d = sorted(o.daten.get("dauer_ms", 0) for o in os_)
+            z.append(f"  {t:42} {len(os_):>5} / {sum(1 for o in os_ if o.daten.get('fehler')):>4} / "
+                     f"{sum(1 for o in os_ if o.daten.get('vorher', {}).get('aus_gedaechtnis')):>4} / {d[len(d) // 2] if d else 0:>6}")
+        z += ["Letzte Fehler:"] + [f"  {o.zeit[:16]} {o.text[:140]}" for o in treffer if o.daten.get("fehler")][:8]
+        return "\n".join(z)
+    if name == "vi_gespraech":
+        if args.get("serial"):
+            offen = next((x for x in sitzung.offene() if x.serial == args["serial"]), None)
+            if offen:
+                sitzung.sichere(offen)
+            with g.sperre:
+                row = g.db().execute("SELECT roh FROM gespraech_roh WHERE serial = ?", (args["serial"],)).fetchone()
+            o = g.lade(f"gespraech:{args['serial']}")
+            if not o:
+                raise Abgelehnt(f"Gespräch {args['serial']} unbekannt")
+            zuege = json.loads(zlib.decompress(row[0])) if row else []
+            z = [_zeile(o), f"  {len(zuege)} Züge (komprimiert {len(row[0]) if row else 0} Bytes):"]
+            z += [f"  {x['zeit'][11:19]} {x['tool']} ok={x['ok']} {x['dauer_ms']} ms reize={','.join(x.get('vorher', {}).get('reize', []))[:80]}"
+                  for x in zuege[-40:]]
+            return "\n".join(z)
+        treffer = g.erinnere("art:gespraech " + (args.get("suche") or ""), limit=min(int(args.get("limit") or 20), 100))
+        return "Gespräche:\n" + "\n".join(_zeile(o) for _, o, _g in treffer) if treffer else "keine Gespräche"
+    if name == "vi_suche_lerne":
+        n = (args.get("name") or "").strip()
+        if not n or len((args.get("quelle") or "").strip()) < 8 or len((args.get("geschichte") or "").strip()) < 10:
+            raise Abgelehnt("name, geschichte (ein Satz) und quelle sind Pflicht")
+        rz = [t.strip() for t in args.get("reize") or [] if t and t.strip()]
+        if not rz:
+            raise Abgelehnt("mindestens ein Reiz (Hashtag), bei dem die Suche gilt")
+        gruppen, _weg, worte = g.lies_filter(args.get("filter") or "")
+        if not gruppen and not worte:
+            raise Abgelehnt("filter braucht mindestens einen Hashtag oder ein Wort")
+        oid = f"suche:{re.sub(r'[^a-z0-9_-]', '-', n.lower())[:40]}"
+        try:
+            o = g.neues_objekt("suche", args["geschichte"].strip()[:500], rz + [f"suche:{oid[6:]}", f"instanz:{instanz}"],
+                               {"name": n, "filter": args["filter"].strip(), "quelle": args["quelle"].strip()[:500]},
+                               wichtigkeit=2, wer=f"ki@{instanz}", oid=oid, grund="vi_suche_lerne")
+        except ValueError as e:
+            raise Abgelehnt(str(e)) from e
+        probe = [o2 for _, o2, _g in g.erinnere(o.daten["filter"], limit=3) if o2.id != o.id]
+        return (f"Suche „{n}“ gelernt ({o.id}) — läuft vor Handlungen mit {', '.join(rz)}; "
+                f"jetzt {len(probe)} Treffer: " + "; ".join(f"[{x.id[:24]}] {x.text[:80]}" for x in probe))
+    if name == "vi_vertiefe":
+        filt = (args.get("filter") or "").strip()
+        if filt.startswith("suche:"):
+            su = g.lade(filt)
+            if not su:
+                raise Abgelehnt(f"gelernte Suche {filt} unbekannt")
+            su.zugriff()
+            filt = su.daten.get("filter", "")
+        elif ":" in filt and " " not in filt and g.lade(filt):
+            o = g.lade(filt)
+            filt = " ".join(t for t in o.hashtags if not t.startswith(g.VERWALTUNG))
+        z = []
+        for i, st in enumerate(g.vertiefe(filt, stufen=min(int(args.get("stufen") or 3), 5)), 1):
+            z.append(f"Stufe {i}: {st['filter'] or '(alles)'} → {st['gesamt']} Objekte"
+                     + (f" · nächster Hashtag: {st['naechster']}" if st["naechster"] else " · nichts Auffälliges mehr"))
+            z += [_zeile(o) for o in st["treffer"]]
+        return "\n".join(z)
+    if name == "vi_reflex_lerne":
+        n = (args.get("name") or "").strip()
+        if not re.fullmatch(r"[a-z][a-z0-9_]{1,40}", n):
+            raise Abgelehnt("name muss a-z, 0-9, _ sein (2–41 Zeichen)")
+        if len((args.get("quelle") or "").strip()) < 8 or len((args.get("beschreibung") or "").strip()) < 10:
+            raise Abgelehnt("beschreibung (ein Satz) und quelle sind Pflicht")
+        grund = reflexe.pruefe(args.get("code") or "", args.get("art") or "")
+        if grund:
+            raise Abgelehnt(grund)
+        rid = f"reflex:{n}"
+        alt = g.lade(rid)
+        o = g.neues_objekt("reflex", args["beschreibung"].strip()[:500], [f"reflex:{n}", f"reflexart:{args['art']}", "modus:test", f"instanz:{instanz}"],
+                           {"name": n, "art": args["art"], "code": args["code"], "quelle": args["quelle"].strip()[:500], "laeufe": 0, "fehler": 0},
+                           wichtigkeit=2, wer=f"ki@{instanz}", oid=rid, modus="test", grund="vi_reflex_lerne" + (" (ersetzt)" if alt else ""))
+        if n not in reflexe.lade_alle():
+            raise Abgelehnt("gespeichert, aber nicht ladbar — siehe Serverprotokoll (journalctl --user -u vi-mcp)")
+        extra = f" — als Werkzeug vi_reflex_{n} verfügbar (Client muss tools/list neu lesen)" if args["art"] == "werkzeug" else ""
+        return f"Reflex {n} ({args['art']}) im Testmodus gespeichert ({o.id}){extra}; vi_reflex_schalte(name, 'aktiv') schaltet scharf"
+    if name == "vi_reflex_liste":
+        z = ["Reflexe (Code im Gedächtnis):"]
+        for _, o, _g in g.erinnere("art:reflex", limit=200):
+            d = o.daten
+            z.append(f"  {d['name']} [{d['art']}, {o.modus}] {d.get('laeufe', 0)} Läufe, {d.get('fehler', 0)} Fehler"
+                     f"{(' — ' + d['letzter_fehler']) if d.get('letzter_fehler') else ''} · {o.text} · Quelle: {d.get('quelle')} · {o.zeit[:16]}")
+            if args.get("code"):
+                z.append("    " + d["code"].replace("\n", "\n    "))
+        return "\n".join(z) if len(z) > 1 else "keine Reflexe"
+    if name == "vi_reflex_schalte":
+        m = args.get("modus")
+        if m not in ("test", "aktiv", "aus"):
+            raise Abgelehnt("modus test | aktiv | aus")
+        o = g.lade(f"reflex:{(args.get('name') or '').strip()}")
+        if not o:
+            raise Abgelehnt(f"Reflex {args.get('name')} unbekannt")
+        o.modus = m
+        if m == "test":
+            o.daten["fehler"] = 0
+        o.hashtags = [t for t in o.hashtags if not t.startswith("modus:")] + [f"modus:{m}"]
+        o.aendere(f"ki@{instanz}", f"modus {m}", "vi_reflex_schalte")
+        g.speichere(o)
+        reflexe.lade_alle()
+        return f"Reflex {o.daten['name']} → {m}"
+    raise Abgelehnt(f"Werkzeug {name} unbekannt")

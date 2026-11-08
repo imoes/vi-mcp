@@ -141,3 +141,25 @@ def test_reflex_defekt_nach_drei_fehlern(gd):
         assert "scheiterte" in h[0]
     assert g.lade("reflex:kaputt").modus == "defekt"
     assert "kaputt" not in reflexe.geladen and reflexe.nachher("t", {}, "e") == []
+
+
+def test_loop_fehler_wird_regel_und_hinweis(gd):
+    from vi_mcp import schleife
+    for i in range(3):
+        v = intuition.vorher("graylog_search", {"q": i})
+        intuition.nachher("graylog_search", {"q": i}, False, 30000, f"TimeoutError: read timed out after {30 + i} s", None, v["vorher_id"])
+    assert schleife.schritt() == 1
+    assert schleife.schritt() == 0  # idempotent: dieselbe Regel nicht doppelt
+    regel = [o for _, o, _g in g.erinnere("art:regel regelart:wiederholter-fehler")][0]
+    assert regel.modus == "test" and regel.daten["treffer"] == 3 and regel.gespraech is None
+    v = intuition.vorher("graylog_search", {"q": "neu"})
+    assert any(h.startswith("Regel [") and "scheiterte 3×" in h for h in v["hinweise"])
+
+
+def test_vorher_ohne_nachher_verschwindet_nicht(gd):
+    s = sitzung.beginne("test", "pytest")
+    with sitzung.im_auftrag(s):
+        intuition.vorher("netbox_get_vms", {"host": "a"})
+    sitzung.beende(s.id)
+    e = [o for _, o, _g in g.erinnere("tool:netbox_get_vms ok:unbekannt")]
+    assert len(e) == 1 and e[0].gespraech == s.serial and e[0].daten["vorher"]["ohne_nachher"]

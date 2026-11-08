@@ -122,15 +122,17 @@ def sichere(s: Sitzung, zustand: str = "offen") -> None:
         return
     werkzeuge: dict[str, int] = {}
     hosts: set[str] = set()
-    fehler = 0
+    fehler = ohne_ergebnis = 0
     for z in zuege:
         werkzeuge[z["tool"]] = werkzeuge.get(z["tool"], 0) + 1
         hosts |= {t[5:] for t in z.get("vorher", {}).get("reize", []) if t.startswith("host:")}
-        fehler += 0 if z["ok"] else 1
+        fehler += 1 if z["ok"] is False else 0
+        ohne_ergebnis += 1 if z["ok"] is None else 0
     o.text = (f"Gespräch {s.serial} ({s.client}, Instanz {s.instanz}, {zustand}): {len(zuege)} Aufrufe, {fehler} Fehler"
+              + (f", {ohne_ergebnis} ohne gemeldetes Ergebnis" if ohne_ergebnis else "")
               + (" · Werkzeuge: " + ", ".join(f"{k} ({v})" for k, v in sorted(werkzeuge.items(), key=lambda kv: -kv[1])[:12]) if werkzeuge else "")
               + (f" · Hosts: {', '.join(sorted(hosts)[:12])}" if hosts else ""))
-    o.daten = {**o.daten, "aufrufe": len(zuege), "fehler": fehler, "werkzeuge": werkzeuge, "zustand": zustand,
+    o.daten = {**o.daten, "aufrufe": len(zuege), "fehler": fehler, "ohne_ergebnis": ohne_ergebnis, "werkzeuge": werkzeuge, "zustand": zustand,
                "gesichert": g.jetzt()}
     o.hashtags = sorted({t for t in o.hashtags if not t.startswith("zustand:")} | {f"zustand:{zustand}"}
                         | {f"tool:{k}" for k in werkzeuge} | {f"skill:{k.split('_')[0]}" for k in werkzeuge}
@@ -145,10 +147,13 @@ def sichere(s: Sitzung, zustand: str = "offen") -> None:
 
 
 def beende(sitzungs_id: str, zustand: str = "beendet") -> bool:
+    from . import intuition  # spät: intuition importiert sitzung
     with _reg_sperre:
         s = _sitzungen.pop(sitzungs_id, None)
     if not s:
         return False
+    with im_auftrag(s):
+        intuition.offene_abschliessen(gespraech=s.serial)
     sichere(s, zustand)
     return True
 

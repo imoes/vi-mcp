@@ -1,0 +1,90 @@
+"""Konfiguration — eine Datei, nur für den Eigentümer lesbar.
+
+Pfad: $VI_MCP_CONFIG oder ~/.config/vi-mcp/config.json. Inhalt:
+  {
+    "bind": "127.0.0.1", "port": 8765,
+    "db": "~/.local/share/vi-mcp/vi.db",
+    "instanzen": {"<name>": {"token_sha256": "<hex>", "reflexe": false}},
+    "ttl": {"<werkzeug>": <sekunden>},
+    "origins": ["http://localhost", "http://127.0.0.1"]
+  }
+Tokens stehen nur als SHA-256 in der Datei; das Token selbst wird beim Anlegen einmal ausgegeben.
+Ohne Instanz startet der Server nicht (kein offener Zugang aus Versehen) — benannt, nicht still.
+"""
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import os
+import secrets
+from dataclasses import dataclass, field
+from pathlib import Path
+
+STANDARD_PFAD = Path("~/.config/vi-mcp/config.json").expanduser()
+
+
+@dataclass
+class Instanz:
+    name: str
+    token_sha256: str
+    reflexe: bool = False
+
+
+@dataclass
+class Konfig:
+    bind: str = "127.0.0.1"
+    port: int = 8765
+    db: Path = Path("~/.local/share/vi-mcp/vi.db").expanduser()
+    instanzen: dict[str, Instanz] = field(default_factory=dict)
+    ttl: dict[str, int] = field(default_factory=dict)
+    origins: list[str] = field(default_factory=lambda: ["http://localhost", "http://127.0.0.1"])
+
+    def instanz_zu(self, token: str | None) -> Instanz | None:
+        """Instanz zum Bearer-Token oder None. Vergleich in konstanter Zeit, über alle Instanzen."""
+        if not token:
+            return None
+        h = hashlib.sha256(token.encode()).hexdigest()
+        treffer = None
+        for i in self.instanzen.values():
+            if hmac.compare_digest(h, i.token_sha256):
+                treffer = i
+        return treffer
+
+
+def pfad() -> Path:
+    return Path(os.environ.get("VI_MCP_CONFIG") or STANDARD_PFAD).expanduser()
+
+
+def lade(p: Path | None = None) -> Konfig:
+    p = p or pfad()
+    roh = json.loads(p.read_text()) if p.exists() else {}
+    k = Konfig()
+    k.bind = roh.get("bind", k.bind)
+    k.port = int(roh.get("port", k.port))
+    k.db = Path(roh.get("db", str(k.db))).expanduser()
+    k.ttl = {w: int(s) for w, s in (roh.get("ttl") or {}).items()}
+    k.origins = list(roh.get("origins") or k.origins)
+    for n, d in (roh.get("instanzen") or {}).items():
+        k.instanzen[n] = Instanz(n, d["token_sha256"], bool(d.get("reflexe", False)))
+    return k
+
+
+def instanz_anlegen(name: str, reflexe: bool = False, p: Path | None = None) -> str:
+    """Instanz anlegen oder ihr Token erneuern. Liefert das neue Token (nur dieses eine Mal sichtbar)."""
+    if not name or not all(c.isalnum() or c in "-_." for c in name):
+        raise ValueError("Instanzname: Buchstaben, Ziffern, - _ .")
+    p = p or pfad()
+    roh = json.loads(p.read_text()) if p.exists() else {}
+    token = secrets.token_urlsafe(32)
+    roh.setdefault("instanzen", {})[name] = {"token_sha256": hashlib.sha256(token.encode()).hexdigest(), "reflexe": reflexe}
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    alte = os.umask(0o077)
+    try:
+        tmp.write_text(json.dumps(roh, indent=2, ensure_ascii=False) + "\n")
+    finally:
+        os.umask(alte)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, p)
+    return token

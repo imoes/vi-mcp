@@ -1,0 +1,133 @@
+"""Block 2: MCP über Streamable HTTP — echter Server auf Zufallsport, echte HTTP-Anfragen."""
+import http.client
+import json
+import threading
+
+import pytest
+
+from vi_mcp import gedaechtnis as g
+from vi_mcp import konfig, server, sitzung
+
+
+@pytest.fixture()
+def srv(tmp_path, monkeypatch):
+    cfg = tmp_path / "config.json"
+    monkeypatch.setenv("VI_MCP_CONFIG", str(cfg))
+    tok_a = konfig.instanz_anlegen("laptop", reflexe=True)
+    tok_b = konfig.instanz_anlegen("fremd", reflexe=False)
+    roh = json.loads(cfg.read_text())
+    roh.update({"port": 0, "db": str(tmp_path / "vi.db")})
+    cfg.write_text(json.dumps(roh))
+    s = server.baue(konfig.lade())
+    th = threading.Thread(target=s.serve_forever, daemon=True)
+    th.start()
+    yield s.server_address[1], tok_a, tok_b
+    s.shutdown()
+    s.server_close()
+    server.beende(s)
+
+
+def anfrage(port, methode, koerper=None, token=None, sid=None, kopf=None):
+    c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    h = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", **(kopf or {})}
+    if token:
+        h["Authorization"] = f"Bearer {token}"
+    if sid:
+        h["Mcp-Session-Id"] = sid
+    c.request(methode, "/mcp", body=json.dumps(koerper) if koerper is not None else None, headers=h)
+    r = c.getresponse()
+    daten = r.read()
+    try:
+        inhalt = json.loads(daten) if daten else None
+    except json.JSONDecodeError:
+        inhalt = daten.decode()
+    return r.status, dict(r.getheaders()), inhalt
+
+
+def init(port, token, name="pytest"):
+    st, kopf, a = anfrage(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                                         "params": {"protocolVersion": "2025-03-26", "clientInfo": {"name": name, "version": "1"},
+                                                    "capabilities": {}}}, token)
+    assert st == 200, a
+    assert a["result"]["protocolVersion"] == "2025-03-26"
+    sid = kopf["Mcp-Session-Id"]
+    st, _, _ = anfrage(port, "POST", {"jsonrpc": "2.0", "method": "notifications/initialized"}, token, sid)
+    assert st == 202
+    return sid
+
+
+def rufe(port, token, sid, name, args, mid=2):
+    st, _, a = anfrage(port, "POST", {"jsonrpc": "2.0", "id": mid, "method": "tools/call", "params": {"name": name, "arguments": args}}, token, sid)
+    assert st == 200, a
+    return a["result"]
+
+
+def test_schutz(srv):
+    port, tok, _ = srv
+    assert anfrage(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"})[0] == 401
+    assert anfrage(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, "falsch")[0] == 401
+    assert anfrage(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, tok, kopf={"Origin": "http://evil.example"})[0] == 403
+    assert anfrage(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, tok)[0] == 400  # Sitzung fehlt
+    assert anfrage(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, tok, "gibtsnicht")[0] == 404
+    assert anfrage(port, "GET", None, tok)[0] == 405
+    c = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    c.request("GET", "/gesund")
+    assert c.getresponse().status == 200
+
+
+def test_zwei_sitzungen_zwei_gespraeche(srv):
+    port, tok_a, tok_b = srv
+    sa, sb = init(port, tok_a, "claude-code"), init(port, tok_b, "anderer-agent")
+    st, _, liste = anfrage(port, "POST", {"jsonrpc": "2.0", "id": 5, "method": "tools/list"}, tok_a, sa)
+    assert {"vi_vorher", "vi_nachher", "vi_erinnere"} <= {t["name"] for t in liste["result"]["tools"]}
+    # Sitzung A meldet eine Handlung zweimal → beim 2. Mal aus dem Gedächtnis
+    v = json.loads(rufe(port, tok_a, sa, "vi_vorher", {"tool": "netbox_get_devices", "args": {"host": "web1"}})["content"][0]["text"])
+    assert v["antwort"] is None
+    rufe(port, tok_a, sa, "vi_nachher", {"tool": "netbox_get_devices", "args": {"host": "web1"}, "ok": True, "dauer_ms": 40,
+                                         "ergebnis": "web1: aktiv", "vorher_id": v["vorher_id"]})
+    v2 = json.loads(rufe(port, tok_b, sb, "vi_vorher", {"tool": "netbox_get_devices", "args": {"host": "web1"}})["content"][0]["text"])
+    assert v2["antwort"] == "web1: aktiv"  # gemeinsames Gedächtnis über Sitzungen und Instanzen
+    # Gelerntes aus B erscheint vor der Handlung in A
+    r = rufe(port, tok_b, sb, "vi_lerne", {"text": "web1 antwortet nur über den Proxy", "hashtags": ["host:web1"],
+                                            "quelle": "curl -v am 08.11."})
+    assert not r["isError"], r
+    v3 = json.loads(rufe(port, tok_a, sa, "vi_vorher", {"tool": "checkmk_get_host", "args": {"host": "web1"}})["content"][0]["text"])
+    assert any("Proxy" in h for h in v3["hinweise"])
+    # Status nennt beide offenen Gespräche
+    status = rufe(port, tok_a, sa, "vi_status", {})["content"][0]["text"]
+    assert "Offene Gespräche: 2" in status
+    # Sitzung A beenden → Gespräch gesichert, Id danach unbekannt
+    serial_a = sitzung.finde_ohne_beruehren(sa).serial
+    assert anfrage(port, "DELETE", None, tok_a, sa)[0] == 204
+    assert anfrage(port, "POST", {"jsonrpc": "2.0", "id": 9, "method": "ping"}, tok_a, sa)[0] == 404
+    gs = g.lade(f"gespraech:{serial_a}")
+    # 2 Handlungen: eine mit nachher, eine nur mit vorher → ok:unbekannt, nicht verschwunden
+    assert gs.daten["zustand"] == "beendet" and gs.daten["aufrufe"] == 2 and gs.daten["ohne_ergebnis"] == 1
+    assert [o.text for _, o, _g in g.erinnere("tool:checkmk_get_host ok:unbekannt")][0].endswith("(vi_nachher fehlt)")
+    assert "instanz:laptop" in gs.hashtags and "host:web1" in gs.hashtags
+
+
+def test_fremde_sitzung_und_reflex_recht(srv):
+    port, tok_a, tok_b = srv
+    sa, sb = init(port, tok_a), init(port, tok_b)
+    assert anfrage(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, tok_b, sa)[0] == 404  # nicht seine Sitzung
+    code = "def run(tool, args, ergebnis):\n    return 'gesehen: ' + tool"
+    r = rufe(port, tok_b, sb, "vi_reflex_lerne", {"name": "echo", "art": "nachher", "code": code,
+                                                   "beschreibung": "meldet jedes Werkzeug", "quelle": "Test Reflex-Recht"})
+    assert r["isError"] and "kein Reflex-Recht" in r["content"][0]["text"]
+    r = rufe(port, tok_a, sa, "vi_reflex_lerne", {"name": "echo", "art": "nachher", "code": code,
+                                                   "beschreibung": "meldet jedes Werkzeug", "quelle": "Test Reflex-Recht"})
+    assert not r["isError"], r
+    n = json.loads(rufe(port, tok_b, sb, "vi_nachher", {"tool": "x_y", "ok": True, "ergebnis": "e"})["content"][0]["text"])
+    assert n["hinweise"] == ["Reflex echo (test): gesehen: x_y"]
+
+
+def test_stapel_und_unbekanntes(srv):
+    port, tok, _ = srv
+    sid = init(port, tok)
+    st, _, a = anfrage(port, "POST", [{"jsonrpc": "2.0", "id": 1, "method": "ping"},
+                                      {"jsonrpc": "2.0", "id": 2, "method": "gibts/nicht"},
+                                      {"jsonrpc": "2.0", "method": "notifications/irgendwas"}], tok, sid)
+    assert st == 200 and len(a) == 2 and a[0]["result"] == {} and a[1]["error"]["code"] == -32601
+    st, _, a = anfrage(port, "POST", {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "nix"}}, tok, sid)
+    assert a["error"]["code"] == -32602
