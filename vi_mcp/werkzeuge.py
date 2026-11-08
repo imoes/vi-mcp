@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import gedaechtnis as g
-from . import bandit, fragen, intuition, lernen, messung, reflexe, schlaf, selbst, sitzung, skills, vektor
+from . import bandit, fragen, intuition, lager, lernen, messung, reflexe, schlaf, selbst, sitzung, skills, vektor
 from .schleife import stand as loop_stand, LOOP_S
 
 _O = {"type": "object"}
@@ -59,9 +59,13 @@ TOOLS = [
                     "aus ≥ 2 Tagen). Wird wirksam, wenn eine ANDERE vertraute Instanz ihn mit vi_bestaetige bestätigt.",
      "inputSchema": _schema({"bereich": {"type": "string", "enum": list(selbst.BEREICHE)}, "satz": _S, "grund": _S, "belege": _TAGS},
                             ["bereich", "satz", "grund", "belege"])},
-    {"name": "vi_schlaf", "description": "VI: letzter Konsolidierungslauf (Bericht) — oder jetzt schlafen (jetzt=true, nur vertraute Instanz). "
-                                         "Ein Objekt (id) aus dem Archiv holen: id.",
-     "inputSchema": _schema({"jetzt": {"type": "boolean"}, "id": _S})},
+    {"name": "vi_schlaf", "description": "VI: letzter Konsolidierungslauf (Bericht) — oder jetzt schlafen (jetzt=true, nur vertraute Instanz).",
+     "inputSchema": _schema({"jetzt": {"type": "boolean"}})},
+    {"name": "vi_lager", "description": "VI-Housekeeping: Langzeitlager für nicht mehr verwendete Einträge — Stand und Stummel (filter optional), "
+                                        "oder der vollständige Inhalt eines Eintrags (id). Holt nichts zurück.",
+     "inputSchema": _schema({"id": _S, "filter": _S, "limit": {"type": "integer"}})},
+    {"name": "vi_lager_hole", "description": "VI-Housekeeping: einen Eintrag aus dem Langzeitlager zurück in den aktiven Speicher holen — mit Grund.",
+     "inputSchema": _schema({"id": _S, "grund": _S}, ["id", "grund"])},
     {"name": "vi_modell", "description": "VI: das gelernte Router-Modell — Zustand (aktiv/test/zu wenig Daten), Beobachtungen, Holdout-AUC und die "
                                          "stärksten Gewichte je Merkmal (positiv = erhöht P(ok)). Erklärt, warum ein Hinweis vorne steht.",
      "inputSchema": _schema({})},
@@ -85,7 +89,9 @@ TOOLS = [
      "description": "VI: Erkenntnis als Objekt speichern — mit Hashtags art:wert (z. B. tool:graylog_search, host:web1.example, "
                     "thema:timeout) und quelle (Pflicht). Erscheint vor passenden Handlungen als Hinweis; Objekte mit "
                     "gemeinsamen Hashtags werden verknüpft.",
-     "inputSchema": _schema({"text": _S, "hashtags": _TAGS, "quelle": _S, "wichtigkeit": {"type": "integer", "description": "0–3 (Standard 1)"}},
+     "inputSchema": _schema({"text": _S, "hashtags": _TAGS, "quelle": _S, "wichtigkeit": {"type": "integer", "description": "0–3 (Standard 1)"},
+                             "ausgang": {"type": "string", "enum": ["gut", "schlecht"],
+                                         "description": "optional: beschreibt die Erkenntnis einen funktionierenden oder gestörten Zustand? Der Schlaf vergleicht neue Erfahrungen damit."}},
                             ["text", "hashtags", "quelle"])},
     {"name": "vi_erinnere",
      "description": "VI: im Gedächtnis suchen — art:wert, !art:wert, (a OR b), Präfix art:wert*, Freitext (Volltext). Gewichtet nach "
@@ -225,12 +231,23 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
         except ValueError as e:
             raise Abgelehnt(str(e)) from e
         return f"Vorschlag {o.id} gespeichert (test) — eine andere vertraute Instanz übernimmt ihn mit vi_bestaetige(id, grund)"
-    if name == "vi_schlaf":
+    if name == "vi_lager":
         if args.get("id"):
-            d = schlaf.hole_archiv(args["id"])
+            o = _sichtbar(args["id"], instanz)
+            d = lager.inhalt(o.id)
             if d is None:
-                raise Abgelehnt(f"{args['id']} ist nicht im Archiv")
+                raise Abgelehnt(f"{o.id} liegt nicht im Langzeitlager")
             return json.dumps(d, ensure_ascii=False, indent=1)[:20000]
+        treffer = g.erinnere(("modus:archiviert " + (args.get("filter") or "")).strip(), limit=min(int(args.get("limit") or 20), 100))
+        return "\n".join([f"Langzeitlager: {lager.zeile()}"] + [_zeile(o) for _, o, _g in treffer])
+    if name == "vi_lager_hole":
+        o = _sichtbar(args.get("id"), instanz)
+        try:
+            o = lager.zurueckholen(o.id, f"ki@{instanz}", args.get("grund") or "")
+        except ValueError as e:
+            raise Abgelehnt(str(e)) from e
+        return f"zurück im aktiven Speicher: {_zeile(o)}"
+    if name == "vi_schlaf":
         if args.get("jetzt"):
             if not reflex_recht:
                 raise Abgelehnt(f"Instanz {instanz} ist nicht vertraut — Schlaf von Hand nur mit Reflex-Recht")
@@ -295,6 +312,7 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
                 f"Erfahrung 24 h: {n} Aufrufe, {aus} aus dem Gedächtnis, {fehler} Fehler · Antwort-TTL {intuition.TTL_STANDARD} s (max {intuition.TTL_MAX})\n"
                 + messung.zeile(messung.hinweis_lift(24, betrachter=None)) + "\n"
                 f"Schlaf: {(schlaf.letzter().text if schlaf.letzter() else 'noch keiner')[:200]}\n"
+                f"Langzeitlager: {lager.zeile()}\n"
                 f"Reflex-Sandbox: {__import__('vi_mcp.sandbox', fromlist=['x']).beschreibung()}\n"
                 f"Router: {(lernen.modell().text if lernen.modell() else 'kein Modell')[:160]} · Rangordnung ohne Modell: Thompson Sampling (bandit), sobald Hinweise bewertet sind\n"
                 f"Loop: alle {LOOP_S} s, {ls['laeufe']} Läufe, zuletzt {ls['zuletzt'] or '—'}, {ls['regeln_neu']} Regeln daraus, "
@@ -306,7 +324,10 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
         if not tags:
             raise Abgelehnt("mindestens ein Hashtag art:wert (z. B. tool:graylog_search oder host:…)")
         try:
-            o = g.neues_objekt("erkenntnis", args["text"].strip()[:1000], tags, {"quelle": args["quelle"].strip()[:500]},
+            if args.get("ausgang") not in (None, "gut", "schlecht"):
+                raise ValueError("ausgang muss gut oder schlecht sein")
+            o = g.neues_objekt("erkenntnis", args["text"].strip()[:1000], tags,
+                               {"quelle": args["quelle"].strip()[:500], **({"ausgang": args["ausgang"]} if args.get("ausgang") else {})},
                                wichtigkeit=int(args.get("wichtigkeit") or 1), wer=f"ki@{instanz}", grund="vi_lerne")
         except ValueError as e:
             raise Abgelehnt(str(e)) from e
@@ -408,8 +429,9 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
             if o.instanz != instanz:
                 # Zusammenfassung ist geteilt, der Rohverlauf privat (Argumente können Zugangsdaten enthalten)
                 return _zeile(o) + f"\n  Verlauf privat (Instanz {o.instanz}) — nur die Zusammenfassung ist geteilt"
-            zuege = json.loads(zlib.decompress(row[0])) if row else []
-            z = [_zeile(o), f"  {len(zuege)} Züge (komprimiert {len(row[0]) if row else 0} Bytes):"]
+            roh = row[0] if row else lager.roh(args["serial"])  # alte Verläufe liegen im Langzeitlager
+            zuege = json.loads(zlib.decompress(roh)) if roh else []
+            z = [_zeile(o), f"  {len(zuege)} Züge (komprimiert {len(roh) if roh else 0} Bytes):"]
             z += [f"  {x['zeit'][11:19]} {x['tool']} ok={x['ok']} {x['dauer_ms']} ms reize={','.join(x.get('vorher', {}).get('reize', []))[:80]}"
                   for x in zuege[-40:]]
             return "\n".join(z)

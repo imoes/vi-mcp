@@ -73,7 +73,7 @@ gemeinsamen inhaltlichen Hashtags (Zettelkasten-Idee, A-Mem) und von jeder Erfah
 
 **Modi** (erschöpfend): `aktiv`, `test`, `aus`, `defekt`, `strittig`, `widerlegt`, `archiviert`. Widerlegte Objekte
 erscheinen in keiner Suche; strittige erscheinen mit Vermerk; archivierte nur, wenn der Filter `modus:archiviert`
-enthält (Stummel: Text, Hashtags, Zeit; Inhalt komprimiert in Tabelle `archiv`, per `vi_schlaf(id)` abrufbar).
+enthält (Stummel: gekürzter Text, Hashtags, Zeit; der Inhalt liegt im Langzeitlager).
 
 **Urheber und Sicht** (Spalten `instanz`, `sicht`): Jedes Objekt gehört der Instanz, deren Token die Anfrage trug
 (Objekte des Loops: Instanz `vi`); das Hashtag `instanz:<name>` wird daraus gesetzt und ist nicht frei wählbar.
@@ -208,9 +208,8 @@ Ein Lauf im Loop-Thread (`schlaf.py`), nachts um 03:00 UTC oder sobald die Wicht
 Triage (Überraschung + Wichtigkeit + Zukunftsrelevanz) → Replay nach (host, skill) mit älteren Erfahrungen
 verschränkt (CLS: Neues gegen Altes lesen, nicht überschreiben) → Schema-Abgleich (**neue** Erfahrungen gegen
 bestehende Erkenntnis: gleicher Ausgang = Belegkanten; anderer = `konflikt:offen`, keine stille Änderung) →
-Abstraktion (Cluster ohne Schema, ≥ 3 Erfahrungen an ≥ 2 Tagen → Erkenntnis `test` aus Vorlage mit Belegkanten;
-LLM-Variante nicht gebaut) → Archiv (Erfahrungen > 30 d, nie zugegriffen, ohne Belegkante) → Selbst-Ist → Bericht.
-Erkenntnisse, Regeln, Suchen, Reflexe werden nie automatisch archiviert. Eine Bestätigung durch den Server zählt
+Abstraktion (Cluster ohne Schema, ≥ 3 Erfahrungen an ≥ 2 Tagen → Erkenntnis `test` aus Vorlage mit Belegkanten) →
+Housekeeping (siehe „Langzeitlager“) → Selbst-Ist → Bericht. Eine Bestätigung durch den Server zählt
 nicht als fremde Instanz (kein Gewicht durch Automatik).
 
 ## Lernen — der Router lernt seine Gewichte
@@ -250,6 +249,24 @@ dem Produktivhost braucht ≈ 1 s je Text (gemessen 08.11.2026), zu langsam für
 entscheidet eine Instanz, nicht der Server). `vi_erinnere(filter, semantisch=true)` bettet den Freitext ausdrücklich
 jetzt ein und ordnet Kandidaten nach Nähe — die Dauer steht im Ergebnis. Ohne Konfiguration: Schritte benannt
 übersprungen, Werkzeug lehnt mit Grund ab.
+
+## Housekeeping — das Langzeitlager
+
+`lager.py`, Schlaf-Schritt 5. Nicht mehr verwendete Einträge wandern in eine eigene Datei (`<db>-lager.db`, 0600), damit
+der aktive Speicher klein bleibt. Im Gedächtnis bleibt ein Stummel.
+
+| Was | Wann (Startwerte, konfig `lager_tage`) |
+|---|---|
+| Erfahrung | 30 Tage alt, nie abgerufen, kein Beleg |
+| Schlaf-Bericht | 90 Tage alt |
+| Erkenntnis, Regel, Suche, Skill | 180 Tage weder abgerufen, geändert noch als Hinweis gezeigt |
+| Rohverlauf eines Gesprächs | 30 Tage nach der letzten Änderung, Gespräch nicht offen |
+
+Nie automatisch: Selbst, Modell, Fragen, Reflexe (das würde ein Verhalten still abschalten), Gesprächs-Zusammenfassungen.
+Passt gelagertes Wissen zu einer Handlung, nennt `vi_vorher` das in einer Zeile. `vi_lager` zeigt Stand und Inhalt,
+`vi_lager_hole(id, grund)` holt einen Eintrag im alten Modus zurück. Die Löschwege für Gespräche und Instanzen gelten auch
+im Lager. Die Hauptdatei wird neu geschrieben, wenn über 25 % frei sind. Die Fristen sind unkalibriert. *Beobachtungspunkt:*
+wie oft `vi_lager_hole` nötig wird; häufiges Zurückholen heißt, die Frist ist zu kurz.
 
 ## Reflexion — das Sprachmodell denkt im Schlaf nach (Stufe 4)
 

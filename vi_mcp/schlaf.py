@@ -9,18 +9,15 @@ Schritte — jeder zählt, jeder steht im Bericht (Objekt `schlaf:<zeit>`, Zusta
   4b Reflexion  Sprachmodell formuliert je Cluster ohne Schema höchstens eine Erkenntnis (test, geprüft, Belegkanten) — reflexion.py
   4 Abstraktion Rückfall aus Vorlage für Cluster ohne Reflexion: ≥ 3 Erfahrungen an ≥ 2 Tagen → Erkenntnis (test)
   4c Skills     Erfolg nach Fehlern im selben Gespräch → Skill (Lösungsweg); scheiternde Skills → strittig; gleiche Probleme → fusion:vorschlag
-  5 Archiv      Erfahrungen älter als ARCHIV_TAGE, nie zugegriffen, ohne Belegkante → `archiviert` (Stummel bleibt)
+  5 Housekeeping nicht mehr verwendete Einträge und alte Rohverläufe ins Langzeitlager (lager.py; Stummel bleibt)
   6 Selbst-Ist  Kompetenz je Skill, Schwächen, Beziehungen neu berechnen
   7 Vektoren    fehlende Embeddings geteilter Wissensobjekte nachziehen (Batch), semantische Nähe → Kanten / dublette:moeglich
   8 Lernen      Router-Modell trainieren (lernen.py)
   9 Bericht
-Erkenntnisse, Regeln, Suchen, Reflexe werden nie automatisch archiviert.
 """
 from __future__ import annotations
 
-import json
 import time
-import zlib
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
@@ -33,15 +30,8 @@ SCHWELLE = 40
 TOP_N = 200
 REPLAY_ALTE = 5
 CLUSTER_MIN, CLUSTER_TAGE = 3, 2
-ARCHIV_TAGE = 30
 ZEITRAUM_IST_TAGE = 30
 _GEWICHT = {"neu": 1.0, "wiederholt": 0.6, "erholt": 0.6, "chronisch": 0.2, "keine": 0.0, "unbekannt": 0.0}
-
-
-def _tabelle() -> None:
-    with g.sperre:
-        g.db().execute("CREATE TABLE IF NOT EXISTS archiv (id TEXT PRIMARY KEY, zeit TEXT NOT NULL, roh BLOB NOT NULL)")
-        g.db().commit()
 
 
 def letzter() -> g.Objekt | None:
@@ -69,7 +59,7 @@ def _inhalt(o: g.Objekt) -> set[str]:
 
 def lauf(grund: str) -> g.Objekt:
     """Ein Schlaf. Liefert den Bericht; Fehler eines Schritts brechen nicht die anderen ab, sondern stehen im Bericht."""
-    _tabelle()
+    from . import lager
     t0 = time.monotonic()
     l = letzter()
     seit = l.zeit if l else "1970-01-01T00:00:00+00:00"
@@ -89,7 +79,7 @@ def lauf(grund: str) -> g.Objekt:
     schritt("4b_reflexion", lambda: _reflexion(bericht))  # Sprachmodell zuerst (Stufe 4); was es belegt erklärt, gilt als Schema
     schritt("4_abstraktion", lambda: _abstraktion(bericht))  # Vorlage als Rückfall für Cluster ohne Reflexion
     schritt("4c_skills", lambda: _skills(seit))
-    schritt("5_archiv", lambda: _archiv())
+    schritt("5_lager", lambda: lager.aufraeumen())
     schritt("6_selbst_ist", lambda: _selbst_ist())
     schritt("7_vektoren", lambda: _vektoren())
     schritt("7b_naehe", lambda: _naehe())
@@ -100,7 +90,7 @@ def lauf(grund: str) -> g.Objekt:
             f"{bericht['schritte'].get('3_schema', {}).get('belegt', 0)} Erkenntnisse belegt, "
             f"{bericht['schritte'].get('3_schema', {}).get('konflikte', 0)} Konflikte, "
             f"{bericht['schritte'].get('4_abstraktion', 0)} neue Erkenntnisse (test), "
-            f"{bericht['schritte'].get('5_archiv', 0)} Erfahrungen archiviert, {dauer} ms"
+            f"{bericht['schritte'].get('5_lager', {}).get('eingelagert', 0)} Einträge ins Langzeitlager, {dauer} ms"
             + (f" · Fehler: {'; '.join(bericht['fehler'])[:300]}" if bericht["fehler"] else ""))
     bericht["top_n"] = len(bericht.pop("top", []))
     bericht["cluster_n"] = len(bericht.pop("cluster", []))
@@ -236,40 +226,6 @@ def _abstraktion(bericht: dict) -> int:
         bericht["neu"].append(e.id)
         neu += 1
     return neu
-
-
-def _archiv() -> int:
-    grenze = (datetime.now(timezone.utc) - timedelta(days=ARCHIV_TAGE)).isoformat(timespec="seconds")
-    with g.sperre:
-        ids = [r[0] for r in g.db().execute(
-            "SELECT id FROM objekt o WHERE art = 'erfahrung' AND modus = 'aktiv' AND zeit < ? AND zugriffe = 0 AND NOT EXISTS "
-            "(SELECT 1 FROM kante k WHERE k.a = o.id AND (k.b LIKE 'erkenntnis:%' OR k.b LIKE 'regel:%' OR k.b LIKE 'suche:%' OR k.b LIKE 'selbst:%'))",
-            (grenze,))]
-    for oid in ids:
-        archiviere(oid, f"Schlaf: älter als {ARCHIV_TAGE} Tage, nie zugegriffen, ohne Belegkante")
-    return len(ids)
-
-
-def archiviere(oid: str, grund: str) -> None:
-    """Stummel bleibt (Text, Hashtags, Zeit); `daten` komprimiert in die Tabelle archiv. Benannter Modus."""
-    o = g.lade(oid)
-    if not o or o.modus == "archiviert":
-        return
-    roh = zlib.compress(json.dumps(o.daten, ensure_ascii=False).encode())
-    with g.sperre:
-        g.db().execute("INSERT OR REPLACE INTO archiv (id, zeit, roh) VALUES (?,?,?)", (oid, g.jetzt(), roh))
-        g.db().commit()
-    o.daten = {"archiviert": g.jetzt(), "grund": grund, "bytes": len(roh)}
-    o.modus = "archiviert"
-    o.hashtags = [t for t in o.hashtags if not t.startswith("modus:")] + ["modus:archiviert"]
-    o.aendere("vi", "archiviert", grund)
-    g.speichere(o)
-
-
-def hole_archiv(oid: str) -> dict | None:
-    with g.sperre:
-        row = g.db().execute("SELECT roh FROM archiv WHERE id = ?", (oid,)).fetchone()
-    return json.loads(zlib.decompress(row[0])) if row else None
 
 
 def _vektoren() -> dict:

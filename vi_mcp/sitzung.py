@@ -199,6 +199,8 @@ def loesche_gespraech(serial: str, instanz: str, grund: str) -> dict:
         ids = [r[0] for r in g.db().execute("SELECT id FROM objekt WHERE gespraech = ? AND sicht = 'privat'", (serial,))]
         g.db().execute("DELETE FROM gespraech_roh WHERE serial = ?", (serial,))
         g.db().commit()
+    from . import lager
+    lager.loesche_roh(serial)
     g.loesche(ids)
     o.text = f"Gespräch {serial} ({o.daten.get('client', '?')}, Instanz {o.instanz}): Inhalt gelöscht am {g.jetzt()[:16]} — {grund.strip()[:200]}"
     o.daten = {"serial": serial, "client": o.daten.get("client"), "zustand": "geloescht",

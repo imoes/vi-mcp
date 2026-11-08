@@ -204,7 +204,8 @@ def baue(k: konfig.Konfig) -> list[Server]:
     intuition.ttl_je_werkzeug.update(k.ttl)
     n = len(reflexe.lade_alle())
     selbst.kern()  # Selbst anlegen, falls neu (Version 1 aus den Projektregeln)
-    from . import reflexion, vektor
+    from . import lager, reflexion, vektor
+    lager.TAGE.update(k.lager_tage)
     vektor.konfig = k.embed
     reflexion.konfig = k.llm
     handler = type("KHandler", (Handler,), {"k": k})

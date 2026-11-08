@@ -59,6 +59,9 @@ VERWALTUNG = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:"
 sperre = threading.RLock()
 _db: sqlite3.Connection | None = None
 fts = False
+#: aktive Datenbank und Langzeitlager (lager.py) — gesetzt von oeffne()
+pfad_aktiv: Path | None = None
+lager_pfad: Path | None = None
 
 #: Das Gespräch (Seriennummer), in dessen Auftrag gerade gearbeitet wird — je Anfrage-Thread gesetzt
 aktuelles_gespraech: contextvars.ContextVar[str | None] = contextvars.ContextVar("aktuelles_gespraech", default=None)
@@ -85,7 +88,7 @@ def db() -> sqlite3.Connection:
 def oeffne(pfad: Path) -> None:
     """Datenbank öffnen bzw. anlegen. Datei und Begleitdateien nur für den Eigentümer lesbar (0600):
     das Gedächtnis enthält Gesprächsverläufe und Werkzeugergebnisse, darin können Zugangsdaten stehen."""
-    global _db, fts
+    global _db, fts, pfad_aktiv, lager_pfad
     pfad.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     alte_umask = os.umask(0o077)
     try:
@@ -123,6 +126,7 @@ def oeffne(pfad: Path) -> None:
         if _db is not None:
             _db.close()
         _db = con
+        pfad_aktiv, lager_pfad = pfad, pfad.with_name(f"{pfad.stem}-lager.db")
 
 
 def _migriere(con: sqlite3.Connection) -> None:
@@ -143,6 +147,12 @@ def _migriere(con: sqlite3.Connection) -> None:
     if n:
         log(f"Migration: {n} Cache-Hashtags frage: → cache:")
     con.execute("CREATE INDEX IF NOT EXISTS objekt_instanz ON objekt(instanz, sicht)")
+    # Die Tabelle archiv (0.4–0.9) ist durch das Langzeitlager ersetzt; sie wird nur entfernt, wenn sie leer ist
+    if con.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'archiv'").fetchone():
+        if con.execute("SELECT COUNT(*) FROM archiv").fetchone()[0] == 0:
+            con.execute("DROP TABLE archiv")
+        else:
+            log("Tabelle archiv enthält Einträge und bleibt bestehen — bitte prüfen")
     # Flache Sicht auf Beobachtungen (docs/TRAINING.md 4a): eine Quelle der Wahrheit (objekt/tag/daten), nur anders gelesen
     con.execute("DROP VIEW IF EXISTS beobachtung")
     con.execute("""CREATE VIEW beobachtung AS
@@ -169,6 +179,8 @@ def sichtbar_fuer(o: "Objekt", instanz: str | None) -> bool:
 
 def schliesse() -> None:
     global _db
+    from . import lager
+    lager.schliesse()
     with sperre:
         if _db is not None:
             _db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -256,7 +268,9 @@ class Objekt:
     def verknuepfe(self, anderes_id: str, grund: str) -> None:
         with sperre:
             for a, b in ((self.id, anderes_id), (anderes_id, self.id)):
-                db().execute("INSERT OR IGNORE INTO kante (a, b, grund, zeit) VALUES (?,?,?,?)", (a, b, grund[:200], jetzt()))
+                # Ein Beleg wiegt mehr als eine automatische Kante und ersetzt sie; umgekehrt nie
+                db().execute("INSERT INTO kante (a, b, grund, zeit) VALUES (?,?,?,?) ON CONFLICT (a, b) DO UPDATE SET grund = excluded.grund, "
+                             "zeit = excluded.zeit WHERE excluded.grund LIKE 'Beleg%' AND kante.grund NOT LIKE 'Beleg%'", (a, b, grund[:200], jetzt()))
             db().commit()
 
     def zugriff(self) -> None:
@@ -320,7 +334,9 @@ def speichere(o: Objekt) -> Objekt:
 
 
 def loesche(oids: list[str]) -> int:
-    """Objekte samt Hashtags, Volltext und Kanten entfernen — keine hängenden Kanten auf Nichts."""
+    """Objekte samt Hashtags, Volltext, Kanten und Lagerinhalt entfernen — keine hängenden Kanten, keine Reste im Lager."""
+    from . import lager
+    lager.loesche(oids)
     with sperre:
         for a in oids:
             db().execute("DELETE FROM objekt WHERE id = ?", (a,))

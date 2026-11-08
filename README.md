@@ -35,7 +35,7 @@ erscheint der nächsten vor der passenden Handlung als Hinweis.
 
 ```bash
 cd ~/Dev/code/vi-mcp
-python3 -m pytest -q tests          # 80 Tests (Synthetik-Test braucht scikit-learn: .venv), nur Standardbibliothek + pytest
+python3 -m pytest -q tests          # 90 Tests (Synthetik-Test braucht scikit-learn: .venv), nur Standardbibliothek + pytest
 deploy/install.sh                   # Instanz $USER anlegen, systemd-User-Dienst starten
 curl -s http://127.0.0.1:8765/gesund
 claude mcp add --transport http -s user vi-mcp http://127.0.0.1:8765/mcp \
@@ -62,7 +62,8 @@ Voraussetzungen: Python ≥ 3.11 (getestet mit 3.12.3), SQLite mit FTS5 (geteste
 | `vi_erfahrung` | **Hinweis-Lift** (Erfolg mit vs. ohne Hinweis) + Statistik je Werkzeug |
 | `vi_loesche_gespraech` | privaten Inhalt eines eigenen Gesprächs löschen — Grabstein mit Grund bleibt |
 | `vi_selbst` · `vi_selbst_vorschlag` | **Selbst**: Erzählung, Soll/Ist, Versionen; Soll ändern nur mit Belegen + fremder vertrauter Bestätigung |
-| `vi_schlaf` | letzter Konsolidierungslauf; `jetzt=true` (vertraut) schläft sofort; `id` holt aus dem Archiv |
+| `vi_schlaf` | letzter Konsolidierungslauf; `jetzt=true` (vertraut) schläft sofort |
+| `vi_lager` · `vi_lager_hole` | **Housekeeping**: Langzeitlager ansehen, Einträge zurückholen |
 | `vi_geloest` · `vi_skills` · `vi_skill` · `vi_skill_fusion` | **Skills**: Lösungswege melden, ansehen, zusammenführen |
 | `vi_modell` | das gelernte Router-Modell: Zustand, Beobachtungen, Holdout-AUC, stärkste Gewichte |
 | `vi_gespraech` | Gespräche: Liste, Verlauf einer Seriennummer, Volltextsuche |

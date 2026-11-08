@@ -3,6 +3,32 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.10.0 — 2026-11-08 — Housekeeping
+
+### Was ist neu
+
+- **Langzeitlager** (`lager.py`): Nicht mehr verwendete Einträge und alte Rohverläufe wandern in eine eigene Datei; ein
+  Stummel bleibt. `vi_vorher` nennt passendes gelagertes Wissen, `vi_lager` und `vi_lager_hole` zeigen und holen zurück.
+  *Nachweis:* `tests/test_lager.py` (11 Tests: Fristen, Beleg-Schutz, Rückholung, private Sicht, Löschen im Lager, Absturz
+  zwischen den Dateien, Verdichtung).
+- `vi_lerne` nimmt optional `ausgang` (gut/schlecht) an.
+
+### Was hat sich geändert
+
+- **Auch Erkenntnisse, Regeln, Suchen und Skills können jetzt eingelagert werden** (180 Tage ungenutzt). Bis 0.9.1 galt: nie automatisch.
+- `vi_schlaf(id)` entfällt; dafür `vi_lager(id)`.
+
+### Was wurde behoben
+
+- Eine Beleg-Kante wurde still verworfen, wenn zwischen den Objekten schon eine automatische Kante bestand.
+  *Nachweis:* `test_beleg_ersetzt_automatische_kante_nicht_umgekehrt`.
+- Fast jede Erfahrung mit gezeigtem Hinweis galt als Beleg und wäre nie archiviert worden; jetzt zählen nur echte Belege.
+  *Nachweis:* `test_nur_echte_belege_schuetzen`.
+
+### Was fehlt noch
+
+- Die Fristen sind Startwerte ohne Betriebsdaten.
+
 ## 0.9.1 — 2026-11-08 — Hook datensparsam
 
 ### Was hat sich geändert

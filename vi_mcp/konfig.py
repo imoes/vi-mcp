@@ -42,6 +42,7 @@ class Konfig:
     ttl: dict[str, int] = field(default_factory=dict)
     origins: list[str] = field(default_factory=lambda: ["http://localhost", "http://127.0.0.1"])
     embed: dict | None = None
+    lager_tage: dict[str, int] = field(default_factory=dict)
     llm: dict | None = None
 
     def instanz_zu(self, token: str | None) -> Instanz | None:
@@ -71,6 +72,7 @@ def lade(p: Path | None = None) -> Konfig:
     k.ttl = {w: int(s) for w, s in (roh.get("ttl") or {}).items()}
     k.origins = list(roh.get("origins") or k.origins)
     k.embed = roh.get("embed") or None
+    k.lager_tage = {a: int(t) for a, t in (roh.get("lager_tage") or {}).items()}
     k.llm = roh.get("llm") or None
     for n, d in (roh.get("instanzen") or {}).items():
         k.instanzen[n] = Instanz(n, d["token_sha256"], bool(d.get("reflexe", False)))

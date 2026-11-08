@@ -31,7 +31,7 @@ code { font-family: var(--mono); font-size: .84em; background: var(--accent-soft
 
 <div class="seite">
 <header>
-  <div class="kopf">Technische Erläuterung · im Stil von Data · System vi-mcp 0.9.1</div>
+  <div class="kopf">Technische Erläuterung · im Stil von Data · System vi-mcp 0.10.0</div>
   <h1>Lernen ohne Fine-Tuning</h1>
   <p class="untertitel">Alle Angaben beschreiben das reale System. Stand: 8. November 2026.</p>
 </header>
@@ -71,7 +71,7 @@ Aktualität:  1 h  0,81  ·  1 d  0,38  ·  7 d  0,21  ·  30 d  0,14</div>
   <h2>Konsolidierung</h2>
   <p>Um 03:00 UTC, oder sobald die Summe der Wichtigkeit neuer Erfahrungen 40 erreicht, beginnt ein Konsolidierungslauf. Wir nennen ihn Schlaf, weil er dem biologischen Vorbild funktional ähnelt. Neue Erfahrungen werden nach Host und Fachbereich gruppiert und gemeinsam mit älteren gelesen. Stimmen sie mit einer bestehenden Erkenntnis überein, entstehen Belegkanten. Widersprechen sie ihr, erhält sie die Kennzeichnung <code>konflikt:offen</code>. Eine stille Änderung findet nicht statt.</p>
   <p>Anschließend wird das Sprachmodell selbst gefragt, was aus einer Gruppe von Erfahrungen folgt. Zulässig ist höchstens ein Satz mit 300 Zeichen und mindestens drei Belegen. Ein deterministischer Prüfer verwirft jede Antwort mit erfundenen Belegen oder mit Anweisungsmustern. Das Ergebnis bleibt vorläufig, bis eine andere Instanz es bestätigt.</p>
-  <p>Die Wichtigkeit einer Erfahrung folgt ihrem Überraschungswert: 3 für einen neuen Fehler, 2 für einen wiederholten oder für einen Erfolg nach Fehlern, 1 für einen chronischen, 0 für das Erwartete. Erfahrungen, die älter als 30 Tage sind, nie abgerufen wurden und nichts belegen, wandern ins Archiv. Ein Stummel bleibt auffindbar.</p>
+  <p>Die Wichtigkeit einer Erfahrung folgt ihrem Überraschungswert: 3 für einen neuen Fehler, 2 für einen wiederholten oder für einen Erfolg nach Fehlern, 1 für einen chronischen, 0 für das Erwartete. Nicht mehr verwendete Einträge verlassen den aktiven Speicher und wandern in ein getrenntes Langzeitlager: Erfahrungen nach 30 Tagen, Wissen nach 180 Tagen ohne Nutzung. Ein Stummel bleibt auffindbar, und der vollständige Inhalt lässt sich mit Angabe eines Grundes zurückholen.</p>
 </section>
 
 <section>

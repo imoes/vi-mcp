@@ -126,6 +126,8 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     if uebrig > 0:
         aus_gedaechtnis.append(f"… {uebrig} weitere Treffer im Gedächtnis — vi_vertiefe(\"{' '.join(such_reize)}\") zeigt sie")
     hinweise += aus_gedaechtnis
+    from . import lager
+    hinweise += lager.hinweis(such_reize)
     antwort, alter_s, ttl = None, None, None
     if lesend(tool, ist_lesend):
         ttl = min(ttl_je_werkzeug.get(tool, TTL_STANDARD), TTL_MAX)

@@ -56,8 +56,10 @@ def verbuche(gezeigt: list[str], ok: bool | None) -> int:
             if not oid.startswith(HINWEIS_ARTEN):
                 continue
             # JSON-Zähler in daten relativ erhöhen — kein Lesen-Ändern-Schreiben über die Objekt-Klasse (kein verlorener Zähler)
+            # zuletzt_gezeigt zählt fürs Housekeeping als Verwendung, verändert aber die Aktualität nicht (kein Matthäus-Effekt)
             cur = g.db().execute("UPDATE objekt SET daten = json_set(daten, '$.nuetzlich.' || ?, "
-                                 "COALESCE(json_extract(daten, '$.nuetzlich.' || ?), 0) + 1) WHERE id = ?", (feld, feld, oid))
+                                 "COALESCE(json_extract(daten, '$.nuetzlich.' || ?), 0) + 1, '$.zuletzt_gezeigt', ?) WHERE id = ?",
+                                 (feld, feld, g.jetzt(), oid))
             n += cur.rowcount
         g.db().commit()
     return n

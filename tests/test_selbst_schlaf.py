@@ -109,26 +109,6 @@ def test_schlaf_abstraktion_schema_konflikt_und_bericht(gd):
         werkzeuge.rufe("vi_schlaf", {"jetzt": True}, "b", False)
 
 
-def test_schlaf_archiviert_alte_unbenutzte_erfahrungen(gd):
-    alt_frei = _erfahrung("netbox_get_sites", "h1", True)
-    alt_belegt = _erfahrung("netbox_get_sites", "h2", True)
-    jung = _erfahrung("netbox_get_sites", "h3", True)
-    for i in (alt_frei, alt_belegt):
-        _alter(i, schlaf.ARCHIV_TAGE + 1)
-    k = g.neues_objekt("erkenntnis", "h2 ist belegt", ["host:h2"], {"quelle": "x"}, grund="T")
-    g.lade(alt_belegt).verknuepfe(k.id, "Beleg")
-    b = schlaf.lauf("Test")
-    assert b.daten["schritte"]["5_archiv"] == 1
-    a = g.lade(alt_frei)
-    assert a.modus == "archiviert" and "modus:archiviert" in a.hashtags and a.daten["grund"].startswith("Schlaf")
-    assert g.lade(alt_belegt).modus == "aktiv" and g.lade(jung).modus == "aktiv"
-    assert not [o for _, o, _g in g.erinnere("host:h1", betrachter=None)]  # nicht still weg: nur auf Nachfrage
-    assert [o.id for _, o, _g in g.erinnere("host:h1 modus:archiviert", betrachter=None)] == [alt_frei]
-    assert schlaf.hole_archiv(alt_frei)["args"]["host"] == "h1"
-    assert '"host": "h1"' in werkzeuge.rufe("vi_schlaf", {"id": alt_frei}, "a", True)
-    assert schlaf.lauf("Test 2").daten["schritte"]["5_archiv"] == 0  # idempotent
-
-
 def test_schlaf_selbst_ist(gd):
     for i in range(5):
         _erfahrung("netbox_get_vms", "h9", i < 4)

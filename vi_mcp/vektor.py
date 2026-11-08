@@ -89,6 +89,14 @@ def speichere(oid: str, v: list[float], modell: str) -> None:
         g.db().commit()
 
 
+def entferne(oid: str) -> None:
+    """Eingelagerte Objekte brauchen keinen Vektor; nach dem Zurückholen zieht der Schlaf ihn neu nach."""
+    _tabelle()
+    with g.sperre:
+        g.db().execute("DELETE FROM vektor WHERE id = ?", (oid,))
+        g.db().commit()
+
+
 def lade(oid: str) -> list[float] | None:
     _tabelle()
     with g.sperre:
