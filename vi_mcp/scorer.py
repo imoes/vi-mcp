@@ -131,7 +131,7 @@ def code_lauf() -> dict:
             if s["note"] < GUT_AB:
                 schlecht += 1
                 if "ok:ja" in o.hashtags and not alt:  # Der Zähler nahm „gelungen“ an; der Scorer weiß es jetzt besser
-                    umgebucht += bandit.umbuchen((o.daten.get("vorher") or {}).get("gezeigt", []))
+                    umgebucht += bandit.umbuchen((o.daten.get("vorher") or {}).get("gezeigt", []), next((t[5:] for t in o.hashtags if t.startswith("tool:")), None))
         if aenderungen:
             with g.sperre:
                 g.db().executemany("UPDATE objekt SET daten = json_set(daten, '$.score', json(?)) WHERE id = ?", aenderungen)

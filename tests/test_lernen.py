@@ -2,6 +2,7 @@
 import builtins
 import json
 import random
+import time
 
 import pytest
 
@@ -123,19 +124,43 @@ def test_bandit_zaehler_und_rangordnung(gd):
     v = intuition.vorher("graylog_search", {"q": 0}, "a")
     assert v["zugriff"]["router"] == "heuristik" and set(v["zugriff"]["gezeigt"]) == {gut.id, schlecht.id}
     # Zähler: 20× nach dem Zeigen von „gut“ ok, 20× nach „schlecht“ nicht ok (direkt verbucht, wie nachher es tut)
-    assert bandit.verbuche([gut.id], True) == 1 and bandit.verbuche(["antwort:x"], True) == 0 and bandit.verbuche([gut.id], None) == 0
+    bandit._grund.update(zeit=time.time(), je={"graylog_search": 0.5}, alle=0.5)  # Grundrate des Werkzeugs: halbe-halbe
+    assert bandit.verbuche([gut.id], True, "graylog_search") == 1 and bandit.verbuche(["antwort:x"], True) == 0 and bandit.verbuche([gut.id], None) == 0
     for _ in range(19):
-        bandit.verbuche([gut.id], True)
+        bandit.verbuche([gut.id], True, "graylog_search")
     for _ in range(20):
-        bandit.verbuche([schlecht.id], False)
-    assert bandit.zaehler(g.lade(gut.id)) == (20, 0) and bandit.zaehler(g.lade(schlecht.id)) == (0, 20)
-    assert "genützt 20 / nicht 0" in werkzeuge.rufe("vi_objekt", {"id": gut.id}, "a", True)
+        bandit.verbuche([schlecht.id], False, "graylog_search")
+    assert bandit.zaehler(g.lade(gut.id)) == (10, 0) and bandit.zaehler(g.lade(schlecht.id)) == (0, 10) and bandit.gezeigt(g.lade(gut.id)) == 20
+    assert "20× gezeigt, Erfolg danach 100 % statt erwartet 50 % (+50 Punkte)" in werkzeuge.rufe("vi_objekt", {"id": gut.id}, "a", True)
     rnd = random.Random(1)
     frisch = [g.lade(schlecht.id), g.lade(gut.id)]  # Zähler stehen in der DB; vorher() lädt Kandidaten immer frisch
     vorne = sum(1 for _ in range(100) if bandit.ordne(frisch, rnd)[0].id == gut.id)
-    assert vorne >= 95  # Beta(21,1) gegen Beta(1,21)
+    assert vorne >= 95  # Beta(11,1) gegen Beta(1,11)
     v = intuition.vorher("graylog_search", {"q": 1}, "a")
     assert v["zugriff"]["router"] == "bandit"
     n = intuition.nachher("graylog_search", {"q": 1}, False, 1, "Fehler", None, v["vorher_id"], "a")
     assert n["bewertet"] == len(v["zugriff"]["gezeigt"])
-    assert bandit.zaehler(g.lade(gut.id))[1] == 1  # „nein“ nach echter Handlung verbucht
+    assert bandit.zaehler(g.lade(gut.id))[1] == 0.5 and bandit.gezeigt(g.lade(gut.id)) == 21  # „nein“ nach echter Handlung verbucht, gewichtet mit der Grundrate
+
+
+def test_wirkungsloser_hinweis_bleibt_bei_haelfte(gd):
+    """Ein Hinweis, der vor einem fast immer gelingenden Werkzeug steht, bekommt keinen Vorteil gutgeschrieben, ein hilfreicher schon."""
+    from vi_mcp import bandit
+    leer = g.neues_objekt("regel", "Bash scheiterte und gelang danach", ["tool:Bash"], {"quelle": "x"}, grund="T")
+    rng = random.Random(4)
+    for i in range(400):  # Bash ohne Hinweis: 94 %
+        g.neues_objekt("erfahrung", "Bash", ["tool:Bash", "ok:ja" if rng.random() < 0.94 else "ok:nein"], {"vorher": {"gezeigt": []}, "args": {"i": i}}, grund="T")
+    for i in range(300):  # mit dem leeren Hinweis: ebenfalls 94 %
+        g.neues_objekt("erfahrung", "Bash", ["tool:Bash", "ok:ja" if rng.random() < 0.94 else "ok:nein"], {"vorher": {"gezeigt": [leer.id]}, "args": {"j": i}}, grund="T")
+    hilft = g.neues_objekt("regel", "Zeitraum halbieren", ["tool:graylog_search"], {"quelle": "x"}, grund="T")
+    for i in range(200):  # graylog ohne Hinweis 50 %, mit Hinweis 90 %
+        g.neues_objekt("erfahrung", "g", ["tool:graylog_search", "ok:ja" if rng.random() < 0.5 else "ok:nein"], {"vorher": {"gezeigt": []}, "args": {"k": i}}, grund="T")
+        g.neues_objekt("erfahrung", "g", ["tool:graylog_search", "ok:ja" if rng.random() < 0.9 else "ok:nein"], {"vorher": {"gezeigt": [hilft.id]}, "args": {"l": i}}, grund="T")
+    r = bandit.neu_berechnen()
+    assert r["hinweise"] == 2
+    e_leer, e_hilft = bandit.erwartung(g.lade(leer.id)), bandit.erwartung(g.lade(hilft.id))
+    assert 0.35 < e_leer < 0.65 and e_hilft > 0.75, (e_leer, e_hilft)
+    assert abs(bandit.lift(g.lade(leer.id)) or 0) < 0.06 and bandit.lift(g.lade(hilft.id)) > 0.3
+    alt = g.neues_objekt("regel", "Altlast mit falschen Zählern", ["tool:x"], {"quelle": "x", "nuetzlich": {"ja": 226, "nein": 1}}, grund="T")
+    bandit.neu_berechnen()
+    assert "nuetzlich" not in g.lade(alt.id).daten  # ohne bewertete Handlung keine Zähler

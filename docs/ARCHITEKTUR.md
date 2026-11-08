@@ -254,7 +254,7 @@ und ordnet danach (`router: bandit`) — selten Gezeigtes bleibt im Spiel, oft G
 | Modell | jeder Schlaf, beendete Gespräche ab 5 Zügen | Objekt `bewertung`: Note nach festem Raster, Begründung, Zugnummern als Belege, Sicherheit | erst geeicht: mindestens 20 Gespräche mit menschlicher Note, davon 70 % innerhalb von 0,25 |
 | Mensch | sofort über den Hook | Objekt `bewertung` | immer |
 
-Router, Thompson-Zähler und Hinweis-Lift nutzen die Note statt `ok`, wo sie vorliegt. Stellt der Scorer fest, dass eine als gelungen gezählte
+Router, Thompson-Zähler und Hinweis-Lift nutzen die Note statt `ok`, wo sie vorliegt. Die Thompson-Zähler messen seit 0.19.0 den Vorteil gegenüber der Grundrate des Werkzeugs (`bandit.py`). Stellt der Scorer fest, dass eine als gelungen gezählte
 Handlung misslungen ist, bucht er das Ja des gezeigten Hinweises in ein Nein um. Eine Gesprächsnote unter 0,4 macht alle Handlungen des Gesprächs
 für das Lernen zu Misserfolgen. Bewertungen sind privat. Das Protokoll für das Modell enthält nur Werkzeug, Ausgang, gekürzte Argumente und Fehler.
 `tests/evals/router.json` ist ein fester Satz Prüffälle für die Hinweisauswahl, der bei jeder Version läuft.

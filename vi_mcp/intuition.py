@@ -204,7 +204,7 @@ def nachher(tool: str, args: dict, ok: bool, dauer_ms: int, fehler: str | None, 
                                       "aus_gedaechtnis": False, "ohne_vorher": True}
     o = erfahrung(tool, args or {}, ok, dauer_ms, fehler, ergebnis, zugriff, instanz, ist_lesend)
     from . import bandit
-    bewertet = bandit.verbuche(zugriff.get("gezeigt", []), ok)  # Zählerpaar je gezeigtem Hinweis (Stufe 2)
+    bewertet = bandit.verbuche(zugriff.get("gezeigt", []), ok, tool)  # Zählerpaar je gezeigtem Hinweis (Stufe 2)
     verstaerkt = 0
     if ok:  # Hinweise, nach denen die Handlung gelang, werden verstärkt (Konsolidierung) — nicht schon beim Zeigen
         for oid in zugriff.get("gefunden", []):

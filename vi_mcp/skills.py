@@ -214,7 +214,7 @@ def bewerte() -> dict:
             g.speichere(o)
     for _, o, _g in g.erinnere("art:skill (modus:test OR modus:aktiv)", limit=500, betrachter=None):
         ja, nein = bandit.zaehler(o)
-        if nein >= SCHLECHT_AB and (ja / (ja + nein)) < SCHLECHT_QUOTE and o.modus != "strittig":
+        if bandit.gezeigt(o) >= SCHLECHT_AB and bandit.erwartung(o) < SCHLECHT_QUOTE and o.modus != "strittig":
             o.modus = "strittig"
             o.hashtags = [t for t in o.hashtags if not t.startswith("modus:")] + ["modus:strittig"]
             o.aendere("vi", "strittig", f"Schlaf: genützt {ja}, nicht genützt {nein} — Lösungsweg prüfen oder widerlegen")

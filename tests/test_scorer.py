@@ -44,14 +44,15 @@ def handlung(s, tool, ok, fehler=None, n=None):
 def test_scorer_im_schlaf_bucht_um_und_labelt(gd):
     k = g.neues_objekt("erkenntnis", "Hinweis zu Bash hier", ["tool:Bash"], {"quelle": "x"}, grund="T", instanz="b")
     s = sitzung.beginne("a", "t")
+    bandit._grund.update(zeit=time.time(), je={"Bash": 0.8}, alle=0.8)
     ids = [handlung(s, "Bash", True) for _ in range(2)]
-    assert bandit.zaehler(g.lade(k.id)) == (2, 0)
+    assert bandit.zaehler(g.lade(k.id)) == (0.4, 0)  # zwei Erfolge bei 80 % Grundrate: je 0,2 Vorteil
     s.signale.append({"zeit": g.jetzt(), "art": "korrektur"})
     sitzung.beende(s.id)
     r = schlaf.lauf("Test").daten["schritte"]["4d_scorer"]
     assert r["bewertet"] == 2 and r["misslungen"] == 2 and r["hinweise_umgebucht"] == 2
     assert g.lade(ids[0]).daten["score"]["version"] == scorer.CODE_VERSION and "korrektur" in g.lade(ids[0]).daten["score"]["merkmale"]
-    assert bandit.zaehler(g.lade(k.id)) == (0, 2)  # „gelungen“ wurde zu „misslungen“
+    assert bandit.zaehler(g.lade(k.id)) == (0, 0.5)  # „gelungen“ wurde zu „misslungen“; der Schlaf rechnet neu: 2 Fehlschläge bei Grundrate (0+1)/(2+2) = 0,25
     assert schlaf.lauf("Test 2").daten["schritte"]["4d_scorer"]["bewertet"] == 0  # idempotent
     assert all(y == 0 for _, y, _o in lernen.beobachtungen())
     l = messung.hinweis_lift(24, betrachter=None)

@@ -24,7 +24,7 @@ def test_geloest_skill_erscheint_und_entwickelt_sich(gd):
     v = intuition.vorher("graylog_search", {"q": 1}, "b")
     assert any("Skill „graylog-timeout“" in h and "graylog_system_status → graylog_search" in h for h in v["hinweise"])
     intuition.nachher("graylog_search", {"q": 1}, True, 1, None, "ok", v["vorher_id"], "b")
-    assert bandit.zaehler(g.lade(sk.id)) == (1, 0)
+    assert bandit.gezeigt(g.lade(sk.id)) == 1 and bandit.zaehler(g.lade(sk.id))[0] > 0
     r = werkzeuge.rufe("vi_geloest", {"name": "graylog-timeout", "reize": ["tool:graylog_search"], "schritte": ["graylog_search", "graylog_count"],
                                       "anleitung": "Statusprüfung, dann Zeitraum halbieren, dann zählen statt suchen", "grund": "schneller"}, "b", True)
     sk = g.lade(sk.id)

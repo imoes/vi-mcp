@@ -3,6 +3,26 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.19.0 — 2026-11-08 — Hinweise am Vorteil gemessen, nicht an der Erfolgsquote
+
+### Was hat sich geändert
+
+- **Ein Hinweis bekommt nur gutgeschrieben, was über das Erwartbare hinausgeht.** p = Erfolgsquote des Werkzeugs ohne Hinweis (90 Tage, geglättet); Erfolg danach → 1 − p, Misserfolg → p.
+  Ein wirkungsloser Hinweis bleibt so im Mittel bei 50 %; bisher stieg er mit der Erfolgsquote des Werkzeugs. *Nachweis:* `test_wirkungsloser_hinweis_bleibt_bei_haelfte`
+  (Hinweis vor Bash mit 94 % Grundrate: Vorteil zwischen 35 und 65 %, Lift unter 6 Punkten; hilfreicher Hinweis 50 % → 90 %: über 75 %).
+- **Die Zähler werden jede Nacht aus den gespeicherten Erfahrungen neu berechnet** (Schlafschritt `7d_hinweise`); alte Zählungen ohne bewertete Handlung verschwinden.
+- Anzeige in Klartext: „237× gezeigt, Erfolg danach 99 % statt erwartet 98 % (+2 Punkte)“ statt „genützt 237“.
+- Herausgeber werden erst ab 20 Anzeigen ihrer Objekte beurteilt (vorher: 20 Urteile).
+
+### Gemessen auf einer Kopie der Produktivdaten
+
+- 39 Hinweise neu berechnet; Grundrate Bash 97,7 %. Der inhaltsleere Skill fiel von 99 % auf 77 % (Beta-Mittel über rund 5 gewichtete Ja gegen 1 Nein, also schwache Evidenz);
+  drei Hinweise zur Analyse stiegen von rund 45 % auf rund 70 %, weil das Analyse-Werkzeug selten gelingt und danach öfter gelang als erwartet.
+
+### Was fehlt noch
+
+- Auswahl ist keine Ursache: Wird ein Hinweis vor allem in Sitzungen gezeigt, die ohnehin besser laufen, sieht er hilfreich aus. Sauber trennen ließe sich das nur mit zufälligem Weglassen (die ε-Erkundung tut das bisher nur für Plätze).
+
 ## 0.18.2 — 2026-11-08 — Passende Warnungen vor allgemeinen Hinweisen
 
 ### Was wurde behoben

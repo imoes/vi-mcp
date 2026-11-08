@@ -172,7 +172,7 @@ def _herausgeber_mit(k, ja, nein):
     a = {**GUT, "netz_id": "b" * 32}
     p2p.eingang(_bundle(k, [a]), im_hintergrund=False)
     o = g.erinnere("modus:quarantaene", betrachter=None)[0][1]
-    o.daten["nuetzlich"] = {"ja": ja, "nein": nein}
+    o.daten["nuetzlich"] = {"ja": ja, "nein": nein, "n": ja + nein}
     g.speichere(o)
     return o
 

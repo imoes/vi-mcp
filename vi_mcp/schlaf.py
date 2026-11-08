@@ -14,6 +14,7 @@ Schritte — jeder zählt, jeder steht im Bericht (Objekt `schlaf:<zeit>`, Zusta
   6 Selbst-Ist  Kompetenz je Skill, Schwächen, Beziehungen neu berechnen
   7 Vektoren    fehlende Embeddings geteilter Wissensobjekte nachziehen (Batch), semantische Nähe → Kanten / dublette:moeglich
   7c Inhalt     Mittelpunkte je Reiz und Bedeutungsgruppen für den Router (inhalt.py)
+  7d Hinweise   Hinweis-Zähler aus den Erfahrungen neu, gemessen am Vorteil gegenüber dem Werkzeug ohne Hinweis (bandit.py)
   8 Lernen      Router-Modell trainieren (lernen.py)
   9 Bericht
 """
@@ -123,6 +124,7 @@ def _lauf(grund: str) -> g.Objekt:
     schritt("7_vektoren", lambda: _vektoren())
     schritt("7b_naehe", lambda: _naehe())
     schritt("7c_inhalt", lambda: _inhalt_merkmale())
+    schritt("7d_hinweise", lambda: _hinweise_neu())
     schritt("8_lernen", lambda: _lernen())
     dauer = int((time.monotonic() - t0) * 1000)
     zustand = "fehler" if bericht["fehler"] else "fertig"
@@ -289,6 +291,11 @@ def _pruefer() -> dict:
     from . import pruefer
     from . import p2p
     return {**pruefer.abarbeiten(100), "auto_freigegeben": p2p.auto_freigeben()}
+
+
+def _hinweise_neu() -> dict:
+    from . import bandit
+    return bandit.neu_berechnen()
 
 
 def _inhalt_merkmale() -> dict:

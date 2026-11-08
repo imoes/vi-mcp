@@ -324,12 +324,12 @@ def herausgeber_wert(frisch: bool = False) -> dict[str, dict]:
     if not frisch and time.time() - _wert_cache[0] < 300:
         return _wert_cache[1]
     with g.sperre:
-        zeilen = g.db().execute("SELECT t.tag, COUNT(*), SUM(COALESCE(json_extract(o.daten, '$.nuetzlich.ja'), 0)), SUM(COALESCE(json_extract(o.daten, '$.nuetzlich.nein'), 0)) "
+        zeilen = g.db().execute("SELECT t.tag, COUNT(*), SUM(COALESCE(json_extract(o.daten, '$.nuetzlich.ja'), 0)), SUM(COALESCE(json_extract(o.daten, '$.nuetzlich.nein'), 0)), SUM(COALESCE(json_extract(o.daten, '$.nuetzlich.n'), 0)) "
                                 "FROM tag t JOIN objekt o ON o.id = t.objekt_id WHERE t.tag LIKE 'herausgeber:%' GROUP BY t.tag").fetchall()
     aus = {}
-    for tag, n, ja, nein in zeilen:
+    for tag, n, ja, nein, gez in zeilen:
         mittel = (1 + ja) / (2 + ja + nein)
-        aus[tag[12:]] = {"objekte": n, "ja": ja, "nein": nein, "mittel": round(mittel, 3), "gesperrt": ja + nein >= WERT_MIN_URTEILE and mittel < WERT_SPERRE}
+        aus[tag[12:]] = {"objekte": n, "ja": round(ja, 2), "nein": round(nein, 2), "gezeigt": gez, "mittel": round(mittel, 3), "gesperrt": gez >= WERT_MIN_URTEILE and mittel < WERT_SPERRE}
     _wert_cache = (time.time(), aus)
     return aus
 
