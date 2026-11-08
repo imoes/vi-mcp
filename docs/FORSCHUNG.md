@@ -3,7 +3,7 @@
 **Frage des Auftraggebers:** „Wie memorieren Menschen und geben Gelerntes wieder, und wie setzt man diese
 neurologische Strategie in ein KI-Modell um, sodass wir eine virtuelle Persönlichkeit bekommen?“
 
-**Stand:** 08.11.2026. **Gegenstand:** vi-mcp 0.1.1 (`/home/anna/Dev/code/vi-mcp`). Das Repo wurde nur
+**Stand:** 08.11.2026. **Gegenstand:** vi-mcp 0.1.1 (`dem Repository`). Das Repo wurde nur
 gelesen, nicht geändert.
 
 ## Belegstufen (gilt für jede Aussage unten)

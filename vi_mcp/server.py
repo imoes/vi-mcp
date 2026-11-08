@@ -23,7 +23,7 @@ from pathlib import Path
 
 from . import __version__
 from . import gedaechtnis as g
-from . import intuition, konfig, reflexe, schleife, scorer, selbst, sitzung, werkzeuge
+from . import anonym, intuition, konfig, reflexe, schleife, scorer, selbst, sitzung, werkzeuge
 from .protokoll import log
 
 PROTOKOLLE = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -238,6 +238,7 @@ def baue(k: konfig.Konfig) -> list[Server]:
     from . import lager, p2p, pruefer, reflexion, vektor
     lager.TAGE.update(k.lager_tage)
     p2p.konfig = k.p2p
+    anonym.setze(k.p2p)
     pruefer.prompt_pfad = Path(k.pruefer_prompt) if k.pruefer_prompt else None
     vektor.konfig = k.embed
     reflexion.konfig = k.llm

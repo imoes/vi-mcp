@@ -281,6 +281,24 @@ beweist, dass eine Datei unverändert ist, nicht, von wem sie stammt; das leiste
 
 Grenzen: Muster und Modell erkennen nicht jeden Angriff. Wer root auf dem Server hat, kann freigeben. Die Prüfer-Anweisung liegt bewusst nicht im öffentlichen Repo (`pruefer_prompt`).
 
+## Netz: anonym und löschbar
+
+`anonym.py` ist die einzige Musterliste für IPs, MAC-Adressen, interne Domains, Nummern-Hostnamen, Zugangsdaten, Nutzernamen und Proxy-Angaben. Domains gelten als intern, solange sie nicht auf der Liste
+öffentlicher Domains stehen (`OEFFENTLICH`, erweiterbar mit `p2p.oeffentliche_domains`). Der Export kennt zusätzlich alle Host-Tags, Instanzen, Systemkonten und `p2p.interne_namen`.
+
+| Richtung | Verhalten |
+|---|---|
+| Export | Text und Quelle: ersetzen, erneut prüfen. Hashtags mit Orts- oder Personenbezug fallen weg. MCP-Servernamen werden aus Werkzeugen entfernt. Spricht ein Text von Zugangsdaten, bleibt er zu Hause. Das Ergebnis muss die eigenen Importregeln bestehen. |
+| Import | Jede Fundstelle in Text, Quelle, Hashtags, Reizen, Schritten, Filter oder Code lehnt das Objekt ab. Der Bericht nennt nur die Klasse. |
+| Lokal | Zugangsdaten mit eindeutiger Form werden in `neues_objekt` entfernt (ohne Reflex-Quelltext). Hostnamen und IPs bleiben lokal, der Router braucht sie. |
+
+Manifest und Objekte tragen weder Hostnamen noch Instanz. Der Herausgeber ist `vi-` + die ersten 12 Hexziffern des SHA-256 seines öffentlichen Schlüssels (Schema 2).
+
+**Recht auf Vergessen.** Eine Instanz ohne Netz-Token verteilt nichts. Je Objekt gilt `netz_id = HMAC(Token, "id|"+oid)[:32]`, `objekt_token = HMAC(Token, "vergessen|"+oid)`, `loesch_hash = SHA-256(objekt_token)`.
+Das Netz sieht `netz_id` und `loesch_hash`; beide sind untereinander nicht verknüpfbar. `vi_netz_vergiss` prüft das Instanz-Token und erlaubt nur eigene Objekte. Widerrufe reisen in jedem Bundle mit und sind durch das Manifest
+abgedeckt, beweisen sich aber selbst: Gelöscht wird nur, wenn `SHA-256(token)` zum `loesch_hash` passt. Der Empfänger löscht Objekt, Tags, Volltext, Kanten, Lager und Vektor und behält einen Grabstein ohne Inhalt. Trifft ein Widerruf vor dem Objekt ein, bleibt das Objekt weg.
+Importiertes wird nie weitergereicht, also genügt der Widerruf beim direkten Empfänger. Aus einem gelöschten Objekt abgeleitete Abstraktionen des Schlafs bleiben bestehen.
+
 ## Housekeeping — das Langzeitlager
 
 `lager.py`, Schlaf-Schritt 5. Nicht mehr verwendete Einträge wandern in eine eigene Datei (`<db>-lager.db`, 0600), damit

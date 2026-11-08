@@ -1,0 +1,7 @@
+#!/usr/bin/python3 -I
+# RPM: Der Code liegt außerhalb von site-packages, damit ein Paket für jede Python-Version ≥ 3.11 passt.
+import runpy
+import sys
+
+sys.path.insert(0, "/usr/lib/vi-mcp")
+runpy.run_module("vi_mcp", run_name="__main__", alter_sys=True)

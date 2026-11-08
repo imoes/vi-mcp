@@ -3,6 +3,38 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.13.0 — 2026-11-08 — Pakete, Einrichtung, Netz ohne Interna, Recht auf Vergessen
+
+### Was ist neu
+
+- **Debian- und RPM-Paket mit allen Abhängigkeiten**, als Release-Dateien auf GitHub. *Nachweis:* in frischen Containern installiert: Ubuntu 24.04, Debian 12 und 13, Fedora 43, AlmaLinux 10 (EPEL); Dienst unter echtem systemd gestartet, MCP-Antwort 200.
+- **ANSI-Menü `vi-mcp einrichten`** für Claude Code, Codex CLI und Hermes Agent, dazu der Claude-Code-Hook; mit Schaltern auch ohne Menü. Es öffnet sich bei der Erstinstallation und wartet in unbeaufsichtigten Läufen nie.
+  *Nachweis:* `tests/test_einrichten.py` (auch über ein echtes Pseudoterminal); unter `apt` und `dnf` im Pseudoterminal sichtbar; mit den echten Programmen: `hermes mcp test` und `claude mcp list` verbinden sich, `codex mcp get` (0.167) liest den Eintrag.
+- **Anonymisierung** für alles, was ins Netz geht oder von dort kommt (`anonym.py`, docs/ARCHITEKTUR.md). *Nachweis:* `tests/test_anonym.py`; über die Kopie eines echten Datenbestands mit 109 teilbaren Objekten: 101 exportierbar, 8 begründet zurückgehalten, keine der geprüften internen Bezeichnungen und Adressen im Ergebnis.
+- **Recht auf Vergessen:** `vi_netz_token`, `vi_netz_vergiss`, `vi_netz_vorschau`. Empfänger löschen und behalten nur einen Grabstein. *Nachweis:* `test_recht_auf_vergessen_von_ende_zu_ende`, `test_widerruf_kommt_vor_dem_objekt_an`, `test_fremdes_token_loescht_nichts`.
+- **Englisches und deutsches README**, GitHub Pages, `AGENTS.md`.
+
+### Was hat sich geändert
+
+- **Bundle-Schema 2:** Der Herausgeber heißt jetzt wie ein Abdruck seines Schlüssels. Objekte ohne `netz_id` und `loesch_hash` werden abgelehnt. `p2p.herausgeber` in der Konfiguration ist überflüssig.
+- Eine Instanz ohne Netz-Token verteilt nichts.
+- **Zugangsdaten eindeutiger Form werden auch lokal nicht mehr gespeichert** (`neues_objekt`).
+- Neue Abhängigkeit: PyYAML.
+
+### Was wurde behoben
+
+- Der Export gab Hostnamen, Instanznamen, Standort-Tags und MCP-Servernamen weiter. Er war nur für angemeldete Instanzen erreichbar, einen Transport nach außen gab es nicht.
+
+### Was fehlt noch
+
+- **Muster verstehen keine Bedeutung:** Ein frei stehender Eigenname oder ein Passwort ohne auffällige Form geht durch, wenn der Text nicht von Zugangsdaten spricht. Eine zusätzliche Prüfung durch das Sprachmodell vor dem Export ist nicht gebaut.
+- Domains mit einer Endung außerhalb der eingebauten Liste werden als bloßer Text nicht erkannt, in URLs schon.
+- Löschen wirkt nur bei Empfängern, die sich an das Protokoll halten. Abstraktionen, die der Schlaf aus einem Objekt gebildet hat, bleiben.
+- Auf dem Server gespeicherte Altdaten werden nicht nachträglich bereinigt.
+- **Kein Transport:** HTTPS und Torrent sind nicht gebaut.
+- Unter SELinux im Modus `enforcing` nicht getestet. Enterprise Linux 9 wird nicht unterstützt (Python 3.9). Das Menü ist nur auf Deutsch. Für Codex und Hermes gibt es keinen Hook.
+- `codex` wurde gegen die Konfiguration geprüft, eine Live-Sitzung mit Anmeldung nicht.
+
 ## 0.12.0 — 2026-11-08 — Scorer
 
 ### Was ist neu

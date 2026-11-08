@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import anonym
 from .protokoll import log
 
 ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell", "skill", "bewertung")
@@ -377,6 +378,7 @@ def neues_objekt(art: str, text: str, hashtags: list[str], daten: dict | None = 
             raise ValueError(f"Hashtag {t!r} hat nicht die Form art:wert")
     # instanz: ist kein freier Hashtag, sondern der Urheber (Spalte instanz) — ein Ding, ein Ort
     hashtags = [t for t in hashtags if not t.startswith("instanz:")]
+    text, daten = anonym.ohne_geheimnisse(text), anonym.ohne_geheimnisse(daten)  # Zugangsdaten werden nie gespeichert
     zeit = jetzt()
     # Zufallsanteil: zwei gleiche Handlungen in derselben Sekunde sind zwei Objekte, nicht eines (sonst überschreibt
     # INSERT OR REPLACE das erste still — gefunden von test_eingebaute_werkzeuge_nie_aus_gedaechtnis)

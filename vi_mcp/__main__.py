@@ -2,7 +2,9 @@
   python3 -m vi_mcp                       Server starten (Konfiguration: $VI_MCP_CONFIG oder ~/.config/vi-mcp/config.json)
   python3 -m vi_mcp instanz NAME [--reflexe]
                                           Instanz anlegen bzw. Token erneuern; gibt das Token EINMAL aus
+  python3 -m vi_mcp einrichten [--hilfe]  vi-mcp in Claude Code, Codex CLI und Hermes Agent eintragen (ANSI-Menü)
   python3 -m vi_mcp p2p-schluessel PFAD    Ed25519-Seed anlegen (0600), gibt den öffentlichen Schlüssel aus
+  python3 -m vi_mcp netz-token NAME       Netz-Token einer Instanz anzeigen, falls es verloren ging (nur mit Zugriff auf die Datenbank)
   python3 -m vi_mcp freigeben ID "GRUND"   heiklen Import freigeben; liest das Token aus /etc/vi-mcp/freigabe-token
   python3 -m vi_mcp loesche-instanz NAME "GRUND"
                                           alle privaten Daten einer Instanz löschen (Gespräche → Grabsteine);
@@ -37,6 +39,9 @@ def _cli(argv: list[str]) -> int:
     if not argv:
         server.main()
         return 0
+    if argv[0] == "einrichten":
+        from . import einrichten
+        return einrichten.main(argv[1:])
     if argv[0] == "instanz" and len(argv) >= 2:
         token = konfig.instanz_anlegen(argv[1], reflexe="--reflexe" in argv[2:], freigabe="--freigabe" in argv[2:], mensch="--mensch" in argv[2:])
         print(f"Instanz {argv[1]} in {konfig.pfad()} angelegt (Reflex-Recht: {'ja' if '--reflexe' in argv[2:] else 'nein'}).")
@@ -47,6 +52,15 @@ def _cli(argv: list[str]) -> int:
         from . import p2p
         print(p2p.schluessel_erzeugen(Path(argv[1])))
         return 0
+    if argv[0] == "netz-token" and len(argv) == 2:
+        from . import gedaechtnis as g, p2p
+        g.oeffne(konfig.lade().db)
+        try:
+            t = p2p.token_anzeigen(argv[1])
+        finally:
+            g.schliesse()
+        print(t or f"Instanz {argv[1]} hat kein Netz-Token")
+        return 0 if t else 1
     if argv[0] == "freigeben" and len(argv) == 3:
         return _freigeben(argv[1], argv[2])
     if argv[0] == "loesche-instanz" and len(argv) >= 3:

@@ -1,82 +1,130 @@
-# vi-mcp — ein Gedächtnis für viele KI-Sitzungen
+# vi-mcp — one memory for many AI sessions
 
-`vi-mcp` ist eine **VI (virtuelle Intelligenz)**: ein einziger Serverprozess mit einem Gedächtnis, an den sich
-beliebig viele KI-Sitzungen gleichzeitig über **MCP (Streamable HTTP)** anschließen. Jede Sitzung hat ihren eigenen
-Gesprächskontext — wie Zeitscheiben eines Prozessors —, alle teilen dasselbe Gedächtnis: was eine Sitzung lernt,
-erscheint der nächsten vor der passenden Handlung als Hinweis.
+[Deutsch](README.de.md) · **English** · [Changelog](CHANGELOG.md) · [Download](https://github.com/imoes/vi-mcp/releases/latest)
 
-> „Eine VI ist eine KI, die loopt.“ Die **Intuition** (ohne Modell, automatisch) sieht alles und filtert vor;
-> das **Bewusstsein** (Mensch oder LLM) liest nur, was die Intuition vorgefiltert hat.
+`vi-mcp` is a **VI (virtual intelligence)**: a single server process with one memory that any number of AI sessions connect to at the same time over **MCP (Streamable HTTP)**.
+Each session keeps its own conversation context, like time slices on a processor. All of them share the same memory: what one session learns shows up as a hint for the next one, right before the relevant action.
+The language model itself is never changed. Learning happens in the memory, and the memory stays readable.
 
-**Was ist neu?** → [CHANGELOG.md](CHANGELOG.md) · **Wie ist es gebaut?** → [docs/ARCHITEKTUR.md](docs/ARCHITEKTUR.md) ·
-**Wie betreibe ich es?** → [docs/BETRIEB.md](docs/BETRIEB.md) ·
-**Handlungen automatisch melden** → [docs/HOOK.md](docs/HOOK.md) ·
-**Wie Menschen sich erinnern — und was daraus folgt** → [docs/FORSCHUNG.md](docs/FORSCHUNG.md) ·
-**Wie eine KI trainiert wird — und wie wir Daten dafür ablegen** → [docs/TRAINING.md](docs/TRAINING.md) ·
-**Technische Erläuterung im Stil von Data** → [docs/erzaehlung.html](docs/erzaehlung.html)
-
-## In einem Bild
+## How it works
 
 ```
- Sitzung A (Claude Code)   Sitzung B (anderer Agent)   Sitzung C (Hook-Skript)
+ Session A (Claude Code)   Session B (Codex, Hermes)   Session C (hook)
         │  Mcp-Session-Id         │                           │
-        └────────────── POST /mcp (Bearer-Token je Instanz) ──┘
+        └────────────── POST /mcp (bearer token per instance) ┘
                                   │
                      ┌────────────▼─────────────┐
-                     │  vi-mcp  (EIN Prozess)    │   Gespräch je Sitzung: Seriennummer YYYYMMDDNNN,
-                     │  Intuition · Bewusstsein  │   Verlauf zlib-komprimiert, durchsuchbar
-                     │  ein Loop alle 60 s       │
+                     │  vi-mcp  (ONE process)    │
+                     │  before · after · sleep   │
                      └────────────┬─────────────┘
-                                  │ ein Schreiber
+                                  │ single writer
                            vi.db (SQLite, WAL, FTS5, 0600)
 ```
 
-## Schnellstart
+- **Objects, not notes.** Everything is an object with hashtags (`kind:value`), an author and a visibility (private or shared): experience, insight, rule, skill, score.
+- **Before every action** (`vi_vorher`) a session receives at most four hints. A hint is only reinforced once the action succeeds.
+- **Sleep.** At night, or once enough important events pile up, the server condenses experiences, compares them with what it knows and archives what goes unused.
+- **Scorer.** Code rules, the local language model and you judge whether work succeeded. "The tool did not crash" alone does not say that.
+- **Learning.** From those scores the router (logistic regression, weights kept as readable JSON) learns which hint helps when.
+- **Reflexes and skills.** Proven solutions become skills; small checks run as code in a sandbox (Landlock, seccomp).
+
+The in-depth documents are written in German: [architecture](docs/ARCHITEKTUR.md) · [operations](docs/BETRIEB.md) · [hook](docs/HOOK.md) · [research](docs/FORSCHUNG.md) · [training](docs/TRAINING.md)
+
+## Install
+
+Packages are on the [releases page](https://github.com/imoes/vi-mcp/releases/latest). Your package manager pulls in all dependencies (Python ≥ 3.11, NumPy, scikit-learn, cryptography, PyYAML).
 
 ```bash
-cd ~/Dev/code/vi-mcp
-python3 -m pytest -q tests          # 103 Tests (Synthetik-Test braucht scikit-learn: .venv), nur Standardbibliothek + pytest
-deploy/install.sh                   # Instanz $USER anlegen, systemd-User-Dienst starten
-curl -s http://127.0.0.1:8765/gesund
-claude mcp add --transport http -s user vi-mcp http://127.0.0.1:8765/mcp \
-  --header "Authorization: Bearer $(cat ~/.config/vi-mcp/token-$USER)"
+sudo apt install ./vi-mcp_0.13.0-1_all.deb      # Debian 12/13, Ubuntu 24.04
+sudo dnf install ./vi-mcp-0.13.0-1.noarch.rpm   # Fedora 43
+sudo dnf install epel-release && sudo dnf install ./vi-mcp-0.13.0-1.noarch.rpm   # AlmaLinux/RHEL 10
 ```
 
-Voraussetzungen: Python ≥ 3.11 (getestet mit 3.12.3), SQLite mit FTS5 (getestet 3.45.1), scikit-learn 1.4 (`python3-sklearn`) fürs Lernen im Schlaf.
+**Enterprise Linux 9 is not supported:** Python 3.9 is too old, and scikit-learn is not available there for newer Python versions. Your memory and configuration are kept when the package is removed.
 
-## Werkzeuge
+## Set up
 
-| Werkzeug | Wofür |
+On first install this menu opens by itself; otherwise run `sudo vi-mcp einrichten`. The interface is in German:
+
+```
+ vi-mcp einrichten  0.13.0
+
+ Nutzer   anna
+ Server   http://127.0.0.1:8765/mcp
+          läuft noch nicht; startet nach dem Anlegen der Tokens
+ Token    wird je Programm angelegt
+ Aktion   einrichten
+ ──────────────────────────────────────────────────────
+ ▸ [x] Claude Code       noch nicht eingerichtet
+   [-] Codex CLI         nicht gefunden: codex nicht im PATH, ~/.codex fehlt
+   [x] Hermes Agent      noch nicht eingerichtet
+   [x] Claude-Code-Hook  meldet jede Handlung an den Server (Argumente maskiert)
+ ──────────────────────────────────────────────────────
+ Enter: einrichten
+ ↑↓ select · space toggle · u URL · t token · e add/remove · q quit
+```
+
+If the server runs on the same machine, each program gets its own instance and token. For another server, press `u` for the URL and `t` for the token.
+Before writing anything, the menu checks that the server accepts the token. Every changed file gets a backup `<file>.bak-vi-mcp-<time>`, and only the `vi-mcp` entry changes.
+Unattended installs never wait for a key press.
+
+Without the menu (scripts, Ansible):
+
+```bash
+vi-mcp einrichten --status
+vi-mcp einrichten --claude --codex --hermes --hook --url https://server/vi-mcp/mcp --token-datei ./token
+vi-mcp einrichten --hermes --entfernen
+```
+
+| Program | File | Entry |
+|---|---|---|
+| Claude Code | `~/.claude.json`, hook in `~/.claude/settings.json` | `mcpServers.vi-mcp` |
+| Codex CLI | `~/.codex/config.toml` | `[mcp_servers.vi-mcp]` |
+| Hermes Agent | `~/.hermes/config.yaml`, token in `~/.hermes/.env` | `mcp_servers.vi-mcp` |
+
+The hook exists for Claude Code only and reports actions automatically. Codex and Hermes get the tools and report only what the model calls itself.
+You can rate work in your prompt: `#gut` (good), `#schlecht` (bad), `#note 0.8`. A prompt starting with "no", "wrong", "nein" or "falsch" counts as a correction. Your text never leaves the session, only the result does.
+
+Server by hand: `sudo vi-mcp instanz NAME [--reflexe] [--mensch]`, then `sudo systemctl restart vi-mcp`. The token is shown once.
+
+## Privacy and the network
+
+Instances on different machines can exchange knowledge as signed bundles. The transport is not built yet; the rules below already apply.
+
+**What the network never sees:** IP and MAC addresses, internal host and domain names, passwords, tokens, user names, e-mail addresses, proxy settings, location tags and instance names.
+A publisher appears only as a pseudonym derived from its key, and times only as dates.
+Export replaces findings with placeholders (`<host>`, `<ip>`, `<nutzer>`, `<geheimnis>`, `<proxy>`) and scans the result again. If anything still looks suspicious, the object stays home.
+Import rejects every object with a finding. `vi_netz_vorschau` shows exactly what would leave and counts what is held back and why.
+
+**Credentials are never stored locally either**, as far as their form gives them away (`password=…`, `Bearer …`, key blocks, URLs with logins). Host names and IPs stay local and private because hints depend on them.
+
+**Right to be forgotten.** Without a network token (`vi_netz_token`, issued once) an instance shares nothing. The token yields a separate deletion proof for each object. `vi_netz_vergiss` recalls your own entries:
+receivers delete them along with search index and vector, and keep only a tombstone so they cannot return. The network does not learn which instance it was, and one proof opens no other object.
+
+**Limits:** Patterns do not understand meaning. A free-standing proper name is only caught if it is on the list of known names (`p2p.interne_namen`). Deletion works with receivers that follow the protocol; nobody can force a peer to destroy a copy.
+
+## Tools
+
+| Tools | Purpose |
 |---|---|
-| `vi_vorher` | **Hook**: vor einer Handlung melden (optional `kontext_hashtags`) → gemerkte Antwort (wenn lesend und frisch, nur eigene Instanz), Hinweise aller Instanzen, Rückfragen, ggf. geänderte Argumente, `vorher_id` |
-| `vi_nachher` | **Hook**: nach der Handlung melden → Erfahrung, gemerkte Antwort, Nachher-Reflexe |
-| `vi_frage` · `vi_antwort` · `vi_fragen` | **Kollektiv**: Rückfragen zwischen Instanzen (Antwort nur mit Belegen) |
-| `vi_status` | Stand: Objekte je Art, geteiltes Wissen je Instanz, offene Rückfragen, Erfahrung 24 h, offene Gespräche, Loop |
-| `vi_lerne` | Erkenntnis mit Hashtags und **Quelle (Pflicht)** |
-| `vi_erinnere` | Suche: `art:wert`, `!art:wert`, `(a OR b)`, `art:wert*`, Freitext; gewichtet, verstärkt |
-| `vi_vertiefe` | Trichter: auffälligsten Hashtag ergänzen, erneut suchen (bis 3 Stufen) |
-| `vi_suche_lerne` | eine Suche als Eselsbrücke lernen; läuft automatisch vor Handlungen mit passenden Reizen |
-| `vi_objekt` | ein Objekt mit Kanten und Änderungsgeschichte |
-| `vi_markiere` · `vi_bestaetige` · `vi_widerlege` | Objekt ändern — **nur mit Grund** |
-| `vi_vergiss` | gemerkte Antworten eines Werkzeugs verwerfen |
-| `vi_erfahrung` | **Hinweis-Lift** (Erfolg mit vs. ohne Hinweis) + Statistik je Werkzeug |
-| `vi_loesche_gespraech` | privaten Inhalt eines eigenen Gesprächs löschen — Grabstein mit Grund bleibt |
-| `vi_selbst` · `vi_selbst_vorschlag` | **Selbst**: Erzählung, Soll/Ist, Versionen; Soll ändern nur mit Belegen + fremder vertrauter Bestätigung |
-| `vi_schlaf` | letzter Konsolidierungslauf; `jetzt=true` (vertraut) schläft sofort |
-| `vi_lager` · `vi_lager_hole` | **Housekeeping**: Langzeitlager ansehen, Einträge zurückholen |
-| `vi_geloest` · `vi_skills` · `vi_skill` · `vi_skill_fusion` | **Skills**: Lösungswege melden, ansehen, zusammenführen |
-| `vi_export` · `vi_import_bundle` · `vi_quarantaene` · `vi_freigabe` | **P2P**: signiert exportieren, geprüft importieren, Quarantäne, Freigabe |
-| `vi_modell` | das gelernte Router-Modell: Zustand, Beobachtungen, Holdout-AUC, stärkste Gewichte |
-| `vi_gespraech` | Gespräche: Liste, Verlauf einer Seriennummer, Volltextsuche |
-| `vi_reflex_lerne` · `vi_reflex_liste` · `vi_reflex_schalte` | Reflexe (Code im Gedächtnis); lernen/schalten nur mit Reflex-Recht |
-| `vi_reflex_<name>` | je Werkzeug-Reflex ein eigenes Werkzeug |
+| `vi_vorher` · `vi_nachher` | report before and after an action |
+| `vi_lerne` · `vi_erinnere` · `vi_vertiefe` · `vi_objekt` | learn, search, drill down, inspect |
+| `vi_markiere` · `vi_bestaetige` · `vi_widerlege` · `vi_vergiss` | change, always with a reason |
+| `vi_frage` · `vi_antwort` · `vi_fragen` | questions between instances |
+| `vi_geloest` · `vi_skills` · `vi_skill` · `vi_skill_fusion` | solutions |
+| `vi_reflex_lerne` · `vi_reflex_liste` · `vi_reflex_schalte` | code in memory |
+| `vi_selbst` · `vi_selbst_vorschlag` · `vi_schlaf` | self-image and consolidation |
+| `vi_scorer` · `vi_modell` · `vi_erfahrung` · `vi_status` | scores, learned model, metrics, state |
+| `vi_gespraech` · `vi_loesche_gespraech` · `vi_lager` · `vi_lager_hole` | conversations and long-term storage |
+| `vi_export` · `vi_import_bundle` · `vi_quarantaene` · `vi_freigabe` | exchange with review |
+| `vi_netz_token` · `vi_netz_vergiss` · `vi_netz_vorschau` | deletion token, right to be forgotten, preview |
 
-## Projekt
+## Development
 
-| | |
-|---|---|
-| Code | `vi_mcp/` — `gedaechtnis` (Objekte, Erinnern), `sitzung` (Gespräche), `intuition` (vorher/nachher), `reflexe`, `schleife` (Loop), `werkzeuge` (MCP-Werkzeuge), `server` (HTTP), `konfig` |
-| Tests | `tests/` — Kern ohne Netz und Protokoll gegen echten HTTP-Server |
-| Hook | `hook/vi_hook.py` — Claude-Code-Hook, eine Datei, nur Standardbibliothek |
-| Betrieb | Debian-Paket `deploy/debian/` (Server, läuft auf <host>: `https://<host>/vi-mcp/mcp`), Benutzerdienst `deploy/vi-mcp.service` + `deploy/install.sh` (Entwicklung) |
-| Herkunft | Herausgelöst aus dem VI-Teil eines stdio-Skill-Servers (v3.0.0, 08.11.2026); siehe [docs/ARCHITEKTUR.md](docs/ARCHITEKTUR.md#herkunft) |
+```bash
+python3 -m venv .venv && .venv/bin/pip install scikit-learn cryptography pyyaml numpy pytest
+.venv/bin/python -m pytest -q tests
+deploy/debian/build.sh && deploy/rpm/build.sh
+```
+
+Notes for agents: [AGENTS.md](AGENTS.md). License: [AGPL-3.0](LICENSE).

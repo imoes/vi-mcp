@@ -1,33 +1,13 @@
 #!/bin/sh
-# vi-mcp postinst: Systemnutzer, Verzeichnisse, Startkonfiguration, Dienst.
+# vi-mcp postinst: Systemnutzer, dann das Gemeinsame; bei der Erstinstallation das Menü.
 set -e
 if [ "$1" = "configure" ]; then
     if ! getent passwd vi-mcp >/dev/null; then
         adduser --system --group --home /var/lib/vi-mcp --no-create-home --gecos "vi-mcp VI-Gedaechtnis" vi-mcp
     fi
-    install -d -o vi-mcp -g vi-mcp -m 0700 /var/lib/vi-mcp
-    install -d -o root -g vi-mcp -m 0750 /etc/vi-mcp
-    if [ ! -e /etc/vi-mcp/config.json ]; then
-        umask 027
-        cat > /etc/vi-mcp/config.json <<'JSON'
-{
-  "bind": "127.0.0.1",
-  "port": 8765,
-  "db": "/var/lib/vi-mcp/vi.db",
-  "instanzen": {},
-  "ttl": {},
-  "origins": ["http://localhost", "http://127.0.0.1"]
-}
-JSON
-        chown root:vi-mcp /etc/vi-mcp/config.json
-        chmod 0640 /etc/vi-mcp/config.json
-    fi
-    systemctl daemon-reload >/dev/null 2>&1 || true
-    systemctl enable vi-mcp.service >/dev/null 2>&1 || true
-    if python3 -c "import json,sys; sys.exit(0 if json.load(open('/etc/vi-mcp/config.json')).get('instanzen') else 1)"; then
-        systemctl restart vi-mcp.service || true
-    else
-        echo "vi-mcp: noch keine Instanz — anlegen mit:  sudo vi-mcp instanz <name> [--reflexe]  && sudo systemctl restart vi-mcp"
+    /usr/share/vi-mcp/nach-installation.sh system
+    if [ -z "$2" ]; then
+        /usr/share/vi-mcp/nach-installation.sh menue
     fi
 fi
 exit 0

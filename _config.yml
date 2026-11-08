@@ -1,0 +1,4 @@
+title: vi-mcp
+description: One memory for many AI sessions, as an MCP server
+theme: jekyll-theme-cayman
+exclude: [tests, deploy, vi_mcp, hook, scripts, dist, .venv, AGENTS.md, CLAUDE.md, LICENSE]

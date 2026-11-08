@@ -91,6 +91,12 @@ TOOLS = [
      "inputSchema": _schema({"limit": {"type": "integer"}})},
     {"name": "vi_freigabe", "description": "VI-P2P: importiertes Objekt freigeben (danach Modus test) oder verwerfen (aktion=verwerfen). Heikles braucht das Freigabe-Recht.",
      "inputSchema": _schema({"id": _S, "grund": _S, "aktion": {"type": "string", "enum": ["freigeben", "verwerfen"]}}, ["id", "grund"])},
+    {"name": "vi_netz_token", "description": "VI-Netz: Token zum späteren Zurückrufen eigener Einträge erzeugen. Einmalig und nur einmal sichtbar; ohne Token verteilt diese Instanz nichts ins Netz.",
+     "inputSchema": _schema({})},
+    {"name": "vi_netz_vergiss", "description": "VI-Netz: Recht auf Vergessen. Eigene Einträge aus dem Netz zurückrufen (ids oder alle=true). Empfänger löschen sie; lokal bleiben sie, werden aber nicht mehr verteilt. Grund ist Pflicht.",
+     "inputSchema": _schema({"token": {"type": "string"}, "ids": {"type": "array", "items": {"type": "string"}}, "alle": {"type": "boolean"}, "grund": {"type": "string"}}, ["token", "grund"])},
+    {"name": "vi_netz_vorschau", "description": "VI-Netz: Zeigt anonymisiert genau das, was von dieser Instanz ins Netz ginge, und wie viel aus welchem Grund zurückgehalten wird. Nur lesend.",
+     "inputSchema": _schema({"limit": {"type": "integer"}})},
     {"name": "vi_scorer", "description": "VI-Scorer: wie gut die Arbeit bewertet wurde — Code-Noten, Modell-Noten, menschliche Noten und ihre Übereinstimmung. Nur lesend.",
      "inputSchema": _schema({})},
     {"name": "vi_status", "description": "VI: Gedächtnis-Stand — Objekte je Art, Erfahrungen 24 h, offene Gespräche, Kanten, Loop.",
@@ -327,6 +333,21 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
         except ValueError as e:
             raise Abgelehnt(str(e)) from e
         return f"{o.id} freigegeben, Modus test"
+    if name == "vi_netz_token":
+        try:
+            return f"Netz-Token (wird nur jetzt angezeigt, sicher aufbewahren):\n{p2p.token_erzeugen(instanz)}"
+        except ValueError as e:
+            raise Abgelehnt(str(e)) from e
+    if name == "vi_netz_vergiss":
+        if bool(args.get("ids")) == bool(args.get("alle")):
+            raise Abgelehnt("entweder ids oder alle=true angeben")
+        try:
+            r = p2p.netz_vergessen(instanz, args.get("token", ""), None if args.get("alle") else args["ids"], args.get("grund", ""))
+        except ValueError as e:
+            raise Abgelehnt(str(e)) from e
+        return f"{r['zurueckgerufen']} Einträge zurückgerufen; der Widerruf reist mit jedem künftigen Bundle mit." + (f" Unbekannt: {len(r['unbekannt'])}." if r["unbekannt"] else "")
+    if name == "vi_netz_vorschau":
+        return json.dumps(p2p.vorschau(instanz, int(args.get("limit") or 10)), ensure_ascii=False, indent=1)
     if name == "vi_scorer":
         return scorer.bericht()
     if name == "vi_modell":

@@ -12,10 +12,11 @@ install -d "$r/DEBIAN" "$r/usr/lib/python3/dist-packages/vi_mcp" "$r/usr/bin" "$
 install -m 0644 vi_mcp/*.py "$r/usr/lib/python3/dist-packages/vi_mcp/"
 install -m 0755 deploy/debian/vi-mcp.sh "$r/usr/bin/vi-mcp"
 install -m 0644 deploy/debian/vi-mcp.service "$r/lib/systemd/system/vi-mcp.service"
-install -m 0644 README.md CHANGELOG.md "$r/usr/share/doc/vi-mcp/"
+install -m 0644 README.md README.de.md AGENTS.md CHANGELOG.md "$r/usr/share/doc/vi-mcp/"
 # docs/LOKAL* enthält Hostangaben und den Prüfer-Prompt und darf in kein Paket
 find docs -maxdepth 1 -name "*.md" ! -name "LOKAL*" -exec install -m 0644 {} "$r/usr/share/doc/vi-mcp/docs/" \;
 install -m 0755 hook/vi_hook.py "$r/usr/share/vi-mcp/hook/vi_hook.py"
+install -m 0755 deploy/nach-installation.sh "$r/usr/share/vi-mcp/nach-installation.sh"
 for s in postinst prerm postrm; do install -m 0755 "deploy/debian/$s" "$r/DEBIAN/$s"; done
 groesse=$(du -sk "$r" | cut -f1)
 # Maintainer aus DEB_MAINTAINER oder der git-Konfiguration — steht nicht fest im Repo
@@ -25,11 +26,11 @@ Package: vi-mcp
 Version: ${version}-${rev}
 Architecture: all
 Maintainer: ${maintainer}
-Depends: python3 (>= 3.11), python3-sklearn, python3-cryptography, python3-numpy, adduser, systemd
+Depends: python3 (>= 3.11), python3-sklearn, python3-cryptography, python3-numpy, python3-yaml, adduser, systemd
 Section: net
 Priority: optional
 Installed-Size: ${groesse}
-Homepage: file:///usr/share/doc/vi-mcp/README.md
+Homepage: https://github.com/imoes/vi-mcp
 Description: VI-Gedaechtnis als MCP-Server (Streamable HTTP, ein Prozess)
  Ein Serverprozess mit einem gemeinsamen Gedaechtnis fuer viele KI-Sitzungen:
  Objekte mit Hashtags, Erfahrungen, Erkenntnisse, Regeln, Reflexe, gelernte

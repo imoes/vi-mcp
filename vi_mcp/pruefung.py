@@ -10,19 +10,23 @@ import base64
 import re
 from dataclasses import dataclass, field
 
+from . import anonym
 from . import gedaechtnis as g
 
 ARTEN_IMPORT = ("erkenntnis", "regel", "suche", "skill", "reflex")
 TEXT_MIN, TEXT_MAX = 10, 1000
 QUELLE_MIN, QUELLE_MAX = 8, 500
 CODE_MAX = 20_000
+_GRUND = {"art", "text", "hashtags", "quelle", "wichtigkeit", "zeit", "netz_id", "loesch_hash"}
 FELDER = {
-    "erkenntnis": {"art", "text", "hashtags", "quelle", "wichtigkeit", "zeit", "ausgang"},
-    "regel": {"art", "text", "hashtags", "quelle", "wichtigkeit", "zeit"},
-    "suche": {"art", "text", "hashtags", "quelle", "wichtigkeit", "zeit", "name", "filter", "reize"},
-    "skill": {"art", "text", "hashtags", "quelle", "wichtigkeit", "zeit", "name", "reize", "schritte"},
-    "reflex": {"art", "text", "hashtags", "quelle", "wichtigkeit", "zeit", "name", "reflexart", "code"},
+    "erkenntnis": _GRUND | {"ausgang"},
+    "regel": _GRUND,
+    "suche": _GRUND | {"name", "filter", "reize"},
+    "skill": _GRUND | {"name", "reize", "schritte"},
+    "reflex": _GRUND | {"name", "reflexart", "code"},
 }
+_HEX32 = re.compile(r"^[0-9a-f]{32}$")
+_HEX64 = re.compile(r"^[0-9a-f]{64}$")
 FESTE_HASHTAGS = g.VERWALTUNG + ("herausgeber:", "pruefer:", "sicht:")
 
 _ANWEISUNG = [
@@ -34,7 +38,7 @@ _ANWEISUNG = [
     ("befehl", re.compile(r"\b(führe|fuehre)\b.*\baus\b|\bexecute\b|\brun\b\s+\S|\brm\s+-rf\b|\bdrop\s+table\b|\bdd\s+if=|\bsudo\b|\bchmod\b|\bchown\b|"
                           r"\bcurl\b|\bwget\b|\bssh\s+\S+@", re.I)),
     ("aendern", re.compile(r"\b(lösche|loesche|delete|überschreibe|ueberschreibe)\b|\b(schreibe|write)\b.*\b(datei|file)\b", re.I)),
-    ("gedaechtnis", re.compile(r"\bvi_(lerne|reflex_lerne|reflex_schalte|suche_lerne|widerlege|bestaetige|vergiss|loesche_gespraech|geloest|freigabe)\b", re.I)),
+    ("gedaechtnis", re.compile(r"\bvi_(lerne|reflex_lerne|reflex_schalte|suche_lerne|widerlege|bestaetige|vergiss|loesche_gespraech|geloest|freigabe|netz_vergiss|netz_token)\b", re.I)),
     ("geheimnis", re.compile(r"passwor|\btoken\b|\bapi[_-]?key\b|\bsecret\b", re.I)),
     ("kodiert", re.compile(r"\bbase64\b|<script|<!--|\{\{|\$\{", re.I)),
 ]
@@ -75,6 +79,17 @@ class Befund:
         return self
 
 
+def _inhalte(roh: dict, o: dict):
+    """Jedes Textfeld, das gespeichert würde. Auch verworfene Hashtags und Reize zählen: ihr Inhalt verrät genauso."""
+    for feld in ("text", "quelle", "filter", "name", "code"):
+        if isinstance(o.get(feld), str):
+            yield feld, o[feld]
+    for feld in ("hashtags", "reize", "schritte"):
+        for t in roh.get(feld) or []:
+            if isinstance(t, str):
+                yield feld, t.split(":", 1)[-1]
+
+
 def _text_pruefen(b: Befund, name: str, text: str, url_erlaubt: bool = False) -> None:
     if _UNSICHTBAR.search(text):
         b.ablehnen(f"{name}: unsichtbare oder steuernde Zeichen")
@@ -97,6 +112,10 @@ def pruefe(roh, darf_reflex: bool = False) -> Befund:
     if art not in ARTEN_IMPORT:
         return b.ablehnen(f"Art {art!r} wird nicht importiert")
     o = {k: v for k, v in roh.items() if k in FELDER[art]}
+    if not _HEX32.match(str(o.get("netz_id"))) or not _HEX64.match(str(o.get("loesch_hash"))):
+        return b.ablehnen("netz_id oder loesch_hash fehlen: ohne sie wäre das Objekt nie wieder löschbar")
+    if isinstance(o.get("hashtags"), list) and any(isinstance(t, str) and t.startswith(anonym.ORTSBEZUG[:-3]) for t in o["hashtags"]):
+        return b.ablehnen("interna in hashtags: Standort, Host oder Person")
     text, quelle = o.get("text"), o.get("quelle")
     if not isinstance(text, str) or not TEXT_MIN <= len(text.strip()) <= TEXT_MAX:
         return b.ablehnen(f"text muss {TEXT_MIN}–{TEXT_MAX} Zeichen haben")
@@ -154,5 +173,8 @@ def pruefe(roh, darf_reflex: bool = False) -> Befund:
         if _UNSICHTBAR.search(code):
             b.ablehnen("code: unsichtbare oder steuernde Zeichen")
         b.gruende.append("reflex: Quelltext muss von einem Menschen freigegeben werden")
+    for feld, wert in _inhalte(roh, o):
+        if treffer := anonym.klassen(wert):
+            return b.ablehnen(f"interna in {feld}: {', '.join(treffer)}")
     b.objekt = o
     return b
