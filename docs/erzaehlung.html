@@ -54,7 +54,7 @@ a { color: var(--accent); }
 </header>
 
 <section class="eintrag">
-  <div class="meta">Logbuch des Chefingenieurs · <b>Sternzeit 4471.3</b></div>
+  <div class="meta">Logbuch der Chefingenieurin · <b>Sternzeit 4471.3</b></div>
   <h2>Lagebeurteilung</h2>
   <p>Die Wartungsintelligenz, Bezeichnung VI, arbeitet seit 212 Tagen innerhalb der Spezifikation. Ihr Sprachkern ist nach Flottenvorschrift 7-Delta versiegelt: Die Gewichtsmatrix wurde bei der Zulassung festgeschrieben und darf im Einsatz nicht verändert werden. Begründung der Zulassungsstelle: Ein Kern, der sich im Betrieb umbaut, ist nicht mehr der Kern, der geprüft wurde. Die Folge ist bekannt und dokumentiert: VI behält zwischen zwei Einsätzen nichts. Die Kühlpumpe in Sektor 4, die nur auf den zweiten Startbefehl anspricht, ist für VI bei jeder Schicht eine neue Anomalie. Die Mannschaft nennt den Zustand informell „Schichtbeginn-Amnesie“.</p>
   <div class="protokoll"><span class="label">Technisches Protokoll · Realsystem</span>
@@ -65,7 +65,7 @@ a { color: var(--accent); }
   <div class="meta">Besprechungsraum 2 · <b>Sternzeit 4471.4</b> · Anwesend: Kommandantin Reyes, Chefingenieurin Haldis, Wissenschaftsoffizier Tarn, VI (akustisch)</div>
   <h2>Vorschlag: Externes Gedächtnis</h2>
   <div class="dialog">
-    <div class="wer">Reyes</div><div class="was">Lieutenant Haldis, Sie beantragen eine Änderung an einem versiegelten System. Das genehmige ich nicht.</div>
+    <div class="wer">Reyes</div><div class="was">Commander Haldis, Sie beantragen eine Änderung an einem versiegelten System. Das genehmige ich nicht.</div>
     <div class="wer">Haldis</div><div class="was">Keine Änderung am Kern, Captain. Ein Gedächtnis <em>neben</em> dem Kern. Jeder Eintrag ist ein Objekt mit Kennzeichnungen der Form <code>art:wert</code>: <code>maschine:kuehlpumpe-4</code>, <code>thema:anlauf</code>, <code>ausgang:gut</code>. Jede Kennzeichnung hat einen Urheber, einen Grund und eine Änderungsgeschichte.</div>
     <div class="wer">Tarn</div><div class="was">Das entspricht dem Zettelkasten-Prinzip. Die Suche nach Kennzeichnungen ersetzt das Erinnern an Inhalte. Die Neurowissenschaft nennt das Enkodierungsspezifität: Abgerufen wird, was zu den Reizen der Situation passt.</div>
     <div class="wer">Haldis</div><div class="was">Und ein Protokollzwang: Vor jeder Handlung meldet VI, was sie tun will. Das Gedächtnis legt die vier passendsten Einträge vor. Nach der Handlung meldet VI den Ausgang. Beides wird gespeichert.</div>
@@ -74,11 +74,11 @@ a { color: var(--accent); }
     <div class="wer">Reyes</div><div class="was">Genehmigt. Unter einer Bedingung: VI handelt nie aus dem Gedächtnis heraus. Das Gedächtnis berät. Die Entscheidung bleibt bei VI, die Verantwortung bei uns.</div>
   </div>
   <div class="protokoll"><span class="label">Technisches Protokoll · Realsystem</span>
-  <p>Objekte mit Hashtags in SQLite. Vor jeder Handlung ruft der Assistent <code>vi_vorher</code>, danach <code>vi_nachher</code>; ein Hook meldet jede Werkzeugbenutzung automatisch. Hinweisbudget: 4 (Cowan 2001). Schreibende Werkzeuge werden nie aus dem Gedächtnis beantwortet; der Server handelt nie selbst in der Welt.</p></div>
+  <p>Objekte mit Hashtags in SQLite. Vor jeder Handlung ruft der Assistent <code>vi_vorher</code>, danach <code>vi_nachher</code>. Ein Hook, der jede Werkzeugbenutzung automatisch meldet, ist gebaut, aber noch nicht eingetragen. Hinweisbudget: 4 (Cowan 2001). Schreibende Werkzeuge werden nie aus dem Gedächtnis beantwortet; der Server handelt nie selbst in der Welt.</p></div>
 </section>
 
 <section class="eintrag">
-  <div class="meta">Logbuch des Chefingenieurs · <b>Sternzeit 4498.1</b></div>
+  <div class="meta">Logbuch der Chefingenieurin · <b>Sternzeit 4498.1</b></div>
   <h2>Konsolidierungszyklus</h2>
   <p>Seit Sternzeit 4472 läuft um 03:00 Bordzeit ein Konsolidierungszyklus, den die Mannschaft „Schlaf“ nennt. Ablauf: Die Einträge des Tages werden nach Maschine und Fachbereich gruppiert und mit älteren Einträgen gleicher Kennzeichnung verschränkt, damit Neues gegen Altes gelesen wird und es nicht überschreibt. Wiederkehrende Fehler werden zu Regeln im Prüfmodus verdichtet. Einträge, die 30 Tage weder abgerufen noch als Beleg verwendet wurden, gehen ins Archiv; sie bleiben auffindbar, nur nicht mehr im Vordergrund. Widerspricht ein neuer Befund einer bestehenden Regel, erhält die Regel die Kennzeichnung <code>konflikt:offen</code>. Es wird nichts überschrieben, was ein Mensch nicht gesehen hat.</p>
   <p>Seit Sternzeit 4490 ist der Kern selbst am Zyklus beteiligt. Pro Gruppe erhält er bis zu zwanzig Einträge und die Frage: Was folgt daraus? Die Antwort ist auf einen Satz, höchstens fünf Kennzeichnungen und mindestens drei Belegnummern begrenzt. Ein deterministischer Prüfer verwirft jede Antwort, die eine Anweisung enthält, Belege erfindet oder Befehlsmuster trägt. Was besteht, wird als vorläufige Erkenntnis gespeichert und erst durch eine zweite Instanz wirksam.</p>
@@ -103,7 +103,7 @@ a { color: var(--accent); }
 </section>
 
 <section class="eintrag">
-  <div class="meta">Logbuch des Chefingenieurs · <b>Sternzeit 4530.2</b></div>
+  <div class="meta">Logbuch der Chefingenieurin · <b>Sternzeit 4530.2</b></div>
   <h2>Verbund mit Kessel-3 und dem Versorger</h2>
   <p>Seit Sternzeit 4525 teilen drei Schiffe ein Gedächtnis. Jeder Eintrag trägt den Namen der Instanz, die ihn verfasst hat. Erkenntnisse, Regeln und Lösungswege sind geteilt; Rohprotokolle und Werkzeugergebnisse, die Zugangscodes enthalten können, bleiben bei der jeweiligen Instanz. Eine Bestätigung durch eine fremde Instanz erhöht das Gewicht eines Eintrags; die eigene nicht. Ein fremder Widerspruch setzt einen Eintrag auf <em>strittig</em>, nicht auf falsch; widerlegt wird nur durch den Urheber oder zwei Instanzen. Rückfragen zwischen den Schiffen sind Einträge mit Zustand: offen, zugestellt, beantwortet, nach sieben Tagen abgelaufen.</p>
   <p>Auf der ersten Seite des Gedächtnisses steht die Selbstbeschreibung der VI: Werte, Ziele, Stil, Grenzen, jeweils mit Herkunft; dahinter die aus den Daten berechnete Kompetenz. Sie wird zu Beginn jeder Sitzung geladen und alle 25 Handlungen wiederholt, weil ein Sprachkern seine Rolle nach wenigen Wechseln verliert. Änderungen an den Grundsätzen erfordern drei Belege von zwei Tagen und die Bestätigung einer zweiten, vertrauten Instanz. Alle Fassungen bleiben erhalten.</p>
@@ -112,9 +112,25 @@ a { color: var(--accent); }
 </section>
 
 <section class="eintrag">
-  <div class="meta">Logbuch des Chefingenieurs · <b>Sternzeit 4531.0</b> · Nachtrag</div>
+  <div class="meta">Besprechungsraum 2 · <b>Sternzeit 4530.9</b> · Anwesend: Reyes, Haldis, Okoro, VI</div>
+  <h2>Lösungswege und Eindämmung</h2>
+  <div class="dialog">
+    <div class="wer">Haldis</div><div class="was">Neue Gedächtnisklasse: Verfahren. Wird eine Störung behoben, speichert das System die Schrittfolge vom ersten Fehler bis zum Erfolg. Jede erneute Anwendung ergibt eine neue Version. Zwei Verfahren für dasselbe Problem lassen sich zusammenführen; die alten bleiben mit Verweis erhalten.</div>
+    <div class="wer">Okoro</div><div class="was">Verfahren sind Text. Was ist mit ausführbarem Code im Gedächtnis?</div>
+    <div class="wer">Haldis</div><div class="was">Läuft in einem Eindämmungsfeld, einem eigenen Prozess ohne Netz, ohne Schreibzugriff, ohne Kindprozesse. Das Feld wird auf Kernel-Ebene errichtet, bevor der fremde Code geladen wird, und lässt sich von innen nicht aufheben.</div>
+    <div class="wer">Okoro</div><div class="was">Und wenn das Feld nicht steht?</div>
+    <div class="wer">Haldis</div><div class="was">Dann läuft der Code nicht. Es gibt keinen Betrieb ohne Feld.</div>
+  </div>
+  <div class="protokoll"><span class="label">Technisches Protokoll · Realsystem</span>
+  <p>Objektart <code>skill</code> mit Versionen, <code>vi_skill_fusion</code> und Modus <code>aufgegangen</code>. Reflexe laufen in <code>sandbox.py</code>: Landlock (Dateien, TCP) und seccomp (<code>socket</code>, <code>execve</code>, <code>fork</code>); ohne beides wird nichts ausgeführt.</p></div>
+</section>
+
+<section class="eintrag">
+  <div class="meta">Logbuch der Chefingenieurin · <b>Sternzeit 4531.0</b> · Nachtrag</div>
   <h2>Bewertung</h2>
   <p>Der Kern der VI ist heute derselbe wie bei der Zulassung. Jede Prüfsumme stimmt. Dennoch verhält sich die VI anders als vor 60 Tagen: Sie startet die Kühlpumpe in Sektor 4 auf Anhieb richtig, weil ein Eintrag mit 23 zu 0 vor ihr liegt, bevor sie den Befehl gibt. Sie hat nichts dazugelernt im Sinne der Vorschrift 7-Delta. Sie hat ein Gedächtnis, das ihr zur richtigen Zeit das Richtige vorlegt, und das misst, ob es recht hatte. Wissenschaftsoffizier Tarn nennt das „Lernen ohne Lernen“. Ich halte das für ungenau. Es ist Lernen an der richtigen Stelle.</p>
+  <div class="protokoll"><span class="label">Technisches Protokoll · Realsystem · Stand 08.11.2026</span>
+  <p>Dieser Absatz ist noch Fiktion. Unser reales System läuft und ist getestet, hat aber noch keine echten Handlungen gesehen. Ob es nützt, zeigt erst der Hinweis-Lift im Betrieb.</p></div>
 </section>
 
 <section class="tabelle">
@@ -133,6 +149,8 @@ a { color: var(--accent); }
       <tr><td>Erkundung jede zehnte Handlung</td><td>ε = 10 %, markiert</td><td>Li 2011, Off-Policy</td></tr>
       <tr><td>Verbund dreier Schiffe</td><td>Instanzen, privat/geteilt, strittig, Rückfragen</td><td>sitzung.py, fragen.py</td></tr>
       <tr><td>Selbstbeschreibung auf Seite 1</td><td>Selbst-Objekt, Soll/Ist, Versionen</td><td>selbst.py</td></tr>
+      <tr><td>Verfahren</td><td>Objektart Skill: Versionen, Fusion</td><td>skills.py</td></tr>
+      <tr><td>Eindämmungsfeld</td><td>Eigener Prozess, Landlock + seccomp</td><td>sandbox.py</td></tr>
       <tr><td>Eine Zahl als Maßstab</td><td>Hinweis-Lift</td><td>messung.py</td></tr>
     </tbody>
   </table>

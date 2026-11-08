@@ -18,7 +18,7 @@ Verlinkt aus [README.md](README.md).
 
 ### Was hat sich geändert
 
-- **Reflex-Läufe kosten jetzt ≈ 14 ms statt nahezu nichts** (gemessen, 10 Läufe, ein Host), weil jeder ein eigener Prozess ist.
+- **Reflex-Läufe kosten jetzt 14 ms (Entwicklungsrechner, 10 Läufe) bis 20 ms (Produktivhost, 4 Läufe) statt nahezu nichts**, weil jeder ein eigener Prozess ist.
 
 ### Was wurde behoben
 
