@@ -16,6 +16,7 @@ from test_p2p import _bundle, _modell, GUT, netz  # noqa: E402,F401
     ("Der Server hat 10.1.2.3 als Adresse", "ip"), ("Netz 172.16.0.0/16 ist intern", "ip"), ("Adresse fe80::1 am Link", "ip"), ("2001:db8::8a2e:370:7334 antwortet", "ip"),
     ("Karte 00:1a:2b:3c:4d:5e fällt aus", "mac"), ("Dienst auf db1.firma.intern läuft", "domain"), ("Siehe mail.acme.de für Details", "domain"), ("https://wiki/seite ist die Quelle", "domain"),
     ("http://gitlab.firma.media:8080/x/y", "domain"), ("Host app0815 hängt", "host"), ("cache0218 startet neu", "host"),
+    ("Auf dbtest01 hilft ein Neustart", "host"), ("web-01 und db-test-02 antworten nicht", "host"), ("srv12 ist voll", "host"),
     ("password=geheim123", "geheimnis"), ('"api_key": "abc"', "geheimnis"), ("Authorization: Bearer abcdefghijkl", "geheimnis"), ("https://max:geheim@example.com/", "geheimnis"),
     ("-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----", "geheimnis"), ("Token ghp_abcdefghijklmnopqrstuvwx1234", "geheimnis"), ("sshpass -p hallo ssh x", "geheimnis"),
     ("Das Kennwort lautet 4PxLh7j0 seit gestern", "geheimnis"), ("Altes Passwort war dvxhMSsqSC][ hier", "geheimnis"), ("Schlüssel 7f3a9c1e8b2d4f6a7f3a9c1e8b2d4f6a", "geheimnis"),
@@ -30,7 +31,8 @@ def test_erkennt_jede_klasse(text, klasse):
 
 @pytest.mark.parametrize("text", [
     "Der Dienst braucht nach dem Neustart 30 Sekunden", "os.path.join und urllib.request.urlopen werden genutzt", "Datei start.sh und config.yaml prüfen", "Version 1.2 und Python 3.11 funktionieren",
-    "um 14:04:58 begann der Lauf", "Das geht nur über den Proxy", "SHA256 und RFC9110 sind gemeint", "Siehe https://docs.python.org/3/library/re.html", "numpy.ndarray wird zurückgegeben", "Host web1 und db2 sind Beispiele",
+    "um 14:04:58 begann der Lauf", "Windows Server 2019 und Debian 12 sowie python3.11", "UTF-16 und SHA-256 und TLS13 und HTTP2", "Port 8080 und RFC 9110", "Ubuntu 2404 und ubuntu24", "ES2015 und win2019",
+    "Das geht nur über den Proxy", "SHA256 und RFC9110 sind gemeint", "Siehe https://docs.python.org/3/library/re.html", "numpy.ndarray wird zurückgegeben", "Host web1 und db2 sind Beispiele",
 ])
 def test_harmloses_bleibt(text):
     assert anonym.klassen(text) == [], anonym.befunde(text)

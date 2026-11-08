@@ -3,6 +3,17 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.14.2 — 2026-11-08 — Hostnamen mit zweistelliger Nummer
+
+### Was wurde behoben
+
+- Hostnamen wie `dbtest01`, `web-01` oder `db-test-02` wurden beim Export nicht ersetzt; die Regel verlangte drei Ziffern ohne Bindestrich. Gefunden mit einem Testeintrag auf dem produktiven Server; die Vorschau zeigte ihn, der Eintrag wurde vor der nächsten Runde zurückgerufen und stand nie im Logbuch.
+  Bezeichnungen wie `win2019`, `TLS13` oder `Debian 12` bleiben. *Nachweis:* neue Fälle in `tests/test_anonym.py`.
+
+### Was fehlt noch
+
+- Hostnamen ohne Ziffern (`srv-alpha`) erkennt nur die Liste bekannter Namen (Host-Tags, Instanzen, Systemkonten, `p2p.interne_namen`).
+
 ## 0.14.1 — 2026-11-08 — Netzdienst hinter einem Reverse-Proxy
 
 ### Was wurde behoben

@@ -27,7 +27,9 @@ TLD = set("""com org net de at ch eu io co uk fr it nl be es pl se no dk fi cz u
              local lan internal intranet corp home localdomain intern priv private test invalid""".split())
 GENERISCH = {"root", "admin", "administrator", "test", "nutzer", "user", "vi", "claude", "codex", "hermes", "claude-code", "ubuntu", "debian", "fedora", "centos", "nobody", "www-data",
              "postgres", "mysql", "nginx", "docker", "vi-mcp", "localhost", "server", "host", "client", "default"}
-_NAME_ERLAUBT = re.compile(r"^(sha|rfc|iso|ieee|pep|bep|cwe|cve|md|utf|ipv|x)\d+$", re.I)
+#: Bezeichnungen, die wie Name+Nummer aussehen, aber keine Rechner sind. Im Zweifel wird ersetzt: ein Fehlalarm kostet nur ein Wort.
+_NAME_ERLAUBT = re.compile(r"^(sha|rfc|iso|ieee|pep|bep|cwe|cve|md|utf|ipv|x|win|windows|server|debian|ubuntu|rhel|el|centos|fedora|alma|almalinux|python|py|node|java|jdk|php|es|ecmascript|http|tls|ssl|h|"
+                           r"gpt|qwen|llama|bge|top|cp|iso|port|ip|ipv|ec|aes|des|rsa|ed|curve|base|int|uint|float|bit|kb|mb|gb|tb|ms|hz|ghz|mhz|nr|nummer|version|v|kw|q|c|cpp|cxx|net|dotnet|ie|vs|office|excel|word|ansible|bep|nis|tcp|udp|dns|ms|ldap)-?\d+$", re.I)
 
 _GEHEIM_KONTEXT = [
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(-----END [A-Z ]*PRIVATE KEY-----|\Z)", re.S),
@@ -57,7 +59,8 @@ _IP6 = re.compile(r"(?<![\w:.])(?=[0-9a-f:]*:[0-9a-f:]*:)[0-9a-f:]{2,39}(?![\w:]
 _MAC = re.compile(r"(?<![\w:-])(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}(?![\w:-])", re.I)
 _URL_HOST = re.compile(r"(?<=://)[^/\s:@?#<>\"']+")
 _FQDN = re.compile(r"(?<![\w@./-])[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+\.?(?![\w-])", re.I)
-_NUMMERNHOST = re.compile(r"\b[a-z]{2,10}\d{3,5}\b", re.I)
+#: Hostnamen nach Schema Name+Nummer: app0815, dbtest01, web-01, db-test-02 (gefunden am 08.11.2026: dbtest01 ging durch)
+_NUMMERNHOST = re.compile(r"\b[a-z]{2,12}(?:-[a-z]{2,12})*-?\d{2,5}\b", re.I)
 _WORT = re.compile(r"(?<![\w<])[^\s<>\"'`=:,;()\[\]{}]{8,}")
 #: `dvxhMSsqSC][`: Sonderzeichen am Ende trennen `_WORT`; eine Variable mit Index (`werte[i]`) hat keinen Großbuchstaben
 _KLAMMERWORT = re.compile(r"(?<![\w<])[A-Za-z0-9]{6,}[\]\[!$%&*#]{1,3}(?![\w\]\[])")
