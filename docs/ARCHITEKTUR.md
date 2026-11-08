@@ -158,6 +158,10 @@ beantwortet.
 **Kein nachher?** Der Zugriff verschwindet nicht: beim Ende des Gesprächs oder nach 1 h wird er als Erfahrung
 `ok:unbekannt` („kein Ergebnis gemeldet“) gespeichert.
 
+
+**Reize aus Kommandozeilen (seit 0.18.0).** Bei Shell-Werkzeugen (`Bash` u. a.) zerlegt `intuition.befehls_reize` die Kommandozeile in Teilbefehle (an `; & | ( )`, Backticks,
+`$(` und Anführungszeichen), überspringt Variablenzuweisungen und `sudo`/`env` samt Optionen und nimmt das erste Wort. Bekannte Befehle werden zu `thema:<befehl>` und
+`skill:<bereich>` (`BEFEHL_SKILL`: Proxmox, Ansible, Docker, PostgreSQL), `ssh [user@]host` zu `host:<host>`. Damit erscheint Wissen zu `vzdump` vor `ssh pve1 'vzdump 101'`.
 ## Gespräche — die Zeitscheiben
 
 `initialize` → neue Sitzung (`Mcp-Session-Id`, zufällig) → Gesprächsobjekt mit Seriennummer

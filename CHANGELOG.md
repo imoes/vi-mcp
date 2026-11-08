@@ -3,6 +3,15 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.18.0 — 2026-11-08 — Wissen vor dem passenden Shell-Befehl, Säuberung von Dokumenten
+
+### Was ist neu
+
+- **Reize aus Kommandozeilen:** Bei Shell-Werkzeugen werden bekannte Befehle (Proxmox, Ansible, Docker, PostgreSQL) und SSH-Ziele zu `thema:`, `skill:` und `host:`. Bisher kannte der Server vor einem Bash-Befehl nur „Bash“,
+  Wissen zu `vzdump` oder `pg_dump` erschien also nie von selbst. *Nachweis:* `tests/test_kern.py` (auch hinter `sudo -u postgres`, in `ssh host '…'`, kein Treffer bei `echo qm` oder `ls …/qm`).
+- **`anonym.zugangsdaten_entfernen`** für Wissen aus Dokumenten und Verläufen: Werte hinter Passwort-Wörtern, Passwort-Spalten in Tabellen, der Wert in der Zeile nach „Passwort:“; Verweise wie „siehe Password Depot“ und `${PW}` bleiben.
+  *Nachweis:* 18 Fälle in `tests/test_anonym.py`. Die Messung an echten Daten folgt.
+
 ## 0.17.0 — 2026-11-08 — Open-Wiki-Modus
 
 ### Was ist neu

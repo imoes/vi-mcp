@@ -213,3 +213,21 @@ def test_skill_anleitung_bleibt_vollstaendig(gd):
     lang = "Schritt mit Befehl und Erklärung. " * 100
     o = skills.neu("langer weg", ["tool:x"], ["Bash"], lang, "weil gelöst", [], "a")
     assert o.daten["inhalt"] == lang.strip() and len(o.text) == 600
+
+
+@pytest.mark.parametrize("kommando,erwartet", [
+    ("vzdump 101 --mode snapshot", {"skill:proxmox", "thema:vzdump"}),
+    ("ssh root@pve1.example 'qm list && pct list'", {"skill:proxmox", "thema:qm", "thema:pct", "host:pve1.example"}),
+    ("sudo -u postgres pg_dump app > /tmp/a.sql", {"skill:postgres", "thema:pg_dump"}),
+    ("cd x; ansible-playbook -i hosts site.yml", {"skill:ansible", "thema:ansible-playbook"}),
+    ("docker compose up -d", {"skill:docker", "thema:docker"}),
+    ("echo qm ist kein Befehl hier | grep x", set()),
+    ("ls -la /var/log/qm", set()),
+])
+def test_befehle_werden_reize(kommando, erwartet):
+    assert set(intuition.befehls_reize(kommando)) == erwartet
+
+
+def test_shell_reize_nur_bei_shell(gd):
+    assert "skill:proxmox" in intuition.reize("Bash", {"command": "vzdump 1"})
+    assert "skill:proxmox" not in intuition.reize("netbox_get_vms", {"command": "vzdump 1"})

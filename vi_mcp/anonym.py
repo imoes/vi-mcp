@@ -39,6 +39,8 @@ _GEHEIM_KONTEXT = [
     re.compile(r"(?<![\w-])(?:[\w-]*(?:pass(?:wort|word|wd|phrase)?|pwd|kennwort|secret|geheimnis|token|api[_-]?key|credentials?)[\w-]*)[\"']?\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|\S+)", re.I),
     re.compile(r"\b(?:sshpass\s+-p\s*|mysql\s+\S*\s*-p)\S+"),
 ]
+#: Index des groben Musters „Schlüsselwort = Wert“ in _GEHEIM_KONTEXT
+_KONTEXT_SCHLUESSEL = 4
 _PROXY = [
     re.compile(r"\b(?:https?|ftp|all|no|socks)_proxy\s*[=:]\s*\S+", re.I),
     re.compile(r"--(?:no)?proxy[= ]\s*\S+", re.I),
@@ -169,6 +171,64 @@ _AUSDRUCK = re.compile(r"[(${%<]|environ")
 def _lokal_ersatz(m: re.Match) -> str:
     teile = re.split(r"[:=]", m.group(0), maxsplit=1)
     return m.group(0) if len(teile) == 2 and _AUSDRUCK.search(teile[1]) else "<geheimnis>"
+
+
+#: Wörter, nach denen ein geheimer Wert folgt. „pw“ und „pin“ nur als ganzes Wort.
+_SCHLUESSEL = re.compile(r"(passw(?:or)?[td]s?|kennw(?:ort|örter)|pass(?:phrase|code)|\bpwd?\b|\bpin\b|zugangsdaten|anmeldedaten|credentials?|"
+                         r"\bsecret\b|geheimnis|\btoken\b|api[ _-]?key|client[ _-]?secret|shared[ _-]?key|psk\b|community[ _-]?string)", re.I)
+_TRENNER = re.compile(r"\s*(?::|=|\||->|=>|\bist\b|\blautet\b|\bwar\b|\bauf\b|\bwird\b)\s*", re.I)
+#: Was nach einem Passwort-Wort steht, aber kein Wert ist: Verweise, Platzhalter, Anweisungen
+_KEIN_WERT = re.compile(r"^(<[^>]*>|\$\{|\$[A-Z_]|\{\{|\*{2,}|x{3,}|\.{3}|…|siehe|s\.|im\b|in\b|aus\b|vom\b|von\b|der\b|die\b|das\b|des\b|dem\b|den\b|ein\w*\b|kein\w*\b|nicht\b|"
+                       r"bitte|wird|ist\b|sind\b|password[ -]?depot|pwdepot|keepass|passwortsafe|tresor|vault|bekannt|vorhanden|leer|none|null|n/?a\b|-+$|ja\b|nein\b|"
+                       r"ändern|aendern|setzen|eingeben|vergeben|zurücksetzen|abfragen|prompt|erforderlich|benötigt|nötig|optional|identisch|gleich|wie\b|per\b|über\b|mit\b|für\b|und\b|oder\b|"
+                       r"neu\b|alt\b|eigen\w*|persönlich\w*|aktuell\w*|standard\w*|default|policy|richtlinie|ablauf|änderung|reset|hash|feld|spalte|beim\b|bei\b|nach\b|zum\b|zur\b)", re.I)
+_WERT = re.compile(r"[\"'`„“]?([^\s\"'`„“|,;]{3,80})")
+
+
+def _wert_hinter(zeile: str, m: re.Match) -> tuple[int, int] | None:
+    rest = zeile[m.end():]
+    t = _TRENNER.match(rest)
+    if not t:
+        return None
+    w = _WERT.match(rest, t.end())
+    if not w or _KEIN_WERT.match(w.group(1)) or _AUSDRUCK.search(w.group(1)):
+        return None
+    return m.end() + w.start(1), m.end() + w.end(1)
+
+
+def zugangsdaten_entfernen(text: str) -> tuple[str, int]:
+    """Für Wissen aus Dokumenten und Verläufen: Werte hinter Passwort-Wörtern, Passwort-Spalten in Tabellen und der Wert in der Zeile
+    nach „Passwort:“ werden zu <geheimnis>. Liefert (Text, Anzahl). Rein. Code-Ausdrücke wie `lese_token()` oder ${PW} bleiben."""
+    text, n = text or "", 0
+    for i, muster in enumerate(_GEHEIM_KONTEXT):
+        if i != _KONTEXT_SCHLUESSEL:  # das grobe Schlüsselwort-Muster ersetzt auch Verweise; hier entscheidet _wert_hinter genauer
+            text, k = muster.subn("<geheimnis>", text)
+            n += k
+    zeilen, spalte, naechste = text.split("\n"), None, False
+    for i, z in enumerate(zeilen):
+        zellen = z.split("|") if z.count("|") >= 2 else None
+        if zellen and spalte is None and any(_SCHLUESSEL.search(c) for c in zellen) and not any(_TRENNER.fullmatch(c.strip() or "x") for c in zellen):
+            spalte = next(j for j, c in enumerate(zellen) if _SCHLUESSEL.search(c))
+            continue
+        if zellen is None:
+            spalte = None
+        elif spalte is not None and spalte < len(zellen) and not re.fullmatch(r"\s*:?-{2,}:?\s*", zellen[spalte]):
+            wert = zellen[spalte].strip()
+            if wert and not _KEIN_WERT.match(wert) and wert != "<geheimnis>":
+                zellen[spalte] = zellen[spalte].replace(wert, "<geheimnis>")
+                z, n = "|".join(zellen), n + 1
+        if naechste and z.strip():
+            w = z.strip()
+            if " " not in w and 4 <= len(w) <= 80 and not _KEIN_WERT.match(w) and not _AUSDRUCK.search(w) and w != "<geheimnis>":
+                z, n = z.replace(w, "<geheimnis>"), n + 1
+            naechste = False
+        for m in reversed(list(_SCHLUESSEL.finditer(z))):
+            if (pos := _wert_hinter(z, m)):
+                z, n = z[:pos[0]] + "<geheimnis>" + z[pos[1]:], n + 1
+        if re.search(_SCHLUESSEL.pattern + r"\s*:?\s*$", z, re.I):
+            naechste = True
+        zeilen[i] = z
+    return "\n".join(zeilen), n
 
 
 def ohne_geheimnisse(wert):

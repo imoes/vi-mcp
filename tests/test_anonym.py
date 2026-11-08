@@ -271,3 +271,22 @@ def test_codebeispiele_bleiben_lokal_lesbar(gd):
     o = g.neues_objekt("erkenntnis", "Beispiel für den Aufruf", ["thema:a"], {"quelle": "x", "inhalt": 'token = lese_token()\npassword: ${PW}\nheaders = {"Authorization": f"Bearer {token}"}\npassword=abc123\n'}, grund="T", instanz="a")
     i = o.daten["inhalt"]
     assert "token = lese_token()" in i and "${PW}" in i and "Bearer {token}" in i and "abc123" not in i
+
+
+@pytest.mark.parametrize("text,bleibt", [
+    ("Das Passwort lautet Sommer2026!", "Sommer2026!"), ("Kennwort: hallo123", "hallo123"), ("PW = Geheim#1", "Geheim#1"), ("root-Passwort ist Xy7kLm9q", "Xy7kLm9q"),
+    ("Login: admin / Passwort: Start123", "Start123"), ("| Host | User | Passwort |\n|---|---|---|\n| web1 | admin | Ab12cd34 |\n| web2 | root | Zz99yy88 |", "Ab12cd34"),
+    ("Passwort:\n   9fK2mPq7", "9fK2mPq7"), ("SNMP community string: publicXYZ", "publicXYZ"), ("Der PSK = WlanKey2026", "WlanKey2026"),
+])
+def test_zugangsdaten_entfernen_findet(text, bleibt):
+    aus, n = anonym.zugangsdaten_entfernen(text)
+    assert bleibt not in aus and n >= 1 and "<geheimnis>" in aus
+
+
+@pytest.mark.parametrize("text", [
+    "Das Passwort steht im Password Depot unter IT/Server.", "Passwort: siehe Tresor", "Das Passwort muss alle 90 Tage geändert werden.", "token = lese_token()",
+    "password: ${DB_PASSWORD}", "Kennwort zurücksetzen über das Portal", "Passwort: ***", "Die Spalte Passwort bleibt leer", "Bei Login-Fehlern das Passwort prüfen",
+])
+def test_zugangsdaten_entfernen_laesst_stehen(text):
+    aus, n = anonym.zugangsdaten_entfernen(text)
+    assert n == 0 and aus == text, aus

@@ -44,13 +44,51 @@ def lesend(tool: str, angabe: bool | None = None) -> bool:
     return angabe if isinstance(angabe, bool) else not SCHREIBEND.search(tool)
 
 
+#: Befehle in einer Kommandozeile → Skill, damit Wissen zu Proxmox, Ansible, Docker, PostgreSQL vor dem passenden Shell-Befehl erscheint
+BEFEHL_SKILL = {**dict.fromkeys(("vzdump", "qm", "pct", "pvecm", "pvesm", "pveceph", "ha-manager", "pvesh", "pveum", "pvesr", "pvenode", "pve-firewall", "qmrestore", "pct-restore"), "proxmox"),
+                **dict.fromkeys(("ansible", "ansible-playbook", "ansible-vault", "ansible-inventory", "ansible-galaxy", "ansible-doc", "ansible-config"), "ansible"),
+                **dict.fromkeys(("docker", "docker-compose", "dockerd"), "docker"),
+                **dict.fromkeys(("psql", "pg_dump", "pg_dumpall", "pg_basebackup", "pg_restore", "pg_ctl", "pg_upgrade", "pg_ctlcluster", "pg_lsclusters", "vacuumdb", "pg_isready"), "postgres")}
+SHELL_WERKZEUGE = ("Bash", "bash", "shell", "terminal", "exec", "run_command", "windows_run_powershell")
+_TRENNUNG = re.compile(r"[;&|()`\n]|\$\(|['\"]")
+_SUDO_MIT_WERT = {"-u", "-g", "-C", "-D", "-h", "-p", "-R", "-r", "-T"}
+_SSH_ZIEL = re.compile(r"\bssh\s+(?:-\S+(?:\s+\S+)?\s+)*(?:[\w.-]+@)?([a-z][\w.-]*[a-z0-9])", re.I)
+
+
+def _befehle(kommando: str):
+    """Das erste Wort jedes Teilbefehls, ohne Variablenzuweisungen und ohne sudo samt Optionen."""
+    for teil in _TRENNUNG.split(kommando):
+        w = teil.split()
+        i = 0
+        while i < len(w) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w[i]):
+            i += 1
+        if i < len(w) and w[i] in ("sudo", "exec", "nohup", "time", "env"):
+            i += 1
+            while i < len(w) and w[i].startswith("-"):
+                i += 2 if w[i] in _SUDO_MIT_WERT else 1
+        if i < len(w):
+            yield w[i]
+
+
+def befehls_reize(kommando: str) -> list[str]:
+    """Rein. thema:<befehl> für jeden erkannten Befehl, skill:<bereich> für bekannte, host:<ziel> für ssh."""
+    aus = []
+    for b in _befehle(kommando or ""):
+        if b in BEFEHL_SKILL:
+            aus += [f"skill:{BEFEHL_SKILL[b]}", f"thema:{b}"]
+    aus += [f"host:{h.lower()}" for h in _SSH_ZIEL.findall(kommando or "")]
+    return aus
+
+
 def reize(tool: str, args: dict, kontext: list[str] | None = None) -> list[str]:
-    """Hinweisreize einer Handlung: Werkzeug, Skill (Präfix bis zum ersten _), Host aus den Argumenten, dazu die
-    Kontext-Hashtags des Clients (woran er gerade arbeitet, z. B. thema:oom). Ungültige Hashtags fallen weg."""
+    """Hinweisreize einer Handlung: Werkzeug, Skill (Präfix bis zum ersten _), Host aus den Argumenten, bei Shell-Werkzeugen die
+    erkannten Befehle und SSH-Ziele, dazu die Kontext-Hashtags des Clients (woran er gerade arbeitet, z. B. thema:oom). Ungültige Hashtags fallen weg."""
     r = [f"tool:{tool}", f"skill:{tool.split('_')[0]}"]
     for k, v in (args or {}).items():
         if k in HOSTKEYS and isinstance(v, str) and v.strip():
             r.append(f"host:{v.strip().lower()}")
+    if tool in SHELL_WERKZEUGE:
+        r += befehls_reize(str((args or {}).get("command") or (args or {}).get("cmd") or ""))
     r += [t.strip() for t in (kontext or []) if isinstance(t, str) and not t.startswith(g.VERWALTUNG)]
     return list(dict.fromkeys(t for t in r if g.TAG.match(t)))
 
