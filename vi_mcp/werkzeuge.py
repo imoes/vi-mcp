@@ -436,7 +436,9 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
         return f"gelernt {o.id} mit {', '.join(o.hashtags)} — {len(o.kanten())} Kanten zu Objekten mit gemeinsamen Hashtags"
     if name == "vi_erinnere":
         f = args.get("filter") or ""
-        treffer = g.erinnere(f, limit=min(int(args.get("limit") or 10), 50))
+        treffer = g.erinnere(f, limit=min(int(args.get("limit") or 10), 50), oder_ersatz=True)
+        if not args.get("semantisch") and g.wortsuche.get() == "oder":
+            f += " · ODER-Suche: kein oder zu wenige Objekte enthalten alle Wörter, ergänzt nach Zahl der Wörter (BM25)"
         if args.get("semantisch"):
             if not vektor.verfuegbar():
                 raise Abgelehnt("semantisch: kein Embedding-Dienst konfiguriert (konfig.embed)")
@@ -445,12 +447,15 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
                 raise Abgelehnt("semantisch braucht Freitext im Filter (Wörter ohne art:)")
             # Kandidaten: nur die Hashtag-Bedingungen (ohne Freitext), dann nach Bedeutungsnähe ordnen
             nur_tags = " ".join(["(" + " OR ".join(gr) + ")" if len(gr) > 1 else gr[0] for gr in gruppen] + [f"!{w}" for w in weg])
-            kand = [o for _, o, _g in g.erinnere(nur_tags, limit=200, arten=() if gruppen else ("erkenntnis", "regel", "suche"))]
+            # alle sichtbaren Objekte zum Filter, ohne Obergrenze: der Kosinus über ein paar tausend Vektoren kostet Millisekunden
+            kand = g.ids_zum_filter(nur_tags, arten=() if gruppen else ("erkenntnis", "regel", "suche"))
             t0 = time.monotonic()
-            nah = vektor.aehnlich(" ".join(worte), [o.id for o in kand], limit=min(int(args.get("limit") or 10), 50))
-            by = {o.id: o for o in kand}
+            nah = vektor.aehnlich(" ".join(worte), kand, limit=min(int(args.get("limit") or 10), 50))
+            by = g.lade_viele([i for i, _c in nah])
             treffer = [(c, by[i], {"relevanz": round(c, 2), "aktualitaet": 0, "wichtigkeit": 0}) for i, c in nah if i in by]
-            f += f" · semantisch (Embedding {int((time.monotonic() - t0) * 1000)} ms, {len(kand)} Kandidaten geprüft)"
+            mit_vektor = vektor.vorhanden(kand)
+            f += (f" · semantisch (Embedding {int((time.monotonic() - t0) * 1000)} ms, {mit_vektor} von {len(kand)} Kandidaten mit Vektor geprüft"
+                  + (f"; {len(kand) - mit_vektor} ohne Vektor bis zum nächsten Schlaf nur per Volltext" if len(kand) > mit_vektor else "") + ")")
         for _, o, _g in treffer:
             o.zugriff()
         return (f"{len(treffer)} Objekte zu „{f}“ (R Relevanz · A Aktualität · W Wichtigkeit):\n"

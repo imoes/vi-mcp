@@ -3,6 +3,33 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.19.2 — 2026-11-08 — Die Suche findet auch ältere Doku
+
+### Was wurde behoben
+
+- **Die Bedeutungssuche (`vi_erinnere` mit `semantisch=true`) verglich nur die 200 zuletzt benutzten Objekte**, nicht alle Vektoren.
+  Ältere, aber passende Doku kam so nie in die Auswahl. Jetzt sind alle sichtbaren Objekte zum Filter Kandidaten, ohne Obergrenze.
+  Das Ergebnis nennt, wie viele davon einen Vektor haben und wie viele bis zum nächsten Schlaf nur per Volltext zu finden sind.
+  *Nachweis:* `test_semantische_suche_prueft_alle_vektoren_nicht_nur_die_neuesten`, `test_semantische_suche_nennt_objekte_ohne_vektor`.
+  Beide Tests schlagen mit 0.19.1 fehl.
+- **Die Volltextsuche verlangte jedes Wort der Frage.** Ein einziges Füllwort wie „anzuhalten“ ergab 0 Treffer.
+  `vi_erinnere` füllt jetzt mit einer ODER-Suche auf, wenn zu wenige Objekte alle Wörter enthalten. Objekte mit allen Wörtern bleiben vorn, und die Antwort sagt „ODER-Suche“.
+  Interne Aufrufer (Hinweise, Schlaf) behalten das strenge UND. *Nachweis:* `test_volltext_faellt_auf_oder_zurueck_und_sagt_es`.
+- Mit Hashtag-Filter suchte der Volltext erst global (die besten 500) und filterte danach. Passende Objekte hinter 500 fremden Treffern fehlten.
+  Jetzt wird nur innerhalb des Filters gesucht. *Nachweis:* `test_volltext_mit_hashtag_filter_sucht_nur_im_gefilterten`.
+- Aufrufe mit `limit` über 400 bekamen still höchstens 400 Objekte (fest im SQL). Jetzt gilt das verlangte Limit.
+
+### Wie es gefunden wurde
+
+Im nächtlichen Vergleich mit der AIKB (Lauf 2, 34 Fragen, Richter das lokale Sprachmodell) bekam die VI in den Kategorien Erfahrung, Firmendoku
+und Herstellerdoku 0 Punkte, die AIKB 0,5 / 4 / 4. Die Frage „vzdump ohne Anhalten“ fand per Volltext nichts. Die Bedeutungssuche lieferte vier
+CentralStation-Befunde vom Abend statt der importierten Proxmox-Doku, obwohl diese einen Vektor hatte.
+
+### Was fehlt noch
+
+- Die Erfahrungsfragen des Vergleichs (Kategorie A) stammen aus Notizen, die nie in die VI gelernt wurden. Sie messen, dass die VI nicht weiß, was ihr niemand gesagt hat.
+  Ein fairer Test braucht Wissen, das über die normale Arbeit hineinkam.
+
 ## 0.19.1 — 2026-11-08 — Einbetten nach Zeit, ehrlicher Rest
 
 ### Was wurde behoben

@@ -125,6 +125,14 @@ def alle() -> dict[str, np.ndarray]:
     return {oid: _unpack(roh, dim) for oid, dim, roh in rows}
 
 
+def vorhanden(ids: list[str]) -> int:
+    """Wie viele der IDs einen Vektor haben (ohne die Vektoren zu laden)."""
+    _tabelle()
+    with g.sperre:
+        alle_ids = {r[0] for r in g.db().execute("SELECT id FROM vektor")}
+    return len(alle_ids & set(ids))
+
+
 def nachziehen(max_s: float | None = None) -> dict:
     """Schlaf-Schritt 7: fehlende Vektoren geteilter Wissensobjekte berechnen, Neueste zuerst, höchstens NACHZIEH_MAX_S Sekunden je Schlaf."""
     if not verfuegbar():

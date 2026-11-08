@@ -434,15 +434,8 @@ def _tag_bedingung(tag: str) -> tuple[str, tuple]:
     return ("tag LIKE ?", (tag[:-1] + "%",)) if tag.endswith("*") else ("tag = ?", (tag,))
 
 
-def erinnere(filtertext: str, limit: int = 10, arten: tuple[str, ...] = (), betrachter: str | None = "aktuell") -> list[tuple[float, Objekt, dict]]:
-    """Objekte zum Filter, gewichtet: Relevanz (Tag-/Worttreffer) + Aktualität + Wichtigkeit (Park et al. 2023)
-    + Bonus je fremder bestätigender Instanz. Sichtbar ist, was geteilt ist oder dem Betrachter gehört
-    (betrachter "aktuell" = Instanz der laufenden Anfrage; None = Server, sieht alles)."""
-    if betrachter == "aktuell":
-        betrachter = aktuelle_instanz.get()
-    gruppen, weg, worte = lies_filter(filtertext)
-    if arten:
-        gruppen.append([f"art:{a}" for a in arten])
+def _filter_sql(gruppen: list, weg: list, betrachter: str | None) -> tuple[str, list]:
+    """SQL für Modus, Sicht und Hashtag-Bedingungen (ohne Freitext) — eine Quelle für erinnere() und ids_zum_filter()."""
     sql, par = "SELECT id FROM objekt WHERE modus <> 'widerlegt'", []
     if not any("modus:quarantaene" in grp for grp in gruppen):
         sql += " AND modus <> 'quarantaene'"  # nur über vi_quarantaene
@@ -462,20 +455,65 @@ def erinnere(filtertext: str, limit: int = 10, arten: tuple[str, ...] = (), betr
         b, p = _tag_bedingung(t)
         sql += f" AND id NOT IN (SELECT objekt_id FROM tag WHERE {b})"
         par += list(p)
+    return sql, par
+
+
+def ids_zum_filter(filtertext: str, arten: tuple[str, ...] = (), betrachter: str | None = "aktuell") -> list[str]:
+    """Alle sichtbaren IDs zu den Hashtag-Bedingungen des Filters, ohne Obergrenze (Kandidaten der semantischen Suche)."""
+    if betrachter == "aktuell":
+        betrachter = aktuelle_instanz.get()
+    gruppen, weg, _w = lies_filter(filtertext)
+    if arten:
+        gruppen.append([f"art:{a}" for a in arten])
+    sql, par = _filter_sql(gruppen, weg, betrachter)
+    with sperre:
+        return [r[0] for r in db().execute(sql, par)]
+
+
+#: Wie die letzte Wortsuche in diesem Kontext lief: "und" (alle Wörter), "oder" (Ersatz, weil zu wenig alle Wörter enthielten) oder None.
+wortsuche: contextvars.ContextVar[str | None] = contextvars.ContextVar("wortsuche", default=None)
+
+
+def erinnere(filtertext: str, limit: int = 10, arten: tuple[str, ...] = (), betrachter: str | None = "aktuell",
+             oder_ersatz: bool = False) -> list[tuple[float, Objekt, dict]]:
+    """Objekte zum Filter, gewichtet: Relevanz (Tag-/Worttreffer) + Aktualität + Wichtigkeit (Park et al. 2023)
+    + Bonus je fremder bestätigender Instanz. Sichtbar ist, was geteilt ist oder dem Betrachter gehört
+    (betrachter "aktuell" = Instanz der laufenden Anfrage; None = Server, sieht alles).
+    Freitext verlangt alle Wörter (UND). oder_ersatz=True: enthalten weniger als `limit` Objekte alle Wörter, wird mit
+    einer ODER-Suche aufgefüllt (BM25 ordnet Objekte mit mehr Wörtern nach vorn); `wortsuche` sagt danach, welche lief."""
+    if betrachter == "aktuell":
+        betrachter = aktuelle_instanz.get()
+    gruppen, weg, worte = lies_filter(filtertext)
+    if arten:
+        gruppen.append([f"art:{a}" for a in arten])
+    sql, par = _filter_sql(gruppen, weg, betrachter)
     wort_treffer: dict[str, float] = {}
+    art_der_suche = None
     with sperre:
         if worte:
             if fts:
-                q = " ".join('"' + w.replace('"', '') + '"' for w in worte)
-                for oid, rank in db().execute("SELECT id, rank FROM objekt_fts WHERE objekt_fts MATCH ? ORDER BY rank LIMIT 500", (q,)):
-                    wort_treffer[oid] = -float(rank)
+                begriffe = ['"' + w.replace('"', '') + '"' for w in worte]
+                art_der_suche = "und"
+
+                def _fts(q: str) -> dict[str, float]:
+                    return {oid: -float(rank) for oid, rank in db().execute(
+                        f"SELECT id, rank FROM objekt_fts WHERE objekt_fts MATCH ? AND id IN ({sql}) ORDER BY rank LIMIT 500", (q, *par))}
+                wort_treffer = _fts(" ".join(begriffe))
+                if oder_ersatz and len(begriffe) > 1 and len(wort_treffer) < limit:
+                    oder = _fts(" OR ".join(begriffe))
+                    if len(oder) > len(wort_treffer):
+                        # Objekte mit allen Wörtern bleiben vorn: ihr Rang wird über den höchsten ODER-Rang gehoben
+                        oben = max(oder.values(), default=0.0)
+                        wort_treffer = {**oder, **{k: v + abs(oben) + 1 for k, v in wort_treffer.items()}}
+                        art_der_suche = "oder"
                 sql += f" AND id IN ({','.join('?' * len(wort_treffer))})" if wort_treffer else " AND 0"
                 par += list(wort_treffer)
             else:
                 for w in worte:
                     sql += " AND text LIKE ?"
                     par.append(f"%{w}%")
-        ids = [r[0] for r in db().execute(sql + " ORDER BY zuletzt DESC LIMIT 400", par)]
+        ids = [r[0] for r in db().execute(sql + f" ORDER BY zuletzt DESC LIMIT {max(400, int(limit))}", par)]
+    wortsuche.set(art_der_suche)
     jetzt_dt = datetime.now(timezone.utc)
     bewertet = []
     hoechste_wort = max(wort_treffer.values(), default=1.0) or 1.0

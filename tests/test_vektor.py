@@ -76,3 +76,43 @@ def test_nachziehen_nennt_den_echten_rest(gd, monkeypatch):
     assert r == {"zustand": "fertig", "neu": 0, "offen": 5}
     r = vektor.nachziehen()
     assert r["neu"] == 5 and r["offen"] == 0
+
+
+def test_semantische_suche_prueft_alle_vektoren_nicht_nur_die_neuesten(fake):
+    """0.19.2: Kandidaten waren die 200 zuletzt benutzten Objekte — ältere Doku wurde nie verglichen (gemessen am Vergleich mit der AIKB)."""
+    alt = g.neues_objekt("erkenntnis", "Proxy-Doku: Verbindung über den Proxy", ["doku:x"], {"quelle": "alt"}, grund="T")
+    g.db().execute("UPDATE objekt SET zuletzt = '2020-01-01T00:00:00+00:00', zeit = '2020-01-01T00:00:00+00:00' WHERE id = ?", (alt.id,))
+    for i in range(260):
+        g.neues_objekt("erkenntnis", f"Disk voll auf web{i}", [f"host:web{i}"], {"quelle": "neu"}, grund="T")
+    vektor.nachziehen(max_s=600)
+    r = werkzeuge.rufe("vi_erinnere", {"filter": "proxy netz", "semantisch": True, "limit": 3}, "a", True)
+    assert r.splitlines()[1].strip().startswith(f"[{alt.id}]"), r
+    assert "261 von 261 Kandidaten mit Vektor" in r
+
+
+def test_semantische_suche_nennt_objekte_ohne_vektor(fake):
+    g.neues_objekt("erkenntnis", "proxy timeout", ["host:a"], {"quelle": "x"}, grund="T")
+    vektor.nachziehen(max_s=600)
+    g.neues_objekt("erkenntnis", "proxy disk", ["host:b"], {"quelle": "y"}, grund="T")  # noch ohne Vektor
+    r = werkzeuge.rufe("vi_erinnere", {"filter": "proxy", "semantisch": True}, "a", True)
+    assert "1 von 2 Kandidaten mit Vektor" in r and "1 ohne Vektor" in r
+
+
+def test_volltext_faellt_auf_oder_zurueck_und_sagt_es(gd):
+    """0.19.2: FTS5 verknüpft Wörter mit UND — ein Füllwort der Frage („anzuhalten“) ergab 0 Treffer."""
+    a = g.neues_objekt("erkenntnis", "vzdump im Modus snapshot sichert laufende VMs", ["skill:proxmox"], {"quelle": "x"}, grund="T")
+    b = g.neues_objekt("erkenntnis", "vzdump sichert VMs", ["skill:proxmox"], {"quelle": "y"}, grund="T")
+    r = werkzeuge.rufe("vi_erinnere", {"filter": "vzdump snapshot laufende anzuhalten"}, "a", True)
+    assert "ODER-Suche" in r and r.splitlines()[1].strip().startswith(f"[{a.id}]") and b.id in r
+    voll = werkzeuge.rufe("vi_erinnere", {"filter": "vzdump snapshot"}, "a", True)  # alle Wörter da, genug Treffer bei limit 1
+    assert "ODER-Suche" not in werkzeuge.rufe("vi_erinnere", {"filter": "vzdump sichert", "limit": 1}, "a", True) and a.id in voll
+    # interne Aufrufer behalten UND
+    assert g.erinnere("vzdump snapshot anzuhalten") == [] and g.wortsuche.get() == "und"
+
+
+def test_volltext_mit_hashtag_filter_sucht_nur_im_gefilterten(gd):
+    """FTS lief vorher global mit LIMIT 500 und wurde erst danach gefiltert: passende Objekte hinter 500 fremden Treffern fehlten."""
+    for i in range(520):
+        g.neues_objekt("erkenntnis", f"timeout auf web{i}", [f"host:web{i}"], {"quelle": "x"}, grund="T")
+    ziel = g.neues_objekt("erkenntnis", "timeout auf cue1", ["host:cue1"], {"quelle": "x"}, grund="T")
+    assert [o.id for _, o, _g in g.erinnere("host:cue1 timeout")] == [ziel.id]
