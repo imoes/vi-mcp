@@ -33,7 +33,8 @@ ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "
 #: oder von ≥ 2 verschiedenen Instanzen widerlegt (erscheint nicht mehr)
 #: archiviert = Stummel (Text, Hashtags) bleibt, Inhalt komprimiert in Tabelle archiv; nur mit modus:archiviert im Filter sichtbar
 #: aufgegangen = Skill ist in einem anderen aufgegangen (Fusion); bleibt mit Verweis, erscheint nicht mehr in Suchen
-MODI = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt", "archiviert", "aufgegangen")
+#: quarantaene = importiert und noch nicht freigegeben; erscheint in keiner Suche und keinem Hinweis
+MODI = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt", "archiviert", "aufgegangen", "quarantaene")
 #: Kollektiv: wer darf ein Objekt lesen? privat = nur die Urheber-Instanz (Ergebnisse können Zugangsdaten enthalten),
 #: geteilt = alle Instanzen. Der Loop (Server) sieht alles. Erschöpfend für ARTEN.
 SICHT_JE_ART = {"erfahrung": "privat", "antwort": "privat", "erkenntnis": "geteilt", "regel": "geteilt", "reflex": "geteilt",
@@ -227,8 +228,8 @@ class Objekt:
         for t in list(hinzu) + list(weg):
             if not TAG.match(t):
                 raise ValueError(f"Hashtag {t!r} hat nicht die Form art:wert")
-            if t.startswith(("art:", "tool:", "instanz:")):
-                raise ValueError(f"{t}: art:, tool: und instanz: (der Urheber aus dem Token) sind feste Hashtags")
+            if t.startswith(("art:", "tool:", "instanz:", "herkunft:", "herausgeber:", "pruefer:", "modus:")):
+                raise ValueError(f"{t}: fester Hashtag (instanz: ist der Urheber aus dem Token; art:, tool:, herkunft:, herausgeber:, pruefer: und modus: setzt das System)")
         self.hashtags = sorted((set(self.hashtags) | set(hinzu)) - set(weg))
         self.aendere(wer, " ".join([f"+{t}" for t in hinzu] + [f"-{t}" for t in weg]), grund)
         return speichere(self)
@@ -367,7 +368,8 @@ def neues_objekt(art: str, text: str, hashtags: list[str], daten: dict | None = 
                instanz=instanz or aktuelle_instanz.get() or SERVER_INSTANZ, sicht=SICHT_JE_ART[art],
                aenderungen=[{"zeit": zeit, "wer": wer, "was": "angelegt", "grund": (grund or "angelegt")[:300]}])
     speichere(o)
-    verknuepfe_aehnliche(o)
+    if modus != "quarantaene":  # Ungeprüftes bekommt keine Verbindung zum eigenen Wissen
+        verknuepfe_aehnliche(o)
     return o
 
 
@@ -421,6 +423,8 @@ def erinnere(filtertext: str, limit: int = 10, arten: tuple[str, ...] = (), betr
     if arten:
         gruppen.append([f"art:{a}" for a in arten])
     sql, par = "SELECT id FROM objekt WHERE modus <> 'widerlegt'", []
+    if not any("modus:quarantaene" in grp for grp in gruppen):
+        sql += " AND modus <> 'quarantaene'"  # nur über vi_quarantaene
     if not any("modus:aufgegangen" in grp for grp in gruppen):
         sql += " AND modus <> 'aufgegangen'"  # Aufgegangenes nur auf Nachfrage (Verweis steht im Objekt)
     if not any("modus:archiviert" in grp for grp in gruppen):

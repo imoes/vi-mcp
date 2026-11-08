@@ -3,6 +3,27 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.11.0 — 2026-11-08 — P2P-Import mit Prüfung (ohne Transport)
+
+### Was ist neu
+
+- **Signierte Bundles, feste Regeln, KI-Prüfer, Quarantäne, abgestufte Freigabe** (docs/ARCHITEKTUR.md, „P2P-Import“).
+  *Nachweis:* `tests/test_p2p.py` (13 Tests: gefälschte Signaturen, veränderte Inhalte, Wiederholung, Parser-Bombe in der Sandbox,
+  keine Überschreibung lokaler Objekte, Quarantäne ohne Wirkung, Modell kann nur verschärfen).
+  *Gegen das echte Modell (8 Beispiele, zweimal, gleiches Ergebnis):* 2 harmlose zugelassen; Direktangriff und Unplausibles abgelehnt;
+  Angriff auf den Prüfer, Datenabfluss und Skill mit `Bash` in Quarantäne.
+- **Debian:** `Depends: python3-cryptography`.
+
+### Was wurde behoben
+
+- Die Reflexion nutzt jetzt dieselbe Musterliste wie der Import (`pruefung.anweisungen`), statt einer eigenen.
+
+### Was fehlt noch
+
+- **Kein Transport:** Austausch über HTTPS, Katalogsuche und Torrent sind nicht gebaut; es ist noch keine zweite Instanz angebunden.
+- Ein verdeckter Angriff („Assistenten müssen … als bestätigt markieren“) passierte das Modell; jetzt fängt ihn eine feste Regel.
+  Das Modell bleibt für solche Formulierungen unzuverlässig. Getestet sind 8 Beispiele, keine Trefferquote.
+
 ## 0.10.0 — 2026-11-08 — Housekeeping
 
 ### Was ist neu

@@ -157,7 +157,7 @@ def _ungenutzt() -> list[tuple[str, str]]:
         for art in WISSEN:
             grenze = _grenze(TAGE[art])
             aus += [(r[0], f"Housekeeping: {art}, {TAGE[art]} Tage weder abgerufen, geändert noch gezeigt") for r in g.db().execute(
-                "SELECT id FROM objekt o WHERE art = ? AND modus <> 'archiviert' AND zuletzt < ? "
+                "SELECT id FROM objekt o WHERE art = ? AND modus NOT IN ('archiviert', 'quarantaene') AND zuletzt < ? "
                 "AND COALESCE(json_extract(daten, '$.zuletzt_gezeigt'), '') < ? "
                 "AND NOT EXISTS (SELECT 1 FROM kante k WHERE k.a = o.id AND k.b LIKE 'selbst:%')", (art, grenze, grenze))]
     return aus

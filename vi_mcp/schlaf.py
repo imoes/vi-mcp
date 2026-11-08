@@ -80,6 +80,7 @@ def lauf(grund: str) -> g.Objekt:
     schritt("4_abstraktion", lambda: _abstraktion(bericht))  # Vorlage als Rückfall für Cluster ohne Reflexion
     schritt("4c_skills", lambda: _skills(seit))
     schritt("5_lager", lambda: lager.aufraeumen())
+    schritt("5b_pruefer", lambda: _pruefer())
     schritt("6_selbst_ist", lambda: _selbst_ist())
     schritt("7_vektoren", lambda: _vektoren())
     schritt("7b_naehe", lambda: _naehe())
@@ -238,6 +239,11 @@ def _naehe() -> dict:
     if not vektor.verfuegbar():
         return {"zustand": "uebersprungen", "grund": "kein Embedding-Dienst konfiguriert"}
     return vektor.naehe_kanten()
+
+
+def _pruefer() -> dict:
+    from . import pruefer
+    return pruefer.abarbeiten(100)
 
 
 def _lernen() -> dict:

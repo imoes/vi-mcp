@@ -112,7 +112,10 @@ except BaseException as exc:
 stufe = f"landlock-abi{abi}+seccomp"
 try:
     ns = {"__name__": "reflex"}
-    exec(compile(roh["code"], "<reflex>", "exec"), ns)
+    kompiliert = compile(roh["code"], "<reflex>", "exec")
+    if roh.get("nur_pruefen"):  # nur übersetzen, nichts ausführen
+        melde({"ok": True, "isolation": stufe})
+    exec(kompiliert, ns)
     if roh.get("nur_schema"):
         aus = {"schema": ns.get("TOOL")}
     else:
@@ -124,11 +127,11 @@ melde({**aus, "isolation": stufe})
 ''' % (CPU_S, SPEICHER_MB)
 
 
-def lauf(code: str, args: list, nur_schema: bool = False, wanduhr_s: float = WANDUHR_S) -> dict:
+def lauf(code: str, args: list, nur_schema: bool = False, wanduhr_s: float = WANDUHR_S, nur_pruefen: bool = False) -> dict:
     """Reflex-Code ausführen. Liefert {"wert"|"schema"|"fehler", "isolation", "dauer_ms"}; `isolation: "keine"` heißt:
     der Code lief nicht, weil die Sandbox nicht herstellbar war."""
     t0 = time.monotonic()
-    eingabe = json.dumps({"code": code, "args": args, "nur_schema": nur_schema}, ensure_ascii=False, default=str).encode()
+    eingabe = json.dumps({"code": code, "args": args, "nur_schema": nur_schema, "nur_pruefen": nur_pruefen}, ensure_ascii=False, default=str).encode()
     # Kein preexec_fn: der Server hat Threads, dort wäre das unsicher. Das Kind begrenzt sich selbst.
     p = subprocess.Popen([sys.executable, "-I", "-S", "-c", LAEUFER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.DEVNULL, cwd="/", env={"PATH": "/usr/bin:/bin"}, start_new_session=True)

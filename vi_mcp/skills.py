@@ -98,6 +98,8 @@ def fusion(a_id: str, b_id: str, name: str, grund: str, instanz: str) -> g.Objek
             raise ValueError(f"{xid} ist kein Skill")
         if x.modus == "aufgegangen":
             raise ValueError(f"{xid} ist bereits aufgegangen in {x.daten.get('aufgegangen_in')}")
+        if x.modus == "quarantaene":
+            raise ValueError(f"{xid} liegt in der Quarantäne")
     if a.id == b.id:
         raise ValueError("ein Skill kann nicht mit sich selbst zusammengeführt werden")
     reize = sorted(set(a.daten["problem"]["reize"]) | set(b.daten["problem"]["reize"]))
@@ -107,6 +109,8 @@ def fusion(a_id: str, b_id: str, name: str, grund: str, instanz: str) -> g.Objek
     neu_o = neu(name, reize, schritte, anleitung, f"Fusion aus {a.id} und {b.id}: {grund}", belege, instanz,
                 quelle=f"Fusion {a.id} + {b.id}")
     neu_o.daten["fusion_aus"] = [a.id, b.id]
+    if "herkunft:p2p" in a.hashtags or "herkunft:p2p" in b.hashtags:  # die Herkunft überlebt die Fusion
+        neu_o.hashtags = sorted(set(neu_o.hashtags) | {"herkunft:p2p"})
     g.speichere(neu_o)
     for x in (a, b):
         x.modus = "aufgegangen"

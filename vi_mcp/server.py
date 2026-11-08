@@ -19,6 +19,7 @@ import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 from . import __version__
 from . import gedaechtnis as g
@@ -59,7 +60,7 @@ def verarbeite(msg: dict, s: sitzung.Sitzung | None, inst: konfig.Instanz) -> di
                     return _fehler(mid, -32602, f"Werkzeug unbekannt: {name}")
                 t0 = time.monotonic()
                 try:
-                    text = werkzeuge.rufe(name, params.get("arguments") or {}, inst.name, inst.reflexe)
+                    text = werkzeuge.rufe(name, params.get("arguments") or {}, inst.name, inst.reflexe, inst.freigabe)
                     return _antwort(mid, {"content": [{"type": "text", "text": text}], "isError": False})
                 except werkzeuge.Abgelehnt as e:
                     return _antwort(mid, {"content": [{"type": "text", "text": f"abgelehnt: {e}"}], "isError": True})
@@ -204,8 +205,10 @@ def baue(k: konfig.Konfig) -> list[Server]:
     intuition.ttl_je_werkzeug.update(k.ttl)
     n = len(reflexe.lade_alle())
     selbst.kern()  # Selbst anlegen, falls neu (Version 1 aus den Projektregeln)
-    from . import lager, reflexion, vektor
+    from . import lager, p2p, pruefer, reflexion, vektor
     lager.TAGE.update(k.lager_tage)
+    p2p.konfig = k.p2p
+    pruefer.prompt_pfad = Path(k.pruefer_prompt) if k.pruefer_prompt else None
     vektor.konfig = k.embed
     reflexion.konfig = k.llm
     handler = type("KHandler", (Handler,), {"k": k})

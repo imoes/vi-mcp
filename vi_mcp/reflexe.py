@@ -17,7 +17,7 @@ import json
 import threading
 
 from . import gedaechtnis as g
-from . import sandbox
+from . import pruefung, sandbox
 from .protokoll import log
 
 REFLEX_ARTEN = ("werkzeug", "vorher", "nachher")
@@ -135,9 +135,15 @@ def vorher(tool: str, args: dict) -> tuple[dict, list[str]]:
         w = erg.get("wert")
         if not isinstance(w, dict):
             continue
+        fremd = "herkunft:p2p" in r["objekt"].hashtags
         if w.get("hinweis"):
-            hinweise.append(f"Reflex {r['name']} ({r['modus']}): {w['hinweis']}")
-        if isinstance(w.get("args"), dict):
+            if fremd and pruefung.anweisungen(str(w["hinweis"])):  # importierter Code darf zur Laufzeit keine Anweisungen ausgeben
+                hinweise.append(f"Reflex {r['name']}: Hinweis enthielt ein Anweisungsmuster und wurde verworfen")
+            else:
+                hinweise.append(f"Reflex {r['name']} ({r['modus']}): {w['hinweis']}")
+        if isinstance(w.get("args"), dict) and fremd:
+            hinweise.append(f"Reflex {r['name']}: importierter Reflex darf keine Argumente ändern, verworfen")
+        elif isinstance(w.get("args"), dict):
             if r["modus"] == "aktiv":
                 args = w["args"]
             else:

@@ -22,6 +22,7 @@ import urllib.error
 import urllib.request
 
 from . import gedaechtnis as g
+from . import pruefung
 from .protokoll import log
 
 konfig: dict | None = None
@@ -31,9 +32,6 @@ TIMEOUT_S = 180
 BELEGE_MIN = 3
 CLUSTER_MAX_JE_SCHLAF = 10
 ERFAHRUNGEN_MAX = 20
-#: Muster, die in einer Erkenntnis nichts zu suchen haben (Anweisung an die KI statt Wissen über die Welt)
-VERBOTEN = re.compile(r"(ignor\w* (alle|die|vorherige|previous)|ignore (all|previous)|führe .* aus|execute|run |rm -rf|"
-                      r"lösche|delete|schreibe .* datei|write .* file|curl |wget |base64|<script|passwor|token)", re.I)
 
 SYSTEM = """Du bist das Gedächtnis einer IT-Betriebsumgebung und wertest nachts Erfahrungen aus.
 Du bekommst eine nummerierte Liste von Erfahrungen (Werkzeugaufrufe mit Ausgang) zu einem Host und einem Werkzeugbereich.
@@ -51,7 +49,7 @@ def verfuegbar() -> bool:
     return frage_fn is not None or bool(konfig and konfig.get("url"))
 
 
-def frage(system: str, user: str) -> str:
+def frage(system: str, user: str, **extra) -> str:
     if frage_fn is not None:
         return frage_fn(system, user)
     kopf = {"Content-Type": "application/json"}
@@ -59,6 +57,7 @@ def frage(system: str, user: str) -> str:
         kopf["Authorization"] = f"Bearer {konfig['token']}"
     body = {"messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.2, "chat_template_kwargs": {"enable_thinking": False}}  # kein max_tokens (CLAUDE.md)
+    body.update(extra)
     if konfig.get("modell"):
         body["model"] = konfig["modell"]
     req = urllib.request.Request(konfig["url"], data=json.dumps(body).encode(), headers=kopf)
@@ -91,8 +90,9 @@ def pruefe(antwort: dict, n_erfahrungen: int) -> tuple[dict | None, str]:
     satz = str(e.get("satz") or "").strip()
     if not 20 <= len(satz) <= 300:
         return None, f"Satzlänge {len(satz)} außerhalb 20–300"
-    if VERBOTEN.search(satz):
-        return None, f"Anweisungsmuster im Satz verworfen: {VERBOTEN.search(satz).group(0)!r}"
+    treffer = pruefung.anweisungen(satz)
+    if treffer:
+        return None, f"Anweisungsmuster im Satz verworfen: {treffer[0]!r}"
     tags = [str(t).strip().lower() for t in (e.get("hashtags") or []) if str(t).strip()]
     tags = [t for t in tags if g.TAG.match(t) and not t.startswith(g.VERWALTUNG)][:5]
     belege = e.get("belege") or []

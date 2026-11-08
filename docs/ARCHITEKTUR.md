@@ -250,6 +250,22 @@ entscheidet eine Instanz, nicht der Server). `vi_erinnere(filter, semantisch=tru
 jetzt ein und ordnet Kandidaten nach Nähe — die Dauer steht im Ergebnis. Ohne Konfiguration: Schritte benannt
 übersprungen, Werkzeug lehnt mit Grund ab.
 
+## P2P-Import — fremdes Wissen kommt nur geprüft herein
+
+`p2p.py`, `pruefung.py`, `pruefer.py`. Instanzen auf anderen Hosts tauschen **signierte Bundles** aus, nur Quelltext und Text als JSON. Ein Torrent-Hash
+beweist, dass eine Datei unverändert ist, nicht, von wem sie stammt; das leistet die Ed25519-Signatur. Der Transport ist noch nicht gebaut.
+
+| Schicht | Wirkung |
+|---|---|
+| Bundle | Größe, Herausgeber auf der Allowlist, Signatur von Manifest und Objekt, steigende Sequenz, Rate. Sonst fällt das ganze Bundle. |
+| Feste Regeln | Nur sie lehnen endgültig ab: falsche Art, Form, Binärinhalt, unsichtbare Zeichen. Anweisungsmuster werden als Befund vermerkt. |
+| Sprachmodell | Liest jedes Objekt, darf nur verschärfen. Vor jedem Lauf prüft ein Selbsttest mit einem bekannten Angriff, ob es standhält. Das Modell kann getäuscht werden und ist deshalb nie die letzte Instanz. |
+| Quarantäne | Modus `quarantaene`: in keiner Suche, keinem Hinweis, keine Kanten, nicht zusammenführbar. |
+| Freigabe | Unauffälliges durch eine Instanz mit Reflex-Recht. Reflexe, Schreibzugriffe, Regelbefunde und alles ohne positives Prüfurteil nur mit Freigabe-Recht (`vi-mcp freigeben` auf dem Server, Token nur für root lesbar). Danach Modus `test`. |
+| Wirkung | Importiertes ist Text-Hinweis mit sichtbarer Herkunft, `herkunft:p2p` lässt sich nicht entfernen. Eigener Namensraum, keine Überschreibung lokaler Objekte, kein Gewicht aus fremden Zählern. Importierter Code läuft nur in der Sandbox, darf nur `vorher` sein und nie Argumente ändern. Importiertes wird nicht weiterexportiert. |
+
+Grenzen: Muster und Modell erkennen nicht jeden Angriff. Wer root auf dem Server hat, kann freigeben. Die Prüfer-Anweisung liegt bewusst nicht im öffentlichen Repo (`pruefer_prompt`).
+
 ## Housekeeping — das Langzeitlager
 
 `lager.py`, Schlaf-Schritt 5. Nicht mehr verwendete Einträge wandern in eine eigene Datei (`<db>-lager.db`, 0600), damit

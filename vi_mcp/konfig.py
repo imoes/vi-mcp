@@ -31,6 +31,7 @@ class Instanz:
     name: str
     token_sha256: str
     reflexe: bool = False
+    freigabe: bool = False  # darf heikle importierte Inhalte aus der Quarantäne freigeben
 
 
 @dataclass
@@ -43,6 +44,8 @@ class Konfig:
     origins: list[str] = field(default_factory=lambda: ["http://localhost", "http://127.0.0.1"])
     embed: dict | None = None
     lager_tage: dict[str, int] = field(default_factory=dict)
+    p2p: dict = field(default_factory=dict)
+    pruefer_prompt: str | None = None
     llm: dict | None = None
 
     def instanz_zu(self, token: str | None) -> Instanz | None:
@@ -72,21 +75,23 @@ def lade(p: Path | None = None) -> Konfig:
     k.ttl = {w: int(s) for w, s in (roh.get("ttl") or {}).items()}
     k.origins = list(roh.get("origins") or k.origins)
     k.embed = roh.get("embed") or None
+    k.p2p = roh.get("p2p") or {}
+    k.pruefer_prompt = roh.get("pruefer_prompt")
     k.lager_tage = {a: int(t) for a, t in (roh.get("lager_tage") or {}).items()}
     k.llm = roh.get("llm") or None
     for n, d in (roh.get("instanzen") or {}).items():
-        k.instanzen[n] = Instanz(n, d["token_sha256"], bool(d.get("reflexe", False)))
+        k.instanzen[n] = Instanz(n, d["token_sha256"], bool(d.get("reflexe", False)), bool(d.get("freigabe", False)))
     return k
 
 
-def instanz_anlegen(name: str, reflexe: bool = False, p: Path | None = None) -> str:
+def instanz_anlegen(name: str, reflexe: bool = False, p: Path | None = None, freigabe: bool = False) -> str:
     """Instanz anlegen oder ihr Token erneuern. Liefert das neue Token (nur dieses eine Mal sichtbar)."""
     if not name or not all(c.isalnum() or c in "-_." for c in name):
         raise ValueError("Instanzname: Buchstaben, Ziffern, - _ .")
     p = p or pfad()
     roh = json.loads(p.read_text()) if p.exists() else {}
     token = secrets.token_urlsafe(32)
-    roh.setdefault("instanzen", {})[name] = {"token_sha256": hashlib.sha256(token.encode()).hexdigest(), "reflexe": reflexe}
+    roh.setdefault("instanzen", {})[name] = {"token_sha256": hashlib.sha256(token.encode()).hexdigest(), "reflexe": reflexe, "freigabe": freigabe}
     p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     tmp = p.with_suffix(".tmp")
     alte = os.umask(0o077)

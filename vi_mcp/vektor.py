@@ -107,7 +107,7 @@ def lade(oid: str) -> list[float] | None:
 def alle() -> dict[str, list[float]]:
     _tabelle()
     with g.sperre:
-        rows = g.db().execute("SELECT v.id, v.dim, v.roh FROM vektor v JOIN objekt o ON o.id = v.id WHERE o.modus NOT IN ('widerlegt', 'archiviert')").fetchall()
+        rows = g.db().execute("SELECT v.id, v.dim, v.roh FROM vektor v JOIN objekt o ON o.id = v.id WHERE o.modus NOT IN ('widerlegt', 'archiviert', 'quarantaene')").fetchall()
     return {oid: _unpack(roh, dim) for oid, dim, roh in rows}
 
 
@@ -119,7 +119,7 @@ def nachziehen() -> dict:
     with g.sperre:
         fehlend = g.db().execute(
             f"SELECT o.id, o.text FROM objekt o LEFT JOIN vektor v ON v.id = o.id WHERE v.id IS NULL AND o.art IN ({','.join('?' * len(VEKTOR_ARTEN))}) "
-            "AND o.modus NOT IN ('widerlegt', 'archiviert') AND length(o.text) > 0 ORDER BY o.zeit DESC LIMIT ?", (*VEKTOR_ARTEN, BATCH_MAX)).fetchall()
+            "AND o.modus NOT IN ('widerlegt', 'archiviert', 'quarantaene') AND length(o.text) > 0 ORDER BY o.zeit DESC LIMIT ?", (*VEKTOR_ARTEN, BATCH_MAX)).fetchall()
     n, fehler = 0, None
     modell = (konfig or {}).get("modell") or "embed"
     for i in range(0, len(fehlend), BATCH):
