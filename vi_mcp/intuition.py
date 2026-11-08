@@ -66,8 +66,13 @@ def _frage(tool: str, args: dict) -> str:
 def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool | None = None,
            kontext: list[str] | None = None) -> dict:
     args, hinweise = reflexe.vorher(tool, dict(args or {}))
-    from . import fragen  # spät: fragen nutzt gedaechtnis wie wir
+    from . import fragen, selbst, sitzung  # spät: nutzen gedaechtnis wie wir
     hinweise += fragen.zustellen(instanz)
+    s = sitzung.aktuelle()
+    if s is not None:  # Selbst alle WIEDERHOLUNG_JE Handlungen wiederholen (Persona-Drift, Li et al. 2024)
+        s.handlungen += 1
+        if s.handlungen % selbst.WIEDERHOLUNG_JE == 0:
+            hinweise.append(selbst.hinweis())
     rz = reize(tool, args, kontext)
     such_reize = rz
     gefunden, suchen, aus_gedaechtnis = [], [], []

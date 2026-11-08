@@ -28,14 +28,15 @@ from pathlib import Path
 
 from .protokoll import log
 
-ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage")
+ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf")
 #: strittig = von genau einer fremden Instanz widerlegt (erscheint weiter, mit Vermerk); widerlegt = vom Urheber
 #: oder von ≥ 2 verschiedenen Instanzen widerlegt (erscheint nicht mehr)
-MODI = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt")
+#: archiviert = Stummel (Text, Hashtags) bleibt, Inhalt komprimiert in Tabelle archiv; nur mit modus:archiviert im Filter sichtbar
+MODI = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt", "archiviert")
 #: Kollektiv: wer darf ein Objekt lesen? privat = nur die Urheber-Instanz (Ergebnisse können Zugangsdaten enthalten),
 #: geteilt = alle Instanzen. Der Loop (Server) sieht alles. Erschöpfend für ARTEN.
 SICHT_JE_ART = {"erfahrung": "privat", "antwort": "privat", "erkenntnis": "geteilt", "regel": "geteilt", "reflex": "geteilt",
-                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt"}
+                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt"}
 #: Urheber für Objekte, die der Server selbst anlegt (Loop) — eine benannte Instanz, kein NULL
 SERVER_INSTANZ = "vi"
 #: Gewichtbonus je verschiedener FREMDER Instanz, die bestätigt hat (Selbstbestätigung zählt nicht als Beleg)
@@ -43,12 +44,15 @@ BONUS_JE_INSTANZ = 0.2
 BONUS_MAX = 0.6
 #: Änderungsgeschichte je Objekt; ältere Einträge werden gezählt gekürzt (daten.aenderungen_gekuerzt)
 GESCHICHTE_MAX = 50
-#: Aktualität: Verfall je Stunde seit dem letzten Zugriff. Annahme (Erklärer zu Park et al. nennen γ = 0,995/h,
-#: ungeprüft gegen den Paper-Text) — benannt, nicht belegt.
-VERFALL_JE_H = 0.995
+#: Aktualität nach **Potenzgesetz** (Wixted & Ebbesen 1991; ACT-R: Anderson & Schooler 1991 — docs/FORSCHUNG.md A9):
+#: aktualitaet = (1 + h)^(−VERFALL_D), h = Stunden seit dem letzten Zugriff. Schnell am Anfang, langsam danach:
+#: 1 h 0,81 · 1 d 0,38 · 7 d 0,21 · 30 d 0,14 · 1 a 0,07. Bis 0.3.0 exponentiell 0,995^h (Park et al., dort je
+#: Spielstunde) — das ließ Älteres als 2 Wochen praktisch verschwinden (30 d: 0,03). VERFALL_D = 0,3 ist ein Startwert.
+VERFALL_D = 0.3
 TAG = re.compile(r"^[a-z][a-z0-9_-]{0,30}:[^\s()]+$")
 #: Hashtags, die Verwaltung sind und nicht Inhalt (für Verknüpfung und Trichter ignoriert)
-VERWALTUNG = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:", "an:", "von:", "ueberraschung:")
+VERWALTUNG = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:", "an:", "von:", "ueberraschung:",
+              "modus:", "herkunft:", "konflikt:", "selbst:", "selbstbereich:")
 
 sperre = threading.RLock()
 _db: sqlite3.Connection | None = None
@@ -61,7 +65,9 @@ aktuelle_instanz: contextvars.ContextVar[str | None] = contextvars.ContextVar("a
 
 
 def jetzt() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    """ISO-8601 UTC mit Millisekunden: Vergleiche `zeit > seit` (Schlaf, Loop) trennen sonst nicht, was in derselben
+    Sekunde entstand. Ältere Einträge (Sekunden, 0.1–0.3) sortieren als Text korrekt davor ('+' < '.')."""
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
 def hashwert(*teile: str) -> str:
@@ -225,7 +231,9 @@ class Objekt:
         return speichere(self)
 
     def fremde_bestaetigungen(self) -> int:
-        return len([i for i in (self.daten.get("bestaetigt_von") or {}) if i != self.instanz])
+        """Verschiedene fremde Instanzen, die bestätigt haben. Der Server (`vi`, Schlaf) zählt nicht als fremd —
+        eine automatische Bestätigung soll das Gewicht nicht heben (keine Selbstbestätigung des Systems)."""
+        return len([i for i in (self.daten.get("bestaetigt_von") or {}) if i not in (self.instanz, SERVER_INSTANZ)])
 
     def verknuepfe(self, anderes_id: str, grund: str) -> None:
         with sperre:
@@ -370,6 +378,8 @@ def erinnere(filtertext: str, limit: int = 10, arten: tuple[str, ...] = (), betr
     if arten:
         gruppen.append([f"art:{a}" for a in arten])
     sql, par = "SELECT id FROM objekt WHERE modus <> 'widerlegt'", []
+    if not any("modus:archiviert" in grp for grp in gruppen):
+        sql += " AND modus <> 'archiviert'"  # Archiviertes nur auf ausdrückliche Nachfrage
     if betrachter is not None:
         sql += " AND (sicht = 'geteilt' OR instanz = ?)"
         par.append(betrachter)
@@ -404,7 +414,7 @@ def erinnere(filtertext: str, limit: int = 10, arten: tuple[str, ...] = (), betr
         if not o:
             continue
         stunden = max(0.0, (jetzt_dt - datetime.fromisoformat(o.zuletzt)).total_seconds() / 3600)
-        aktualitaet = VERFALL_JE_H ** stunden
+        aktualitaet = (1.0 + stunden) ** (-VERFALL_D)
         bonus = min(BONUS_MAX, BONUS_JE_INSTANZ * o.fremde_bestaetigungen())
         wichtigkeit = min(1.0, o.wichtigkeit / 3 * 0.6 + math.log1p(o.bestaetigt * 2 + o.zugriffe) / 6 - o.widerlegt * 0.5) + bonus
         relevanz = (wort_treffer.get(oid, 0.0) / hoechste_wort) if worte else 1.0

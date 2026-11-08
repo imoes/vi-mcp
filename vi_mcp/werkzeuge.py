@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import gedaechtnis as g
-from . import fragen, intuition, messung, reflexe, sitzung
+from . import fragen, intuition, messung, reflexe, schlaf, selbst, sitzung
 from .schleife import stand as loop_stand, LOOP_S
 
 _O = {"type": "object"}
@@ -50,6 +50,17 @@ TOOLS = [
      "inputSchema": _schema({"id": _S, "text": _S, "belege": _S}, ["id", "text", "belege"])},
     {"name": "vi_fragen", "description": "VI-Kollektiv: offene Fragen an diese Instanz und eigene Fragen mit Zustand und Antworten.",
      "inputSchema": _schema({})},
+    {"name": "vi_selbst", "description": "VI-Selbst: Erzählung, Soll (Werte, Ziele, Stil, Grenzen mit Herkunft), Ist (Kompetenz, Schwächen, "
+                                         "Beziehungen — vom Schlaf berechnet), Versionen. versionen=true zeigt die Geschichte.",
+     "inputSchema": _schema({"versionen": {"type": "boolean"}})},
+    {"name": "vi_selbst_vorschlag",
+     "description": "VI-Selbst: einen Satz fürs Soll vorschlagen (bereich werte|ziele|stil|grenzen) — mit grund und ≥ 3 Belegen (Objekt-IDs "
+                    "aus ≥ 2 Tagen). Wird wirksam, wenn eine ANDERE vertraute Instanz ihn mit vi_bestaetige bestätigt.",
+     "inputSchema": _schema({"bereich": {"type": "string", "enum": list(selbst.BEREICHE)}, "satz": _S, "grund": _S, "belege": _TAGS},
+                            ["bereich", "satz", "grund", "belege"])},
+    {"name": "vi_schlaf", "description": "VI: letzter Konsolidierungslauf (Bericht) — oder jetzt schlafen (jetzt=true, nur vertraute Instanz). "
+                                         "Ein Objekt (id) aus dem Archiv holen: id.",
+     "inputSchema": _schema({"jetzt": {"type": "boolean"}, "id": _S})},
     {"name": "vi_status", "description": "VI: Gedächtnis-Stand — Objekte je Art, Erfahrungen 24 h, offene Gespräche, Kanten, Loop.",
      "inputSchema": _schema({})},
     {"name": "vi_lerne",
@@ -107,7 +118,7 @@ TOOLS = [
      "inputSchema": _schema({"name": _S, "modus": {"type": "string", "enum": ["test", "aktiv", "aus"]}}, ["name", "modus"])},
 ]
 _NAMEN = {t["name"] for t in TOOLS}
-REFLEX_RECHT = ("vi_reflex_lerne", "vi_reflex_schalte")
+REFLEX_RECHT = ("vi_reflex_lerne", "vi_reflex_schalte")  # „vertraute Instanz“; vi_schlaf(jetzt) prüft es selbst
 
 
 class Abgelehnt(Exception):
@@ -175,6 +186,41 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
         return json.dumps(intuition.nachher(args["tool"].strip(), args.get("args") or {}, args["ok"], int(args.get("dauer_ms") or 0),
                                             args.get("fehler"), args.get("ergebnis"), args.get("vorher_id"), instanz,
                                             args.get("lesend")), ensure_ascii=False)
+    if name == "vi_selbst":
+        k = selbst.kern()
+        z = [k.daten.get("erzaehlung") or "", f"Version {k.daten.get('version')} · Ist berechnet: {k.daten.get('ist', {}).get('berechnet', '— (noch kein Schlaf)')}"]
+        for b in selbst.BEREICHE:
+            for sz in k.daten.get("soll", {}).get(b, []):
+                z.append(f"  {b}: {sz['satz']}  [{sz.get('quelle', '')[:100]}, seit {sz.get('seit', '')}]")
+        offen = [o for _, o, _g in g.erinnere("art:selbst modus:test", limit=20)]
+        if offen:
+            z.append("Offene Vorschläge (vi_bestaetige durch eine andere vertraute Instanz übernimmt):")
+            z += [f"  [{o.id}] von {o.instanz}: {o.daten['bereich']} — {o.daten['satz'][:160]}" for o in offen]
+        if args.get("versionen"):
+            z.append("Versionen:")
+            z += [f"  v{v} {zt[:16]} {wer} {b}: {satz[:100]} — {gr[:100]}" for v, zt, wer, b, satz, gr in selbst.versionen()]
+        return "\n".join(z)
+    if name == "vi_selbst_vorschlag":
+        try:
+            o = selbst.vorschlag(instanz, args.get("bereich") or "", args.get("satz") or "", args.get("grund") or "", args.get("belege") or [])
+        except ValueError as e:
+            raise Abgelehnt(str(e)) from e
+        return f"Vorschlag {o.id} gespeichert (test) — eine andere vertraute Instanz übernimmt ihn mit vi_bestaetige(id, grund)"
+    if name == "vi_schlaf":
+        if args.get("id"):
+            d = schlaf.hole_archiv(args["id"])
+            if d is None:
+                raise Abgelehnt(f"{args['id']} ist nicht im Archiv")
+            return json.dumps(d, ensure_ascii=False, indent=1)[:20000]
+        if args.get("jetzt"):
+            if not reflex_recht:
+                raise Abgelehnt(f"Instanz {instanz} ist nicht vertraut — Schlaf von Hand nur mit Reflex-Recht")
+            b = schlaf.lauf(f"von Hand durch {instanz}")
+            return b.text + "\n" + json.dumps({k: v for k, v in b.daten.items() if k != "top"}, ensure_ascii=False)[:3000]
+        l = schlaf.letzter()
+        if not l:
+            return f"noch kein Schlaf — nächster um {schlaf.SCHLAF_STUNDE:02d}:00 UTC oder ab Wichtigkeitssumme {schlaf.SCHWELLE}"
+        return l.text + "\n" + json.dumps({k: v for k, v in l.daten.items() if k != "top"}, ensure_ascii=False)[:3000]
     if name == "vi_status":
         seit = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(timespec="seconds")
         with g.sperre:
@@ -198,6 +244,7 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
                 f"Geteiltes Wissen je Instanz: " + (", ".join(f"{i} {k}" for i, k in je_inst) or "—") + f" · offene Rückfragen {offen_fragen}\n"
                 f"Erfahrung 24 h: {n} Aufrufe, {aus} aus dem Gedächtnis, {fehler} Fehler · Antwort-TTL {intuition.TTL_STANDARD} s (max {intuition.TTL_MAX})\n"
                 + messung.zeile(messung.hinweis_lift(24, betrachter=None)) + "\n"
+                f"Schlaf: {(schlaf.letzter().text if schlaf.letzter() else 'noch keiner')[:200]}\n"
                 f"Loop: alle {LOOP_S} s, {ls['laeufe']} Läufe, zuletzt {ls['zuletzt'] or '—'}, {ls['regeln_neu']} Regeln daraus, "
                 f"{ls['fehler']} Fehler{(' (zuletzt: ' + ls['letzter_fehler'] + ')') if ls['letzter_fehler'] else ''}")
     if name == "vi_lerne":
@@ -238,6 +285,9 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
             if name == "vi_markiere":
                 o.markiere(args.get("hinzu") or [], args.get("weg") or [], wer, args.get("grund", ""))
             elif name == "vi_bestaetige":
+                if o.art == "selbst" and o.id != selbst.KERN:
+                    k = selbst.uebernehme(o, instanz, reflex_recht, args.get("grund", ""))
+                    return f"Vorschlag {o.id} ins Selbst übernommen → Version {k.daten['version']}"
                 o.bestaetige(wer, args.get("grund", ""), instanz)
             else:
                 o.widerlege(wer, args.get("grund", ""), instanz)

@@ -63,13 +63,16 @@ Einträge; ältere werden **gezählt** gekürzt (`daten.aenderungen_gekuerzt`, i
 | `suche` | Eselsbrücke: Name, Filter, **Reize**, Geschichte | `vi_suche_lerne` |
 | `gespraech` | eine Sitzung, Seriennummer `YYYYMMDDNNN`, Zusammenfassung + Hashtags; Verlauf zlib in `gespraech_roh` | `initialize` |
 | `frage` | Rückfrage einer Instanz an eine andere oder an alle; Zustände `offen`/`zugestellt`/`beantwortet`/`abgelaufen` | `vi_frage` |
+| `selbst` | `selbst:kern` = das Selbst (Soll/Ist/Erzählung, versioniert); sonst Vorschläge fürs Soll (Modus `test`) | Start / `vi_selbst_vorschlag` |
+| `schlaf` | Bericht eines Konsolidierungslaufs: Zähler je Schritt, Dauer, Fehler, neue/geänderte IDs | Loop (nachts oder ab Wichtigkeitssumme) |
 
 **Hashtags** `art:wert` (Tabelle `tag`); `art:<art>` immer gesetzt. Verwaltungs-Hashtags (`art:`, `frage:`, `ok:`,
 `serial:`, `tag:`) zählen nicht als Inhalt. **Kanten** (Tabelle `kante`, beidseitig, mit Grund): automatisch bei ≥ 2
 gemeinsamen inhaltlichen Hashtags (Zettelkasten-Idee, A-Mem) und von jeder Erfahrung zu den vorher gefundenen Objekten.
 
-**Modi** (erschöpfend): `aktiv`, `test`, `aus`, `defekt`, `strittig`, `widerlegt`. Widerlegte Objekte erscheinen in
-keiner Suche; strittige erscheinen mit Vermerk.
+**Modi** (erschöpfend): `aktiv`, `test`, `aus`, `defekt`, `strittig`, `widerlegt`, `archiviert`. Widerlegte Objekte
+erscheinen in keiner Suche; strittige erscheinen mit Vermerk; archivierte nur, wenn der Filter `modus:archiviert`
+enthält (Stummel: Text, Hashtags, Zeit; Inhalt komprimiert in Tabelle `archiv`, per `vi_schlaf(id)` abrufbar).
 
 **Urheber und Sicht** (Spalten `instanz`, `sicht`): Jedes Objekt gehört der Instanz, deren Token die Anfrage trug
 (Objekte des Loops: Instanz `vi`); das Hashtag `instanz:<name>` wird daraus gesetzt und ist nicht frei wählbar.
@@ -102,12 +105,17 @@ Gemerkte Antworten (`antwort`) gelten seit 0.2.0 **nur innerhalb einer Instanz**
 ## Erinnern
 
 Filtersprache: `art:wert` (UND), `(a OR b)`, `!art:wert`, Präfix `art:wert*`, Freiwörter → FTS5.
-Gewicht = **Relevanz** (FTS-Rang normiert, sonst 1) + **Aktualität** `0,995^Stunden seit zuletzt` + **Wichtigkeit**
+Gewicht = **Relevanz** (FTS-Rang normiert, sonst 1) + **Aktualität** `(1 + Stunden seit zuletzt)^−0,3` (Potenzgesetz,
+Wixted & Ebbesen 1991 / ACT-R — docs/FORSCHUNG.md A9; bis 0.3.0 exponentiell, siehe Korrektur unten) + **Wichtigkeit**
 `wichtigkeit/3·0,6 + log1p(2·bestätigt + zugriffe)/6 − 0,5·widerlegt` (gedeckelt bei 1) + **Kollektiv-Bonus**
 0,2 je *fremder* bestätigender Instanz (höchstens 0,6). Nach Park et al. 2023, „Generative Agents“ (arXiv 2304.03442).
 Jeder Treffer wird **verstärkt** (`zugriffe + 1` atomar, `zuletzt = jetzt`).
 
-> **Korrektur (08.11.2026):** Hier stand, der Verfallsfaktor 0,995/h sei eine *ungeprüfte Annahme*. Geprüft
+> **Korrektur 2 (0.4.0):** Der exponentielle Verfall ließ alles über zwei Wochen praktisch verschwinden (30 d: 0,03).
+> Jetzt Potenzgesetz, `VERFALL_D = 0,3` ist ein Startwert: 1 h 0,81 · 1 d 0,38 · 7 d 0,21 · 30 d 0,14 · 1 a 0,07.
+> *Beobachtungspunkt:* Rangfolge alt/neu auf denselben Anfragen vor/nach dem Wechsel; Hinweis-Lift.
+>
+> **Korrektur 1 (08.11.2026):** Hier stand, der Verfallsfaktor 0,995/h sei eine *ungeprüfte Annahme*. Geprüft
 > (docs/FORSCHUNG.md, B1): Park et al. nennen 0,995 in Abschnitt 4.1 — aber **je Spielstunde**, und eine Spielstunde
 > entspricht dort etwa einer Minute Echtzeit (Anhang A). vi-mcp wendet den Faktor **je Echtzeit-Stunde** an
 > (Halbwertszeit ≈ 5,8 Tage). Der Faktor ist also belegt, die Zeiteinheit ist eine eigene Wahl. Außerdem normiert Park
@@ -164,6 +172,31 @@ Zustände (erschöpfend): `offen` · `beendet` (DELETE) · `abgelaufen` (4 h ohn
 gemerkte Antworten, Rohverlauf und deren Kanten; das Gesprächsobjekt bleibt als **Grabstein** (`zustand:geloescht`,
 Zeit, Urheber, Grund, Anzahl). Geteiltes Wissen aus dem Gespräch bleibt — es ist Wissen, kein Verlauf.
 Instanzweit (Person): `vi-mcp loesche-instanz <name> "<grund>"` auf dem Host (Admin, nicht per Token).
+
+## Selbst — die virtuelle Persönlichkeit als Objekt
+
+`selbst:kern` (docs/FORSCHUNG.md A12, C1; Vorbild: Conways Self-Memory-System, Parks Steckbrief). **Intension und
+Extension getrennt:** `soll` (Werte, Ziele, Stil, Grenzen — jeder Satz mit Herkunft und Datum) und `ist`
+(Kompetenz je Skill, Schwächen, Beziehungen — vom Schlaf aus 30 Tagen Erfahrung berechnet, nie von Hand).
+Die `erzaehlung` (≤ 150 Wörter, aus Vorlage, nie Quelle eigener Fakten) steht in `initialize.instructions` jeder
+Sitzung und wird alle 25 Handlungen als Hinweis wiederholt (Persona-Drift nach wenigen Runden, Li et al. 2024).
+
+**Änderung des Soll** nur über `vi_selbst_vorschlag` (≥ 3 Belege als Objekt-IDs aus ≥ 2 Tagen — Spacing statt
+Burst) und Bestätigung durch eine **andere, vertraute** Instanz (`vi_bestaetige` auf den Vorschlag). „Vertraut“ ist
+heute das Reflex-Recht — **Annahme:** hinter einer vertrauten Instanz steht ein Mensch, der freigibt. Jede Version
+steht vollständig in `selbst_version` (nicht gekürzt). Version 1 stammt aus den Projektregeln (CLAUDE.md).
+
+## Schlaf — Konsolidierung
+
+Ein Lauf im Loop-Thread (`schlaf.py`), nachts um 03:00 UTC oder sobald die Wichtigkeitssumme neuer Erfahrungen
+≥ 40 ist (Parks Reflexions-Trigger auf Skala 0–3). Sieben Schritte, jeder gezählt, alles im Bericht `schlaf:<zeit>`:
+Triage (Überraschung + Wichtigkeit + Zukunftsrelevanz) → Replay nach (host, skill) mit älteren Erfahrungen
+verschränkt (CLS: Neues gegen Altes lesen, nicht überschreiben) → Schema-Abgleich (**neue** Erfahrungen gegen
+bestehende Erkenntnis: gleicher Ausgang = Belegkanten; anderer = `konflikt:offen`, keine stille Änderung) →
+Abstraktion (Cluster ohne Schema, ≥ 3 Erfahrungen an ≥ 2 Tagen → Erkenntnis `test` aus Vorlage mit Belegkanten;
+LLM-Variante nicht gebaut) → Archiv (Erfahrungen > 30 d, nie zugegriffen, ohne Belegkante) → Selbst-Ist → Bericht.
+Erkenntnisse, Regeln, Suchen, Reflexe werden nie automatisch archiviert. Eine Bestätigung durch den Server zählt
+nicht als fremde Instanz (kein Gewicht durch Automatik).
 
 ## Loop
 

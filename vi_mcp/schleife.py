@@ -16,7 +16,7 @@ from .protokoll import log
 
 LOOP_S = 60
 FEHLER_REGEL_AB = 3
-stand = {"laeufe": 0, "zuletzt": None, "regeln_neu": 0, "fehler": 0, "letzter_fehler": None}
+stand = {"laeufe": 0, "zuletzt": None, "regeln_neu": 0, "fehler": 0, "letzter_fehler": None, "schlaf_zuletzt": None}
 _halt = threading.Event()
 
 
@@ -53,6 +53,11 @@ def schritt() -> int:
                 o.hashtags = [t for t in o.hashtags if not t.startswith("kollektiv:")] + [f"kollektiv:{'ja' if kollektiv else 'nein'}"]
                 g.speichere(o)
     abgelaufene_fragen = fragen.lass_ablaufen()
+    from . import schlaf
+    grund_schlaf = schlaf.faellig()
+    if grund_schlaf:
+        b = schlaf.lauf(grund_schlaf)
+        stand["schlaf_zuletzt"] = b.text
     if abgelaufene_fragen:
         log(f"Rückfragen abgelaufen (ohne Antwort): {abgelaufene_fragen}")
     for s in sitzung.offene():

@@ -38,6 +38,7 @@ class Sitzung:
     zuege: list = field(default_factory=list)
     sperre: threading.Lock = field(default_factory=threading.Lock)
     gesichert_bis: int = 0
+    handlungen: int = 0
 
     def zug(self, z: dict) -> None:
         with self.sperre:

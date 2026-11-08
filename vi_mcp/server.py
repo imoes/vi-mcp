@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import __version__
 from . import gedaechtnis as g
-from . import intuition, konfig, reflexe, schleife, sitzung, werkzeuge
+from . import intuition, konfig, reflexe, schleife, selbst, sitzung, werkzeuge
 from .protokoll import log
 
 PROTOKOLLE = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -83,8 +83,9 @@ def _initialize(msg: dict, inst: konfig.Instanz) -> tuple[dict, sitzung.Sitzung]
     return _antwort(msg.get("id"), {
         "protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
         "serverInfo": {"name": SERVER_NAME, "version": __version__},
-        "instructions": (f"VI-Gedächtnis, Gespräch {s.serial}. Vor einer Handlung vi_vorher, danach vi_nachher melden; "
-                         "vi_erinnere/vi_vertiefe zum Nachlesen, vi_lerne mit Quelle zum Lernen.")}), s
+        "instructions": (f"VI-Gedächtnis, Gespräch {s.serial}, Instanz {inst.name}. Vor einer Handlung vi_vorher, danach vi_nachher "
+                         "melden; vi_erinnere/vi_vertiefe zum Nachlesen, vi_lerne mit Quelle zum Lernen.\n"
+                         + selbst.hinweis())}), s
 
 
 class Server(ThreadingHTTPServer):
@@ -202,6 +203,7 @@ def baue(k: konfig.Konfig) -> list[Server]:
     intuition.ttl_je_werkzeug.clear()
     intuition.ttl_je_werkzeug.update(k.ttl)
     n = len(reflexe.lade_alle())
+    selbst.kern()  # Selbst anlegen, falls neu (Version 1 aus den Projektregeln)
     handler = type("KHandler", (Handler,), {"k": k})
     srvs = [Server((adr, k.port), handler) for adr in k.bind]
     adressen = ", ".join(f"http://{s.server_address[0]}:{s.server_address[1]}/mcp" for s in srvs)
