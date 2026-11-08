@@ -5,7 +5,7 @@ Heute findet `erinnere` nur, was dieselben Hashtags oder Wörter trägt. Ein Emb
 `/v1/embeddings`) macht aus dem Text jedes geteilten Wissensobjekts einen Vektor; gespeichert als float32-BLOB in der
 Tabelle `vektor` (4 Byte je Dimension, ohne Erweiterung — TRAINING.md 4c, Weg 1). Weil der Dienst auf dem Host
 mehrere Sekunden je Anfrage braucht (gemessen 08.11.2026), passiert das **im Schlaf**, im Batch, nie in `vi_vorher`:
-  Schritt 7_vektoren  fehlende Vektoren für erkenntnis/regel/suche nachziehen (höchstens BATCH_MAX je Schlaf)
+  Schritt 7_vektoren  fehlende Vektoren für erkenntnis/regel/suche/skill nachziehen (höchstens NACHZIEH_MAX_S Sekunden je Schlaf)
   Schritt 7b_naehe    Paare mit Kosinus ≥ NAEHE_KANTE bekommen eine Kante „semantisch ähnlich (cos 0,91)“;
                       Paare ≥ NAEHE_DUBLETTE ohne gemeinsame Instanz werden als `dublette:moeglich` markiert (nicht
                       zusammengelegt — das entscheidet ein Mensch oder eine zweite Instanz)
@@ -16,6 +16,7 @@ Ohne Konfiguration `embed` passiert nichts; der Schlaf meldet den Schritt als ü
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 
@@ -25,7 +26,8 @@ from . import gedaechtnis as g
 from .protokoll import log
 
 BATCH = 16
-BATCH_MAX = 256
+#: Zeitgrenze statt Stückzahl: Ein Schlaf soll nicht stundenlang einbetten, der Rest kommt im nächsten (gemessen rund 1,5 s je Text)
+NACHZIEH_MAX_S = 1200
 NAEHE_KANTE = 0.85
 NAEHE_DUBLETTE = 0.95
 VEKTOR_ARTEN = ("erkenntnis", "regel", "suche", "skill")
@@ -123,18 +125,20 @@ def alle() -> dict[str, np.ndarray]:
     return {oid: _unpack(roh, dim) for oid, dim, roh in rows}
 
 
-def nachziehen() -> dict:
-    """Schlaf-Schritt 7: fehlende Vektoren geteilter Wissensobjekte berechnen (Batch, begrenzt)."""
+def nachziehen(max_s: float | None = None) -> dict:
+    """Schlaf-Schritt 7: fehlende Vektoren geteilter Wissensobjekte berechnen, Neueste zuerst, höchstens NACHZIEH_MAX_S Sekunden je Schlaf."""
     if not verfuegbar():
         return {"zustand": "uebersprungen", "grund": "kein Embedding-Dienst konfiguriert (konfig.embed)"}
     _tabelle()
     with g.sperre:
         fehlend = g.db().execute(
             f"SELECT o.id, o.text FROM objekt o LEFT JOIN vektor v ON v.id = o.id WHERE v.id IS NULL AND o.art IN ({','.join('?' * len(VEKTOR_ARTEN))}) "
-            "AND o.modus NOT IN ('widerlegt', 'archiviert', 'quarantaene') AND length(o.text) > 0 ORDER BY o.zeit DESC LIMIT ?", (*VEKTOR_ARTEN, BATCH_MAX)).fetchall()
-    n, fehler = 0, None
+            "AND o.modus NOT IN ('widerlegt', 'archiviert', 'quarantaene') AND length(o.text) > 0 ORDER BY o.zeit DESC", VEKTOR_ARTEN).fetchall()
+    n, fehler, ende = 0, None, time.monotonic() + (NACHZIEH_MAX_S if max_s is None else max_s)
     modell = (konfig or {}).get("modell") or "embed"
     for i in range(0, len(fehlend), BATCH):
+        if time.monotonic() > ende:
+            break  # der Rest folgt im nächsten Schlaf; „offen“ nennt ihn
         teil = fehlend[i:i + BATCH]
         try:
             vs = einbetten([t for _, t in teil])

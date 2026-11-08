@@ -65,3 +65,14 @@ def test_semantische_suche(fake):
     assert "nichts im Gedächtnis" in werkzeuge.rufe("vi_erinnere", {"filter": "Verbindung haengt"}, "a", True)  # FTS findet es nicht
     with pytest.raises(werkzeuge.Abgelehnt, match="Freitext"):
         werkzeuge.rufe("vi_erinnere", {"filter": "host:cue1", "semantisch": True}, "a", True)
+
+
+def test_nachziehen_nennt_den_echten_rest(gd, monkeypatch):
+    monkeypatch.setattr(vektor, "einbetten_fn", lambda texte: [[1.0, 0.0] for _ in texte])
+    monkeypatch.setattr(vektor, "BATCH", 2)
+    for i in range(5):
+        g.neues_objekt("erkenntnis", f"Wissen Nummer {i} zum Einbetten", ["thema:a"], {"quelle": "x"}, grund="T")
+    r = vektor.nachziehen(max_s=0)  # Zeit schon um: nichts eingebettet, alles offen
+    assert r == {"zustand": "fertig", "neu": 0, "offen": 5}
+    r = vektor.nachziehen()
+    assert r["neu"] == 5 and r["offen"] == 0

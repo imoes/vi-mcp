@@ -3,6 +3,16 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.19.1 — 2026-11-08 — Einbetten nach Zeit, ehrlicher Rest
+
+### Was wurde behoben
+
+- Der Schlaf meldete bei den Vektoren „offen 0“, obwohl 1.343 Wissensobjekte noch keinen Vektor hatten: Der Rest wurde aus dem schon auf 256 begrenzten Stapel berechnet.
+  Bis sie eingebettet sind, findet die Bedeutungssuche diese Objekte nicht. Jetzt nennt `offen` den echten Rest. Die Grenze ist eine Zeit (20 Minuten je Schlaf) statt einer Stückzahl.
+  *Nachweis:* `test_nachziehen_nennt_den_echten_rest`; gefunden beim nächtlichen Vergleich mit der AIKB.
+- Gemessen für `zugangsdaten_entfernen` (0.18.0) an 752 Texten (400 aus der AIKB, 352 aus CentralStation), Richter das lokale Sprachmodell: von 45 Texten mit Passwort im Klartext waren danach nur 13 sauber (29 %).
+  Mit einer zweiten Stufe, in der das Modell die Werte nennt und nur wörtlich Vorkommendes ersetzt wird, 37 (82 %). Suchmodell und Richter sind dasselbe Modell, die Zahl ist eher zu hoch.
+
 ## 0.19.0 — 2026-11-08 — Hinweise am Vorteil gemessen, nicht an der Erfolgsquote
 
 ### Was hat sich geändert
