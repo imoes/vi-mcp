@@ -23,7 +23,7 @@ Verlinkt aus [README.md](README.md).
 ### Was wurde behoben
 
 - **Reflex-Code lief bis 0.8.0 per `exec` im Serverprozess**; nur die AST-Prüfung trennte ihn vom Gedächtnis.
-- `docs/erzaehlung.html` ist jetzt ein Betriebsbericht in Fachsprache (Wunsch des Nutzers) statt einer Geschichte.
+- `docs/erzaehlung.html` ist jetzt eine technische Erläuterung im Stil von Data (Wunsch des Nutzers) statt einer Geschichte.
 
 ### Was fehlt noch
 

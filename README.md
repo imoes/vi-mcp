@@ -13,7 +13,7 @@ erscheint der nächsten vor der passenden Handlung als Hinweis.
 **Handlungen automatisch melden** → [docs/HOOK.md](docs/HOOK.md) ·
 **Wie Menschen sich erinnern — und was daraus folgt** → [docs/FORSCHUNG.md](docs/FORSCHUNG.md) ·
 **Wie eine KI trainiert wird — und wie wir Daten dafür ablegen** → [docs/TRAINING.md](docs/TRAINING.md) ·
-**Als Betriebsbericht in Fachsprache** → [docs/erzaehlung.html](docs/erzaehlung.html)
+**Technische Erläuterung im Stil von Data** → [docs/erzaehlung.html](docs/erzaehlung.html)
 
 ## In einem Bild
 
