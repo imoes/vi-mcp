@@ -10,6 +10,15 @@ Verlinkt aus [README.md](README.md).
 - Der Hook maskiert Geheimnisse vor dem Senden, schickt Ergebnisse nur noch bei MCP-Werkzeugen und kürzt lange Argumente
   eingebauter Werkzeuge. *Nachweis:* `test_maskierung_und_kuerzung`, `test_ergebnis_nur_bei_mcp`.
 
+- **vi-mcp ist bei Claude Code registriert, der Hook ist eingetragen.** Seit dem 08.11.2026 werden echte Handlungen gemeldet.
+  *Nachweis:* `claude mcp list` zeigt `Connected`; eine Sonde aus einer echten Sitzung steht als Erfahrung im Gedächtnis;
+  `sshpass -p GEHEIM1` kam als `sshpass -p ***` an; ein Hook-Aufruf über TLS dauert 50–70 ms (5 Läufe).
+
+### Was fehlt noch
+
+- Der VI-Teil des früheren Skill-Servers läuft parallel weiter: dort entsteht ein zweites, getrenntes Gedächtnis.
+- Noch zu wenige echte Handlungen für eine Aussage zum Hinweis-Lift.
+
 ### Was wurde behoben
 
 - Daten über 400 000 Zeichen wurden mitten im JSON abgeschnitten; das Objekt ließ sich danach nicht mehr laden. Jetzt
@@ -41,8 +50,7 @@ Verlinkt aus [README.md](README.md).
 
 - seccomp-Filter nur für x86_64 (auf anderen Architekturen läuft kein Reflex).
 - Landlock sperrt den Lesezugriff auf `/usr` nicht: Code kann dort liegende Dateien lesen.
-- `vi-mcp` ist bei Claude Code noch nicht registriert, der Hook nicht eingetragen (`~/.claude/settings.json` geprüft).
-  Deshalb liegen keine echten Handlungen vor, und **alle Lernstufen sind im Betrieb unbewiesen**.
+- Alle Lernstufen sind im Betrieb unbewiesen (Registrierung und Hook folgten erst mit 0.9.1).
 - Stufe 5 (P2P mit Import-Prüfung): nicht gebaut.
 
 ## 0.8.0 — 2026-11-08 — Stufe 4

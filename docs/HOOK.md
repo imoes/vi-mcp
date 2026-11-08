@@ -37,7 +37,7 @@ Standard-Budget 1,5 s (deshalb DELETE mit 1 s Timeout); Exit-Codes außer 0 und 
 **Nicht bestätigt:** `additionalContext` bei **PreToolUse** (bestätigt nur für PostToolUse) — wird es ignoriert,
 fehlen nur die Vorher-Hinweise, sonst nichts.
 
-## Eintragen (noch nicht geschehen — braucht Freigabe)
+## Eintragen
 
 Voraussetzung: vi-mcp läuft und ist erreichbar. Für einen entfernten Server die Umgebung setzen (z. B. im
 `env`-Block von `~/.claude/settings.json`):

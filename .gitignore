@@ -223,5 +223,5 @@ __marimo__/
 *.db-wal
 *.db-shm
 config.json
-docs/LOKAL.md
+docs/LOKAL*.md
 .venv/
