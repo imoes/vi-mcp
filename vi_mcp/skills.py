@@ -25,6 +25,10 @@ from . import gedaechtnis as g
 SCHLECHT_AB = 3
 SCHLECHT_QUOTE = 0.3
 
+#: Werkzeuge, die in fast jedem Gespräch vorkommen. Ein Lösungsweg nur aus ihnen sagt nichts darüber, was das Problem gelöst hat.
+ALLGEMEINE_WERKZEUGE = {"Bash", "Read", "Write", "Edit", "MultiEdit", "Glob", "Grep", "AskUserQuestion", "ToolSearch", "TodoWrite", "WebSearch", "WebFetch",
+                        "Agent", "Task", "Skill", "SendMessage", "NotebookEdit", "BashOutput", "KillShell", "Monitor", "ScheduleWakeup", "ListAgents"}
+
 
 def _slug(name: str) -> str:
     return re.sub(r"[^a-z0-9_-]+", "-", name.lower()).strip("-")[:40]
@@ -167,6 +171,8 @@ def aus_erholung(seit: str) -> dict:
                 schritte.append(t)
         sig = next((tg for tg in episode[fehler_idx[0]].hashtags if tg.startswith("fehler:")), None)
         reize = sorted({tg for x in weg for tg in x.hashtags if tg.startswith(("host:", "thema:"))} | {f"tool:{tool}", f"skill:{tool.split('_')[0]}"} | ({sig} if sig else set()))
+        if not _hat_inhalt(tool, schritte):
+            continue  # „Bash scheiterte und gelang danach“ ohne weiteren Schritt ist kein Wissen, nur der Normalfall
         name = f"auto-{g.hashwert(tool, sig or '', 'erholung')[:12]}"
         anleitung = (f"{tool} scheiterte ({sig[7:] if sig else 'Fehler'}) und gelang danach im selben Gespräch — Lösungsweg: "
                      + " → ".join(schritte))
@@ -181,10 +187,31 @@ def aus_erholung(seit: str) -> dict:
     return {"neu": neu_n, "weiterentwickelt": weiter_n}
 
 
+def _hat_inhalt(tool: str, schritte) -> bool:
+    """Ein Erholungsweg sagt etwas, wenn zwischen Fehler und Erfolg ein anderer Schritt lag. Bash zählt dabei nur, wenn nicht Bash selbst gescheitert ist
+    (dann wurde am System etwas getan); Lesen, Schreiben, Rückfragen kommen in fast jedem Gespräch vor."""
+    allgemein = ALLGEMEINE_WERKZEUGE - ({"Bash"} if tool != "Bash" else set())
+    return bool(set(schritte) - allgemein - {tool})
+
+
+def inhaltsleer(o: g.Objekt) -> bool:
+    """Ein automatischer Erholungs-Skill ohne aussagekräftigen Schritt."""
+    if not o.daten.get("name", "").startswith("auto-"):
+        return False
+    tool = next((r[5:] for r in (o.daten.get("problem") or {}).get("reize", []) if r.startswith("tool:")), "")
+    return not _hat_inhalt(tool, [s.get("tool") for s in (o.daten.get("loesung") or {}).get("schritte", [])])
+
+
 def bewerte() -> dict:
-    """Skills, die wiederholt scheitern und nie nützen → strittig (benannt), nicht gelöscht."""
+    """Skills, die wiederholt scheitern und nie nützen → strittig (benannt), nicht gelöscht. Inhaltsleere automatische Skills → widerlegt."""
     from . import bandit
     strittig = 0
+    for _, o, _g in g.erinnere("art:skill (modus:test OR modus:aktiv OR modus:strittig)", limit=500, betrachter=None):
+        if inhaltsleer(o):
+            o.modus = "widerlegt"
+            o.hashtags = [t for t in o.hashtags if not t.startswith("modus:")] + ["modus:widerlegt"]
+            o.aendere("vi", "widerlegt", "Schlaf: Lösungsweg besteht nur aus allgemeinen Werkzeugen; „genützt“ zählte nur, dass das Werkzeug ohnehin meist gelingt")
+            g.speichere(o)
     for _, o, _g in g.erinnere("art:skill (modus:test OR modus:aktiv)", limit=500, betrachter=None):
         ja, nein = bandit.zaehler(o)
         if nein >= SCHLECHT_AB and (ja / (ja + nein)) < SCHLECHT_QUOTE and o.modus != "strittig":

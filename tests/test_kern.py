@@ -242,3 +242,22 @@ def test_angezeigte_ids_sind_nachschlagbar(gd):
     assert "Nachschlagen" in werkzeuge.rufe("vi_objekt", {"id": oid[:20]}, "a", False)  # gekürzt aus älteren Ausgaben
     with pytest.raises(werkzeuge.Abgelehnt):
         werkzeuge.rufe("vi_objekt", {"id": "erkenntnis:%"}, "a", False)
+
+
+def test_passende_warnung_schlaegt_allgemeines(gd):
+    from vi_mcp import werkzeuge
+    for i in range(10):
+        werkzeuge.rufe("vi_lerne", {"text": f"Allgemeine Ansible-Notiz Nummer {i} mit Inhalt", "hashtags": ["skill:ansible"], "quelle": "Doku 8.11."}, "a", False)
+    werkzeuge.rufe("vi_lerne", {"text": "freeipa-client nie auf timehost laufen lassen", "hashtags": ["skill:ansible", "thema:ansible-playbook", "host:timehost"],
+                                "quelle": "Vorfall 13.10.", "wichtigkeit": 3}, "a", False)
+    v = intuition.vorher("Bash", {"command": "ansible-playbook playbooks/freeipa-client.yml -l sites"}, "a", False)
+    assert "timehost" in v["hinweise"][0] or any("timehost" in h for h in v["hinweise"][:2])
+
+
+def test_inhaltsleerer_auto_skill_wird_widerlegt(gd):
+    from vi_mcp import skills
+    o = skills.neu("auto-test1", ["tool:Bash"], ["Bash", "AskUserQuestion", "Write"], "Bash scheiterte und gelang danach im selben Gespräch", "Schlaf", [], g.SERVER_INSTANZ, wer="vi")
+    echt = skills.neu("auto-test2", ["tool:Bash"], ["Bash", "netbox_get_vms"], "Bash scheiterte, netbox_get_vms half", "Schlaf", [], g.SERVER_INSTANZ, wer="vi")
+    assert skills.inhaltsleer(o) and not skills.inhaltsleer(echt)
+    skills.bewerte()
+    assert g.lade(o.id).modus == "widerlegt" and g.lade(echt.id).modus != "widerlegt"

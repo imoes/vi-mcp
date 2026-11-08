@@ -52,6 +52,7 @@ def test_skill_aus_erholung_im_schlaf(gd):
     # zweite Erholung desselben Problems → Version 2, kein zweiter Skill
     s2 = sitzung.beginne("b", "t")
     handlung(s2, "checkmk_get_host", False, "ConnectionError: refused")
+    handlung(s2, "Bash", True)  # wieder etwas am System getan; nur „nochmal versucht“ entwickelt den Weg nicht weiter
     handlung(s2, "checkmk_get_host", True)
     b2 = schlaf.lauf("Test 2")
     assert b2.daten["schritte"]["4c_skills"] == {"neu": 0, "weiterentwickelt": 1, "strittig": 0, "vorschlaege": 0}

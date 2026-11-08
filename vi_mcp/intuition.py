@@ -120,7 +120,7 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     # Kandidaten (Heuristik: Aktualität + Wichtigkeit + Bonus), dann ggf. Router-Modell (gelernter Lift), dann Erkundung
     from . import bandit, lernen
     import random as _random
-    kand = [o for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=HINWEIS_BUDGET + 8, arten=("erkenntnis", "regel", "skill"))]
+    kand = [o for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=HINWEIS_BUDGET + 16, arten=("erkenntnis", "regel", "skill"))]
     from . import p2p  # Quellen, die sich als schädlich erwiesen haben, werden nicht mehr gezeigt
     kand = p2p.ohne_gesperrte(kand)
     router = "heuristik"
@@ -132,6 +132,11 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     elif bandit.hat_zaehler(kand):  # Stufe 2: Thompson Sampling, sobald irgendein Kandidat bewertet wurde
         kand = bandit.ordne(kand)
         router = "bandit"
+    # Erst Passung, dann gelernter Nutzen: Eine neue, genau passende Regel hat noch keine Geschichte und verlöre sonst gegen
+    # eingespielte allgemeine Hinweise. Wichtigkeit 3 (Warnung) geht vor. Werkzeug-Reize einer Shell sagen nichts Spezifisches.
+    allgemein = {f"tool:{tool}", f"skill:{tool.split('_')[0]}"} if tool in SHELL_WERKZEUGE else set()
+    passend = set(such_reize) - allgemein
+    kand.sort(key=lambda o: (-(o.wichtigkeit >= 3 and bool(passend & set(o.hashtags))), -len(passend & set(o.hashtags))))
     gezeigt_obj = kand[:HINWEIS_BUDGET]
     exploration = False
     rest = kand[HINWEIS_BUDGET:]

@@ -3,6 +3,20 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.18.2 — 2026-11-08 — Passende Warnungen vor allgemeinen Hinweisen
+
+### Was wurde behoben
+
+- **Eine neu gelernte, genau passende Regel kam nicht vor.** Das gelernte Modell sortierte nur nach erwartetem Nutzen; eine neue Regel hat noch keine Geschichte und verlor gegen eingespielte allgemeine Hinweise
+  (gemessen: die timehost-Regel vor `ansible-playbook freeipa-client.yml …` auf Platz 8 von 12, gezeigt werden 4). Jetzt zählt zuerst, wie viele spezifische Reize ein Hinweis trifft, und Hinweise mit Wichtigkeit 3 gehen vor;
+  innerhalb gleicher Passung entscheidet weiter das Modell. Der Kandidatenkreis ist von 12 auf 20 erweitert. *Nachweis:* `test_passende_warnung_schlaegt_allgemeines`.
+- **Inhaltsleere automatische Skills verstärkten sich selbst.** „Bash scheiterte und gelang danach — Lösungsweg Bash → AskUserQuestion → …“ erschien vor jedem Bash-Befehl und galt als 226-mal genützt,
+  weil Bash fast immer gelingt (Nachbarschaft ist keine Ursache). Solche Skills entstehen nicht mehr, vorhandene widerlegt der Schlaf mit Grund. *Nachweis:* `test_inhaltsleerer_auto_skill_wird_widerlegt`.
+
+### Was fehlt noch
+
+- Der Hinweis-Zähler belohnt weiterhin jeden Erfolg nach dem Zeigen. Richtig wäre der Vergleich mit der Erfolgsquote des Werkzeugs ohne Hinweis.
+
 ## 0.18.1 — 2026-11-08 — Angezeigte IDs sind nachschlagbar
 
 ### Was wurde behoben
