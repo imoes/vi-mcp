@@ -1,0 +1,60 @@
+# Claude-Code-Hook: jede Handlung an die VI melden
+
+`hook/vi_hook.py` — eine Datei, nur Standardbibliothek. Meldeweg laut Entscheidung des Nutzers (08.11.2026):
+**nur** dieser Hook meldet; kein Werkzeug-Server meldet zusätzlich (sonst doppelt).
+
+## Was er tut
+
+| Claude-Code-Ereignis | Hook ruft | Wirkung im Modell |
+|---|---|---|
+| `PreToolUse` | `vi_vorher` | gemerkte Antwort → Aufruf **verweigert** (`permissionDecision: deny`), die Antwort steht im Grund; sonst Hinweise als `additionalContext` |
+| `PostToolUse` | `vi_nachher` (ok, Ergebnis, Dauer) | Nachher-Reflex-Hinweise als `additionalContext` |
+| `PostToolUseFailure` | `vi_nachher` (ok=false, `error`, `is_interrupt`) | — |
+| `SessionEnd` | `DELETE /mcp` | Gespräch `beendet` |
+
+- **Eine Claude-Sitzung = ein Gespräch** in vi-mcp (Zustand in `~/.cache/vi-mcp/hook/sitzung/<session_id>.json`, 0600).
+  Unbekannte Sitzung (Server neu gestartet) → der Hook meldet sich einmal neu an.
+- **Werkzeugname**: `mcp__<server>__<werkzeug>` → `<werkzeug>` (so heißen die Reize `tool:`/`skill:` wie die Werkzeuge selbst).
+- **Nie aus dem Gedächtnis**: eingebaute Werkzeuge (Bash, Read, Edit, Grep, …) melden `lesend: false` — Dateien und
+  Systemzustand ändern sich. Nur MCP-Werkzeuge können eine gemerkte Antwort bekommen (und nur lesende, nach Namensmuster).
+- **Eigene Werkzeuge** (`mcp__vi-mcp__*`) werden nicht gemeldet.
+- **Ausfall**: vi-mcp nicht erreichbar, Token fehlt, falsche Antwort → Exit 0 ohne Ausgabe, der Aufruf läuft ohne
+  Gedächtnis; der Grund steht in `~/.cache/vi-mcp/hook/hook.log`. Ein Hook-Fehler hält nie eine Sitzung auf.
+
+**Grenze (Doku):** Ein Hook kann einen Aufruf erlauben oder verweigern, aber nicht durch ein Ergebnis ersetzen.
+Eine gemerkte Antwort erscheint dem Modell daher als „verweigert, Grund: …“.
+
+## Belege zur Schnittstelle
+
+Claude Code Hooks, https://code.claude.com/docs/en/hooks.md (gelesen 08.11.2026, installiert: 2.1.319):
+gemeinsame Felder `session_id`, `cwd`, `hook_event_name`; PreToolUse `tool_name`, `tool_input`, `tool_use_id`;
+`permissionDecision: "deny"` → `permissionDecisionReason` wird Claude gezeigt; PostToolUse nur nach Erfolg,
+`tool_response`, `additionalContext`; PostToolUseFailure `error`, `is_interrupt`, `duration_ms`; SessionEnd `reason`,
+Standard-Budget 1,5 s (deshalb DELETE mit 1 s Timeout); Exit-Codes außer 0 und 2 sind nicht blockierend.
+**Nicht bestätigt:** `additionalContext` bei **PreToolUse** (bestätigt nur für PostToolUse) — wird es ignoriert,
+fehlen nur die Vorher-Hinweise, sonst nichts.
+
+## Eintragen (noch nicht geschehen — braucht Freigabe)
+
+Voraussetzung: vi-mcp läuft (`deploy/install.sh`), Token in `~/.config/vi-mcp/token-$USER`.
+In `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse":         [{"matcher": "*", "hooks": [{"type": "command", "command": "python3 -I ~/Dev/code/vi-mcp/hook/vi_hook.py", "timeout": 5}]}],
+    "PostToolUse":        [{"matcher": "*", "hooks": [{"type": "command", "command": "python3 -I ~/Dev/code/vi-mcp/hook/vi_hook.py", "timeout": 5}]}],
+    "PostToolUseFailure": [{"matcher": "*", "hooks": [{"type": "command", "command": "python3 -I ~/Dev/code/vi-mcp/hook/vi_hook.py", "timeout": 5}]}],
+    "SessionEnd":         [{"hooks": [{"type": "command", "command": "python3 -I ~/Dev/code/vi-mcp/hook/vi_hook.py"}]}]
+  }
+}
+```
+
+Kosten: je Werkzeugaufruf zwei HTTP-Anfragen an 127.0.0.1 (Timeout 3 s; gemessen werden sollte die Dauer nach
+der Installation, siehe CHANGELOG „Was fehlt noch“).
+
+## Prüfen
+
+`python3 -m pytest -q tests/test_hook.py` — 7 Tests gegen einen echten vi-mcp-Server: Vorher/Nachher, gemerkte
+Antwort sitzungsübergreifend, eingebaute Werkzeuge nie aus dem Gedächtnis, Fehler, Hinweise, eigene Werkzeuge,
+Sitzungsende, Server-Neustart, Ausfall.

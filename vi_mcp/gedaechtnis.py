@@ -19,6 +19,7 @@ import json
 import math
 import os
 import re
+import secrets
 import sqlite3
 import threading
 from dataclasses import dataclass, field
@@ -236,7 +237,9 @@ def neues_objekt(art: str, text: str, hashtags: list[str], daten: dict | None = 
         if not TAG.match(t):
             raise ValueError(f"Hashtag {t!r} hat nicht die Form art:wert")
     zeit = jetzt()
-    o = Objekt(id=oid or f"{art}:{hashwert(art, text, zeit, json.dumps(daten or {}, sort_keys=True))}", art=art, zeit=zeit,
+    # Zufallsanteil: zwei gleiche Handlungen in derselben Sekunde sind zwei Objekte, nicht eines (sonst überschreibt
+    # INSERT OR REPLACE das erste still — gefunden von test_eingebaute_werkzeuge_nie_aus_gedaechtnis)
+    o = Objekt(id=oid or f"{art}:{hashwert(art, text, zeit, json.dumps(daten or {}, sort_keys=True), secrets.token_hex(8))}", art=art, zeit=zeit,
                zuletzt=zeit, text=text, daten=daten or {}, hashtags=list(hashtags), wichtigkeit=max(0, min(3, wichtigkeit)),
                modus=modus, gespraech=gespraech or aktuelles_gespraech.get(),
                aenderungen=[{"zeit": zeit, "wer": wer, "was": "angelegt", "grund": (grund or "angelegt")[:300]}])

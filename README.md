@@ -9,7 +9,8 @@ erscheint der nächsten vor der passenden Handlung als Hinweis.
 > das **Bewusstsein** (Mensch oder LLM) liest nur, was die Intuition vorgefiltert hat.
 
 **Was ist neu?** → [CHANGELOG.md](CHANGELOG.md) · **Wie ist es gebaut?** → [docs/ARCHITEKTUR.md](docs/ARCHITEKTUR.md) ·
-**Wie betreibe ich es?** → [docs/BETRIEB.md](docs/BETRIEB.md)
+**Wie betreibe ich es?** → [docs/BETRIEB.md](docs/BETRIEB.md) ·
+**Handlungen automatisch melden** → [docs/HOOK.md](docs/HOOK.md)
 
 ## In einem Bild
 
@@ -31,7 +32,7 @@ erscheint der nächsten vor der passenden Handlung als Hinweis.
 
 ```bash
 cd ~/Dev/code/vi-mcp
-python3 -m pytest -q tests          # 19 Tests, nur Standardbibliothek + pytest
+python3 -m pytest -q tests          # 25 Tests, nur Standardbibliothek + pytest
 deploy/install.sh                   # Instanz $USER anlegen, systemd-User-Dienst starten
 curl -s http://127.0.0.1:8765/gesund
 claude mcp add --transport http -s user vi-mcp http://127.0.0.1:8765/mcp \
@@ -65,5 +66,6 @@ Voraussetzungen: Python ≥ 3.11 (getestet mit 3.12.3), SQLite mit FTS5 (geteste
 |---|---|
 | Code | `vi_mcp/` — `gedaechtnis` (Objekte, Erinnern), `sitzung` (Gespräche), `intuition` (vorher/nachher), `reflexe`, `schleife` (Loop), `werkzeuge` (MCP-Werkzeuge), `server` (HTTP), `konfig` |
 | Tests | `tests/` — Kern ohne Netz und Protokoll gegen echten HTTP-Server |
+| Hook | `hook/vi_hook.py` — Claude-Code-Hook, eine Datei, nur Standardbibliothek |
 | Betrieb | `deploy/vi-mcp.service`, `deploy/install.sh` |
 | Herkunft | Herausgelöst aus dem VI-Teil eines stdio-Skill-Servers (v3.0.0, 08.11.2026); siehe [docs/ARCHITEKTUR.md](docs/ARCHITEKTUR.md#herkunft) |
