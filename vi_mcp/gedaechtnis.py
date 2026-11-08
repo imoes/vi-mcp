@@ -41,6 +41,8 @@ SERVER_INSTANZ = "vi"
 #: Gewichtbonus je verschiedener FREMDER Instanz, die bestätigt hat (Selbstbestätigung zählt nicht als Beleg)
 BONUS_JE_INSTANZ = 0.2
 BONUS_MAX = 0.6
+#: Änderungsgeschichte je Objekt; ältere Einträge werden gezählt gekürzt (daten.aenderungen_gekuerzt)
+GESCHICHTE_MAX = 50
 #: Aktualität: Verfall je Stunde seit dem letzten Zugriff. Annahme (Erklärer zu Park et al. nennen γ = 0,995/h,
 #: ungeprüft gegen den Paper-Text) — benannt, nicht belegt.
 VERFALL_JE_H = 0.995
@@ -177,7 +179,11 @@ class Objekt:
 
     def aendere(self, wer: str, was: str, grund: str) -> None:
         self._grund_pflicht(grund)
-        self.aenderungen = (self.aenderungen + [{"zeit": jetzt(), "wer": wer, "was": was, "grund": grund.strip()[:300]}])[-50:]
+        alle = self.aenderungen + [{"zeit": jetzt(), "wer": wer, "was": was, "grund": grund.strip()[:300]}]
+        if len(alle) > GESCHICHTE_MAX:  # nichts verschwindet still: die Kürzung wird gezählt und in vi_objekt genannt
+            self.daten["aenderungen_gekuerzt"] = self.daten.get("aenderungen_gekuerzt", 0) + len(alle) - GESCHICHTE_MAX
+            alle = alle[-GESCHICHTE_MAX:]
+        self.aenderungen = alle
         self.zuletzt = jetzt()
 
     def markiere(self, hinzu: list[str], weg: list[str], wer: str, grund: str) -> "Objekt":
@@ -185,8 +191,8 @@ class Objekt:
         for t in list(hinzu) + list(weg):
             if not TAG.match(t):
                 raise ValueError(f"Hashtag {t!r} hat nicht die Form art:wert")
-            if t.startswith(("art:", "tool:")):
-                raise ValueError(f"{t}: art: und tool: sind feste Hashtags")
+            if t.startswith(("art:", "tool:", "instanz:")):
+                raise ValueError(f"{t}: art:, tool: und instanz: (der Urheber aus dem Token) sind feste Hashtags")
         self.hashtags = sorted((set(self.hashtags) | set(hinzu)) - set(weg))
         self.aendere(wer, " ".join([f"+{t}" for t in hinzu] + [f"-{t}" for t in weg]), grund)
         return speichere(self)
@@ -291,7 +297,7 @@ def loesche(oids: list[str]) -> int:
 
 def neues_objekt(art: str, text: str, hashtags: list[str], daten: dict | None = None, wichtigkeit: int = 1,
                  wer: str = "vi", grund: str = "", oid: str | None = None, modus: str = "aktiv",
-                 gespraech: str | None = None, instanz: str | None = None, sicht: str | None = None) -> Objekt:
+                 gespraech: str | None = None, instanz: str | None = None) -> Objekt:
     if art not in ARTEN:
         raise ValueError(f"art muss {', '.join(ARTEN)} sein")
     for t in hashtags:
@@ -305,7 +311,7 @@ def neues_objekt(art: str, text: str, hashtags: list[str], daten: dict | None = 
     o = Objekt(id=oid or f"{art}:{hashwert(art, text, zeit, json.dumps(daten or {}, sort_keys=True), secrets.token_hex(8))}", art=art, zeit=zeit,
                zuletzt=zeit, text=text, daten=daten or {}, hashtags=list(hashtags), wichtigkeit=max(0, min(3, wichtigkeit)),
                modus=modus, gespraech=gespraech or aktuelles_gespraech.get(),
-               instanz=instanz or aktuelle_instanz.get() or SERVER_INSTANZ, sicht=sicht or SICHT_JE_ART[art],
+               instanz=instanz or aktuelle_instanz.get() or SERVER_INSTANZ, sicht=SICHT_JE_ART[art],
                aenderungen=[{"zeit": zeit, "wer": wer, "was": "angelegt", "grund": (grund or "angelegt")[:300]}])
     speichere(o)
     verknuepfe_aehnliche(o)

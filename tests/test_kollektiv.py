@@ -161,3 +161,30 @@ def test_migration_von_0_1(tmp_path):
         assert "cache:abc" in a.hashtags and not [t for t in a.hashtags if t.startswith("frage:")]
     finally:
         g.schliesse()
+
+
+def test_verstaerkung_erst_bei_erfolg(gd):
+    e = g.neues_objekt("erkenntnis", "web2 braucht Proxy", ["host:web2"], {"quelle": "x"}, grund="T")
+    v = intuition.vorher("checkmk_get_host", {"host": "web2"}, "a")
+    assert e.id in v["zugriff"]["gefunden"] and g.lade(e.id).zugriffe == 0  # Zeigen allein verstärkt nicht
+    n = intuition.nachher("checkmk_get_host", {"host": "web2"}, False, 1, "Timeout", None, v["vorher_id"], "a")
+    assert n["verstaerkt"] == 0 and g.lade(e.id).zugriffe == 0  # Misserfolg verstärkt nicht
+    v = intuition.vorher("checkmk_get_host", {"host": "web2"}, "a")
+    n = intuition.nachher("checkmk_get_host", {"host": "web2"}, True, 1, None, "ok", v["vorher_id"], "a")
+    assert n["verstaerkt"] == 1 and g.lade(e.id).zugriffe == 1
+
+
+def test_hinweisbudget(gd):
+    for i in range(7):
+        g.neues_objekt("erkenntnis", f"Hinweis {i} zu web3", ["host:web3"], {"quelle": "x"}, grund="T")
+    h = intuition.vorher("Bash", {"host": "web3"}, "a", False)["hinweise"]
+    assert len(h) == intuition.HINWEIS_BUDGET + 1 and h[-1].startswith("… 3 weitere Treffer") and "vi_vertiefe" in h[-1]
+
+
+def test_geschichte_kuerzung_benannt(gd):
+    o = g.neues_objekt("erkenntnis", "lange Geschichte", ["thema:g"], {"quelle": "x"}, grund="T")
+    for i in range(g.GESCHICHTE_MAX + 4):
+        o = g.lade(o.id); o.bestaetige("ki@a", f"Grund {i}", "a")
+    o = g.lade(o.id)
+    assert len(o.aenderungen) == g.GESCHICHTE_MAX and o.daten["aenderungen_gekuerzt"] == 5
+    assert "5 ältere Änderungen gekürzt" in werkzeuge.rufe("vi_objekt", {"id": o.id}, "a", True)

@@ -221,6 +221,8 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
         d = {k: v for k, v in o.daten.items() if k not in ("ergebnis", "code")}
         z.append("  daten: " + json.dumps(d, ensure_ascii=False)[:800])
         z += [f"  Kante → {b} ({gr})" for b, gr in o.kanten()[:15]]
+        if o.daten.get("aenderungen_gekuerzt"):
+            z.append(f"  ({o.daten['aenderungen_gekuerzt']} ältere Änderungen gekürzt — Geschichte hält {g.GESCHICHTE_MAX} Einträge)")
         z += [f"  Änderung {a['zeit'][:16]} {a['wer']}: {a['was']} — {a['grund']}" for a in o.aenderungen[-10:]]
         return "\n".join(z)
     if name in ("vi_markiere", "vi_bestaetige", "vi_widerlege"):
@@ -228,8 +230,6 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
         wer = f"ki@{instanz}"
         try:
             if name == "vi_markiere":
-                if any(t.startswith("instanz:") for t in (args.get("hinzu") or []) + (args.get("weg") or [])):
-                    raise ValueError("instanz: ist der Urheber und nicht änderbar")
                 o.markiere(args.get("hinzu") or [], args.get("weg") or [], wer, args.get("grund", ""))
             elif name == "vi_bestaetige":
                 o.bestaetige(wer, args.get("grund", ""), instanz)

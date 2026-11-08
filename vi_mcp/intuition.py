@@ -1,6 +1,7 @@
 """Intuition — der automatische Gedächtniszugriff vor und das Lernen nach jeder Handlung.
 
-Die VI handelt nie selbst. Ein Client (Agent, Skill-Server, Hook) meldet eine Handlung zweimal:
+Die VI handelt nie selbst in der Welt (kein Werkzeugaufruf, kein Schreiben außerhalb des Gedächtnisses); im
+Gedächtnis handelt sie (Loop: Regeln, Ablauf), jede Handlung mit Grund in der Geschichte. Ein Client (Agent, Skill-Server, Hook) meldet eine Handlung zweimal:
   vorher(tool, args)   → gemerkte Antwort (wenn lesend und frisch), Hinweise (Erkenntnisse, Regeln, gelernte
                          Suchen, Vorher-Reflexe), evtl. von einem aktiven Reflex geänderte Argumente.
                          Der Zugriff selbst wird gespeichert (Erfahrung.daten.vorher: Reize, Gefundenes).
@@ -27,6 +28,7 @@ SCHREIBEND = re.compile(r"(create|add|update|launch|acknowledge|push|transition|
                         r"activate|bake|discovery|downtime|reschedule|refresh|vergiss|lerne|markiere|bestaetige|widerlege)", re.I)
 TTL_STANDARD = 120
 TTL_MAX = 3600
+HINWEIS_BUDGET = 4
 HOSTKEYS = ("host", "hostname", "host_name", "node", "device")
 OFFEN_MAX_S = 3600
 
@@ -68,32 +70,35 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     hinweise += fragen.zustellen(instanz)
     rz = reize(tool, args, kontext)
     such_reize = rz
-    gefunden, suchen = [], []
-    for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=4, arten=("erkenntnis", "regel")):
-        o.zugriff()
+    gefunden, suchen, aus_gedaechtnis = [], [], []
+    # Kein zugriff() beim automatischen Zeigen: Gezeigtes würde sonst allein durchs Zeigen wichtiger (Selbstbestätigung,
+    # Matthäus-Effekt). Verstärkt wird in nachher(), wenn die Handlung danach gelang — Annahme „der Hinweis hat genützt“,
+    # benannt in docs/ARCHITEKTUR.md; Beobachtungspunkt: vi_erfahrung (Erfolg mit/ohne Hinweise).
+    for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=HINWEIS_BUDGET + 4, arten=("erkenntnis", "regel")):
         gefunden.append(o.id)
         herkunft = f"von {o.instanz}" + (f", bestätigt von {o.fremde_bestaetigungen()} weiteren Instanz(en)" if o.fremde_bestaetigungen() else "")
-        hinweise.append(f"{'Gelernt' if o.art == 'erkenntnis' else 'Regel'} [{o.id[:28]}] ({herkunft}"
-                        + (", STRITTIG — von einer anderen Instanz widersprochen" if o.modus == "strittig" else "")
-                        + f"; {', '.join(t for t in o.hashtags if t.startswith(('modus:', 'skill:', 'kollektiv:')))[:60]}): "
-                        f"{o.text[:300]} [Quelle: {str(o.daten.get('quelle', '—'))[:120]}]")
+        aus_gedaechtnis.append(f"{'Gelernt' if o.art == 'erkenntnis' else 'Regel'} [{o.id[:28]}] ({herkunft}"
+                               + (", STRITTIG — von einer anderen Instanz widersprochen" if o.modus == "strittig" else "")
+                               + f"; {', '.join(t for t in o.hashtags if t.startswith(('modus:', 'skill:', 'kollektiv:')))[:60]}): "
+                               f"{o.text[:300]} [Quelle: {str(o.daten.get('quelle', '—'))[:120]}]")
     # 1. Zugriff auf Gelerntes: Suchen, deren Hinweisreize zur Handlung passen, laufen automatisch
     for _, su, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=3, arten=("suche",)):
-        su.zugriff()
         treffer = [o for _, o, _g2 in g.erinnere(su.daten.get("filter", ""), limit=3) if o.id != su.id]
-        for o in treffer:
-            o.zugriff()
         gefunden += [su.id] + [o.id for o in treffer]
         suchen.append({"suche": su.id, "name": su.daten.get("name"), "treffer": [o.id for o in treffer]})
-        hinweise.append(f"Gelernte Suche „{su.daten.get('name')}“ [{su.daten.get('filter')}] — {su.text[:120]}: "
-                        + ("; ".join(f"[{o.id[:24]}] {o.text[:90]}" for o in treffer) if treffer else "keine Treffer"))
+        aus_gedaechtnis.append(f"Gelernte Suche „{su.daten.get('name')}“ [{su.daten.get('filter')}] — {su.text[:120]}: "
+                               + ("; ".join(f"[{o.id[:24]}] {o.text[:90]}" for o in treffer) if treffer else "keine Treffer"))
+    # Arbeitsgedächtnis: höchstens HINWEIS_BUDGET Hinweise aus dem Gedächtnis (Cowan 2001: ~4 Chunks); der Rest auf Abruf
+    if len(aus_gedaechtnis) > HINWEIS_BUDGET:
+        rest = len(aus_gedaechtnis) - HINWEIS_BUDGET
+        aus_gedaechtnis = aus_gedaechtnis[:HINWEIS_BUDGET] + [f"… {rest} weitere Treffer im Gedächtnis — vi_vertiefe(\"{' '.join(such_reize)}\") zeigt sie"]
+    hinweise += aus_gedaechtnis
     antwort, alter_s, ttl = None, None, None
     if lesend(tool, ist_lesend):
         ttl = min(ttl_je_werkzeug.get(tool, TTL_STANDARD), TTL_MAX)
         for _, o, _g in g.erinnere(f"art:antwort cache:{_frage(tool, args)}", limit=1, betrachter=instanz):
             alter = (datetime.now(timezone.utc) - datetime.fromisoformat(o.zeit)).total_seconds()
             if alter <= ttl:
-                o.zugriff()
                 gefunden.append(o.id)
                 antwort, alter_s = o.daten.get("ergebnis", ""), int(alter)
     zugriff = {"reize": rz, "gefunden": gefunden, "suchen": suchen, "aus_gedaechtnis": antwort is not None}
@@ -115,8 +120,16 @@ def nachher(tool: str, args: dict, ok: bool, dauer_ms: int, fehler: str | None, 
     zugriff = offen[3] if offen else {"reize": reize(tool, args or {}), "gefunden": [], "suchen": [],
                                       "aus_gedaechtnis": False, "ohne_vorher": True}
     o = erfahrung(tool, args or {}, ok, dauer_ms, fehler, ergebnis, zugriff, instanz, ist_lesend)
+    verstaerkt = 0
+    if ok:  # Hinweise, nach denen die Handlung gelang, werden verstärkt (Konsolidierung) — nicht schon beim Zeigen
+        for oid in zugriff.get("gefunden", []):
+            if not oid.startswith("antwort:"):
+                h = g.lade(oid)
+                if h:
+                    h.zugriff()
+                    verstaerkt += 1
     hinweise = reflexe.nachher(tool, dict(args or {}), ergebnis or "") if ok else []
-    return {"erfahrung": o.id, "hinweise": hinweise, "vorher_gefunden": bool(offen)}
+    return {"erfahrung": o.id, "hinweise": hinweise, "vorher_gefunden": bool(offen), "verstaerkt": verstaerkt}
 
 
 def offene_abschliessen(gespraech: str | None = None, nur_aelter_als_s: float | None = None) -> int:

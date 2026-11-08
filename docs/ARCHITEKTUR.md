@@ -50,7 +50,8 @@ Zugriffe durch einen Prozess gehen, ist ein späterer Wechsel eine Änderung in 
 
 **Alles ist ein Objekt** (`gedaechtnis.Objekt`, Tabelle `objekt`; Mapping ohne ORM): feste Felder `id`, `art`,
 `zeit`; änderbar nur über Methoden — `markiere`, `bestaetige`, `widerlege`, `verknuepfe`, `zugriff` —, jede mit
-Eintrag in `aenderungen` (wer, wann, **Grund — Pflicht**, vor der Änderung geprüft).
+Eintrag in `aenderungen` (wer, wann, **Grund — Pflicht**, vor der Änderung geprüft). Die Geschichte hält 50
+Einträge; ältere werden **gezählt** gekürzt (`daten.aenderungen_gekuerzt`, in `vi_objekt` genannt).
 
 | Art | Wozu | Entsteht durch |
 |---|---|---|
@@ -117,17 +118,28 @@ erneut suchen; höchstens 3 (max 5) Stufen.
 
 ## Handlung melden: vorher / nachher
 
-Die VI **handelt nie selbst**. Ein Client meldet jede Handlung:
+Die VI **handelt nie selbst in der Welt** — kein Werkzeugaufruf, kein Schreiben außerhalb des Gedächtnisses. Im
+Gedächtnis handelt sie (Loop: Regeln verdichten, Fragen ablaufen lassen), jede Änderung mit Grund und Urheber `vi`.
+Ein Client meldet jede Handlung:
 
 ```
 vi_vorher(tool, args, lesend?)  → {antwort, antwort_alter_s, antwort_ttl_s, args, hinweise, vorher_id, zugriff}
    1. Vorher-Reflexe (aktiv: dürfen args ändern; test: nur Hinweis)
    2. Reize: tool:, skill: (Präfix bis zum ersten _), host: (aus host/hostname/node/device), instanz:
-   3. Erkenntnisse + Regeln zu den Reizen → Hinweise (verstärkt)
-   4. gelernte Suchen zu den Reizen → laufen, Treffer als Hinweis (verstärkt)
+   3. Erkenntnisse + Regeln zu den Reizen → Hinweise
+   4. gelernte Suchen zu den Reizen → laufen, Treffer als Hinweis
+      Höchstens **4 Hinweise** aus dem Gedächtnis (Arbeitsgedächtnis, Cowan 2001 — docs/FORSCHUNG.md A2); der Rest
+      wird gezählt genannt und ist über `vi_vertiefe` abrufbar (Progressive Disclosure).
    5. lesend? → frische gemerkte Antwort → Client führt NICHT aus; Erfahrung wird sofort gespeichert
-vi_nachher(tool, args, ok, dauer_ms, fehler?, ergebnis?, vorher_id) → {erfahrung, hinweise, vorher_gefunden}
+vi_nachher(tool, args, ok, dauer_ms, fehler?, ergebnis?, vorher_id) → {erfahrung, hinweise, vorher_gefunden, verstaerkt}
 ```
+
+**Verstärkt wird erst beim Erfolg, nicht beim Zeigen.** Bis 0.2.0 zählte jeder angezeigte Hinweis als Zugriff —
+Gezeigtes wurde allein durchs Zeigen wichtiger und deshalb wieder gezeigt (Selbstbestätigung, Matthäus-Effekt;
+CLAUDE.md Regel 5). Seit 0.2.1 verstärkt `vi_nachher` mit `ok=true` die vorher gefundenen Objekte. Das ist eine
+**Annahme** („der Hinweis hat genützt“, Testing-Effekt: nur erfolgreiches Abrufen stärkt, docs/FORSCHUNG.md A10).
+*Beobachtungspunkt:* `vi_erfahrung` — Erfolgsquote mit gegenüber ohne Hinweise; steigt sie nicht, ist die Annahme
+falsch. Bewusstes Nachlesen (`vi_erinnere`, `vi_objekt`, `vi_vertiefe`) verstärkt weiterhin sofort.
 
 **Lesend oder schreibend?** Gibt der Client `lesend` an, gilt seine Angabe; sonst das Namensmuster
 `intuition.SCHREIBEND` (create, update, delete, send, …). Schreibende Werkzeuge werden **nie** aus dem Gedächtnis
