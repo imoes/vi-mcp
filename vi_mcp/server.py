@@ -204,8 +204,9 @@ def baue(k: konfig.Konfig) -> list[Server]:
     intuition.ttl_je_werkzeug.update(k.ttl)
     n = len(reflexe.lade_alle())
     selbst.kern()  # Selbst anlegen, falls neu (Version 1 aus den Projektregeln)
-    from . import vektor
+    from . import reflexion, vektor
     vektor.konfig = k.embed
+    reflexion.konfig = k.llm
     handler = type("KHandler", (Handler,), {"k": k})
     srvs = [Server((adr, k.port), handler) for adr in k.bind]
     adressen = ", ".join(f"http://{s.server_address[0]}:{s.server_address[1]}/mcp" for s in srvs)

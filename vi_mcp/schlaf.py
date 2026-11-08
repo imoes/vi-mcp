@@ -6,8 +6,8 @@ Schritte — jeder zählt, jeder steht im Bericht (Objekt `schlaf:<zeit>`, Zusta
   1 Triage      Erfahrungen seit dem letzten Lauf, Priorität = Überraschung + Wichtigkeit/3 + Zukunftsrelevanz
   2 Replay      Cluster nach (host, skill) über die Top-Erfahrungen, je Cluster k ältere derselben Hashtags dazu
   3 Schema      passt eine Erkenntnis zum Cluster? gleicher Ausgang → Beleg-Kante; anderer → `konflikt:offen`
-  4 Abstraktion Cluster ohne Schema, ≥ 3 Erfahrungen an ≥ 2 Tagen → Erkenntnis (test) aus Vorlage, mit Belegkanten
-                (die LLM-Variante ist nicht gebaut — benannt in „Was fehlt noch“)
+  4b Reflexion  Sprachmodell formuliert je Cluster ohne Schema höchstens eine Erkenntnis (test, geprüft, Belegkanten) — reflexion.py
+  4 Abstraktion Rückfall aus Vorlage für Cluster ohne Reflexion: ≥ 3 Erfahrungen an ≥ 2 Tagen → Erkenntnis (test)
   5 Archiv      Erfahrungen älter als ARCHIV_TAGE, nie zugegriffen, ohne Belegkante → `archiviert` (Stummel bleibt)
   6 Selbst-Ist  Kompetenz je Skill, Schwächen, Beziehungen neu berechnen
   7 Vektoren    fehlende Embeddings geteilter Wissensobjekte nachziehen (Batch), semantische Nähe → Kanten / dublette:moeglich
@@ -85,7 +85,8 @@ def lauf(grund: str) -> g.Objekt:
     schritt("1_triage", lambda: _triage(neue, bericht))
     schritt("2_replay", lambda: _replay(bericht))
     schritt("3_schema", lambda: _schema(bericht))
-    schritt("4_abstraktion", lambda: _abstraktion(bericht))
+    schritt("4b_reflexion", lambda: _reflexion(bericht))  # Sprachmodell zuerst (Stufe 4); was es belegt erklärt, gilt als Schema
+    schritt("4_abstraktion", lambda: _abstraktion(bericht))  # Vorlage als Rückfall für Cluster ohne Reflexion
     schritt("5_archiv", lambda: _archiv())
     schritt("6_selbst_ist", lambda: _selbst_ist())
     schritt("7_vektoren", lambda: _vektoren())
@@ -184,6 +185,17 @@ def _schema(bericht: dict) -> dict:
                 bericht["geaendert"].append(s.id)
                 konflikte += 1
     return {"belegt": belegt, "konflikte": konflikte}
+
+
+def _reflexion(bericht: dict) -> dict:
+    from . import reflexion
+    r = reflexion.reflektiere(bericht.get("cluster", []))
+    if r.get("neu"):
+        for c in bericht.get("cluster", []):  # reflektierte Cluster nicht noch einmal per Vorlage abstrahieren
+            host, skill = c["key"]
+            for o in g.erinnere(f"{host} {skill} herkunft:schlaf-llm", limit=1, arten=("erkenntnis",), betrachter=None):
+                c["schema"] = o[1].id
+    return r
 
 
 def _abstraktion(bericht: dict) -> int:

@@ -3,6 +3,23 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.8.0 — 2026-11-08 — Stufe 4
+
+### Was ist neu
+
+- **Reflexion durch das Sprachmodell im Schlaf** (`reflexion.py`, konfig `llm`): je Cluster eine geprüfte Erkenntnis
+  (test, Belegkanten, `herkunft:schlaf-llm`); Antworten mit Anweisungsmustern oder ohne echte Belege werden mit Grund
+  verworfen. *Nachweis:* `test_reflexion_erzeugt_geprueft_erkenntnis_test`, `test_reflexion_verwirft_injektion`,
+  `test_pruefung_verwirft_unsauberes`, `test_ohne_llm_uebersprungen`.
+- Damit sind die vier Stufen aus der 10/10-Antwort gebaut: gelernter Router (0.5.0), Thompson Sampling (0.6.0),
+  Vektoren (0.7.0), Reflexion (0.8.0). 63/63 Tests grün.
+
+### Was fehlt noch
+
+- Nachweis im Betrieb: alle vier Stufen warten auf echte Handlungen (Hook/Registrierung). Der Hinweis-Lift bleibt der
+  Maßstab.
+- Stufe 5 (P2P-Austausch von Lerninhalten mit Import-Prüfung) und Stufe 6 (Erinnerungsklasse Skill) sind in Planung.
+
 ## 0.7.0 — 2026-11-08 — Stufe 3
 
 ### Was ist neu

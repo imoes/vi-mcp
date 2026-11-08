@@ -236,6 +236,17 @@ entscheidet eine Instanz, nicht der Server). `vi_erinnere(filter, semantisch=tru
 jetzt ein und ordnet Kandidaten nach Nähe — die Dauer steht im Ergebnis. Ohne Konfiguration: Schritte benannt
 übersprungen, Werkzeug lehnt mit Grund ab.
 
+## Reflexion — das Sprachmodell denkt im Schlaf nach (Stufe 4)
+
+`reflexion.py` (Park et al. 2023, 4.2): je Cluster ohne Schema fragt der Schlaf ein lokales Sprachmodell (konfig `llm`,
+OpenAI-kompatibel, statischer Systemprompt, kein `max_tokens`, Thinking aus) nach **höchstens einer** Erkenntnis als
+JSON (Satz ≤ 300 Zeichen, ≤ 5 Hashtags, ≥ 3 Belegnummern). Die Antwort wird **deterministisch geprüft** — Hashtags nach
+TAG-Regel, Belege müssen Nummern des Clusters sein, Anweisungsmuster („ignoriere…“, „führe … aus“, „lösche“, Shell,
+Base64, Passwort/Token) führen zur Verwerfung mit Grund im Bericht. Ergebnis: Erkenntnis im Modus `test`,
+`herkunft:schlaf-llm`, Belegkanten zu jeder genannten Erfahrung; wirksam erst durch Bestätigung einer anderen Instanz.
+Die Vorlagen-Abstraktion (Schritt 4) bleibt Rückfall für Cluster ohne Reflexion. Das Modell auf dem Produktivhost
+antwortet in ≈ 1,7 s (gemessen 08.11.2026).
+
 ## Loop
 
 Genau einer, alle 60 s: Antworten älter als 1 h löschen · wiederholte Fehler → Regel (test, idempotent) ·
