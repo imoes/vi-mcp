@@ -8,6 +8,8 @@ Claude Code ruft das Skript als Hook auf (Ereignis aus stdin: `hook_event_name`)
   PostToolUse         → vi_nachher mit ok=true, Ergebnis, Dauer.
   PostToolUseFailure  → vi_nachher mit ok=false, Fehler.
   SessionEnd          → Gespräch in vi-mcp beenden (DELETE).
+  UserPromptSubmit    → erkennt lokal eine Korrektur („nein, …“) oder eine Note (#gut, #schlecht, #note 0.8). Gesendet wird
+                        nur dieses Ergebnis, nie der Text.
 Jede Claude-Sitzung (`session_id`) ist in vi-mcp genau ein Gespräch; die Mcp-Session-Id liegt in einer Zustandsdatei.
 
 Ausfall: ist vi-mcp nicht erreichbar oder antwortet falsch, läuft der Aufruf durch (Exit 0, keine Ausgabe) — und der
@@ -40,6 +42,10 @@ URL = os.environ.get("VI_MCP_URL", "http://127.0.0.1:8765/mcp")
 TOKEN_DATEI = Path(os.environ.get("VI_MCP_TOKEN_FILE", f"~/.config/vi-mcp/token-{getpass.getuser()}")).expanduser()
 ZUSTAND = Path(os.environ.get("VI_HOOK_STATE", "~/.cache/vi-mcp/hook")).expanduser()
 TIMEOUT = float(os.environ.get("VI_HOOK_TIMEOUT", "3"))
+SIGNAL_TOKEN_DATEI = Path(os.environ.get("VI_MCP_SIGNAL_TOKEN_FILE", "~/.config/vi-mcp/token-nutzer")).expanduser()
+KORREKTUR = re.compile(r"^\s*(nein\b|falsch\b|das (ist|war) falsch\b|das stimmt nicht\b|nicht so\b|stop+\b|doch nicht\b|no\b[,.! ]|wrong\b|that'?s (wrong|not)\b)", re.I)
+NOTE = re.compile(r"(?:^|\s)#note\s+(0(?:[.,]\d+)?|1(?:[.,]0+)?)(?=\s|$)", re.I)
+GUT, SCHLECHT = re.compile(r"(?:^|\s)#gut(?=\s|$)", re.I), re.compile(r"(?:^|\s)#schlecht(?=\s|$)", re.I)
 MAX_ERGEBNIS = 200_000
 MAX_ARG_EINGEBAUT = 300
 MAX_ARG_MCP = 2000
@@ -190,6 +196,36 @@ def rufe(claude_sitzung: str, cwd: str | None, name: str, args: dict) -> dict:
     raise Ausfall(f"{name}: Sitzung nach Neuanmeldung weiter unbekannt")
 
 
+def signal_aus(text: str) -> dict | None:
+    """Rein und lokal: {art, note?} oder None. Eine ausdrückliche Note hat Vorrang vor der Korrektur."""
+    if not text or text.lstrip().startswith(("/", "<")):
+        return None
+    if m := NOTE.search(text):
+        return {"art": "note", "note": float(m.group(1).replace(",", "."))}
+    if GUT.search(text):
+        return {"art": "note", "note": 1.0}
+    if SCHLECHT.search(text):
+        return {"art": "note", "note": 0.0}
+    return {"art": "korrektur"} if KORREKTUR.match(text) else None
+
+
+def melde_signal(claude_sitzung: str, text: str) -> None:
+    s = signal_aus(text)
+    z = lies("sitzung", claude_sitzung)
+    if not s or not z:
+        return
+    try:
+        token = SIGNAL_TOKEN_DATEI.read_text().strip()
+    except OSError as e:
+        raise Ausfall(f"Signal-Token {SIGNAL_TOKEN_DATEI} nicht lesbar: {e}") from e
+    req = urllib.request.Request(URL.rsplit("/mcp", 1)[0] + "/signal", data=json.dumps({**s, "mcp_session_id": z["mcp_session_id"]}).encode(),
+                                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, method="POST")
+    try:
+        urllib.request.urlopen(req, timeout=TIMEOUT).read()
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise Ausfall(f"Signal: {type(e).__name__}: {e}") from e
+
+
 def beende(claude_sitzung: str) -> None:
     """SessionEnd hat in Claude Code standardmäßig nur 1,5 s — deshalb kurzer Timeout. Kommt das DELETE nicht an,
     schließt vi-mcp das Gespräch nach 4 h Leerlauf selbst (Zustand `abgelaufen`)."""
@@ -275,6 +311,9 @@ def verarbeite(e: dict) -> dict | None:
         return nach_dem_werkzeug(e, ok=True)
     if ereignis == "PostToolUseFailure":
         return nach_dem_werkzeug(e, ok=False)
+    if ereignis == "UserPromptSubmit":
+        melde_signal(e["session_id"], e.get("prompt") or "")
+        return None
     if ereignis == "SessionEnd":
         beende(e["session_id"])
         return None

@@ -65,6 +65,18 @@ def verbuche(gezeigt: list[str], ok: bool | None) -> int:
     return n
 
 
+def umbuchen(gezeigt: list[str]) -> int:
+    """Der Scorer stellt nachträglich fest, dass eine als gelungen gezählte Handlung misslungen ist: ein Ja wird zum Nein."""
+    n = 0
+    with g.sperre:
+        for oid in gezeigt:
+            if oid.startswith(HINWEIS_ARTEN):
+                n += g.db().execute("UPDATE objekt SET daten = json_set(daten, '$.nuetzlich.ja', max(COALESCE(json_extract(daten, '$.nuetzlich.ja'), 0) - 1, 0), "
+                                    "'$.nuetzlich.nein', COALESCE(json_extract(daten, '$.nuetzlich.nein'), 0) + 1) WHERE id = ?", (oid,)).rowcount
+        g.db().commit()
+    return n
+
+
 def zeile(o: g.Objekt) -> str:
     ja, nein = zaehler(o)
     return f"genützt {ja} / nicht {nein} (Erwartung {erwartung(o) * 100:.0f} %)" if ja + nein else "noch nie nach dem Zeigen bewertet"

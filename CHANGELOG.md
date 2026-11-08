@@ -3,6 +3,32 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.12.0 — 2026-11-08 — Scorer
+
+### Was ist neu
+
+- **Scorer in drei Stufen** (docs/ARCHITEKTUR.md, „Scorer“): Code-Regeln, Modell mit Eichung an menschlichen Noten, Noten des Nutzers.
+  `vi_scorer` zeigt Noten, Merkmale und Übereinstimmung. *Nachweis:* `tests/test_scorer.py` (Regeln, Umbuchung, Eichung, geprüfte Modellantworten).
+- **Korrektur-Erkennung im Hook:** Eine Eingabe, die mit „nein“, „falsch“ o. Ä. beginnt, senkt die Note der letzten drei Handlungen; `#gut`, `#schlecht`, `#note 0.8`
+  setzen eine Gesprächsnote. Gesendet wird nur das Ergebnis. *Nachweis:* `test_hook_sendet_nur_das_ergebnis` prüft den Körper der Anfrage.
+- **Prüffälle** für die Hinweisauswahl (`tests/evals/router.json`).
+
+### Was hat sich geändert
+
+- Router, Hinweis-Zähler und Hinweis-Lift lernen aus der Note statt aus „Werkzeug ohne Fehler“. Ein Modell-Urteil zählt erst nach der Eichung.
+- **Weniger Abfragen:** `vi_vorher` lädt Objekte gesammelt. *Gemessen (5.500 gleichartige Objekte, 30 Aufrufe, drei Läufe, alt gegen neu):* 806 → 8 SQL-Abfragen je Aufruf; Median 23,5 → 20,7 ms. Die Zeit sinkt nur um rund 12 %; sie entsteht überwiegend woanders.
+- **NumPy** rechnet die Vektornähe. *Gemessen (300 Vektoren, 1024 Dimensionen, alle Paare):* 3332 → 2,2 ms. Neue Abhängigkeit `python3-numpy`.
+
+### Was wurde behoben
+
+- Das Debian-Paket enthielt `docs/LOKAL*` (Hostangaben, Prüfer-Prompt). Es war nie öffentlich verteilt; ab jetzt sind die Dateien ausgeschlossen.
+
+### Was fehlt noch
+
+- Die Korrektur-Erkennung ist eine Musterliste am Satzanfang: Sie übersieht höflich formulierte Korrekturen.
+- Das Signal-Token liegt beim Nutzer; ein Modell mit Shell unter demselben Konto könnte es lesen (docs/HOOK.md).
+- Der Modell-Scorer zählt erst nach 20 menschlich benoteten Gesprächen. Bis dahin ist er nur Anzeige.
+
 ## 0.11.0 — 2026-11-08 — P2P-Import mit Prüfung (ohne Transport)
 
 ### Was ist neu

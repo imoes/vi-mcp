@@ -13,7 +13,8 @@ install -m 0644 vi_mcp/*.py "$r/usr/lib/python3/dist-packages/vi_mcp/"
 install -m 0755 deploy/debian/vi-mcp.sh "$r/usr/bin/vi-mcp"
 install -m 0644 deploy/debian/vi-mcp.service "$r/lib/systemd/system/vi-mcp.service"
 install -m 0644 README.md CHANGELOG.md "$r/usr/share/doc/vi-mcp/"
-install -m 0644 docs/*.md "$r/usr/share/doc/vi-mcp/docs/"
+# docs/LOKAL* enthält Hostangaben und den Prüfer-Prompt und darf in kein Paket
+find docs -maxdepth 1 -name "*.md" ! -name "LOKAL*" -exec install -m 0644 {} "$r/usr/share/doc/vi-mcp/docs/" \;
 install -m 0755 hook/vi_hook.py "$r/usr/share/vi-mcp/hook/vi_hook.py"
 for s in postinst prerm postrm; do install -m 0755 "deploy/debian/$s" "$r/DEBIAN/$s"; done
 groesse=$(du -sk "$r" | cut -f1)
@@ -24,7 +25,7 @@ Package: vi-mcp
 Version: ${version}-${rev}
 Architecture: all
 Maintainer: ${maintainer}
-Depends: python3 (>= 3.11), python3-sklearn, python3-cryptography, adduser, systemd
+Depends: python3 (>= 3.11), python3-sklearn, python3-cryptography, python3-numpy, adduser, systemd
 Section: net
 Priority: optional
 Installed-Size: ${groesse}
@@ -32,7 +33,7 @@ Homepage: file:///usr/share/doc/vi-mcp/README.md
 Description: VI-Gedaechtnis als MCP-Server (Streamable HTTP, ein Prozess)
  Ein Serverprozess mit einem gemeinsamen Gedaechtnis fuer viele KI-Sitzungen:
  Objekte mit Hashtags, Erfahrungen, Erkenntnisse, Regeln, Reflexe, gelernte
- Suchen; ein Gespraech je Sitzung. Nur Python-Standardbibliothek.
+ Suchen; ein Gespraech je Sitzung.
 CTRL
 mkdir -p dist
 dpkg-deb --root-owner-group --build "$r" "dist/${paket}.deb" >/dev/null

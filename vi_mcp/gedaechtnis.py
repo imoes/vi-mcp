@@ -28,7 +28,7 @@ from pathlib import Path
 
 from .protokoll import log
 
-ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell", "skill")
+ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell", "skill", "bewertung")
 #: strittig = von genau einer fremden Instanz widerlegt (erscheint weiter, mit Vermerk); widerlegt = vom Urheber
 #: oder von ≥ 2 verschiedenen Instanzen widerlegt (erscheint nicht mehr)
 #: archiviert = Stummel (Text, Hashtags) bleibt, Inhalt komprimiert in Tabelle archiv; nur mit modus:archiviert im Filter sichtbar
@@ -38,7 +38,7 @@ MODI = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt", "archiviert",
 #: Kollektiv: wer darf ein Objekt lesen? privat = nur die Urheber-Instanz (Ergebnisse können Zugangsdaten enthalten),
 #: geteilt = alle Instanzen. Der Loop (Server) sieht alles. Erschöpfend für ARTEN.
 SICHT_JE_ART = {"erfahrung": "privat", "antwort": "privat", "erkenntnis": "geteilt", "regel": "geteilt", "reflex": "geteilt",
-                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt", "skill": "geteilt"}
+                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt", "skill": "geteilt", "bewertung": "privat"}
 #: Urheber für Objekte, die der Server selbst anlegt (Loop) — eine benannte Instanz, kein NULL
 SERVER_INSTANZ = "vi"
 #: Gewichtbonus je verschiedener FREMDER Instanz, die bestätigt hat (Selbstbestätigung zählt nicht als Beleg)
@@ -55,7 +55,7 @@ VERFALL_D = 0.3
 TAG = re.compile(r"^[a-z][a-z0-9_-]{0,30}:[^\s()]+$")
 #: Hashtags, die Verwaltung sind und nicht Inhalt (für Verknüpfung und Trichter ignoriert)
 VERWALTUNG = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:", "an:", "von:", "ueberraschung:",
-              "modus:", "herkunft:", "konflikt:", "selbst:", "selbstbereich:", "modell:", "fusion:", "dublette:")
+              "modus:", "herkunft:", "konflikt:", "selbst:", "selbstbereich:", "modell:", "fusion:", "dublette:", "scorer:", "ziel:", "note:")
 
 sperre = threading.RLock()
 _db: sqlite3.Connection | None = None
@@ -317,6 +317,24 @@ def _daten_json(o: Objekt) -> str:
     return json.dumps({"gekuerzt_zeichen": len(js), "grund": f"daten über {DATEN_MAX} Zeichen"})
 
 
+def lade_viele(oids: list[str]) -> dict[str, Objekt]:
+    """Mehrere Objekte in zwei Abfragen statt in zwei je Objekt."""
+    aus: dict[str, Objekt] = {}
+    with sperre:
+        for i in range(0, len(oids), 900):
+            teil = oids[i:i + 900]
+            marken = ",".join("?" * len(teil))
+            tags: dict[str, list[str]] = {}
+            for oid, tag in db().execute(f"SELECT objekt_id, tag FROM tag WHERE objekt_id IN ({marken}) ORDER BY tag", teil):
+                tags.setdefault(oid, []).append(tag)
+            for row in db().execute(f"SELECT {', '.join(SPALTEN)} FROM objekt WHERE id IN ({marken})", teil):
+                d = dict(zip(SPALTEN, row))
+                d["daten"] = json.loads(d["daten"] or "{}")
+                d["aenderungen"] = json.loads(d["aenderungen"] or "[]")
+                aus[d["id"]] = Objekt(**d, hashtags=tags.get(d["id"], []))
+    return aus
+
+
 def speichere(o: Objekt) -> Objekt:
     tags = sorted(set(o.hashtags) | {f"art:{o.art}", f"instanz:{o.instanz}"})
     with sperre:
@@ -458,8 +476,9 @@ def erinnere(filtertext: str, limit: int = 10, arten: tuple[str, ...] = (), betr
     jetzt_dt = datetime.now(timezone.utc)
     bewertet = []
     hoechste_wort = max(wort_treffer.values(), default=1.0) or 1.0
+    objekte = lade_viele(ids)
     for oid in ids:
-        o = lade(oid)
+        o = objekte.get(oid)
         if not o:
             continue
         stunden = max(0.0, (jetzt_dt - datetime.fromisoformat(o.zuletzt)).total_seconds() / 3600)

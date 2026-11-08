@@ -27,6 +27,16 @@
 **Grenze (Doku):** Ein Hook kann einen Aufruf erlauben oder verweigern, aber nicht durch ein Ergebnis ersetzen.
 Eine gemerkte Antwort erscheint dem Modell daher als „verweigert, Grund: …“.
 
+## Korrektur und Note des Nutzers (`UserPromptSubmit`)
+
+Der Hook erkennt lokal, ob eine Eingabe eine Korrektur ist (beginnt mit „nein“, „falsch“, „das stimmt nicht“ …) oder eine Note
+enthält (`#gut`, `#schlecht`, `#note 0.8`). An den Server geht **nur dieses Ergebnis, nie der Text** (`POST /signal`).
+Dafür braucht es eine eigene Instanz: `vi-mcp instanz nutzer --mensch`, ihr Token in `~/.config/vi-mcp/token-nutzer`
+(oder `VI_MCP_SIGNAL_TOKEN_FILE`). Das Token der Sitzung genügt nicht (403), und es gibt kein MCP-Werkzeug zum Setzen einer Note.
+
+**Grenze:** Das Token liegt beim Nutzer. Ein Modell mit Shell-Zugriff unter demselben Konto könnte die Datei lesen und `/signal`
+selbst aufrufen. Das Fehlen des Werkzeugs verhindert ein versehentliches Selbstbewerten, keinen gezielten Missbrauch.
+
 ## Belege zur Schnittstelle
 
 Claude Code Hooks, https://code.claude.com/docs/en/hooks.md (gelesen 08.11.2026, installiert: 2.1.319):

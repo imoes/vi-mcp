@@ -39,6 +39,7 @@ class Sitzung:
     sperre: threading.Lock = field(default_factory=threading.Lock)
     gesichert_bis: int = 0
     handlungen: int = 0
+    signale: list = field(default_factory=list)  # Korrekturen und Noten des Nutzers, ohne seinen Text
 
     def zug(self, z: dict) -> None:
         with self.sperre:
@@ -135,7 +136,7 @@ def sichere(s: Sitzung, zustand: str = "offen") -> None:
               + (f", {ohne_ergebnis} ohne gemeldetes Ergebnis" if ohne_ergebnis else "")
               + (" · Werkzeuge: " + ", ".join(f"{k} ({v})" for k, v in sorted(werkzeuge.items(), key=lambda kv: -kv[1])[:12]) if werkzeuge else "")
               + (f" · Hosts: {', '.join(sorted(hosts)[:12])}" if hosts else ""))
-    o.daten = {**o.daten, "aufrufe": len(zuege), "fehler": fehler, "ohne_ergebnis": ohne_ergebnis, "werkzeuge": werkzeuge, "zustand": zustand,
+    o.daten = {**o.daten, "aufrufe": len(zuege), "fehler": fehler, "ohne_ergebnis": ohne_ergebnis, "signale": list(s.signale), "werkzeuge": werkzeuge, "zustand": zustand,
                "gesichert": g.jetzt()}
     o.hashtags = sorted({t for t in o.hashtags if not t.startswith("zustand:")} | {f"zustand:{zustand}"}
                         | {f"tool:{k}" for k in werkzeuge} | {f"skill:{k.split('_')[0]}" for k in werkzeuge}

@@ -38,7 +38,7 @@ def _cli(argv: list[str]) -> int:
         server.main()
         return 0
     if argv[0] == "instanz" and len(argv) >= 2:
-        token = konfig.instanz_anlegen(argv[1], reflexe="--reflexe" in argv[2:], freigabe="--freigabe" in argv[2:])
+        token = konfig.instanz_anlegen(argv[1], reflexe="--reflexe" in argv[2:], freigabe="--freigabe" in argv[2:], mensch="--mensch" in argv[2:])
         print(f"Instanz {argv[1]} in {konfig.pfad()} angelegt (Reflex-Recht: {'ja' if '--reflexe' in argv[2:] else 'nein'}).")
         print(f"Token (wird nicht gespeichert, nur sein SHA-256):\n{token}")
         return 0

@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import gedaechtnis as g
-from . import bandit, fragen, intuition, lager, lernen, messung, p2p, reflexe, schlaf, selbst, sitzung, skills, vektor
+from . import bandit, fragen, intuition, lager, lernen, messung, p2p, reflexe, schlaf, scorer, selbst, sitzung, skills, vektor
 from .schleife import stand as loop_stand, LOOP_S
 
 _O = {"type": "object"}
@@ -91,6 +91,8 @@ TOOLS = [
      "inputSchema": _schema({"limit": {"type": "integer"}})},
     {"name": "vi_freigabe", "description": "VI-P2P: importiertes Objekt freigeben (danach Modus test) oder verwerfen (aktion=verwerfen). Heikles braucht das Freigabe-Recht.",
      "inputSchema": _schema({"id": _S, "grund": _S, "aktion": {"type": "string", "enum": ["freigeben", "verwerfen"]}}, ["id", "grund"])},
+    {"name": "vi_scorer", "description": "VI-Scorer: wie gut die Arbeit bewertet wurde — Code-Noten, Modell-Noten, menschliche Noten und ihre Übereinstimmung. Nur lesend.",
+     "inputSchema": _schema({})},
     {"name": "vi_status", "description": "VI: Gedächtnis-Stand — Objekte je Art, Erfahrungen 24 h, offene Gespräche, Kanten, Loop.",
      "inputSchema": _schema({})},
     {"name": "vi_lerne",
@@ -325,6 +327,8 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
         except ValueError as e:
             raise Abgelehnt(str(e)) from e
         return f"{o.id} freigegeben, Modus test"
+    if name == "vi_scorer":
+        return scorer.bericht()
     if name == "vi_modell":
         return lernen.erklaerung()
     if name == "vi_status":
@@ -351,6 +355,7 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
                 f"Erfahrung 24 h: {n} Aufrufe, {aus} aus dem Gedächtnis, {fehler} Fehler · Antwort-TTL {intuition.TTL_STANDARD} s (max {intuition.TTL_MAX})\n"
                 + messung.zeile(messung.hinweis_lift(24, betrachter=None)) + "\n"
                 f"Schlaf: {(schlaf.letzter().text if schlaf.letzter() else 'noch keiner')[:200]}\n"
+                f"Scorer: {scorer.zeile()}\n"
                 f"Langzeitlager: {lager.zeile()}\n"
                 f"Quarantäne: {len(g.erinnere('modus:quarantaene', limit=1000, betrachter=None))} importierte Objekte\n"
                 f"Reflex-Sandbox: {__import__('vi_mcp.sandbox', fromlist=['x']).beschreibung()}\n"

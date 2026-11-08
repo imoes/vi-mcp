@@ -9,6 +9,7 @@ Schritte — jeder zählt, jeder steht im Bericht (Objekt `schlaf:<zeit>`, Zusta
   4b Reflexion  Sprachmodell formuliert je Cluster ohne Schema höchstens eine Erkenntnis (test, geprüft, Belegkanten) — reflexion.py
   4 Abstraktion Rückfall aus Vorlage für Cluster ohne Reflexion: ≥ 3 Erfahrungen an ≥ 2 Tagen → Erkenntnis (test)
   4c Skills     Erfolg nach Fehlern im selben Gespräch → Skill (Lösungsweg); scheiternde Skills → strittig; gleiche Probleme → fusion:vorschlag
+  4d Scorer     Handlungen nach festen Merkmalen bewerten, beendete Gespräche durch das Sprachmodell (scorer.py)
   5 Housekeeping nicht mehr verwendete Einträge und alte Rohverläufe ins Langzeitlager (lager.py; Stummel bleibt)
   6 Selbst-Ist  Kompetenz je Skill, Schwächen, Beziehungen neu berechnen
   7 Vektoren    fehlende Embeddings geteilter Wissensobjekte nachziehen (Batch), semantische Nähe → Kanten / dublette:moeglich
@@ -79,6 +80,7 @@ def lauf(grund: str) -> g.Objekt:
     schritt("4b_reflexion", lambda: _reflexion(bericht))  # Sprachmodell zuerst (Stufe 4); was es belegt erklärt, gilt als Schema
     schritt("4_abstraktion", lambda: _abstraktion(bericht))  # Vorlage als Rückfall für Cluster ohne Reflexion
     schritt("4c_skills", lambda: _skills(seit))
+    schritt("4d_scorer", lambda: _scorer())
     schritt("5_lager", lambda: lager.aufraeumen())
     schritt("5b_pruefer", lambda: _pruefer())
     schritt("6_selbst_ist", lambda: _selbst_ist())
@@ -178,6 +180,11 @@ def _schema(bericht: dict) -> dict:
                 bericht["geaendert"].append(s.id)
                 konflikte += 1
     return {"belegt": belegt, "konflikte": konflikte}
+
+
+def _scorer() -> dict:
+    from . import scorer
+    return {**scorer.code_lauf(), **scorer.modell_lauf()}
 
 
 def _skills(seit: str) -> dict:

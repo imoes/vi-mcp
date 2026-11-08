@@ -23,7 +23,7 @@ from pathlib import Path
 
 from . import __version__
 from . import gedaechtnis as g
-from . import intuition, konfig, reflexe, schleife, selbst, sitzung, werkzeuge
+from . import intuition, konfig, reflexe, schleife, scorer, selbst, sitzung, werkzeuge
 from .protokoll import log
 
 PROTOKOLLE = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -162,9 +162,39 @@ class Handler(BaseHTTPRequestHandler):
         log(f"Sitzung {s.serial} beendet (DELETE)")
         self._sende(204)
 
+    def _signal(self):
+        """Signal des Nutzers aus dem Hook: Korrektur oder Note, nie sein Text. Bewusst kein MCP-Werkzeug."""
+        inst = self._pruefe()
+        if not inst:
+            return
+        if not inst.mensch:
+            return self._sende(403, f"Instanz {inst.name} darf keine Signale melden")
+        laenge = int(self.headers.get("Content-Length") or 0)
+        if not 0 < laenge <= 4096:
+            return self._sende(400, "Körper fehlt oder ist zu groß")
+        try:
+            d = json.loads(self.rfile.read(laenge))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return self._sende(400, "kein JSON")
+        s = sitzung.finde_ohne_beruehren(d.get("mcp_session_id") or "")
+        if not s:
+            return self._sende(404, "Sitzung unbekannt")
+        art, note = d.get("art"), d.get("note")
+        if art == "korrektur":
+            s.signale.append({"zeit": g.jetzt(), "art": "korrektur"})
+        elif art == "note" and isinstance(note, (int, float)) and not isinstance(note, bool) and 0 <= note <= 1:
+            s.signale.append({"zeit": g.jetzt(), "art": "note", "note": note})
+            with sitzung.im_auftrag(s):
+                scorer.mensch(s.serial, s.instanz, float(note))
+        else:
+            return self._sende(400, "art muss korrektur oder note (0–1) sein")
+        self._sende(204)
+
     def do_POST(self):
+        if self.path.rstrip("/") == "/signal":
+            return self._signal()
         if self.path.rstrip("/") != "/mcp":
-            return self._sende(404, "nur /mcp")
+            return self._sende(404, "nur /mcp und /signal")
         inst = self._pruefe()
         if not inst:
             return

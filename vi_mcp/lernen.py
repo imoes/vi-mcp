@@ -47,18 +47,23 @@ def beobachtungen(seit: str | None = None) -> list[tuple[dict, int, str]]:
     Ein Beispiel je gezeigtem Hinweis (Paar) plus eines ohne Hinweis-Merkmale (Basis) — so lernt das Modell beides."""
     aus = []
     with g.sperre:
-        rows = g.db().execute("SELECT id, zeit, daten FROM objekt WHERE art = 'erfahrung' AND modus = 'aktiv'" + (" AND zeit >= ?" if seit else "") + " ORDER BY zeit",
+        rows = g.db().execute("SELECT id, zeit, daten, gespraech FROM objekt WHERE art = 'erfahrung' AND modus = 'aktiv'" + (" AND zeit >= ?" if seit else "") + " ORDER BY zeit",
                               (seit,) if seit else ()).fetchall()
         gelabelt = {r[0] for r in g.db().execute("SELECT DISTINCT objekt_id FROM tag WHERE tag IN ('ok:ja', 'ok:nein')")}
         okja = {r[0] for r in g.db().execute("SELECT objekt_id FROM tag WHERE tag = 'ok:ja'")}
-    for oid, zeit, daten in rows:
+    from . import scorer
+    noten = scorer.gespraech_noten()
+    for oid, zeit, daten, serial in rows:
         if oid not in gelabelt:
             continue
         d = json.loads(daten)
         v = d.get("vorher") or {}
         if v.get("aus_gedaechtnis"):
             continue
-        y = 1 if oid in okja else 0
+        s = d.get("score")  # Label: Urteil des Scorers, sonst „Werkzeug ohne Fehler“; eine schlechte Gesprächsnote gilt für alle Handlungen
+        y = (1 if s["note"] >= scorer.GUT_AB else 0) if s else (1 if oid in okja else 0)
+        if serial in noten and noten[serial] < scorer.SCHLECHT_UNTER:
+            y = 0
         basis = merkmale_handlung(v.get("reize", []), zeit)
         gezeigt = [h for h in v.get("gezeigt", v.get("gefunden", [])) if not h.startswith("antwort:")]
         basis[f"hinweis_n:{min(4, len(gezeigt))}"] = 1.0

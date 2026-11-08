@@ -30,7 +30,8 @@ def hinweis_lift(stunden: float = 24, tool: str | None = None, betrachter: str |
             continue
         t = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
         seite = "mit" if _mit_hinweis(o) else "ohne"
-        ok = "ok:ja" in o.hashtags
+        s = o.daten.get("score")  # das Urteil des Scorers schlägt „Werkzeug ohne Fehler“
+        ok = s["note"] >= 0.5 if s else "ok:ja" in o.hashtags
         for ziel in (gesamt, je_tool.setdefault(t, {"mit": {"n": 0, "ok": 0}, "ohne": {"n": 0, "ok": 0}})):
             ziel[seite]["n"] += 1
             ziel[seite]["ok"] += 1 if ok else 0

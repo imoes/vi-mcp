@@ -16,10 +16,10 @@ Ohne Konfiguration `embed` passiert nichts; der Schlaf meldet den Schritt als ü
 from __future__ import annotations
 
 import json
-import math
-import struct
 import urllib.error
 import urllib.request
+
+import numpy as np
 
 from . import gedaechtnis as g
 from .protokoll import log
@@ -67,22 +67,34 @@ def einbetten(texte: list[str]) -> list[list[float]]:
     return [x["embedding"] for x in daten]
 
 
-def _pack(v: list[float]) -> bytes:
-    return struct.pack(f"<{len(v)}f", *v)
+def _pack(v) -> bytes:
+    return np.asarray(v, dtype=np.float32).tobytes()
 
 
-def _unpack(roh: bytes, dim: int) -> list[float]:
-    return list(struct.unpack(f"<{dim}f", roh))
+def _unpack(roh: bytes, dim: int) -> np.ndarray:
+    return np.frombuffer(roh, dtype=np.float32, count=dim)
 
 
-def kosinus(a: list[float], b: list[float]) -> float:
-    s = sum(x * y for x, y in zip(a, b))
-    na = math.sqrt(sum(x * x for x in a)) or 1.0
-    nb = math.sqrt(sum(y * y for y in b)) or 1.0
-    return s / (na * nb)
+def kosinus(a, b) -> float:
+    a, b = np.asarray(a, dtype=np.float32), np.asarray(b, dtype=np.float32)
+    n = float(np.linalg.norm(a) * np.linalg.norm(b))
+    return float(np.dot(a, b) / n) if n else 0.0
 
 
-def speichere(oid: str, v: list[float], modell: str) -> None:
+def _matrix(vs: dict[str, np.ndarray]) -> tuple[list[str], np.ndarray]:
+    """Normierte Vektoren der häufigsten Dimension (ein Modellwechsel hinterlässt andere Längen)."""
+    if not vs:
+        return [], np.zeros((0, 0), dtype=np.float32)
+    dims = [len(v) for v in vs.values()]
+    dim = max(set(dims), key=dims.count)
+    ids = [i for i, v in vs.items() if len(v) == dim]
+    m = np.stack([vs[i] for i in ids])
+    normen = np.linalg.norm(m, axis=1, keepdims=True)
+    normen[normen == 0] = 1.0
+    return ids, m / normen
+
+
+def speichere(oid: str, v, modell: str) -> None:
     _tabelle()
     with g.sperre:
         g.db().execute("INSERT OR REPLACE INTO vektor (id, dim, modell, zeit, roh) VALUES (?,?,?,?,?)", (oid, len(v), modell, g.jetzt(), _pack(v)))
@@ -97,14 +109,14 @@ def entferne(oid: str) -> None:
         g.db().commit()
 
 
-def lade(oid: str) -> list[float] | None:
+def lade(oid: str) -> np.ndarray | None:
     _tabelle()
     with g.sperre:
         row = g.db().execute("SELECT dim, roh FROM vektor WHERE id = ?", (oid,)).fetchone()
     return _unpack(row[1], row[0]) if row else None
 
 
-def alle() -> dict[str, list[float]]:
+def alle() -> dict[str, np.ndarray]:
     _tabelle()
     with g.sperre:
         rows = g.db().execute("SELECT v.id, v.dim, v.roh FROM vektor v JOIN objekt o ON o.id = v.id WHERE o.modus NOT IN ('widerlegt', 'archiviert', 'quarantaene')").fetchall()
@@ -138,14 +150,12 @@ def nachziehen() -> dict:
 
 def naehe_kanten() -> dict:
     """Schlaf-Schritt 7b: Kanten zwischen semantisch nahen Wissensobjekten; sehr nahe fremde Paare → dublette:moeglich."""
-    vs = alle()
-    ids = list(vs)
+    ids, m = _matrix(alle())
     kanten = dubletten = 0
-    for i in range(len(ids)):
-        for j in range(i + 1, len(ids)):
-            c = kosinus(vs[ids[i]], vs[ids[j]])
-            if c < NAEHE_KANTE:
-                continue
+    for i in range(len(ids) - 1):  # zeilenweise: der Speicher wächst nicht mit dem Quadrat der Objektzahl
+        naehe = m[i + 1:] @ m[i]
+        for k in np.nonzero(naehe >= NAEHE_KANTE)[0]:
+            j, c = i + 1 + int(k), float(naehe[k])
             a, b = g.lade(ids[i]), g.lade(ids[j])
             if not a or not b:
                 continue
@@ -166,7 +176,11 @@ def naehe_kanten() -> dict:
 
 def aehnlich(text: str, kandidaten: list[str], limit: int = 10) -> list[tuple[str, float]]:
     """Freitext jetzt einbetten und Kandidaten nach Kosinus ordnen (dauert — nur auf ausdrücklichen Wunsch)."""
-    q = einbetten([text])[0]
+    q = np.asarray(einbetten([text])[0], dtype=np.float32)
+    n = float(np.linalg.norm(q)) or 1.0
     vs = alle()
-    paare = [(oid, kosinus(q, vs[oid])) for oid in kandidaten if oid in vs]
-    return sorted(paare, key=lambda x: -x[1])[:limit]
+    ids, m = _matrix({k: vs[k] for k in kandidaten if k in vs and len(vs[k]) == len(q)})
+    if not ids:
+        return []
+    naehe = m @ (q / n)
+    return sorted(((ids[i], float(naehe[i])) for i in range(len(ids))), key=lambda x: -x[1])[:limit]

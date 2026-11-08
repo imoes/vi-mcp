@@ -240,6 +240,21 @@ und ordnet danach (`router: bandit`) — selten Gezeigtes bleibt im Spiel, oft G
 `vi_objekt` zeigt die Zähler („genützt 20 / nicht 1, Erwartung 91 %“). Rangordnung erschöpfend: `modell` > `bandit`
 > `heuristik`. Quellen: Russo et al. 2017 (arXiv 1707.02038), Agrawal & Goyal 2012 (arXiv 1209.3352).
 
+## Scorer — ob Arbeit gelungen ist
+
+„Das Werkzeug ist nicht abgestürzt“ war in 63 von 64 Fällen wahr und damit als Lernsignal fast wertlos. `scorer.py` bewertet in drei Stufen:
+
+| Stufe | Wann | Ergebnis | Zählt fürs Lernen |
+|---|---|---|---|
+| Code | jeder Schlaf | `erfahrung.daten.score` = Note 0–1, Merkmale (`fehler`, `fehler_wiederholt`, `identisch_wiederholt`, `test_rot_danach`, `test_gruen_danach`, `korrektur`, `erholt`), Version | immer |
+| Modell | jeder Schlaf, beendete Gespräche ab 5 Zügen | Objekt `bewertung`: Note nach festem Raster, Begründung, Zugnummern als Belege, Sicherheit | erst geeicht: mindestens 20 Gespräche mit menschlicher Note, davon 70 % innerhalb von 0,25 |
+| Mensch | sofort über den Hook | Objekt `bewertung` | immer |
+
+Router, Thompson-Zähler und Hinweis-Lift nutzen die Note statt `ok`, wo sie vorliegt. Stellt der Scorer fest, dass eine als gelungen gezählte
+Handlung misslungen ist, bucht er das Ja des gezeigten Hinweises in ein Nein um. Eine Gesprächsnote unter 0,4 macht alle Handlungen des Gesprächs
+für das Lernen zu Misserfolgen. Bewertungen sind privat. Das Protokoll für das Modell enthält nur Werkzeug, Ausgang, gekürzte Argumente und Fehler.
+`tests/evals/router.json` ist ein fester Satz Prüffälle für die Hinweisauswahl, der bei jeder Version läuft.
+
 ## Vektoren — Bedeutung statt Wortgleichheit (Stufe 3)
 
 `vektor.py`: Embeddings (OpenAI-kompatibler Dienst, konfig `embed`) für geteilte Wissensobjekte, als float32-BLOB in

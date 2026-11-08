@@ -1,0 +1,16 @@
+{"beschreibung": "Feste Prüffälle für die Auswahl der Hinweise. Trefferquote darf bei keiner Version sinken.",
+ "wissen": [
+  {"key": "proxy", "text": "web1 ist nur über den Proxy erreichbar", "tags": ["host:web1", "thema:netz"]},
+  {"key": "disk", "text": "db2 läuft nachts an die Plattengrenze", "tags": ["host:db2", "thema:disk"]},
+  {"key": "timeout", "text": "Graylog-Suchen über 24 h laufen in einen Timeout", "tags": ["tool:graylog_search", "thema:timeout"]},
+  {"key": "netbox", "text": "NetBox liefert VMs nur seitenweise", "tags": ["skill:netbox", "thema:api"]},
+  {"key": "ssh", "text": "Auf bastion ist SSH nur mit Schlüssel möglich", "tags": ["host:bastion", "thema:ssh"]},
+  {"key": "oom", "text": "Java-Dienste auf app3 sterben am OOM-Killer", "tags": ["host:app3", "thema:oom"]}],
+ "faelle": [
+  {"tool": "checkmk_get_host", "args": {"host": "web1"}, "erwartet": "proxy"},
+  {"tool": "Bash", "args": {"host": "db2"}, "erwartet": "disk"},
+  {"tool": "graylog_search", "args": {"q": "x"}, "erwartet": "timeout"},
+  {"tool": "netbox_get_vms", "args": {}, "erwartet": "netbox"},
+  {"tool": "Bash", "args": {"host": "bastion"}, "erwartet": "ssh"},
+  {"tool": "Bash", "args": {"host": "app3"}, "kontext": ["thema:oom"], "erwartet": "oom"},
+  {"tool": "Bash", "args": {"host": "unbekannt"}, "erwartet": null}]}

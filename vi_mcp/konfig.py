@@ -32,6 +32,7 @@ class Instanz:
     token_sha256: str
     reflexe: bool = False
     freigabe: bool = False  # darf heikle importierte Inhalte aus der Quarantäne freigeben
+    mensch: bool = False  # darf Signale des Nutzers melden (POST /signal)
 
 
 @dataclass
@@ -80,18 +81,18 @@ def lade(p: Path | None = None) -> Konfig:
     k.lager_tage = {a: int(t) for a, t in (roh.get("lager_tage") or {}).items()}
     k.llm = roh.get("llm") or None
     for n, d in (roh.get("instanzen") or {}).items():
-        k.instanzen[n] = Instanz(n, d["token_sha256"], bool(d.get("reflexe", False)), bool(d.get("freigabe", False)))
+        k.instanzen[n] = Instanz(n, d["token_sha256"], bool(d.get("reflexe", False)), bool(d.get("freigabe", False)), bool(d.get("mensch", False)))
     return k
 
 
-def instanz_anlegen(name: str, reflexe: bool = False, p: Path | None = None, freigabe: bool = False) -> str:
+def instanz_anlegen(name: str, reflexe: bool = False, p: Path | None = None, freigabe: bool = False, mensch: bool = False) -> str:
     """Instanz anlegen oder ihr Token erneuern. Liefert das neue Token (nur dieses eine Mal sichtbar)."""
     if not name or not all(c.isalnum() or c in "-_." for c in name):
         raise ValueError("Instanzname: Buchstaben, Ziffern, - _ .")
     p = p or pfad()
     roh = json.loads(p.read_text()) if p.exists() else {}
     token = secrets.token_urlsafe(32)
-    roh.setdefault("instanzen", {})[name] = {"token_sha256": hashlib.sha256(token.encode()).hexdigest(), "reflexe": reflexe, "freigabe": freigabe}
+    roh.setdefault("instanzen", {})[name] = {"token_sha256": hashlib.sha256(token.encode()).hexdigest(), "reflexe": reflexe, "freigabe": freigabe, "mensch": mensch}
     p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     tmp = p.with_suffix(".tmp")
     alte = os.umask(0o077)
