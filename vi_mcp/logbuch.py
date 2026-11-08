@@ -34,7 +34,8 @@ MAX_JE_TAG = 5000
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _HEX32 = re.compile(r"^[0-9a-f]{32}$")
 _DATUM = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_ADRESSE = re.compile(r"^https?://[^/\s]+$")
+#: hinter einem Reverse-Proxy liegt der Dienst unter einem Pfad, z. B. https://host/vi-p2p
+_ADRESSE = re.compile(r"^https?://[^/\s?#]+(?:/[A-Za-z0-9._~-]+)*$")
 
 
 def kanonisch(wert) -> bytes:

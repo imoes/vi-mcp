@@ -361,3 +361,48 @@ def test_ohne_libtorrent_bleibt_https(netz, tmp_path, monkeypatch):
     (sa, a_pub) = netz.schluessel()
     a = netz.baue(sa, [a_pub], torrent={"aktiv": True})
     assert a.schwarm is None
+
+
+def test_adresse_hinter_reverse_proxy():
+    assert lb.steuer_form("adresse", {"adresse": "https://wissen.example/vi-p2p"})
+    assert lb.steuer_form("adresse", {"adresse": "https://wissen.example:8443/a/b"})
+    for falsch in ("https://wissen.example/", "https://wissen.example/x?y=1", "ftp://wissen.example", "https://wissen.example/../x y"):
+        assert not lb.steuer_form("adresse", {"adresse": falsch}), falsch
+
+
+def test_abgleich_ueber_pfad_praefix(netz):
+    """Wie hinter nginx: der Peer erreicht den Dienst unter /vi-p2p, der Dienst sieht /netz/…"""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    (sa, a_pub), (sb, b_pub) = netz.schluessel(), netz.schluessel()
+    a = netz.baue(sa, [a_pub])
+    a.log.anhaengen("einladung", {"pub": b_pub})
+    a.mcp.objekte.append(objekt(1))
+    a.runde()
+    ziel = a.port()
+
+    class Proxy(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+
+        def _weiter(self):
+            assert self.path.startswith("/vi-p2p/")
+            c = http.client.HTTPConnection("127.0.0.1", ziel, timeout=10)
+            koerper = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            c.request(self.command, self.path[len("/vi-p2p"):], body=koerper or None, headers={k: v for k, v in self.headers.items() if k.lower() in ("authorization", "content-type")})
+            r = c.getresponse()
+            d = r.read()
+            self.send_response(r.status)
+            self.send_header("Content-Length", str(len(d)))
+            self.end_headers()
+            self.wfile.write(d)
+        do_GET = do_POST = _weiter
+    p = ThreadingHTTPServer(("127.0.0.1", 0), Proxy)
+    threading.Thread(target=p.serve_forever, daemon=True).start()
+    try:
+        b = netz.baue(sb, [a_pub], modus="peer", start=[f"http://127.0.0.1:{p.server_address[1]}/vi-p2p"])
+        b.runde()
+        assert b.mcp.texte() == [objekt(1)["text"]]
+    finally:
+        p.shutdown()
+        p.server_close()

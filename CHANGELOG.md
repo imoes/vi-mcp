@@ -3,6 +3,12 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.14.1 — 2026-11-08 — Netzdienst hinter einem Reverse-Proxy
+
+### Was wurde behoben
+
+- Die Adresse eines `peerhost` durfte keinen Pfad haben (`https://host/vi-p2p`); hinter nginx war er damit nicht erreichbar. *Nachweis:* `test_abgleich_ueber_pfad_praefix` (Abgleich über einen Proxy, der das Präfix entfernt).
+
 ## 0.14.0 — 2026-11-08 — Dezentrales Netz, vollständiges Wissen
 
 ### Was ist neu
