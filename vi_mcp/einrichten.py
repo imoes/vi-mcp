@@ -156,7 +156,7 @@ def _claude_eintrag(z: Ziel) -> dict | None:
 def _claude_ein(z: Ziel, url: str, token: str) -> str:
     p = _claude_datei(z)
     d = _json(p)
-    d.setdefault("mcpServers", {})[NAME] = {"type": "http", "url": url, "headers": {"Authorization": f"Bearer {token}"}}
+    d.setdefault("mcpServers", {})[NAME] = {"type": "http", "url": url, **({"headers": {"Authorization": f"Bearer {token}"}} if token else {})}
     return _schreibe(p, json.dumps(d, indent=2, ensure_ascii=False) + "\n")
 
 
@@ -165,6 +165,11 @@ def _claude_aus(z: Ziel) -> str:
     d = _json(p)
     d.get("mcpServers", {}).pop(NAME, None)
     return _schreibe(p, json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+
+
+def _token_von_claude(z: Ziel) -> str | None:
+    with _als(z):
+        return _claude_token(z)
 
 
 def _claude_token(z: Ziel) -> str | None:
@@ -202,8 +207,12 @@ def _hook_ohne(d: dict) -> None:
 
 def _hook_ein(z: Ziel, url: str, token: str, signal: str | None) -> str:
     verz = z.home / ".config" / "vi-mcp"
-    _schreibe(verz / "token-claude", token + "\n")
-    umgebung = f"VI_MCP_URL={shlex.quote(url)} VI_MCP_TOKEN_FILE=$HOME/.config/vi-mcp/token-claude"
+    umgebung = f"VI_MCP_URL={shlex.quote(url)}"
+    if token:
+        _schreibe(verz / "token-claude", token + "\n")
+        umgebung += " VI_MCP_TOKEN_FILE=$HOME/.config/vi-mcp/token-claude"
+    else:  # offener Server: der Hook meldet ohne Token, eine alte Token-Datei darf nicht hineinfunken
+        umgebung += " VI_MCP_TOKEN_FILE=/dev/null"
     if signal:
         _schreibe(verz / "token-nutzer", signal + "\n")
         umgebung += " VI_MCP_SIGNAL_TOKEN_FILE=$HOME/.config/vi-mcp/token-nutzer"
@@ -260,9 +269,9 @@ def codex_setze(text: str, url: str, token: str, p: Path = Path("config.toml")) 
     """Rein. json.dumps erzeugt hier gültige TOML-Zeichenketten (nur ASCII mit \\uXXXX)."""
     alt = _toml(text, p)
     rumpf = _toml_ohne(text).rstrip("\n")
-    block = f'[mcp_servers.{NAME}]\nurl = {json.dumps(url)}\nhttp_headers = {{ Authorization = {json.dumps("Bearer " + token)} }}\n'
+    block = f'[mcp_servers.{NAME}]\nurl = {json.dumps(url)}\n' + (f'http_headers = {{ Authorization = {json.dumps("Bearer " + token)} }}\n' if token else "")
     neu = (rumpf + "\n\n" if rumpf else "") + block
-    _nur_eintrag_anders(alt, _toml(neu, p), {"url": url, "http_headers": {"Authorization": f"Bearer {token}"}}, p)
+    _nur_eintrag_anders(alt, _toml(neu, p), {"url": url, **({"http_headers": {"Authorization": f"Bearer {token}"}} if token else {})}, p)
     return neu
 
 
@@ -341,7 +350,7 @@ def _yaml_ohne(zeilen: list[str]) -> list[str]:
     return zeilen[:start] + zeilen[stop:]
 
 
-def hermes_setze(text: str, url: str, p: Path = Path("config.yaml")) -> str:
+def hermes_setze(text: str, url: str, p: Path = Path("config.yaml"), mit_token: bool = True) -> str:
     """Rein. Das Token steht nicht hier, sondern in ~/.hermes/.env; Hermes setzt ${VAR} beim Verbinden ein."""
     alt = _yaml(text, p)
     zeilen = text.splitlines()
@@ -361,9 +370,9 @@ def hermes_setze(text: str, url: str, p: Path = Path("config.yaml")) -> str:
     kopf, ende = ab
     tiefe = next((_einzug(zeilen[i]) for i in range(kopf + 1, ende) if _inhalt(zeilen[i])), 2)
     rand = " " * tiefe
-    block = [f"{rand}{NAME}:", f"{rand}  url: {json.dumps(url)}", f"{rand}  headers:", f'{rand}    Authorization: "Bearer ${{{ENV_TOKEN}}}"']
+    block = [f"{rand}{NAME}:", f"{rand}  url: {json.dumps(url)}"] + ([f"{rand}  headers:", f'{rand}    Authorization: "Bearer ${{{ENV_TOKEN}}}"'] if mit_token else [])
     neu = "\n".join(zeilen[:ende] + block + zeilen[ende:]) + "\n"
-    _nur_eintrag_anders(alt, _yaml(neu, p), {"url": url, "headers": {"Authorization": f"Bearer ${{{ENV_TOKEN}}}"}}, p)
+    _nur_eintrag_anders(alt, _yaml(neu, p), {"url": url, **({"headers": {"Authorization": f"Bearer ${{{ENV_TOKEN}}}"}} if mit_token else {})}, p)
     return neu
 
 
@@ -385,8 +394,8 @@ def env_setze(text: str, token: str | None) -> str:
 def _hermes_ein(z: Ziel, url: str, token: str) -> str:
     v = _hermes_verz(z)
     p = v / "config.yaml"
-    neu = hermes_setze(_text(p), url, p)
-    _schreibe(v / ".env", env_setze(_text(v / ".env"), token))
+    neu = hermes_setze(_text(p), url, p, mit_token=bool(token))
+    _schreibe(v / ".env", env_setze(_text(v / ".env"), token or None))
     return _schreibe(p, neu)
 
 
@@ -486,10 +495,13 @@ def _oeffne(req: urllib.request.Request, timeout: float):
 
 
 def pruefe(url: str, token: str | None, timeout: float = 4) -> tuple[str, str]:
-    """(art, text); art ∈ token_ok, token_abgelehnt, erreichbar, nicht_erreichbar, keine_mcp_antwort."""
+    """(art, text); art ∈ token_ok, offen (ohne Token nutzbar), token_abgelehnt, erreichbar, nicht_erreichbar, keine_mcp_antwort."""
     if not re.match(r"^https?://[^/\s]+/\S*$", url):
         return "nicht_erreichbar", "URL hat nicht die Form http(s)://host/…/mcp"
     if not token:
+        art, text = _initialize(url, {}, timeout)
+        if art == "token_ok":
+            return "offen", text.replace("Token gültig", "offen, ohne Token nutzbar")
         try:
             with _oeffne(urllib.request.Request(url.rsplit("/mcp", 1)[0] + "/gesund"), timeout) as a:
                 return "erreichbar", a.read(200).decode("utf-8", "replace").strip()
@@ -497,7 +509,11 @@ def pruefe(url: str, token: str | None, timeout: float = 4) -> tuple[str, str]:
             return "keine_mcp_antwort", f"HTTP {e.code} auf /gesund"
         except (urllib.error.URLError, OSError, TimeoutError) as e:
             return "nicht_erreichbar", str(getattr(e, "reason", e))[:160]
-    kopf = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": f"Bearer {token}"}
+    return _initialize(url, {"Authorization": f"Bearer {token}"}, timeout)
+
+
+def _initialize(url: str, auth: dict, timeout: float) -> tuple[str, str]:
+    kopf = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", **auth}
     koerper = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "vi-mcp-einrichten", "version": __version__}}}
     try:
         with _oeffne(urllib.request.Request(url, data=json.dumps(koerper).encode(), headers=kopf), timeout) as a:
@@ -601,19 +617,19 @@ def einrichten(wahl: list[str], z: Ziel, url: str, token: str | None, signal: st
             return [Ergebnis(k, _titel(k), False, f"Dienst nicht neu gestartet, nichts eingetragen: {grund}") for k in wahl]
         if not _warte(url):
             return [Ergebnis(k, _titel(k), False, "Server antwortet nach dem Neustart nicht, nichts eingetragen") for k in wahl]
-    elif "hook" in wahl and len(wahl) == 1:
-        with _als(z):
-            if vorhanden := _claude_token(z):
-                tokens["hook"] = vorhanden
+    elif "hook" in wahl and len(wahl) == 1 and (vorhanden := _token_von_claude(z)):
+        tokens["hook"] = vorhanden
+    elif ungeprueft or pruefe(url, None)[0] == "offen":
+        tokens = {k: "" for k in wahl}  # offener Server: ohne Token eintragen
     aus = []
     for k in wahl:
         t = tokens.get(k)
-        if not t:
+        if t is None:
             aus.append(Ergebnis(k, _titel(k), False, "kein Token: mit --token-datei angeben oder auf dem Server mit sudo starten"))
             continue
         if not ungeprueft:
-            art, text = pruefe(url, t)
-            if art != "token_ok":
+            art, text = pruefe(url, t or None)
+            if art not in ("token_ok", "offen"):
                 aus.append(Ergebnis(k, _titel(k), False, f"nicht eingetragen: {text}"))
                 continue
         try:
@@ -668,7 +684,7 @@ def hindernis(m: Menue) -> str | None:
     art, text = m.server
     if m.token:
         return None if art == "token_ok" else f"Server prüft nicht erfolgreich: {text}"
-    if m.auto:
+    if m.auto or art == "offen":
         return None
     if art == "nicht_erreichbar":
         return f"Server nicht erreichbar: {text}"
@@ -688,8 +704,8 @@ def zeichne(m: Menue, breite: int = 80, farbe: bool = True) -> str:
 
     def k(s: str) -> str:
         return s if len(s) <= breite - 1 else s[:breite - 2] + "…"
-    gut = m.server[0] in ("token_ok", "erreichbar") or m.auto
-    tok = "eingegeben" if m.token else "wird je Programm angelegt" if m.auto else "fehlt"
+    gut = m.server[0] in ("token_ok", "erreichbar", "offen") or m.auto
+    tok = "eingegeben" if m.token else "wird je Programm angelegt" if m.auto else "nicht nötig (offener Server)" if m.server[0] == "offen" else "fehlt"
     z = [f("1;36", k(f" vi-mcp einrichten  {__version__}")), "",
          k(f" Nutzer   {m.nutzer}"), k(f" Server   {m.url}"), f("32" if gut else "31", k(f"          {_server_zeile(m)}")),
          k(f" Token    {tok}"), k(f" Aktion   {m.modus}"), f("2", k(" " + "─" * min(breite - 2, 70)))]

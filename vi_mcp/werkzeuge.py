@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import gedaechtnis as g
-from . import bandit, fragen, intuition, lager, lernen, messung, p2p, reflexe, schlaf, scorer, selbst, sitzung, skills, vektor
+from . import bandit, konfig, fragen, intuition, lager, lernen, messung, p2p, reflexe, schlaf, scorer, selbst, sitzung, skills, vektor
 from .schleife import stand as loop_stand, LOOP_S
 
 _O = {"type": "object"}
@@ -168,12 +168,34 @@ class Abgelehnt(Exception):
     """Fachliche Ablehnung mit Grund — wird als Werkzeugfehler (isError) gemeldet, nicht als Protokollfehler."""
 
 
-def liste() -> list[dict]:
+#: Ohne Token: lesen, die eigenen Handlungen melden, Wissen vorschlagen. Alles, was anderen etwas unterschieben könnte
+#: (bestätigen, widerlegen, Rückfragen, Reflexe, Freigaben, Netz), braucht eine Instanz mit Token.
+OFFEN_ERLAUBT = {"vi_vorher", "vi_nachher", "vi_lerne", "vi_erinnere", "vi_vertiefe", "vi_objekt", "vi_status", "vi_erfahrung", "vi_skills", "vi_skill",
+                 "vi_modell", "vi_scorer", "vi_selbst", "vi_schlaf", "vi_lager", "vi_quarantaene", "vi_netz_status", "vi_fragen", "vi_reflex_liste"}
+
+
+def liste(instanz: str | None = None) -> list[dict]:
+    if instanz == konfig.OFFEN:
+        return [t for t in TOOLS if t["name"] in OFFEN_ERLAUBT]
     return TOOLS + reflexe.werkzeug_schemas()
 
 
 def bekannt(name: str) -> bool:
     return name in _NAMEN or any(t["name"] == name for t in reflexe.werkzeug_schemas())
+
+
+def _vorschlag(text: str, tags: list[str], daten: dict, wichtigkeit: int) -> str:
+    """Wissen ohne Token: Es wirkt erst nach Prüfung und Freigabe, wie ein Import aus dem Netz (p2p.freigeben, Prüfer im Schlaf)."""
+    from . import pruefer, pruefung
+    regeln = [f"{feld}: {t}" for feld in ("text", "inhalt", "quelle") for t in pruefung.anweisungen(str(daten.get(feld, text if feld == "text" else "")))]
+    daten = {**daten, "herkunft": {"herausgeber": konfig.OFFEN}, "pruefung": {"regeln": regeln, "pruefer": None}, "fremd_text": text, "fremd_hashtags": tags}
+    o = g.neues_objekt("erkenntnis", text, sorted(set(tags + ["herkunft:offen", "pruefer:ausstehend", "modus:quarantaene"])), daten, wichtigkeit=max(0, min(3, wichtigkeit)),
+                       wer=f"ki@{konfig.OFFEN}", grund="Vorschlag ohne Token", modus="quarantaene", instanz=konfig.OFFEN)
+    if pruefer.verfuegbar():
+        import threading
+        threading.Thread(target=pruefer.abarbeiten, args=(100,), name="vi-pruefer", daemon=True).start()
+    return (f"Vorschlag {o.id} liegt in der Quarantäne. Er wirkt erst, wenn der Prüfer ihn gelesen und eine Instanz mit Recht ihn freigegeben hat"
+            + (f" (Regelbefund: {'; '.join(regeln)[:200]})." if regeln else "."))
 
 
 def _zeile(o: g.Objekt, gw: dict | None = None) -> str:
@@ -193,6 +215,8 @@ def _sichtbar(oid: str, instanz: str) -> g.Objekt:
 def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht: bool = False) -> str:
     """Ein Werkzeug ausführen. Liefert Text; fachliche Ablehnung als Abgelehnt(grund)."""
     args = args or {}
+    if instanz == konfig.OFFEN and name not in OFFEN_ERLAUBT:
+        raise Abgelehnt(f"{name} braucht eine eigene Instanz mit Token. Ohne Token darf man lesen, Handlungen melden und mit vi_lerne Wissen vorschlagen.")
     if name.startswith("vi_reflex_") and name not in _NAMEN:
         return reflexe.als_werkzeug(name, args)
     if name in REFLEX_RECHT and not reflex_recht:
@@ -398,8 +422,10 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
                 text, inhalt = text[:TEXT_MAX], text
             if len(inhalt) > g.INHALT_MAX:
                 raise ValueError(f"inhalt hat {len(inhalt)} Zeichen, erlaubt sind {g.INHALT_MAX}; bitte auf mehrere Objekte aufteilen")
-            o = g.neues_objekt("erkenntnis", text, tags,
-                               {"quelle": args["quelle"].strip()[:500], **({"ausgang": args["ausgang"]} if args.get("ausgang") else {}), **({"inhalt": inhalt} if inhalt else {})},
+            daten = {"quelle": args["quelle"].strip()[:500], **({"ausgang": args["ausgang"]} if args.get("ausgang") else {}), **({"inhalt": inhalt} if inhalt else {})}
+            if instanz == konfig.OFFEN:
+                return _vorschlag(text, tags, daten, int(args.get("wichtigkeit") or 1))
+            o = g.neues_objekt("erkenntnis", text, tags, daten,
                                wichtigkeit=int(args.get("wichtigkeit") or 1), wer=f"ki@{instanz}", grund="vi_lerne")
         except ValueError as e:
             raise Abgelehnt(str(e)) from e

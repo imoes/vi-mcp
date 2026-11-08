@@ -370,6 +370,14 @@ versagt hat, und schützt auch die `vi.db`, obwohl das Kind unter demselben Nutz
 (kein Landlock ABI ≥ 4, nicht x86_64), läuft der Code **nicht** (`isolation: keine`). Kosten: ≈ 14 ms je Lauf
 (gemessen 08.11.2026). Reflexe lernen oder schalten dürfen nur Instanzen mit `reflexe: true`.
 
+## Open-Wiki-Modus
+
+`"offen": true` ordnet Anfragen ohne `Authorization` der festen Instanz `offen` zu (`konfig.OFFEN`, als Name reserviert). Ein falsches Token bleibt 401.
+`offen` sieht nur die Werkzeuge in `werkzeuge.OFFEN_ERLAUBT`: lesen, `vi_vorher`/`vi_nachher`, `vi_lerne`. Ein `vi_lerne` von `offen` wird ein Objekt in der Quarantäne mit
+`herkunft:offen`, Regelbefund (`pruefung.anweisungen`) und ausstehendem Prüfer; es durchläuft denselben Weg wie ein Netz-Import (`p2p.heikel`, `p2p.freigeben`, `p2p.auto_freigeben`).
+`offen` hat keinen Antwortspeicher: Alle Gäste teilen sich eine Instanz, gemerkte Antworten würden das Ergebnis eines Kollegen an alle geben.
+Bleibende Grenze: Handlungen von Gästen fließen in die Hinweis-Zähler und das Router-Training ein. Ein Gast kann so die Reihenfolge geprüfter Hinweise beeinflussen, aber keinen Inhalt einbringen.
+
 ## Schutz
 
 - Bind `127.0.0.1` (Standard). Andere Hosts nur über einen TLS-Proxy.

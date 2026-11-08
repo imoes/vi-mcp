@@ -62,6 +62,24 @@ sha256sum --ignore-missing -c SHA256SUMS
 
 **Enterprise Linux 9 is not supported:** Python 3.9 is too old, and scikit-learn is not available there for newer Python versions. Your memory and configuration are kept when the package is removed.
 
+## Two modes: token and open wiki
+
+| Mode | Who | What |
+|---|---|---|
+| **Token** (default) | every instance has its own token | full use according to its rights |
+| **Open wiki** (`"offen": true` in `/etc/vi-mcp/config.json`) | anyone who can reach the server, no token | read everything shared, get hints before actions, report own actions, **propose** knowledge |
+
+The knowledge is open; writing it is not. In the open wiki mode a proposal from `vi_lerne` goes into quarantine like an import from the network: rules, the review model, then release by an instance with rights.
+Confirming, refuting, questions to other instances, reflexes, releases and the network need a token, otherwise any machine could plant instructions in everyone else's AI sessions.
+Tokenless clients share one instance (`offen`); they get no cached tool answers, so nobody receives the result of someone else's lookup. A wrong token is still rejected (401) instead of quietly becoming a guest.
+
+Join an open server, no token needed:
+
+```bash
+claude mcp add --transport http -s user vi-mcp https://<server>/vi-mcp/mcp
+vi-mcp einrichten --claude --codex --hermes --hook --url https://<server>/vi-mcp/mcp     # detects the open server by itself
+```
+
 ## Set up
 
 On first install this menu opens by itself; otherwise run `sudo vi-mcp einrichten`. The interface is in German:

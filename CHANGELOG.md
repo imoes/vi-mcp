@@ -3,6 +3,20 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.17.0 — 2026-11-08 — Open-Wiki-Modus
+
+### Was ist neu
+
+- **Zwei Modi: Token und Open Wiki.** Mit `"offen": true` nutzt jeder, der den Server erreicht, ihn ohne Token: lesen, Hinweise vor Handlungen, Handlungen melden, Wissen vorschlagen.
+  Vorschläge gehen in die Quarantäne und wirken erst nach Prüfung und Freigabe; alles, was anderen etwas unterschieben könnte, braucht weiter ein Token.
+  *Nachweis:* `tests/test_offen.py` (14 Tests über echtes HTTP: lesen ohne Token, falsches Token 401, acht gesperrte Werkzeuge, Angriffstext bleibt in der Quarantäne und erscheint nicht als Hinweis, Freigabe mit Token, kein gemeinsamer Antwortspeicher).
+- `vi-mcp einrichten` erkennt einen offenen Server und trägt Claude Code, Codex, Hermes und den Hook ohne Token ein. Der Hook meldet ohne Token, wenn keine Token-Datei da ist.
+
+### Was fehlt noch
+
+- Gäste teilen sich eine Instanz: Ihre Erfahrungen sind füreinander sichtbar, und sie beeinflussen Hinweis-Zähler und Router-Training. Eine Begrenzung je Rechner gibt es nicht.
+- Offen heißt offen für jeden, der den Server erreicht: Den Kreis bestimmt das Netz davor, nicht vi-mcp.
+
 ## 0.16.0 — 2026-11-08 — Inhalt als Merkmal, Schlaf ohne Proxy-Abbruch
 
 ### Was ist neu

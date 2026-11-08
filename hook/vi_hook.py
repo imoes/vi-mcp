@@ -21,7 +21,8 @@ Werkzeuge für Zugangsdaten melden nur den Ausgang. Lange Argumente eingebauter 
 
 Umgebung:
   VI_MCP_URL         Standard http://127.0.0.1:8765/mcp
-  VI_MCP_TOKEN_FILE  Standard ~/.config/vi-mcp/token-$USER  (Bearer-Token der Instanz, 0600)
+  VI_MCP_TOKEN_FILE  Standard ~/.config/vi-mcp/token-$USER  (Bearer-Token der Instanz, 0600). Fehlt die Standarddatei,
+                     meldet der Hook ohne Token (Server mit `offen`); eine ausdrücklich genannte Datei muss lesbar sein.
   VI_HOOK_STATE      Standard ~/.cache/vi-mcp/hook        (Zustand je Sitzung und je tool_use_id, 0700)
   VI_HOOK_TIMEOUT    Sekunden je HTTP-Anfrage, Standard 3
 """
@@ -141,7 +142,9 @@ def entferne(art: str, schluessel: str) -> None:
 
 # ── MCP über HTTP ─────────────────────────────────────────────────────────────
 
-def _token() -> str:
+def _token() -> str | None:
+    if "VI_MCP_TOKEN_FILE" not in os.environ and not TOKEN_DATEI.exists():
+        return None  # Zugang ohne Token
     try:
         return TOKEN_DATEI.read_text().strip()
     except OSError as e:
@@ -149,7 +152,8 @@ def _token() -> str:
 
 
 def _post(koerper: dict | None, sid: str | None = None, methode: str = "POST") -> tuple[int, dict, dict | None]:
-    kopf = {"Authorization": f"Bearer {_token()}", "Content-Type": "application/json",
+    token = _token()
+    kopf = {**({"Authorization": f"Bearer {token}"} if token else {}), "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream"}
     if sid:
         kopf["Mcp-Session-Id"] = sid

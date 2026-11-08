@@ -132,7 +132,8 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     from . import lager
     hinweise += lager.hinweis(such_reize)
     antwort, alter_s, ttl = None, None, None
-    if lesend(tool, ist_lesend):
+    from .konfig import OFFEN
+    if lesend(tool, ist_lesend) and instanz != OFFEN:  # ohne Token teilen sich alle eine Instanz: keine gemerkten Antworten
         ttl = min(ttl_je_werkzeug.get(tool, TTL_STANDARD), TTL_MAX)
         for _, o, _g in g.erinnere(f"art:antwort cache:{_frage(tool, args)}", limit=1, betrachter=instanz):
             alter = (datetime.now(timezone.utc) - datetime.fromisoformat(o.zeit)).total_seconds()
@@ -242,7 +243,8 @@ def erfahrung(tool: str, args: dict, ok: bool | None, dauer_ms: int, fehler: str
                        wichtigkeit=UEBERRASCHUNG[stufe], grund=f"Werkzeugaufruf · Überraschung {stufe}: {grund_u}", instanz=instanz)
     for oid in zugriff.get("gefunden", []):
         o.verknuepfe(oid, "vor der Handlung erinnert")
-    if ok and ergebnis is not None and lesend(tool, ist_lesend) and not zugriff.get("aus_gedaechtnis") and len(ergebnis) <= 200_000:
+    from .konfig import OFFEN
+    if ok and ergebnis is not None and lesend(tool, ist_lesend) and not zugriff.get("aus_gedaechtnis") and len(ergebnis) <= 200_000 and instanz != OFFEN:
         fh = _frage(tool, args)
         with g.sperre:
             # nur die eigene gemerkte Antwort ersetzen — der Cache ist privat je Instanz

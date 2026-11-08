@@ -53,7 +53,7 @@ def verarbeite(msg: dict, s: sitzung.Sitzung | None, inst: konfig.Instanz) -> di
             if methode == "ping":
                 return _antwort(mid, {})
             if methode == "tools/list":
-                return _antwort(mid, {"tools": werkzeuge.liste()})
+                return _antwort(mid, {"tools": werkzeuge.liste(inst.name)})
             if methode == "tools/call":
                 name = params.get("name", "")
                 if not werkzeuge.bekannt(name):
