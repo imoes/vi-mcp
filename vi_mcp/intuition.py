@@ -79,13 +79,32 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     # Kein zugriff() beim automatischen Zeigen: Gezeigtes würde sonst allein durchs Zeigen wichtiger (Selbstbestätigung,
     # Matthäus-Effekt). Verstärkt wird in nachher(), wenn die Handlung danach gelang — Annahme „der Hinweis hat genützt“,
     # benannt in docs/ARCHITEKTUR.md; Beobachtungspunkt: vi_erfahrung (Erfolg mit/ohne Hinweise).
-    for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=HINWEIS_BUDGET + 4, arten=("erkenntnis", "regel")):
+    # Kandidaten (Heuristik: Aktualität + Wichtigkeit + Bonus), dann ggf. Router-Modell (gelernter Lift), dann Erkundung
+    from . import lernen
+    import random as _random
+    kand = [o for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=HINWEIS_BUDGET + 8, arten=("erkenntnis", "regel"))]
+    router = "heuristik"
+    m = lernen.aktiv()
+    if m is not None and kand:
+        rang = dict(lernen.rangfolge(m, such_reize, [o.id for o in kand]))
+        kand.sort(key=lambda o: -rang.get(o.id, 0.0))
+        router = "modell"
+    gezeigt_obj = kand[:HINWEIS_BUDGET]
+    exploration = False
+    rest = kand[HINWEIS_BUDGET:]
+    if rest and _random.random() < lernen.EPSILON:  # ε-Erkundung: ein Platz für einen zufälligen Kandidaten von weiter hinten
+        gezeigt_obj = gezeigt_obj[:-1] + [_random.choice(rest)]
+        exploration = True
+    for i, o in enumerate(gezeigt_obj):
         gefunden.append(o.id)
         herkunft = f"von {o.instanz}" + (f", bestätigt von {o.fremde_bestaetigungen()} weiteren Instanz(en)" if o.fremde_bestaetigungen() else "")
-        aus_gedaechtnis.append(f"{'Gelernt' if o.art == 'erkenntnis' else 'Regel'} [{o.id[:28]}] ({herkunft}"
+        erk = " (Erkundung)" if exploration and i == len(gezeigt_obj) - 1 else ""
+        aus_gedaechtnis.append(f"{'Gelernt' if o.art == 'erkenntnis' else 'Regel'}{erk} [{o.id[:28]}] ({herkunft}"
                                + (", STRITTIG — von einer anderen Instanz widersprochen" if o.modus == "strittig" else "")
                                + f"; {', '.join(t for t in o.hashtags if t.startswith(('modus:', 'skill:', 'kollektiv:')))[:60]}): "
                                f"{o.text[:300]} [Quelle: {str(o.daten.get('quelle', '—'))[:120]}]")
+    kandidaten_ids = [o.id for o in kand]
+    uebrig = len(kand) - len(gezeigt_obj)
     # 1. Zugriff auf Gelerntes: Suchen, deren Hinweisreize zur Handlung passen, laufen automatisch
     for _, su, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=3, arten=("suche",)):
         treffer = [o for _, o, _g2 in g.erinnere(su.daten.get("filter", ""), limit=3) if o.id != su.id]
@@ -95,8 +114,10 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
                                + ("; ".join(f"[{o.id[:24]}] {o.text[:90]}" for o in treffer) if treffer else "keine Treffer"))
     # Arbeitsgedächtnis: höchstens HINWEIS_BUDGET Hinweise aus dem Gedächtnis (Cowan 2001: ~4 Chunks); der Rest auf Abruf
     if len(aus_gedaechtnis) > HINWEIS_BUDGET:
-        rest = len(aus_gedaechtnis) - HINWEIS_BUDGET
-        aus_gedaechtnis = aus_gedaechtnis[:HINWEIS_BUDGET] + [f"… {rest} weitere Treffer im Gedächtnis — vi_vertiefe(\"{' '.join(such_reize)}\") zeigt sie"]
+        uebrig += len(aus_gedaechtnis) - HINWEIS_BUDGET
+        aus_gedaechtnis = aus_gedaechtnis[:HINWEIS_BUDGET]
+    if uebrig > 0:
+        aus_gedaechtnis.append(f"… {uebrig} weitere Treffer im Gedächtnis — vi_vertiefe(\"{' '.join(such_reize)}\") zeigt sie")
     hinweise += aus_gedaechtnis
     antwort, alter_s, ttl = None, None, None
     if lesend(tool, ist_lesend):
@@ -106,7 +127,8 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
             if alter <= ttl:
                 gefunden.append(o.id)
                 antwort, alter_s = o.daten.get("ergebnis", ""), int(alter)
-    zugriff = {"reize": rz, "gefunden": gefunden, "suchen": suchen, "aus_gedaechtnis": antwort is not None}
+    zugriff = {"reize": rz, "gefunden": gefunden, "gezeigt": [o.id for o in gezeigt_obj], "kandidaten": kandidaten_ids,
+               "router": router, "exploration": exploration, "suchen": suchen, "aus_gedaechtnis": antwort is not None}
     vorher_id = secrets.token_hex(8)
     if antwort is not None:
         erfahrung(tool, args, True, 0, None, antwort, zugriff, instanz, ist_lesend)
@@ -188,7 +210,7 @@ def ueberraschung(tool: str, ok: bool | None, fehler_sig: str | None) -> tuple[s
 def erfahrung(tool: str, args: dict, ok: bool | None, dauer_ms: int, fehler: str | None, ergebnis: str | None,
               zugriff: dict, instanz: str | None = None, ist_lesend: bool | None = None) -> g.Objekt:
     tags = [f"tool:{tool}", f"skill:{tool.split('_')[0]}", f"ok:{'unbekannt' if ok is None else 'ja' if ok else 'nein'}"]
-    tags += [t for t in zugriff.get("reize", []) if t.startswith("host:")]
+    tags += [t for t in zugriff.get("reize", []) if t.startswith(("host:", "thema:"))]  # Kontext-Reize als Tags (TRAINING.md 4a)
     sig = None
     if fehler:
         sig = fehler_signatur(fehler)[:60].replace(" ", "_").replace("(", "_").replace(")", "_")

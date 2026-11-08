@@ -224,3 +224,4 @@ __marimo__/
 *.db-shm
 config.json
 docs/LOKAL.md
+.venv/

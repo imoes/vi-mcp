@@ -86,6 +86,7 @@ def lauf(grund: str) -> g.Objekt:
     schritt("4_abstraktion", lambda: _abstraktion(bericht))
     schritt("5_archiv", lambda: _archiv())
     schritt("6_selbst_ist", lambda: _selbst_ist())
+    schritt("8_lernen", lambda: _lernen())
     dauer = int((time.monotonic() - t0) * 1000)
     zustand = "fehler" if bericht["fehler"] else "fertig"
     text = (f"Schlaf {zustand} ({grund}): {len(neue)} neue Erfahrungen, {len(bericht.get('cluster', []))} Cluster, "
@@ -243,6 +244,12 @@ def hole_archiv(oid: str) -> dict | None:
     with g.sperre:
         row = g.db().execute("SELECT roh FROM archiv WHERE id = ?", (oid,)).fetchone()
     return json.loads(zlib.decompress(row[0])) if row else None
+
+
+def _lernen() -> dict:
+    from . import lernen
+    b = lernen.trainiere("Schlaf")
+    return {k: b.get(k) for k in ("zustand", "n", "merkmale", "auc_holdout", "grund", "urteil") if k in b}
 
 
 def _selbst_ist() -> dict:

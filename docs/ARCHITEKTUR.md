@@ -198,6 +198,27 @@ LLM-Variante nicht gebaut) → Archiv (Erfahrungen > 30 d, nie zugegriffen, ohne
 Erkenntnisse, Regeln, Suchen, Reflexe werden nie automatisch archiviert. Eine Bestätigung durch den Server zählt
 nicht als fremde Instanz (kein Gewicht durch Automatik).
 
+## Lernen — der Router lernt seine Gewichte
+
+Bis 0.4.0 war die Reihenfolge der Hinweise eine gesetzte Formel (Aktualität + Wichtigkeit + Bonus). Seit 0.5.0
+lernt eine **logistische Regression** (scikit-learn, im Schlaf) aus den eigenen Beobachtungen, welcher Hinweis in
+welchem Kontext zum Erfolg führte — docs/TRAINING.md 4a/4b.
+
+- **Beobachtung** = gemeldete Handlung mit Label `ok`; Merkmale = Reize (`tool:`, `skill:`, `host:`, `thema:`,
+  `stunde:`) × gezeigte Hinweise (`hinweis:<id>`, `hinweisart:<art>`, `hinweis_n`). Liegt in `objekt`/`tag`/`daten`;
+  die View `beobachtung` zeigt sie flach (keine Kopie — eine Quelle der Wahrheit).
+- **Matrix**: beim Training aus der DB gebaut (`DictVectorizer`, dünn besetzt 0/1); sklearn hat kein DB-Format.
+- **Modell** `modell:router`: Gewicht je Merkmal + Achsenabschnitt als **lesbares JSON** (kein Pickle); `vi_modell`
+  zeigt die stärksten Gewichte. Vorhersage = Sigmoid-Summe in reiner Standardbibliothek.
+- **Router-Score** = Lift = P(ok | Reize + Hinweis) − P(ok | Reize). Nur wenn das Modell `aktiv` ist; sonst Heuristik.
+  Jede Beobachtung nennt `router` (`heuristik`|`modell`), `kandidaten`, `gezeigt`, `exploration`.
+- **Mindestmengen** (Peduzzi 1996): Merkmale < 10 Vorkommen fallen weg; min(ok, nicht ok) < 50 oder Holdout-AUC
+  ≤ 0,6 → Modus `test` (gespeichert, gezeigt, nicht benutzt). Holdout = die zeitlich letzten 20 %.
+- **ε-Erkundung 10 %**: ein Platz des Budgets geht an einen zufälligen Kandidaten von weiter hinten, markiert
+  „(Erkundung)“ — sonst lernt das Modell nur über das, was die Heuristik ohnehin zeigt (Off-Policy, Li et al. 2011).
+- *Beobachtungspunkt:* Hinweis-Lift (`vi_erfahrung`) vor/nach `router: modell`. Steigt er nicht, ist das Modell nicht
+  besser als die Heuristik → zurück auf `test`.
+
 ## Loop
 
 Genau einer, alle 60 s: Antworten älter als 1 h löschen · wiederholte Fehler → Regel (test, idempotent) ·

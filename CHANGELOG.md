@@ -3,6 +3,33 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.5.0 — 2026-11-08
+
+### Was ist neu
+
+- **Lernen**: der Router lernt mit scikit-learn im Schlaf (Schritt `8_lernen`), welcher Hinweis in welchem Kontext zum
+  Erfolg führt; Gewichte als lesbares JSON in `modell:router`, Werkzeug `vi_modell`; Router nutzt das Modell nur bei
+  Holdout-AUC > 0,6 und ≥ 50 Ereignissen je Klasse, sonst Heuristik (benannt). *Nachweis:* `test_router_lernt_welcher_hinweis_nuetzt`
+  (Synthetik: Hinweis R 90 % Erfolg, E 20 % → Gewicht(R) > 0 > Gewicht(E), R zuerst, `router: modell`),
+  `test_zu_wenig_daten_und_fehlendes_sklearn`, `test_vorhersage_ohne_sklearn_und_rangfolge`.
+- **ε-Erkundung 10 %** mit Markierung „(Erkundung)“; Beobachtungen tragen `kandidaten`, `gezeigt`, `router`, `exploration`.
+  *Nachweis:* `test_erkundung_wird_markiert`.
+- **View `beobachtung`** (flache Sicht für SQL/Export) und `scripts/export_beobachtung.py` (DB → Matrix `.npz`, ohne sklearn).
+  *Nachweis:* `test_beobachtung_view_und_merkmale`.
+- `docs/TRAINING.md`: wie sklearn/PyTorch Daten erwarten, Abbildung auf vi-mcp, Vorbehalte — jede Aussage mit Quelle.
+- Debian: `Depends: python3-sklearn` (Entscheidung des Nutzers).
+- 55/55 Tests grün (venv mit scikit-learn 1.4.2); ohne sklearn 54 + 1 übersprungen.
+
+### Was hat sich geändert
+
+- Kontext-Reize (`thema:`) sind jetzt Hashtags der Erfahrung (vorher nur im JSON) — Befund TRAINING.md 4a.
+
+### Was fehlt noch
+
+- Das Modell wird erst nach einigen hundert gemeldeten Handlungen aktiv (Mindestmengen); bis dahin Heuristik.
+- Thompson Sampling je Hinweis (Stufe 2); Embeddings für Relevanz (Dienst auf dem Host: bge-m3, 1024 Dim., **4,6 s** je
+  Anfrage gemessen am 08.11. — zu langsam für `vi_vorher`, nur im Schlaf denkbar); LLM-Reflexion im Schlaf.
+
 ## 0.4.0 — 2026-11-08
 
 ### Was ist neu

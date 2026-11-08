@@ -24,7 +24,7 @@ Package: vi-mcp
 Version: ${version}-${rev}
 Architecture: all
 Maintainer: ${maintainer}
-Depends: python3 (>= 3.11), adduser, systemd
+Depends: python3 (>= 3.11), python3-sklearn, adduser, systemd
 Section: net
 Priority: optional
 Installed-Size: ${groesse}

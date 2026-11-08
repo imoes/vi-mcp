@@ -28,7 +28,7 @@ from pathlib import Path
 
 from .protokoll import log
 
-ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf")
+ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell")
 #: strittig = von genau einer fremden Instanz widerlegt (erscheint weiter, mit Vermerk); widerlegt = vom Urheber
 #: oder von ≥ 2 verschiedenen Instanzen widerlegt (erscheint nicht mehr)
 #: archiviert = Stummel (Text, Hashtags) bleibt, Inhalt komprimiert in Tabelle archiv; nur mit modus:archiviert im Filter sichtbar
@@ -36,7 +36,7 @@ MODI = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt", "archiviert")
 #: Kollektiv: wer darf ein Objekt lesen? privat = nur die Urheber-Instanz (Ergebnisse können Zugangsdaten enthalten),
 #: geteilt = alle Instanzen. Der Loop (Server) sieht alles. Erschöpfend für ARTEN.
 SICHT_JE_ART = {"erfahrung": "privat", "antwort": "privat", "erkenntnis": "geteilt", "regel": "geteilt", "reflex": "geteilt",
-                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt"}
+                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt"}
 #: Urheber für Objekte, die der Server selbst anlegt (Loop) — eine benannte Instanz, kein NULL
 SERVER_INSTANZ = "vi"
 #: Gewichtbonus je verschiedener FREMDER Instanz, die bestätigt hat (Selbstbestätigung zählt nicht als Beleg)
@@ -52,7 +52,7 @@ VERFALL_D = 0.3
 TAG = re.compile(r"^[a-z][a-z0-9_-]{0,30}:[^\s()]+$")
 #: Hashtags, die Verwaltung sind und nicht Inhalt (für Verknüpfung und Trichter ignoriert)
 VERWALTUNG = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:", "an:", "von:", "ueberraschung:",
-              "modus:", "herkunft:", "konflikt:", "selbst:", "selbstbereich:")
+              "modus:", "herkunft:", "konflikt:", "selbst:", "selbstbereich:", "modell:")
 
 sperre = threading.RLock()
 _db: sqlite3.Connection | None = None
@@ -141,6 +141,22 @@ def _migriere(con: sqlite3.Connection) -> None:
     if n:
         log(f"Migration: {n} Cache-Hashtags frage: → cache:")
     con.execute("CREATE INDEX IF NOT EXISTS objekt_instanz ON objekt(instanz, sicht)")
+    # Flache Sicht auf Beobachtungen (docs/TRAINING.md 4a): eine Quelle der Wahrheit (objekt/tag/daten), nur anders gelesen
+    con.execute("DROP VIEW IF EXISTS beobachtung")
+    con.execute("""CREATE VIEW beobachtung AS
+        SELECT o.id AS erfahrung_id, o.zeit, o.instanz,
+               (SELECT substr(tag, 6) FROM tag WHERE objekt_id = o.id AND tag LIKE 'tool:%') AS tool,
+               CASE WHEN EXISTS (SELECT 1 FROM tag WHERE objekt_id = o.id AND tag = 'ok:ja') THEN 1
+                    WHEN EXISTS (SELECT 1 FROM tag WHERE objekt_id = o.id AND tag = 'ok:nein') THEN 0 END AS ok,
+               json_array_length(COALESCE(json_extract(o.daten, '$.vorher.gezeigt'), json_extract(o.daten, '$.vorher.gefunden'), '[]')) AS hinweise_n,
+               json_extract(o.daten, '$.ueberraschung.stufe') AS ueberraschung,
+               json_extract(o.daten, '$.vorher.router') AS router,
+               json_extract(o.daten, '$.vorher.exploration') AS exploration,
+               json_extract(o.daten, '$.vorher.reize') AS reize_json,
+               json_extract(o.daten, '$.vorher.gezeigt') AS gezeigt_json,
+               json_extract(o.daten, '$.vorher.kandidaten') AS kandidaten_json,
+               json_extract(o.daten, '$.vorher.aus_gedaechtnis') AS aus_gedaechtnis
+        FROM objekt o WHERE o.art = 'erfahrung'""")
     con.commit()
 
 

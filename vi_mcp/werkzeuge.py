@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import gedaechtnis as g
-from . import fragen, intuition, messung, reflexe, schlaf, selbst, sitzung
+from . import fragen, intuition, lernen, messung, reflexe, schlaf, selbst, sitzung
 from .schleife import stand as loop_stand, LOOP_S
 
 _O = {"type": "object"}
@@ -61,6 +61,9 @@ TOOLS = [
     {"name": "vi_schlaf", "description": "VI: letzter Konsolidierungslauf (Bericht) — oder jetzt schlafen (jetzt=true, nur vertraute Instanz). "
                                          "Ein Objekt (id) aus dem Archiv holen: id.",
      "inputSchema": _schema({"jetzt": {"type": "boolean"}, "id": _S})},
+    {"name": "vi_modell", "description": "VI: das gelernte Router-Modell — Zustand (aktiv/test/zu wenig Daten), Beobachtungen, Holdout-AUC und die "
+                                         "stärksten Gewichte je Merkmal (positiv = erhöht P(ok)). Erklärt, warum ein Hinweis vorne steht.",
+     "inputSchema": _schema({})},
     {"name": "vi_status", "description": "VI: Gedächtnis-Stand — Objekte je Art, Erfahrungen 24 h, offene Gespräche, Kanten, Loop.",
      "inputSchema": _schema({})},
     {"name": "vi_lerne",
@@ -221,6 +224,8 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
         if not l:
             return f"noch kein Schlaf — nächster um {schlaf.SCHLAF_STUNDE:02d}:00 UTC oder ab Wichtigkeitssumme {schlaf.SCHWELLE}"
         return l.text + "\n" + json.dumps({k: v for k, v in l.daten.items() if k != "top"}, ensure_ascii=False)[:3000]
+    if name == "vi_modell":
+        return lernen.erklaerung()
     if name == "vi_status":
         seit = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(timespec="seconds")
         with g.sperre:
@@ -245,6 +250,7 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
                 f"Erfahrung 24 h: {n} Aufrufe, {aus} aus dem Gedächtnis, {fehler} Fehler · Antwort-TTL {intuition.TTL_STANDARD} s (max {intuition.TTL_MAX})\n"
                 + messung.zeile(messung.hinweis_lift(24, betrachter=None)) + "\n"
                 f"Schlaf: {(schlaf.letzter().text if schlaf.letzter() else 'noch keiner')[:200]}\n"
+                f"Router: {(lernen.modell().text if lernen.modell() else 'Heuristik (noch kein Modell)')[:200]}\n"
                 f"Loop: alle {LOOP_S} s, {ls['laeufe']} Läufe, zuletzt {ls['zuletzt'] or '—'}, {ls['regeln_neu']} Regeln daraus, "
                 f"{ls['fehler']} Fehler{(' (zuletzt: ' + ls['letzter_fehler'] + ')') if ls['letzter_fehler'] else ''}")
     if name == "vi_lerne":
