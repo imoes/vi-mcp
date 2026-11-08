@@ -3,6 +3,34 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.19.3 — 2026-11-09 — Handbücher drängen keine Erfahrung mehr aus den Hinweisen
+
+### Was hat sich geändert
+
+- **Importierte Herstellerdoku belegt vor einer Handlung höchstens einen der vier Hinweisplätze.** Weitere Absätze erscheinen nur noch über die
+  Erkundung; in `vi_erinnere` bleibt alles auffindbar. Vor `ssh … 'docker logs nginx'` füllten vier allgemeine Docker-Doku-Absätze (tmpfs, vfs,
+  containerd …) alle Plätze, und der passende Hinweis „ssh nur mit Schlüssel“ fiel heraus. *Nachweis:* `test_handbuch_absaetze_verdraengen_keine_erfahrung`
+  (schlägt mit 0.19.2 fehl).
+
+### Gemessen: Vergleich mit der AIKB nach 0.19.2 (Lauf 3, 09.11.2026 00:31)
+
+Gleiche Fragen, gleicher Richter (lokales Sprachmodell), Kernaussagen aus Quellen außerhalb beider Systeme. Die AIKB lief in Lauf 3 bei 12 von 28 Fragen in
+das Zeitlimit (300 s). Für sie zählt deshalb je Frage das bessere Ergebnis aus Lauf 2 und Lauf 3; jede Frage hat mindestens eine Antwort der AIKB.
+
+| Kategorie | VI | AIKB | Antwortzeit VI / AIKB |
+|---|---|---|---|
+| C Herstellerdoku (10) | 7,5 | 3 | 0,2–49 s / 57–300 s |
+| A Erfahrung (12) | 2 | 1 | |
+| B Firmendoku (6, Fragen je Lauf neu erzeugt) | 0 | 4 (Lauf 2) | |
+| D Hinweis vor einem Befehl (6) | 2,5–3 | — (kann die AIKB nicht) | 0,03–0,19 s |
+
+Einordnung: C gewinnt die VI, weil die Doku von Proxmox, Ansible, NetBox, Docker und PostgreSQL importiert ist; die AIKB enthält Firmendoku, keine
+Herstellerdoku. Bei Checkmk und SFTPGo (nicht importiert) wissen beide nichts. B gewinnt die AIKB klar: die Confluence-Doku ist bewusst nicht in der VI.
+A zeigt keinen Vorteil: die Erfahrungsfragen stammen aus Notizen, die nie in die VI gelernt wurden; ihre zwei Treffer (Zeitserver-Regel, AIKB-Image) waren gelernt.
+Die VI liefert Fundstellen, die AIKB eine formulierte Antwort; der Richter prüft, ob die Kernaussage im Text steht.
+Ohne Last braucht die semantische Suche der VI 0,5–2 s. Unter Last waren es 20–60 s. *Hypothese:* Der Embedding-Dienst wird geteilt (im selben Zeitraum
+108 Anfragen vom AIKB-Host, 82 von zwei weiteren Rechnern).
+
 ## 0.19.2 — 2026-11-08 — Die Suche findet auch ältere Doku
 
 ### Was wurde behoben
@@ -65,7 +93,7 @@ CentralStation-Befunde vom Abend statt der importierten Proxmox-Doku, obwohl die
 ### Was wurde behoben
 
 - **Eine neu gelernte, genau passende Regel kam nicht vor.** Das gelernte Modell sortierte nur nach erwartetem Nutzen; eine neue Regel hat noch keine Geschichte und verlor gegen eingespielte allgemeine Hinweise
-  (gemessen: die timehost-Regel vor `ansible-playbook freeipa-client.yml …` auf Platz 8 von 12, gezeigt werden 4). Jetzt zählt zuerst, wie viele spezifische Reize ein Hinweis trifft, und Hinweise mit Wichtigkeit 3 gehen vor;
+  (gemessen: die Zeitserver-Regel vor `ansible-playbook freeipa-client.yml …` auf Platz 8 von 12, gezeigt werden 4). Jetzt zählt zuerst, wie viele spezifische Reize ein Hinweis trifft, und Hinweise mit Wichtigkeit 3 gehen vor;
   innerhalb gleicher Passung entscheidet weiter das Modell. Der Kandidatenkreis ist von 12 auf 20 erweitert. *Nachweis:* `test_passende_warnung_schlaegt_allgemeines`.
 - **Inhaltsleere automatische Skills verstärkten sich selbst.** „Bash scheiterte und gelang danach — Lösungsweg Bash → AskUserQuestion → …“ erschien vor jedem Bash-Befehl und galt als 226-mal genützt,
   weil Bash fast immer gelingt (Nachbarschaft ist keine Ursache). Solche Skills entstehen nicht mehr, vorhandene widerlegt der Schlaf mit Grund. *Nachweis:* `test_inhaltsleerer_auto_skill_wird_widerlegt`.

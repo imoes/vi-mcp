@@ -248,10 +248,24 @@ def test_passende_warnung_schlaegt_allgemeines(gd):
     from vi_mcp import werkzeuge
     for i in range(10):
         werkzeuge.rufe("vi_lerne", {"text": f"Allgemeine Ansible-Notiz Nummer {i} mit Inhalt", "hashtags": ["skill:ansible"], "quelle": "Doku 8.11."}, "a", False)
-    werkzeuge.rufe("vi_lerne", {"text": "freeipa-client nie auf timehost laufen lassen", "hashtags": ["skill:ansible", "thema:ansible-playbook", "host:timehost"],
+    werkzeuge.rufe("vi_lerne", {"text": "freeipa-client nie auf zeit1 laufen lassen", "hashtags": ["skill:ansible", "thema:ansible-playbook", "host:zeit1"],
                                 "quelle": "Vorfall 13.10.", "wichtigkeit": 3}, "a", False)
     v = intuition.vorher("Bash", {"command": "ansible-playbook playbooks/freeipa-client.yml -l sites"}, "a", False)
-    assert "timehost" in v["hinweise"][0] or any("timehost" in h for h in v["hinweise"][:2])
+    assert "zeit1" in v["hinweise"][0] or any("zeit1" in h for h in v["hinweise"][:2])
+
+
+def test_handbuch_absaetze_verdraengen_keine_erfahrung(gd):
+    """0.19.3: vor `docker logs` belegten vier Docker-Doku-Absätze alle Plätze; der passende ssh-Hinweis fiel heraus."""
+    from vi_mcp import werkzeuge
+    for i in range(6):
+        werkzeuge.rufe("vi_lerne", {"text": f"Docker-Doku, Abschnitt {i}: allgemeiner Text", "hashtags": ["skill:docker", "art_wissen:doku-extern"],
+                                    "quelle": "Herstellerdoku"}, "a", False)
+    werkzeuge.rufe("vi_lerne", {"text": "ssh nach web1 nur mit Schlüssel und BatchMode", "hashtags": ["host:web1.example", "tool:ssh"], "quelle": "Erfahrung"}, "a", False)
+    h = intuition.vorher("Bash", {"command": "ssh web1.example 'docker logs nginx'"}, "a", False)["hinweise"]
+    assert any("Schlüssel" in x for x in h)
+    assert sum("Docker-Doku" in x for x in h) <= intuition.NACHSCHLAG_MAX + 1  # +1: ein Erkundungsplatz darf einen weiteren zeigen
+    gesucht = werkzeuge.rufe("vi_erinnere", {"filter": "Docker-Doku"}, "a", False)
+    assert gesucht.count("Docker-Doku, Abschnitt") >= 6  # in der Suche bleibt alles
 
 
 def test_inhaltsleerer_auto_skill_wird_widerlegt(gd):

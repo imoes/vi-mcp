@@ -29,6 +29,11 @@ SCHREIBEND = re.compile(r"(create|add|update|launch|acknowledge|push|transition|
 TTL_STANDARD = 120
 TTL_MAX = 3600
 HINWEIS_BUDGET = 4
+#: Nachschlagewerk (importierte Herstellerdoku): wird gesucht, aber vor einer Handlung höchstens NACHSCHLAG_MAX-mal ungefragt gezeigt,
+#: damit Handbuch-Absätze nicht das Erfahrungswissen (Warnungen, Fallstricke) aus dem Budget drängen. Gemessen 09.11.2026: vor `docker logs`
+#: belegten vier allgemeine Docker-Doku-Absätze alle Plätze.
+NACHSCHLAG = ("art_wissen:doku-extern",)
+NACHSCHLAG_MAX = 1
 HOSTKEYS = ("host", "hostname", "host_name", "node", "device")
 OFFEN_MAX_S = 3600
 
@@ -137,9 +142,12 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     allgemein = {f"tool:{tool}", f"skill:{tool.split('_')[0]}"} if tool in SHELL_WERKZEUGE else set()
     passend = set(such_reize) - allgemein
     kand.sort(key=lambda o: (-(o.wichtigkeit >= 3 and bool(passend & set(o.hashtags))), -len(passend & set(o.hashtags))))
-    gezeigt_obj = kand[:HINWEIS_BUDGET]
+    # Überzählige Handbuch-Absätze nie regulär zeigen, nur über die Erkundung (so lernt der Bandit, ob sie doch helfen)
+    ueberzaehlig = {o.id for o in [o for o in kand if any(t in o.hashtags for t in NACHSCHLAG)][NACHSCHLAG_MAX:]}
+    regulaer = [o for o in kand if o.id not in ueberzaehlig]
+    gezeigt_obj = regulaer[:HINWEIS_BUDGET]
     exploration = False
-    rest = kand[HINWEIS_BUDGET:]
+    rest = regulaer[HINWEIS_BUDGET:] + [o for o in kand if o.id in ueberzaehlig]
     if rest and _random.random() < lernen.EPSILON:  # ε-Erkundung: ein Platz für einen zufälligen Kandidaten von weiter hinten
         gezeigt_obj = gezeigt_obj[:-1] + [_random.choice(rest)]
         exploration = True

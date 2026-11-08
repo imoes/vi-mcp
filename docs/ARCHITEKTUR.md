@@ -234,6 +234,9 @@ welchem Kontext zum Erfolg führte — docs/TRAINING.md 4a/4b.
   ≤ 0,6 → Modus `test` (gespeichert, gezeigt, nicht benutzt). Holdout = die zeitlich letzten 20 %.
 - **ε-Erkundung 10 %**: ein Platz des Budgets geht an einen zufälligen Kandidaten von weiter hinten, markiert
   „(Erkundung)“ — sonst lernt das Modell nur über das, was die Heuristik ohnehin zeigt (Off-Policy, Li et al. 2011).
+- **Nachschlagewerk höchstens einmal (seit 0.19.3)**: importierte Herstellerdoku (`art_wissen:doku-extern`) belegt vor einer Handlung höchstens
+  einen Platz; weitere Absätze kommen nur über die Erkundung. In `vi_erinnere` bleibt alles auffindbar. Grund: Handbuch-Absätze passen über
+  `skill:` zu fast jedem Befehl und drängten Erfahrungswissen (Warnungen, Fallstricke) aus dem Budget.
 - *Beobachtungspunkt:* Hinweis-Lift (`vi_erfahrung`) vor/nach `router: modell`. Steigt er nicht, ist das Modell nicht
   besser als die Heuristik → zurück auf `test`.
 
