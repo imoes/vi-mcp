@@ -3,6 +3,38 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.14.0 — 2026-11-08 — Dezentrales Netz, vollständiges Wissen
+
+### Was ist neu
+
+- **Dezentrales Netz** aus Servern, Modi `standalone`, `peer`, `peerhost` (`vi-mcp netz …`, Dienst `vi-p2p`): signierte, verkettete Logbücher, Abgleich mit Nachbarn über HTTPS, Peers finden sich über das Netz,
+  Mitgliedschaft durch Einladung, Ausschluss, Erkennung von Gabelungen, BitTorrent für große Rückstände. *Nachweis:* `tests/test_netz.py` (19 Tests, echtes HTTP, TLS mit eigenem Zertifikat, libtorrent);
+  drei Pakete in Containern unter systemd (Ubuntu 24.04, Debian 13, Fedora 43): Wissen über zwei Stationen nach 27 s beim Peer hinter der „Firewall“, Widerruf dort nach 4 s (zwei Läufe: 27 und 28 s). Im Logbuch des Empfängers stand als einzige interne Angabe die angekündigte Adresse des `peerhost`, die er zum Gefundenwerden braucht.
+- **Nutzen je Herausgeber**; schädliche Quellen werden nicht mehr gezeigt. Optionale automatische Freigabe von Unauffälligem.
+- **Vollständiges Wissen:** `vi_lerne` nimmt `inhalt` (Code, API-Tabellen, Befehle, bis 200.000 Zeichen); `vi_objekt` gibt es vollständig zurück, die Volltextsuche findet es. Ein zu langer `text` wird nicht mehr abgeschnitten, sondern wird zum Inhalt.
+  Codebeispiele wie `token = lese_token()` bleiben lesbar. *Nachweis:* `test_vollstaendiges_wissen_bleibt_erhalten` (Tabelle mit 2.000 Zeilen).
+- Vision im README.
+
+### Was hat sich geändert
+
+- **Bundles entfallen** (`vi_export`, `vi_import_bundle`); an ihre Stelle treten Logbuch-Einträge und `vi_netz_ausgang`/`vi_netz_eingang` nur für die Instanz `p2p`.
+- **Weitertragen ist erlaubt:** Fremd Signiertes wird unverändert weitergereicht, nie unter eigenem Namen.
+- **Ins Netz geht nur Bewährtes:** von einer anderen Instanz bestätigt oder mindestens 3-mal nützlich.
+- Skill-Anleitungen bleiben vollständig; der Hinweis zeigt den Anfang.
+- `Recommends: python3-libtorrent` (Debian) bzw. `rb_libtorrent-python3` (RPM).
+
+### Was wurde behoben
+
+- Die Werkzeugbeschreibung verlangte „ein Satz“ und schnitt nach 1.000 Zeichen ab. Wissen aus Handbüchern landete deshalb als Zusammenfassung im Gedächtnis.
+
+### Was fehlt noch
+
+- Kein Server betreibt das Netz produktiv; es gibt noch keinen öffentlichen Einstiegspunkt.
+- Wer einen Inhalt einmal gesehen hat, kann ihn behalten. Abstraktionen aus vergessenen Objekten bleiben.
+- Gabelungen werden erkannt, aber nicht an andere Peers gemeldet. Direkte Nachbarn sehen die IP-Adresse, und die Adresse eines `peerhost` kennt jedes Mitglied.
+- Die Torrent-Strecke ist nur auf einem Rechner getestet, nicht über NAT. Das Prüfmodell liest von langen Inhalten die ersten 12.000 Zeichen; Längeres ist immer heikel.
+- Ein Widerruf vor dem Netz-Token geht nicht; ein verlorenes Token ist nur auf dem Server wieder anzuzeigen (`vi-mcp netz-token`).
+
 ## 0.13.0 — 2026-11-08 — Pakete, Einrichtung, Netz ohne Interna, Recht auf Vergessen
 
 ### Was ist neu

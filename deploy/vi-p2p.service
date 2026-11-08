@@ -1,0 +1,37 @@
+[Unit]
+Description=vi-p2p — Netzdienst von vi-mcp (Logbücher abgleichen, Wissen verteilen)
+Documentation=https://github.com/imoes/vi-mcp
+After=network-online.target vi-mcp.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vi-p2p
+Group=vi-p2p
+Environment=VI_P2P_CONFIG=/etc/vi-p2p/config.json
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/vi-mcp netz lauf
+Restart=on-failure
+RestartSec=10
+UMask=0077
+StateDirectory=vi-p2p
+StateDirectoryMode=0700
+# Dieser Prozess liest fremde Daten aus dem Netz: nur sein Verzeichnis ist beschreibbar, das Gedächtnis ist nicht erreichbar
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+InaccessiblePaths=-/var/lib/vi-mcp
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

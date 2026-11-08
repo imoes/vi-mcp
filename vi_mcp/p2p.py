@@ -1,18 +1,15 @@
-"""Austausch von Lerninhalten zwischen vi-mcp-Instanzen auf verschiedenen Hosts: signierte Bundles, Import in Quarantäne.
+"""Das Gedächtnis am Netz: anonymer Ausgang, geprüfter Eingang, Quarantäne, Recht auf Vergessen, Wert je Herausgeber.
 
-Dieses Modul kennt keinen Transport. Es prüft ein Bundle, egal wie es angekommen ist (HTTPS, später BitTorrent).
-Ein Torrent-Hash beweist nur, dass die Datei unverändert ist, nicht, von wem sie stammt; das leistet die Signatur.
-
-Bundle: {"manifest": {schema, herausgeber, pubkey, seq, zeit, anzahl, objekte_sha256}, "sig": hex, "objekte": [{"objekt": {...}, "sig": hex}]}
-Ablauf: Größe → Herausgeber auf der Allowlist → Manifest-Signatur → seq steigt → Prüfsumme → je Objekt Signatur und
-feste Regeln (pruefung.py) → Quarantäne → Prüfer (pruefer.py) → Freigabe.
-Anonym: Das Netz kennt den Herausgeber nur als Pseudonym aus seinem Schlüssel; Objekte tragen keine Instanz, keine Hostnamen, nur das Datum (anonym.py).
+Transport und Logbücher gehören dem Netzdienst (netzdienst.py, eigener Prozess). Hier kommt nur an, was er über `vi_netz_eingang` liefert, und die Signatur
+wird trotzdem erneut geprüft: Der Netzdienst liest fremde Daten und könnte übernommen sein.
+Anonym: Das Netz kennt den Herausgeber nur als Pseudonym; Objekte tragen keine Instanz, keine Hostnamen, nur das Datum (anonym.py).
+Hinaus geht nur Bewährtes: geteilt, aktiv und von einer fremden Instanz bestätigt oder mit gemessenem Nutzen.
 Vergessen: Jede Instanz hat ein Netz-Token. Pro Objekt entsteht daraus eine `netz_id` und ein `loesch_hash` (SHA-256 des Objekt-Tokens HMAC(Token, oid)).
 Wer das Objekt-Token vorlegt, beweist die Urheberschaft, ohne dass das Netz die Instanz kennt; ein Objekt-Token öffnet kein anderes Objekt.
-Widerrufe reisen in jedem Bundle mit, Empfänger löschen und merken sich nur einen Grabstein. Importiertes wird nicht weitergereicht.
+Ablauf beim Eingang: Signatur → feste Regeln (pruefung.py) → Quarantäne → Prüfer (pruefer.py) → Freigabe.
 Es wird nur Quelltext als JSON-Feld verteilt. Importiertes ist Text-Hinweis und löst nichts aus; Code läuft nur in der Sandbox.
-Freigabe: Unauffälliges durch eine Instanz mit Reflex-Recht. Reflexe, Schreibzugriffe, erkannte Anweisungen und alles
-ohne positives Prüfurteil nur durch eine Instanz mit Freigabe-Recht, deren Token auf dem Server bleibt (vi-mcp freigeben).
+Freigabe: Unauffälliges durch eine Instanz mit Reflex-Recht oder, wenn `p2p.auto_freigabe` gesetzt ist, automatisch im Schlaf. Reflexe, Schreibzugriffe, erkannte Anweisungen
+und alles ohne positives Prüfurteil nur durch eine Instanz mit Freigabe-Recht, deren Token auf dem Server bleibt (vi-mcp freigeben).
 """
 from __future__ import annotations
 
@@ -27,77 +24,29 @@ from collections import Counter
 from pathlib import Path
 
 from . import gedaechtnis as g
-from . import anonym, pruefer, pruefung, reflexe, sandbox, vektor
+from . import anonym, bandit, pruefer, pruefung, reflexe, sandbox, vektor
+from . import logbuch as lb
+from .logbuch import kanonisch, pseudonym, schluessel_erzeugen, sha256  # noqa: F401
 
-SCHEMA = 2
-MAX_BYTES = 8 * 1024 * 1024
 MAX_OBJEKTE = 2000
-ABSTAND_S = 600
+WERT_MIN_URTEILE = 20
+WERT_SPERRE = 0.3
+BEWAEHRT_JA = 3
 EXPORT_ARTEN = ("erkenntnis", "regel", "suche", "skill")
 FREIGABE_STATUS_OK = "zulassen"
 
-#: {"seed_datei": pfad, "vertraut": {lokaler_name: {"pubkey": hex, "darf": ["reflex"]}}, "oeffentliche_domains": [...], "interne_namen": [...]}
+#: {"reflexe_von": [pubkey], "auto_freigabe": bool, "oeffentliche_domains": [...], "interne_namen": [...]}
 konfig: dict = {}
 
 
-class Abgewiesen(Exception):
-    """Das ganze Bundle wird nicht angenommen."""
-
-
-def kanonisch(wert) -> bytes:
-    return json.dumps(wert, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
-
-
-def sha256(wert) -> str:
-    return hashlib.sha256(kanonisch(wert)).hexdigest()
-
-
-def _krypto():
-    try:
-        from cryptography.exceptions import InvalidSignature
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
-    except ImportError as e:
-        raise Abgewiesen(f"cryptography fehlt ({e.name}): ohne Signaturprüfung wird nichts importiert") from e
-    return Ed25519PrivateKey, Ed25519PublicKey, InvalidSignature
-
-
-def schluessel_erzeugen(pfad: Path) -> str:
-    """Seed anlegen (0600, wird nie überschrieben). Liefert den öffentlichen Schlüssel als Hex."""
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-    if pfad.exists():
-        raise ValueError(f"{pfad} existiert bereits")
-    k = Ed25519PrivateKey.generate()
-    fd = __import__("os").open(pfad, __import__("os").O_WRONLY | __import__("os").O_CREAT | __import__("os").O_EXCL, 0o600)
-    with open(fd, "wb") as f:
-        f.write(k.private_bytes_raw())
-    return k.public_key().public_bytes_raw().hex()
-
-
-def pseudonym(pubkey_hex: str) -> str:
-    """Das Netz kennt keinen Hostnamen, nur diesen Abdruck des Schlüssels."""
-    return "vi-" + hashlib.sha256(bytes.fromhex(pubkey_hex)).hexdigest()[:12]
-
-
-def _privat():
-    priv, _pub, _inv = _krypto()
-    if not konfig.get("seed_datei"):
-        raise Abgewiesen("p2p.seed_datei ist nicht konfiguriert")
-    return priv.from_private_bytes(Path(konfig["seed_datei"]).read_bytes())
-
-
-def _gueltig(pubkey_hex: str, sig_hex: str, daten: bytes) -> bool:
-    _priv, pub, inv = _krypto()
-    try:
-        pub.from_public_bytes(bytes.fromhex(pubkey_hex)).verify(bytes.fromhex(sig_hex), daten)
-        return True
-    except (inv, ValueError, TypeError):
-        return False
+def _bewaehrt(o: g.Objekt) -> bool:
+    ja, nein = bandit.zaehler(o)
+    return o.fremde_bestaetigungen() >= 1 or (ja >= BEWAEHRT_JA and ja >= 3 * nein)
 
 
 def _tabellen() -> None:
     with g.sperre:
         g.db().executescript("""
-            CREATE TABLE IF NOT EXISTS p2p_stand (pubkey TEXT PRIMARY KEY, seq INTEGER NOT NULL, zuletzt REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS p2p_gesehen (sha TEXT PRIMARY KEY, oid TEXT NOT NULL, herausgeber TEXT NOT NULL, anzahl INTEGER NOT NULL DEFAULT 1);
             CREATE TABLE IF NOT EXISTS netz_token (instanz TEXT PRIMARY KEY, token TEXT NOT NULL, zeit TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS netz_widerruf (oid TEXT PRIMARY KEY, instanz TEXT NOT NULL, netz_id TEXT NOT NULL, token TEXT NOT NULL, zeit TEXT NOT NULL, grund TEXT NOT NULL);
@@ -146,8 +95,11 @@ def _bekannte() -> frozenset[str]:
 
 def _export_form(o: g.Objekt, token: str, bek: frozenset[str]) -> tuple[dict | None, str | None]:
     """Das Objekt, wie es das Netz sähe, oder (None, Grund). Der Grund nennt nur die Klasse, nie den Wert."""
-    if anonym.ZUGANG.search(o.text):
+    roh_inhalt = str(o.daten.get("inhalt") or "")
+    if anonym.ZUGANG.search(o.text) or anonym.ZUGANG.search(roh_inhalt):
         return None, "spricht von Zugangsdaten"
+    if len(roh_inhalt) > pruefung.INHALT_MAX:
+        return None, "Inhalt ist zu groß fürs Netz"
     zeit = o.zeit[:10]
     roh_tags = [t for t in o.hashtags if not t.startswith(pruefung.FESTE_HASHTAGS + anonym.ORTSBEZUG)]
     sauber = lambda t: anonym.werkzeug(t)
@@ -155,6 +107,8 @@ def _export_form(o: g.Objekt, token: str, bek: frozenset[str]) -> tuple[dict | N
     netz_id, objekt_token = _objekt_token(token, o.id)
     aus = {"art": o.art, "text": anonym.ersetze(o.text, bek), "hashtags": tags, "quelle": anonym.ersetze(str(o.daten.get("quelle") or f"geteilte Erfahrung vom {zeit}"), bek)[:500],
            "wichtigkeit": o.wichtigkeit, "zeit": zeit, "netz_id": netz_id, "loesch_hash": hashlib.sha256(objekt_token.encode()).hexdigest()}
+    if roh_inhalt:
+        aus["inhalt"] = anonym.ersetze(roh_inhalt, bek)
     if len(re.sub(r"<\w+>|[\W\d]", "", aus["text"])) < 10:
         return None, "nach dem Anonymisieren bleibt kein Inhalt"
     if o.art == "erkenntnis" and o.daten.get("ausgang"):
@@ -168,7 +122,7 @@ def _export_form(o: g.Objekt, token: str, bek: frozenset[str]) -> tuple[dict | N
         aus.update(name=anonym.ersetze(o.daten["name"], bek), reize=reize, schritte=[anonym.werkzeug(s["tool"]) for s in o.daten["loesung"]["schritte"]])
         if any(anonym.klassen(s, bek) for s in aus["schritte"]):
             return None, "Schritte enthalten Interna"
-    for feld in ("text", "quelle", "name"):
+    for feld in ("text", "inhalt", "quelle", "name"):
         if isinstance(aus.get(feld), str) and anonym.klassen(aus[feld], bek):
             return None, f"{feld}: nach dem Ersetzen auffällig"
     probe = pruefung.pruefe(aus)
@@ -187,6 +141,9 @@ def _sammle(instanz: str | None = None) -> tuple[list[tuple[g.Objekt, dict]], di
     for art in EXPORT_ARTEN:
         for _, o, _g in g.erinnere(f"art:{art} !herkunft:p2p", limit=MAX_OBJEKTE, betrachter=None):
             if o.sicht != "geteilt" or o.modus != "aktiv" or o.id in zurueck or (instanz and o.instanz != instanz):
+                continue
+            if not _bewaehrt(o):
+                grund["noch nicht bewährt"] += 1
                 continue
             if o.instanz not in tokens:
                 grund["Instanz hat kein Netz-Token"] += 1
@@ -235,15 +192,10 @@ def _widerrufe() -> list[dict]:
         return [{"netz_id": a, "token": b} for a, b in g.db().execute("SELECT netz_id, token FROM netz_widerruf ORDER BY zeit")]
 
 
-def exportieren() -> dict:
-    """Geteiltes, aktives Wissen als signiertes, anonymes Bundle, mit allen Widerrufen. Importiertes wird nie weitergegeben."""
-    k = _privat()
-    objekte = [{"objekt": roh, "sig": k.sign(kanonisch(roh)).hex()} for _o, roh in _sammle()[0]]
-    widerrufe = _widerrufe()
-    pub = k.public_key().public_bytes_raw().hex()
-    manifest = {"schema": SCHEMA, "herausgeber": pseudonym(pub), "pubkey": pub, "seq": int(time.time() * 1000), "zeit": g.jetzt()[:10], "anzahl": len(objekte),
-                "objekte_sha256": sha256([x["objekt"] for x in objekte]), "widerrufe_sha256": sha256(widerrufe)}
-    return {"manifest": manifest, "sig": k.sign(kanonisch(manifest)).hex(), "objekte": objekte, "widerrufe": widerrufe}
+def ausgang() -> dict:
+    """Was ins Netz darf, unsigniert: Signieren ist Sache des Netzdienstes, der seinen Schlüssel für sich behält."""
+    objekte, zurueck = _sammle()
+    return {"objekte": [r for _o, r in objekte], "widerrufe": _widerrufe(), "zurueckgehalten": zurueck}
 
 
 def _vergessen_anwenden(widerrufe) -> int:
@@ -274,42 +226,17 @@ def _vergessen_anwenden(widerrufe) -> int:
     return n
 
 
-def _pruefe_kopf(bundle) -> tuple[str, dict]:
-    if not isinstance(bundle, dict) or not {"manifest", "sig", "objekte"} <= set(bundle):
-        raise Abgewiesen("Bundle unvollständig")
-    if len(kanonisch(bundle)) > MAX_BYTES:
-        raise Abgewiesen(f"Bundle größer als {MAX_BYTES} Bytes")
-    m, objekte = bundle["manifest"], bundle["objekte"]
-    if not isinstance(m, dict) or m.get("schema") != SCHEMA or not isinstance(objekte, list) or len(objekte) > MAX_OBJEKTE or m.get("anzahl") != len(objekte):
-        raise Abgewiesen("Manifest passt nicht zum Inhalt")
-    name, eintrag = next(((n, e) for n, e in (konfig.get("vertraut") or {}).items() if e.get("pubkey") == m.get("pubkey")), (None, None))
-    if name is None:
-        raise Abgewiesen("Herausgeber steht nicht auf der Allowlist")
-    if m.get("herausgeber") != pseudonym(m["pubkey"]):
-        raise Abgewiesen("Manifest nennt ein anderes Pseudonym, als der Schlüssel ergibt")
-    if not isinstance(bundle["sig"], str) or not _gueltig(m["pubkey"], bundle["sig"], kanonisch(m)):
-        raise Abgewiesen("Manifest-Signatur ungültig")
-    if m["objekte_sha256"] != sha256([x.get("objekt") if isinstance(x, dict) else None for x in objekte]):
-        raise Abgewiesen("Prüfsumme der Objekte stimmt nicht")
-    if m.get("widerrufe_sha256") != sha256(bundle.get("widerrufe", [])):
-        raise Abgewiesen("Prüfsumme der Widerrufe stimmt nicht")
-    with g.sperre:
-        stand = g.db().execute("SELECT seq, zuletzt FROM p2p_stand WHERE pubkey = ?", (m["pubkey"],)).fetchone()
-    if stand and (not isinstance(m["seq"], int) or m["seq"] <= stand[0]):
-        raise Abgewiesen("Bundle ist nicht neuer als das zuletzt angenommene (Wiederholung)")
-    if stand and time.time() - stand[1] < ABSTAND_S:
-        raise Abgewiesen(f"Herausgeber liefert schneller als alle {ABSTAND_S} s")
-    return name, eintrag
-
-
-def _anlegen(b: pruefung.Befund, name: str, m: dict, sha: str) -> g.Objekt:
+def _anlegen(b: pruefung.Befund, kopf: dict, sha: str) -> g.Objekt:
+    name = pseudonym(kopf["pub"])
     o, kurz = b.objekt, sha[:16]
     instanz = f"p2p-{name}"
-    daten = {"quelle": o["quelle"], "herkunft": {"herausgeber": name, "pubkey": m["pubkey"], "seq": m["seq"], "sha256": sha, "netz_id": o["netz_id"]},
+    daten = {"quelle": o["quelle"], "herkunft": {"herausgeber": name, "pubkey": kopf["pub"], "seq": kopf["seq"], "sha256": sha, "netz_id": o["netz_id"]},
              "pruefung": {"regeln": b.gruende, "pruefer": None}, "fremd_text": o["text"], "fremd_hashtags": o["hashtags"]}
     tags = o["hashtags"] + ["herkunft:p2p", f"herausgeber:{name}", "pruefer:ausstehend", "modus:quarantaene"]
     if o["art"] == "erkenntnis" and o.get("ausgang"):
         daten["ausgang"] = o["ausgang"]
+    if o.get("inhalt"):
+        daten["inhalt"] = o["inhalt"]
     if o["art"] == "suche":
         slug = pruefung.re.sub(r"[^a-z0-9_-]", "-", o["name"].lower())
         daten.update(name=f"p2p-{name}-{slug}"[:60], filter=o["filter"])
@@ -327,28 +254,35 @@ def _anlegen(b: pruefung.Befund, name: str, m: dict, sha: str) -> g.Objekt:
                           oid=oid, modus="quarantaene", instanz=instanz)
 
 
-def importieren(bundle, im_hintergrund: bool = True) -> dict:
-    """Ein Bundle prüfen und seine Objekte in die Quarantäne legen. Abgewiesen(grund), wenn das ganze Bundle fällt."""
+def eingang(eintraege, im_hintergrund: bool = True) -> dict:
+    """Einträge aus dem Netz prüfen und in die Quarantäne legen."""
     _tabellen()
-    name, eintrag = _pruefe_kopf(bundle)
-    m = bundle["manifest"]
-    darf_reflex = "reflex" in (eintrag.get("darf") or [])
-    bericht = {"herausgeber": name, "quarantaene": 0, "abgelehnt": 0, "bekannt": 0, "gruende": [], "vergessen": _vergessen_anwenden(bundle.get("widerrufe", []))}
-    for x in bundle["objekte"]:
-        roh, sig = x.get("objekt") if isinstance(x, dict) else None, x.get("sig") if isinstance(x, dict) else None
-        if not isinstance(sig, str) or not _gueltig(m["pubkey"], sig, kanonisch(roh)):
-            bericht["abgelehnt"] += 1
-            bericht["gruende"].append("Objekt-Signatur ungültig")
+    bericht = {"quarantaene": 0, "abgelehnt": 0, "bekannt": 0, "gruende": [], "vergessen": 0}
+
+    def ab(grund):
+        bericht["abgelehnt"] += 1
+        bericht["gruende"].append(grund[:200])
+    for e in eintraege if isinstance(eintraege, list) else []:
+        kopf, roh = e.get("kopf") if isinstance(e, dict) else None, e.get("inhalt") if isinstance(e, dict) else None
+        if lb.kopf_form(kopf) or not lb.signatur_stimmt(kopf) or sha256(roh) != kopf["sha"]:
+            ab("Signatur oder Prüfsumme ungültig")
             continue
-        b = pruefung.pruefe(roh, darf_reflex)
+        if kopf["typ"] == "widerruf":
+            if lb.steuer_form("widerruf", roh):
+                bericht["vergessen"] += _vergessen_anwenden([{"netz_id": roh["ziel"], "token": roh["token"]}])
+            continue
+        if kopf["typ"] != "objekt":
+            continue
+        b = pruefung.pruefe(roh, kopf["pub"] in (konfig.get("reflexe_von") or []))
+        if b.urteil != "ablehnen" and (b.objekt["netz_id"] != kopf.get("netz_id") or b.objekt["loesch_hash"] != kopf.get("loesch_hash")):
+            b.ablehnen("Kopf und Inhalt nennen verschiedene Objekte")
         if b.urteil != "ablehnen" and b.objekt["art"] == "reflex":
             kompiliert = sandbox.lauf(b.objekt["code"], [], nur_pruefen=True)  # erst in der Sandbox parsen: fremder Code kann den Parser zum Absturz bringen
             grund = kompiliert.get("fehler") or reflexe.pruefe(b.objekt["code"], "vorher")
             if grund:
                 b.ablehnen(f"code: {grund}"[:300])
         if b.urteil == "ablehnen":
-            bericht["abgelehnt"] += 1
-            bericht["gruende"].append("; ".join(b.gruende)[:200])
+            ab("; ".join(b.gruende))
             continue
         with g.sperre:
             grab = g.db().execute("SELECT token_sha FROM p2p_grab WHERE netz_id = ?", (b.objekt["netz_id"],)).fetchone()
@@ -359,22 +293,74 @@ def importieren(bundle, im_hintergrund: bool = True) -> dict:
         with g.sperre:
             n = g.db().execute("UPDATE p2p_gesehen SET anzahl = anzahl + 1 WHERE sha = ?", (sha,)).rowcount
             g.db().commit()
+            alt = g.db().execute("SELECT oid, sha FROM p2p_netz WHERE netz_id = ?", (b.objekt["netz_id"],)).fetchone()
         if n:
             bericht["bekannt"] += 1
             continue
-        o = _anlegen(b, name, m, sha)
+        if alt:  # neue Fassung desselben Objekts ersetzt die alte
+            g.loesche([alt[0]])
+            vektor.entferne(alt[0])
+            with g.sperre:
+                g.db().execute("DELETE FROM p2p_gesehen WHERE sha = ?", (alt[1],))
+                g.db().commit()
+        o = _anlegen(b, kopf, sha)
         with g.sperre:
-            g.db().execute("INSERT INTO p2p_gesehen (sha, oid, herausgeber) VALUES (?,?,?)", (sha, o.id, name))
+            g.db().execute("INSERT INTO p2p_gesehen (sha, oid, herausgeber) VALUES (?,?,?)", (sha, o.id, pseudonym(kopf["pub"])))
             g.db().execute("INSERT OR REPLACE INTO p2p_netz (netz_id, oid, loesch_hash, sha) VALUES (?,?,?,?)", (b.objekt["netz_id"], o.id, b.objekt["loesch_hash"], sha))
             g.db().commit()
         bericht["quarantaene"] += 1
-    with g.sperre:
-        g.db().execute("INSERT OR REPLACE INTO p2p_stand (pubkey, seq, zuletzt) VALUES (?,?,?)", (m["pubkey"], m["seq"], time.time()))
-        g.db().commit()
     bericht["gruende"] = bericht["gruende"][:20]
     if im_hintergrund and bericht["quarantaene"] and pruefer.verfuegbar():
         threading.Thread(target=pruefer.abarbeiten, args=(MAX_OBJEKTE,), name="vi-pruefer", daemon=True).start()
     return bericht
+
+
+_wert_cache: tuple[float, dict] = (0.0, {})
+
+
+def herausgeber_wert(frisch: bool = False) -> dict[str, dict]:
+    """Nutzen je Herausgeber aus den Hinweis-Zählern (Beta-Mittel). Wer sich als schädlich erweist, wird nicht mehr gezeigt."""
+    global _wert_cache
+    if not frisch and time.time() - _wert_cache[0] < 300:
+        return _wert_cache[1]
+    with g.sperre:
+        zeilen = g.db().execute("SELECT t.tag, COUNT(*), SUM(COALESCE(json_extract(o.daten, '$.nuetzlich.ja'), 0)), SUM(COALESCE(json_extract(o.daten, '$.nuetzlich.nein'), 0)) "
+                                "FROM tag t JOIN objekt o ON o.id = t.objekt_id WHERE t.tag LIKE 'herausgeber:%' GROUP BY t.tag").fetchall()
+    aus = {}
+    for tag, n, ja, nein in zeilen:
+        mittel = (1 + ja) / (2 + ja + nein)
+        aus[tag[12:]] = {"objekte": n, "ja": ja, "nein": nein, "mittel": round(mittel, 3), "gesperrt": ja + nein >= WERT_MIN_URTEILE and mittel < WERT_SPERRE}
+    _wert_cache = (time.time(), aus)
+    return aus
+
+
+def ohne_gesperrte(objekte: list[g.Objekt]) -> list[g.Objekt]:
+    if not any("herkunft:p2p" in o.hashtags for o in objekte):
+        return objekte
+    wert = herausgeber_wert()
+    return [o for o in objekte if not any(t.startswith("herausgeber:") and wert.get(t[12:], {}).get("gesperrt") for t in o.hashtags)]
+
+
+def auto_freigeben() -> int:
+    """Nur mit `p2p.auto_freigabe`: Was Regeln und Prüfer unauffällig finden, wird vorläufig (Modus test). Heikles bleibt beim Menschen."""
+    if not konfig.get("auto_freigabe"):
+        return 0
+    n = 0
+    wert = herausgeber_wert(frisch=True)
+    for _, o, _g in g.erinnere("modus:quarantaene", limit=MAX_OBJEKTE, betrachter=None):
+        if "pruefer:ausstehend" in o.hashtags or heikel(o) or wert.get(o.daten["herkunft"]["herausgeber"], {}).get("gesperrt"):
+            continue
+        freigeben(o, "vi", True, False, "automatisch: Regeln ohne Befund, Prüfer lässt zu")
+        n += 1
+    return n
+
+
+def status() -> dict:
+    _tabellen()
+    with g.sperre:
+        q = g.db().execute("SELECT COUNT(*) FROM objekt WHERE modus = 'quarantaene'").fetchone()[0]
+        gr = g.db().execute("SELECT COUNT(*) FROM p2p_grab").fetchone()[0]
+    return {"quarantaene": q, "grabsteine": gr, "herausgeber": herausgeber_wert(frisch=True)}
 
 
 def heikel(o: g.Objekt) -> list[str]:
@@ -384,6 +370,8 @@ def heikel(o: g.Objekt) -> list[str]:
     aus = []
     if o.art == "reflex":
         aus.append("Reflex (Quelltext)")
+    if len(str(o.daten.get("inhalt") or "")) > pruefer.INHALT_GELESEN:
+        aus.append("Inhalt länger, als der Prüfer liest")
     if p["regeln"]:
         aus.append("Regelbefund: " + "; ".join(p["regeln"])[:160])
     if e.get("status") != FREIGABE_STATUS_OK:

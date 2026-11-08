@@ -2,11 +2,12 @@
 # Gedächtnis (/var/lib/vi-mcp) und Konfiguration (/etc/vi-mcp) bleiben bei remove; purge löscht sie.
 set -e
 if [ "$1" = "remove" ]; then
-    systemctl disable vi-mcp.service >/dev/null 2>&1 || true
+    systemctl disable vi-mcp.service vi-p2p.service >/dev/null 2>&1 || true
     systemctl daemon-reload >/dev/null 2>&1 || true
 fi
 if [ "$1" = "purge" ]; then
-    rm -rf /etc/vi-mcp /var/lib/vi-mcp
+    rm -rf /etc/vi-mcp /var/lib/vi-mcp /etc/vi-p2p /var/lib/vi-p2p
+    getent passwd vi-p2p >/dev/null && deluser --system vi-p2p >/dev/null 2>&1 || true
     getent passwd vi-mcp >/dev/null && deluser --system vi-mcp >/dev/null 2>&1 || true
 fi
 exit 0

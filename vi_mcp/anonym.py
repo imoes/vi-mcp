@@ -159,11 +159,20 @@ def befunde(text: str, bekannte: frozenset[str] | set[str] = frozenset()) -> lis
     return aus
 
 
+#: `token = lese_token()` oder `password: ${PW}` im Codebeispiel ist Wissen, kein Geheimnis
+_AUSDRUCK = re.compile(r"[(${%<]|environ")
+
+
+def _lokal_ersatz(m: re.Match) -> str:
+    teile = re.split(r"[:=]", m.group(0), maxsplit=1)
+    return m.group(0) if len(teile) == 2 and _AUSDRUCK.search(teile[1]) else "<geheimnis>"
+
+
 def ohne_geheimnisse(wert):
     """Für alles, was lokal gespeichert wird: Zugangsdaten eindeutiger Form fallen weg, rekursiv. Host-Angaben bleiben, der Router braucht sie."""
     if isinstance(wert, str):
         for m in _GEHEIM_KONTEXT:
-            wert = m.sub("<geheimnis>", wert)
+            wert = m.sub(_lokal_ersatz, wert)
         return wert
     if isinstance(wert, list):
         return [ohne_geheimnisse(x) for x in wert]

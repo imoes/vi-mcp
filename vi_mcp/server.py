@@ -85,7 +85,7 @@ def _initialize(msg: dict, inst: konfig.Instanz) -> tuple[dict, sitzung.Sitzung]
         "protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
         "serverInfo": {"name": SERVER_NAME, "version": __version__},
         "instructions": (f"VI-Gedächtnis, Gespräch {s.serial}, Instanz {inst.name}. Vor einer Handlung vi_vorher, danach vi_nachher "
-                         "melden; vi_erinnere/vi_vertiefe zum Nachlesen, vi_lerne mit Quelle zum Lernen.\n"
+                         "melden; vi_erinnere/vi_vertiefe zum Nachlesen, vi_objekt liest ein Objekt vollständig. vi_lerne mit Quelle zum Lernen: Code, API-Tabellen und Befehle gehören unverkürzt ins Feld inhalt, sonst hat das Gedächtnis Lücken.\n"
                          + selbst.hinweis())}), s
 
 

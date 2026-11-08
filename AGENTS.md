@@ -29,9 +29,11 @@ Bei der Erstinstallation öffnet sich das Menü von selbst, wenn ein Terminal da
 | RPM-Paket | `deploy/rpm/build.sh` (baut in einem Fedora-Container, wenn `rpmbuild` fehlt) |
 
 Module: `gedaechtnis` (Objekte, Suche), `intuition` (vorher/nachher), `sitzung`, `schlaf`, `scorer`, `lernen`, `bandit`, `vektor`, `reflexion`, `skills`, `reflexe`, `sandbox`,
-`lager`, `p2p`, `anonym`, `pruefung`, `pruefer`, `einrichten`, `server`, `werkzeuge`.
+`lager`, `p2p` (Gedächtnis am Netz), `logbuch`, `netzdienst` (eigener Prozess `vi-p2p`), `netz_torrent`, `netz_cli`, `anonym`, `pruefung`, `pruefer`, `einrichten`, `server`, `werkzeuge`.
 
 ## Regeln
+
+- **Wissen vollständig ablegen.** Code, API-Tabellen, Befehle und Konfigurationen gehören unverkürzt ins Feld `inhalt` (bis 200.000 Zeichen), nicht als Zusammenfassung mit Verweis auf eine Datei. Was fehlt, ist eine Lücke im Gedächtnis.
 
 - **Öffentliches Repository.** Keine Hostnamen, IPs, Nutzernamen, Tokens oder internen URLs in Code, Doku, Commits oder Paketen. Hostspezifisches gehört nach `docs/LOKAL*.md` (gitignored, nie in ein Paket).
 - **Nichts Internes ins Netz.** Was das Netz verlässt, läuft durch `anonym.py`; was hereinkommt, wird dort abgelehnt. Eine neue Exportart braucht einen Test in `tests/test_anonym.py`.

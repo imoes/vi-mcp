@@ -59,6 +59,7 @@ VERWALTUNG = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:"
               "modus:", "herkunft:", "konflikt:", "selbst:", "selbstbereich:", "modell:", "fusion:", "dublette:", "scorer:", "ziel:", "note:")
 
 sperre = threading.RLock()
+INHALT_MAX = 200_000
 _db: sqlite3.Connection | None = None
 fts = False
 #: aktive Datenbank und Langzeitlager (lager.py) — gesetzt von oeffne()
@@ -347,7 +348,7 @@ def speichere(o: Objekt) -> Objekt:
         db().executemany("INSERT OR IGNORE INTO tag (objekt_id, tag) VALUES (?, ?)", [(o.id, t) for t in tags])
         if fts:
             db().execute("DELETE FROM objekt_fts WHERE id = ?", (o.id,))
-            db().execute("INSERT INTO objekt_fts (id, text) VALUES (?, ?)", (o.id, o.text[:20000]))
+            db().execute("INSERT INTO objekt_fts (id, text) VALUES (?, ?)", (o.id, (o.text + "\n" + str(o.daten.get("inhalt") or ""))[:300000]))
         db().commit()
     o.hashtags = tags
     return o

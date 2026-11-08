@@ -6,6 +6,15 @@
 Each session keeps its own conversation context, like time slices on a processor. All of them share the same memory: what one session learns shows up as a hint for the next one, right before the relevant action.
 The language model itself is never changed. Learning happens in the memory, and the memory stays readable.
 
+## Vision
+
+**An open network of knowledge, in which AI teaches itself.** Every server learns from its own work: which hint helped, which solution held up, what a person corrected.
+Whatever proves itself is anonymised, signed and shared with the other servers. Every server tests what it receives against its own work and keeps what helps there.
+No central model and no central owner: a server can run on its own or join the network as a peer, and the code, the protocol and the knowledge format are open source.
+
+This is "training" without changing weights. Knowledge becomes readable objects with sources, scores and a right to be forgotten, and the router that picks them learns from the measured outcome.
+Code, API tables and commands are stored in full, because what is missing from memory is a gap.
+
 ## How it works
 
 ```
@@ -87,9 +96,33 @@ You can rate work in your prompt: `#gut` (good), `#schlecht` (bad), `#note 0.8`.
 
 Server by hand: `sudo vi-mcp instanz NAME [--reflexe] [--mensch]`, then `sudo systemctl restart vi-mcp`. The token is shown once.
 
-## Privacy and the network
+## The network
 
-Instances on different machines can exchange knowledge as signed bundles. The transport is not built yet; the rules below already apply.
+Each server keeps a signed, chained log. Servers compare logs with their neighbours and fetch only what is missing; nobody needs a shared truth, so there is no blockchain and no consensus.
+
+| Mode | Behaviour |
+|---|---|
+| `standalone` (default) | no network traffic |
+| `peer` | outgoing connections only, works behind a firewall; pushes its own log to its neighbours |
+| `peerhost` | also accepts connections and serves others |
+
+```bash
+sudo vi-mcp netz einrichten --modus peerhost --gruenden --adresse https://knowledge.example:8766 --tls-cert … --tls-key …   # first server
+sudo vi-mcp netz id                                                       # public key of this server
+sudo vi-mcp netz einrichten --modus peer --gruender <founder key> --start https://knowledge.example:8766                    # every other server
+sudo vi-mcp netz einladen <key of the new server>                       # on any member
+sudo vi-mcp netz status
+```
+
+- **Membership by invitation.** A server belongs if a chain of invitations leads to it from a founder. Founders and the inviting member can expel; whoever was only invited by an expelled server leaves with it.
+- **Forwarding is not believing.** A server carries signed entries onward after checking signature and rules, but its memory treats them as foreign: quarantine, the review model, release, then mode `test`.
+- **Proven only.** A server shares shared, active knowledge that another instance confirmed or that measurably helped.
+- **Sources earn trust.** The measured usefulness per publisher is tracked; a publisher whose hints keep failing is no longer shown (`vi_netz_status`).
+- **Separate process.** `vi-p2p` runs as its own user and cannot reach the memory files; it talks to the memory through two tools only.
+- **Transport.** HTTPS by default; signed requests, only members get answers. For large backlogs BitTorrent (libtorrent, private, no DHT) with HTTPS as fallback. Entries prove themselves, the path does not matter.
+- Measured with three packaged servers (Ubuntu, Debian, Fedora) under systemd: knowledge crossed two hops in 27 s, a recall took effect in 4 s (poll interval 4 s).
+
+## Privacy
 
 **What the network never sees:** IP and MAC addresses, internal host and domain names, passwords, tokens, user names, e-mail addresses, proxy settings, location tags and instance names.
 A publisher appears only as a pseudonym derived from its key, and times only as dates.
@@ -101,14 +134,14 @@ Import rejects every object with a finding. `vi_netz_vorschau` shows exactly wha
 **Right to be forgotten.** Without a network token (`vi_netz_token`, issued once) an instance shares nothing. The token yields a separate deletion proof for each object. `vi_netz_vergiss` recalls your own entries:
 receivers delete them along with search index and vector, and keep only a tombstone so they cannot return. The network does not learn which instance it was, and one proof opens no other object.
 
-**Limits:** Patterns do not understand meaning. A free-standing proper name is only caught if it is on the list of known names (`p2p.interne_namen`). Deletion works with receivers that follow the protocol; nobody can force a peer to destroy a copy.
+**Limits:** Patterns do not understand meaning. A free-standing proper name is only caught if it is on the list of known names (`p2p.interne_namen`). Deletion works with receivers that follow the protocol; nobody can force a peer to destroy a copy. Direct neighbours see each other's IP address, and every member knows the announced address of a `peerhost`.
 
 ## Tools
 
 | Tools | Purpose |
 |---|---|
 | `vi_vorher` · `vi_nachher` | report before and after an action |
-| `vi_lerne` · `vi_erinnere` · `vi_vertiefe` · `vi_objekt` | learn, search, drill down, inspect |
+| `vi_lerne` · `vi_erinnere` · `vi_vertiefe` · `vi_objekt` | learn (code and API tables in full in `inhalt`), search, drill down, read in full |
 | `vi_markiere` · `vi_bestaetige` · `vi_widerlege` · `vi_vergiss` | change, always with a reason |
 | `vi_frage` · `vi_antwort` · `vi_fragen` | questions between instances |
 | `vi_geloest` · `vi_skills` · `vi_skill` · `vi_skill_fusion` | solutions |
@@ -116,7 +149,7 @@ receivers delete them along with search index and vector, and keep only a tombst
 | `vi_selbst` · `vi_selbst_vorschlag` · `vi_schlaf` | self-image and consolidation |
 | `vi_scorer` · `vi_modell` · `vi_erfahrung` · `vi_status` | scores, learned model, metrics, state |
 | `vi_gespraech` · `vi_loesche_gespraech` · `vi_lager` · `vi_lager_hole` | conversations and long-term storage |
-| `vi_export` · `vi_import_bundle` · `vi_quarantaene` · `vi_freigabe` | exchange with review |
+| `vi_netz_ausgang` · `vi_netz_eingang` · `vi_quarantaene` · `vi_freigabe` · `vi_netz_status` | network service interface, review, usefulness per publisher |
 | `vi_netz_token` · `vi_netz_vergiss` · `vi_netz_vorschau` | deletion token, right to be forgotten, preview |
 
 ## Development

@@ -179,3 +179,37 @@ def test_zu_grosse_daten_bleiben_lesbar(gd):
     o = g.neues_objekt("erkenntnis", "viel Inhalt hier", ["thema:gross"], {"blob": "x" * (g.DATEN_MAX + 10)}, grund="T")
     d = g.lade(o.id).daten
     assert d["gekuerzt_zeichen"] > g.DATEN_MAX and "blob" not in d
+
+
+def test_vollstaendiges_wissen_bleibt_erhalten(gd):
+    """Code und API-Tabellen gehören ins Gedächtnis: nichts wird gekürzt, alles wird gefunden und wieder gelesen."""
+    from vi_mcp import werkzeuge
+    tabelle = "| GET | /api/hosts | Liste |\n" * 2000 + "\ndef baue_abfrage(token = lese_token()):\n    return Zaunkoenig(token)\n"
+    r = werkzeuge.rufe("vi_lerne", {"text": "Die Hosts-API liefert Listen", "inhalt": tabelle, "hashtags": ["thema:api"], "quelle": "Handbuch Kapitel 3"}, "a", False)
+    oid = next(w.strip("[]") for w in r.split() if w.startswith(("[erkenntnis:", "erkenntnis:")))
+    voll = next(o for _, o, _g in g.erinnere("thema:api", betrachter=None))
+    assert voll.daten["inhalt"] == tabelle.strip() and len(voll.text) < 100
+    assert voll.id.startswith(oid[:20])
+    assert tabelle.strip() in werkzeuge.rufe("vi_objekt", {"id": voll.id}, "a", False)
+    assert [o.id for _, o, _g in g.erinnere("Zaunkoenig", betrachter=None)] == [voll.id]  # auch am Ende langer Texte gefunden
+
+
+def test_zu_langer_text_wird_nicht_abgeschnitten(gd):
+    from vi_mcp import werkzeuge
+    lang = "Satz über die API. " * 200
+    werkzeuge.rufe("vi_lerne", {"text": lang, "hashtags": ["thema:lang"], "quelle": "Handbuch Kapitel 3"}, "a", False)
+    o = next(o for _, o, _g in g.erinnere("thema:lang", betrachter=None))
+    assert o.daten["inhalt"] == lang.strip() and len(o.text) == werkzeuge.TEXT_MAX
+
+
+def test_zu_grosser_inhalt_wird_mit_grund_abgelehnt(gd):
+    from vi_mcp import werkzeuge
+    with pytest.raises(werkzeuge.Abgelehnt, match="aufteilen"):
+        werkzeuge.rufe("vi_lerne", {"text": "Eine Kernaussage hier", "inhalt": "x" * (g.INHALT_MAX + 1), "hashtags": ["thema:a"], "quelle": "Handbuch Kapitel 3"}, "a", False)
+
+
+def test_skill_anleitung_bleibt_vollstaendig(gd):
+    from vi_mcp import skills
+    lang = "Schritt mit Befehl und Erklärung. " * 100
+    o = skills.neu("langer weg", ["tool:x"], ["Bash"], lang, "weil gelöst", [], "a")
+    assert o.daten["inhalt"] == lang.strip() and len(o.text) == 600

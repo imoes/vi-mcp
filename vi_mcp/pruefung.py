@@ -17,7 +17,8 @@ ARTEN_IMPORT = ("erkenntnis", "regel", "suche", "skill", "reflex")
 TEXT_MIN, TEXT_MAX = 10, 1000
 QUELLE_MIN, QUELLE_MAX = 8, 500
 CODE_MAX = 20_000
-_GRUND = {"art", "text", "hashtags", "quelle", "wichtigkeit", "zeit", "netz_id", "loesch_hash"}
+INHALT_MAX = 50_000
+_GRUND = {"art", "text", "hashtags", "quelle", "wichtigkeit", "zeit", "netz_id", "loesch_hash", "inhalt"}
 FELDER = {
     "erkenntnis": _GRUND | {"ausgang"},
     "regel": _GRUND,
@@ -81,7 +82,7 @@ class Befund:
 
 def _inhalte(roh: dict, o: dict):
     """Jedes Textfeld, das gespeichert würde. Auch verworfene Hashtags und Reize zählen: ihr Inhalt verrät genauso."""
-    for feld in ("text", "quelle", "filter", "name", "code"):
+    for feld in ("text", "inhalt", "quelle", "filter", "name", "code"):
         if isinstance(o.get(feld), str):
             yield feld, o[feld]
     for feld in ("hashtags", "reize", "schritte"):
@@ -136,6 +137,10 @@ def pruefe(roh, darf_reflex: bool = False) -> Befund:
         return b.ablehnen("kein gültiger inhaltlicher Hashtag")
     _text_pruefen(b, "text", text)
     _text_pruefen(b, "quelle", quelle, url_erlaubt=True)
+    if "inhalt" in o:
+        if not isinstance(o["inhalt"], str) or len(o["inhalt"]) > INHALT_MAX:
+            return b.ablehnen(f"inhalt muss Text bis {INHALT_MAX} Zeichen sein")
+        _text_pruefen(b, "inhalt", o["inhalt"], url_erlaubt=True)
 
     if art in ("suche", "skill"):
         name, reize = o.get("name"), o.get("reize")

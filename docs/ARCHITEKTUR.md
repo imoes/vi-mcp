@@ -267,12 +267,12 @@ jetzt ein und ordnet Kandidaten nach Nähe — die Dauer steht im Ergebnis. Ohne
 
 ## P2P-Import — fremdes Wissen kommt nur geprüft herein
 
-`p2p.py`, `pruefung.py`, `pruefer.py`. Instanzen auf anderen Hosts tauschen **signierte Bundles** aus, nur Quelltext und Text als JSON. Ein Torrent-Hash
-beweist, dass eine Datei unverändert ist, nicht, von wem sie stammt; das leistet die Ed25519-Signatur. Der Transport ist noch nicht gebaut.
+`p2p.py`, `pruefung.py`, `pruefer.py`. Fremdes Wissen kommt als signierter Logbuch-Eintrag über den Netzdienst (siehe „Netz — Logbücher statt Bundles“), nur Quelltext und Text als JSON. Ein Torrent-Hash
+beweist, dass eine Datei unverändert ist, nicht, von wem sie stammt; das leistet die Ed25519-Signatur.
 
 | Schicht | Wirkung |
 |---|---|
-| Bundle | Größe, Herausgeber auf der Allowlist, Signatur von Manifest und Objekt, steigende Sequenz, Rate. Sonst fällt das ganze Bundle. |
+| Logbuch | Kette, Signatur, Mitgliedschaft durch Einladung, Tageskontingent, Gabelung. Im Gedächtnis wird die Signatur erneut geprüft. |
 | Feste Regeln | Nur sie lehnen endgültig ab: falsche Art, Form, Binärinhalt, unsichtbare Zeichen. Anweisungsmuster werden als Befund vermerkt. |
 | Sprachmodell | Liest jedes Objekt, darf nur verschärfen. Vor jedem Lauf prüft ein Selbsttest mit einem bekannten Angriff, ob es standhält. Das Modell kann getäuscht werden und ist deshalb nie die letzte Instanz. |
 | Quarantäne | Modus `quarantaene`: in keiner Suche, keinem Hinweis, keine Kanten, nicht zusammenführbar. |
@@ -292,12 +292,26 @@ Grenzen: Muster und Modell erkennen nicht jeden Angriff. Wer root auf dem Server
 | Import | Jede Fundstelle in Text, Quelle, Hashtags, Reizen, Schritten, Filter oder Code lehnt das Objekt ab. Der Bericht nennt nur die Klasse. |
 | Lokal | Zugangsdaten mit eindeutiger Form werden in `neues_objekt` entfernt (ohne Reflex-Quelltext). Hostnamen und IPs bleiben lokal, der Router braucht sie. |
 
-Manifest und Objekte tragen weder Hostnamen noch Instanz. Der Herausgeber ist `vi-` + die ersten 12 Hexziffern des SHA-256 seines öffentlichen Schlüssels (Schema 2).
+Einträge tragen weder Hostnamen noch Instanz. Der Herausgeber ist `vi-` + die ersten 12 Hexziffern des SHA-256 seines öffentlichen Schlüssels.
 
 **Recht auf Vergessen.** Eine Instanz ohne Netz-Token verteilt nichts. Je Objekt gilt `netz_id = HMAC(Token, "id|"+oid)[:32]`, `objekt_token = HMAC(Token, "vergessen|"+oid)`, `loesch_hash = SHA-256(objekt_token)`.
-Das Netz sieht `netz_id` und `loesch_hash`; beide sind untereinander nicht verknüpfbar. `vi_netz_vergiss` prüft das Instanz-Token und erlaubt nur eigene Objekte. Widerrufe reisen in jedem Bundle mit und sind durch das Manifest
-abgedeckt, beweisen sich aber selbst: Gelöscht wird nur, wenn `SHA-256(token)` zum `loesch_hash` passt. Der Empfänger löscht Objekt, Tags, Volltext, Kanten, Lager und Vektor und behält einen Grabstein ohne Inhalt. Trifft ein Widerruf vor dem Objekt ein, bleibt das Objekt weg.
-Importiertes wird nie weitergereicht, also genügt der Widerruf beim direkten Empfänger. Aus einem gelöschten Objekt abgeleitete Abstraktionen des Schlafs bleiben bestehen.
+Das Netz sieht `netz_id` und `loesch_hash`; beide sind untereinander nicht verknüpfbar. `vi_netz_vergiss` prüft das Instanz-Token und erlaubt nur eigene Objekte. Widerrufe sind eigene Logbuch-Einträge und beweisen sich selbst: Gelöscht wird nur, wenn `SHA-256(token)` zum `loesch_hash` passt. Der Empfänger löscht Objekt, Tags, Volltext, Kanten, Lager und Vektor und behält einen Grabstein ohne Inhalt. Trifft ein Widerruf vor dem Objekt ein, bleibt das Objekt weg.
+Aus einem gelöschten Objekt abgeleitete Abstraktionen des Schlafs bleiben bestehen.
+
+## Netz — Logbücher statt Bundles
+
+Je Server ein Logbuch (`logbuch.py`): Einträge mit `seq`, Hash des Vorgängers, Typ (`objekt`, `widerruf`, `einladung`, `ausschluss`, `adresse`), Hash des Inhalts, Datum, Ed25519-Signatur.
+Kopf und Inhalt liegen getrennt: Ein Widerruf löscht den Inhalt, die Kette bleibt prüfbar. Zwei verschiedene Einträge mit gleicher Nummer sind eine Gabelung, der Herausgeber wird danach nicht mehr angenommen.
+Fremde Einträge werden nur angenommen, wenn Kette, Signatur, Mitgliedschaft, Tageskontingent (5.000) und für Objekte die festen Regeln samt `anonym.py` passen. Ein Objekt, das die Regeln verletzt, wird ohne Inhalt in die Kette übernommen und als Verstoß gezählt.
+
+Der Netzdienst (`netzdienst.py`, systemd `vi-p2p`, eigener Nutzer, `InaccessiblePaths=/var/lib/vi-mcp`) macht je Runde: Ausgang des Gedächtnisses ins eigene Logbuch (`vi_netz_ausgang`), Abgleich mit bis zu 6 zufälligen Peers
+(Köpfe tauschen, Fehlendes holen, Eigenes schieben), Neues ans Gedächtnis (`vi_netz_eingang`, Instanz `p2p`), Nachbarn anstoßen. Takt 300 s, ein Anstoß weckt sofort. Peers kommen aus der Startliste und aus `adresse`-Einträgen.
+Jede Anfrage trägt `Authorization: VI-Netz <Schlüssel> <Zeit> <Signatur über Methode, Pfad, Zeit, SHA-256 des Körpers>`, gültig 300 s; nur Mitglieder bekommen Antwort, 240 Anfragen je Minute und Schlüssel.
+Unverschlüsseltes HTTP nur zum eigenen Rechner oder mit `http_erlaubt`. Ab 1.000 fehlenden Einträgen eines Herausgebers holt der Dienst fertige Segmente (2.000 Einträge, JSON-Zeilen) per BitTorrent direkt vom Peer
+(privat, ohne DHT, LSD, UPnP); ein Segment mit vergessenem Inhalt wird verworfen.
+
+Im Gedächtnis (`p2p.py`) wird jede Signatur erneut geprüft, weil der Netzdienst fremde Daten liest. `glauben` in `/etc/vi-p2p/config.json` begrenzt, wessen Objekte überhaupt ins Gedächtnis gehen; Widerrufe gelten immer.
+Nutzen je Herausgeber = Beta-Mittel seiner Hinweis-Zähler; ab 20 Urteilen und Mittel < 0,3 werden seine Objekte nicht mehr gezeigt. `p2p.auto_freigabe` gibt Unauffälliges im Schlaf vorläufig frei.
 
 ## Housekeeping — das Langzeitlager
 

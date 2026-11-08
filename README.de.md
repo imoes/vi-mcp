@@ -6,6 +6,15 @@
 **MCP (Streamable HTTP)** anschließen. Jede Sitzung hat ihren eigenen Gesprächskontext, wie Zeitscheiben eines Prozessors. Alle teilen dasselbe Gedächtnis: Was eine Sitzung lernt,
 erscheint der nächsten vor der passenden Handlung als Hinweis. Das Sprachmodell wird dabei nicht verändert. Gelernt wird im Gedächtnis, und das bleibt lesbar.
 
+## Vision
+
+**Ein offenes Netz aus Wissen, in dem sich KI selbst trainiert.** Jeder Server lernt aus seiner eigenen Arbeit: welcher Hinweis geholfen hat, welche Lösung gehalten hat, was ein Mensch korrigiert hat.
+Was sich bewährt, wird anonymisiert, signiert und mit den anderen Servern geteilt. Jeder Server prüft, was er bekommt, an seiner eigenen Arbeit und behält, was dort hilft.
+Kein zentrales Modell und kein zentraler Besitzer: Ein Server kann allein laufen oder als Peer im Netz, und Code, Protokoll und Wissensformat sind Open Source.
+
+Das ist Training, ohne Gewichte zu verändern. Wissen wird zu lesbaren Objekten mit Quelle, Note und Recht auf Vergessen, und der Router, der sie auswählt, lernt aus dem gemessenen Ergebnis.
+Code, API-Tabellen und Befehle werden vollständig gespeichert, denn was im Gedächtnis fehlt, ist eine Lücke.
+
 ## So funktioniert es
 
 ```
@@ -87,9 +96,33 @@ Im Prompt kannst du bewerten: `#gut`, `#schlecht`, `#note 0.8`. Ein Prompt, der 
 
 Server von Hand: `sudo vi-mcp instanz NAME [--reflexe] [--mensch]`, dann `sudo systemctl restart vi-mcp`. Das Token wird einmal angezeigt.
 
-## Datenschutz und Netz
+## Das Netz
 
-Instanzen auf verschiedenen Rechnern können Wissen als signierte Bundles tauschen. Der Transport ist noch nicht gebaut, die Regeln gelten schon.
+Jeder Server führt ein signiertes, verkettetes Logbuch. Die Server gleichen ihre Logbücher mit den Nachbarn ab und holen nur, was fehlt. Eine gemeinsame Wahrheit braucht niemand, also keine Blockchain und kein Konsens.
+
+| Modus | Verhalten |
+|---|---|
+| `standalone` (Standard) | kein Netzverkehr |
+| `peer` | nur ausgehende Verbindungen, geht hinter einer Firewall; schiebt sein Logbuch zu den Nachbarn |
+| `peerhost` | nimmt auch Verbindungen an und versorgt andere |
+
+```bash
+sudo vi-mcp netz einrichten --modus peerhost --gruenden --adresse https://wissen.example:8766 --tls-cert … --tls-key …   # erster Server
+sudo vi-mcp netz id                                                       # öffentlicher Schlüssel dieses Servers
+sudo vi-mcp netz einrichten --modus peer --gruender <Schlüssel des Gründers> --start https://wissen.example:8766         # jeder weitere
+sudo vi-mcp netz einladen <Schlüssel des neuen Servers>                 # auf einem beliebigen Mitglied
+sudo vi-mcp netz status
+```
+
+- **Mitglied durch Einladung.** Ein Server gehört dazu, wenn von einem Gründer eine Kette von Einladungen zu ihm führt. Gründer und der Einladende können ausschließen; wer nur über einen Ausgeschlossenen kam, fällt mit heraus.
+- **Weitertragen ist nicht glauben.** Ein Server reicht signierte Einträge nach Prüfung von Signatur und Regeln weiter, sein Gedächtnis behandelt sie trotzdem als fremd: Quarantäne, Prüfmodell, Freigabe, dann Modus `test`.
+- **Nur Bewährtes.** Geteilt wird geteiltes, aktives Wissen, das eine andere Instanz bestätigt hat oder das nachweislich geholfen hat.
+- **Quellen müssen sich bewähren.** Der Nutzen je Herausgeber wird gemessen; wessen Hinweise immer wieder scheitern, der wird nicht mehr gezeigt (`vi_netz_status`).
+- **Eigener Prozess.** `vi-p2p` läuft als eigener Nutzer und kommt nicht an die Gedächtnisdateien; mit dem Gedächtnis spricht er nur über zwei Werkzeuge.
+- **Transport.** Standard ist HTTPS mit signierten Anfragen, Antwort bekommen nur Mitglieder. Große Rückstände gehen über BitTorrent (libtorrent, privat, ohne DHT), HTTPS bleibt der Rückfall. Einträge beweisen sich selbst, der Weg ist egal.
+- Gemessen mit drei paketierten Servern (Ubuntu, Debian, Fedora) unter systemd: Wissen über zwei Stationen in 27 s, ein Widerruf wirkte nach 4 s (Takt 4 s).
+
+## Datenschutz
 
 **Was das Netz nie sieht:** IP- und MAC-Adressen, interne Host- und Domainnamen, Passwörter, Tokens, Nutzernamen, E-Mail-Adressen, Proxy-Einstellungen, Standort-Tags und Instanznamen.
 Der Herausgeber erscheint nur als Pseudonym aus seinem Schlüssel, Zeiten nur als Datum.
@@ -101,14 +134,14 @@ Der Import lehnt jedes Objekt mit Fundstelle ab. `vi_netz_vorschau` zeigt genau,
 **Recht auf Vergessen.** Ohne Netz-Token (`vi_netz_token`, einmalig) verteilt eine Instanz nichts. Aus dem Token entsteht je Objekt ein eigener Löschnachweis. `vi_netz_vergiss` ruft eigene Einträge zurück:
 Empfänger löschen sie samt Suchindex und Vektor und merken sich nur einen Grabstein, damit sie nicht wiederkommen. Das Netz erfährt dabei nicht, welche Instanz es war, und ein Löschnachweis öffnet kein anderes Objekt.
 
-**Grenzen:** Muster erkennen keine Bedeutung. Ein frei stehender Eigenname fällt nur auf, wenn er in der Liste bekannter Namen steht (`p2p.interne_namen`). Löschen wirkt bei Empfängern, die sich an das Protokoll halten; wer eine Kopie behält, kann nicht gezwungen werden.
+**Grenzen:** Muster erkennen keine Bedeutung. Ein frei stehender Eigenname fällt nur auf, wenn er in der Liste bekannter Namen steht (`p2p.interne_namen`). Löschen wirkt bei Empfängern, die sich an das Protokoll halten; wer eine Kopie behält, kann nicht gezwungen werden. Direkte Nachbarn sehen die IP-Adresse des anderen, und die angekündigte Adresse eines `peerhost` kennt jedes Mitglied.
 
 ## Werkzeuge
 
 | Werkzeuge | Wofür |
 |---|---|
 | `vi_vorher` · `vi_nachher` | vor und nach einer Handlung melden |
-| `vi_lerne` · `vi_erinnere` · `vi_vertiefe` · `vi_objekt` | lernen, suchen, vertiefen, ansehen |
+| `vi_lerne` · `vi_erinnere` · `vi_vertiefe` · `vi_objekt` | lernen (Code und API-Tabellen vollständig in `inhalt`), suchen, vertiefen, vollständig lesen |
 | `vi_markiere` · `vi_bestaetige` · `vi_widerlege` · `vi_vergiss` | ändern, nur mit Grund |
 | `vi_frage` · `vi_antwort` · `vi_fragen` | Rückfragen zwischen Instanzen |
 | `vi_geloest` · `vi_skills` · `vi_skill` · `vi_skill_fusion` | Lösungswege |
@@ -116,7 +149,7 @@ Empfänger löschen sie samt Suchindex und Vektor und merken sich nur einen Grab
 | `vi_selbst` · `vi_selbst_vorschlag` · `vi_schlaf` | Selbstbild und Konsolidierung |
 | `vi_scorer` · `vi_modell` · `vi_erfahrung` · `vi_status` | Noten, gelerntes Modell, Messwerte, Stand |
 | `vi_gespraech` · `vi_loesche_gespraech` · `vi_lager` · `vi_lager_hole` | Gespräche und Langzeitlager |
-| `vi_export` · `vi_import_bundle` · `vi_quarantaene` · `vi_freigabe` | Austausch mit Prüfung |
+| `vi_netz_ausgang` · `vi_netz_eingang` · `vi_quarantaene` · `vi_freigabe` · `vi_netz_status` | Schnittstelle des Netzdienstes, Prüfung, Nutzen je Herausgeber |
 | `vi_netz_token` · `vi_netz_vergiss` · `vi_netz_vorschau` | Löschtoken, Recht auf Vergessen, Vorschau |
 
 ## Entwicklung

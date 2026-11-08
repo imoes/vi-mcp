@@ -44,6 +44,14 @@ def _schritte_ok(schritte) -> list[dict]:
     return aus[:20]
 
 
+def _inhalt(anleitung: str) -> dict:
+    """Eine ausführliche Anleitung (Befehle, Code) bleibt vollständig erhalten, der Hinweis zeigt nur den Anfang."""
+    a = (anleitung or "").strip()
+    if len(a) > g.INHALT_MAX:
+        raise ValueError(f"anleitung hat {len(a)} Zeichen, erlaubt sind {g.INHALT_MAX}")
+    return {"inhalt": a} if len(a) > 600 else {}
+
+
 def neu(name: str, reize: list[str], schritte, anleitung: str, grund: str, belege: list[str], instanz: str,
         quelle: str = "", oid: str | None = None, wer: str | None = None) -> g.Objekt:
     n = _slug(name)
@@ -56,13 +64,13 @@ def neu(name: str, reize: list[str], schritte, anleitung: str, grund: str, beleg
     if not st:
         raise ValueError("mindestens ein Schritt (Werkzeugname)")
     if len((anleitung or "").strip()) < 10 or len((grund or "").strip()) < 5:
-        raise ValueError("anleitung (ein Satz) und grund sind Pflicht")
+        raise ValueError("anleitung (der Lösungsweg, mindestens 10 Zeichen) und grund sind Pflicht")
     oid = oid or f"skill:{n}"
     alt = g.lade(oid)
     if alt and alt.art == "skill":
         return weiterentwickeln(alt, st, anleitung, grund, belege, instanz, wer)
     o = g.neues_objekt("skill", anleitung.strip()[:600], rz + [f"skill:{n}", "modus:test"],
-                       {"name": n, "problem": {"reize": rz}, "loesung": {"schritte": st, "text": anleitung.strip()[:600]},
+                       {"name": n, "problem": {"reize": rz}, "loesung": {"schritte": st, "text": anleitung.strip()[:600]}, **_inhalt(anleitung),
                         "version": 1, "versionen": [{"version": 1, "zeit": g.jetzt(), "wer": wer or f"ki@{instanz}", "grund": grund.strip()[:300],
                                                      "belege": list(belege or [])[:50]}],
                         "belege": list(belege or [])[:200], "quelle": (quelle or grund).strip()[:300]},
@@ -83,6 +91,8 @@ def weiterentwickeln(o: g.Objekt, schritte, anleitung: str, grund: str, belege: 
     if (anleitung or "").strip():
         o.daten["loesung"]["text"] = anleitung.strip()[:600]
         o.text = o.daten["loesung"]["text"]
+        o.daten.pop("inhalt", None)
+        o.daten.update(_inhalt(anleitung))
     o.daten["belege"] = (o.daten.get("belege", []) + [b for b in belege or [] if b not in o.daten.get("belege", [])])[:200]
     o.aendere(wer or f"ki@{instanz}", f"Version {o.daten['version']}", grund)
     g.speichere(o)

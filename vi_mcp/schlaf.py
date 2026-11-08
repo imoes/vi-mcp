@@ -250,7 +250,8 @@ def _naehe() -> dict:
 
 def _pruefer() -> dict:
     from . import pruefer
-    return pruefer.abarbeiten(100)
+    from . import p2p
+    return {**pruefer.abarbeiten(100), "auto_freigegeben": p2p.auto_freigeben()}
 
 
 def _lernen() -> dict:

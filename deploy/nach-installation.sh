@@ -4,6 +4,8 @@ case "$1" in
 system)
     install -d -o vi-mcp -g vi-mcp -m 0700 /var/lib/vi-mcp
     install -d -o root -g vi-mcp -m 0750 /etc/vi-mcp
+    install -d -o vi-p2p -g vi-p2p -m 0700 /var/lib/vi-p2p
+    install -d -o root -g vi-p2p -m 0750 /etc/vi-p2p
     if [ ! -e /etc/vi-mcp/config.json ]; then
         umask 027
         cat > /etc/vi-mcp/config.json <<'JSON'
@@ -21,6 +23,7 @@ JSON
     fi
     systemctl daemon-reload >/dev/null 2>&1 || true
     systemctl enable vi-mcp.service >/dev/null 2>&1 || true
+    systemctl try-restart vi-p2p.service >/dev/null 2>&1 || true
     if python3 -c "import json,sys; sys.exit(0 if json.load(open('/etc/vi-mcp/config.json')).get('instanzen') else 1)"; then
         systemctl restart vi-mcp.service >/dev/null 2>&1 || true
     fi

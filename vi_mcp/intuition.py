@@ -83,6 +83,8 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     from . import bandit, lernen
     import random as _random
     kand = [o for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=HINWEIS_BUDGET + 8, arten=("erkenntnis", "regel", "skill"))]
+    from . import p2p  # Quellen, die sich als schädlich erwiesen haben, werden nicht mehr gezeigt
+    kand = p2p.ohne_gesperrte(kand)
     router = "heuristik"
     m = lernen.aktiv()
     if m is not None and kand:
@@ -109,7 +111,8 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
         aus_gedaechtnis.append(f"{'Gelernt' if o.art == 'erkenntnis' else 'Regel'}{erk} [{o.id[:28]}] ({herkunft}"
                                + (", STRITTIG — von einer anderen Instanz widersprochen" if o.modus == "strittig" else "")
                                + f"; {', '.join(t for t in o.hashtags if t.startswith(('modus:', 'skill:', 'kollektiv:')))[:60]}): "
-                               f"{o.text[:300]} [Quelle: {str(o.daten.get('quelle', '—'))[:120]}]")
+                               f"{o.text[:300]} [Quelle: {str(o.daten.get('quelle', '—'))[:120]}]"
+                               + (f" [vollständig mit Code/Tabellen: vi_objekt {o.id}]" if o.daten.get("inhalt") else ""))
     kandidaten_ids = [o.id for o in kand]
     uebrig = len(kand) - len(gezeigt_obj)
     # 1. Zugriff auf Gelerntes: Suchen, deren Hinweisreize zur Handlung passen, laufen automatisch

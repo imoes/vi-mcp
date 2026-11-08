@@ -2,6 +2,7 @@
   python3 -m vi_mcp                       Server starten (Konfiguration: $VI_MCP_CONFIG oder ~/.config/vi-mcp/config.json)
   python3 -m vi_mcp instanz NAME [--reflexe]
                                           Instanz anlegen bzw. Token erneuern; gibt das Token EINMAL aus
+  python3 -m vi_mcp netz …                Netz: einrichten, einladen, ausschliessen, id, status
   python3 -m vi_mcp einrichten [--hilfe]  vi-mcp in Claude Code, Codex CLI und Hermes Agent eintragen (ANSI-Menü)
   python3 -m vi_mcp p2p-schluessel PFAD    Ed25519-Seed anlegen (0600), gibt den öffentlichen Schlüssel aus
   python3 -m vi_mcp netz-token NAME       Netz-Token einer Instanz anzeigen, falls es verloren ging (nur mit Zugriff auf die Datenbank)
@@ -39,6 +40,9 @@ def _cli(argv: list[str]) -> int:
     if not argv:
         server.main()
         return 0
+    if argv[0] == "netz":
+        from . import netz_cli
+        return netz_cli.main(argv[1:])
     if argv[0] == "einrichten":
         from . import einrichten
         return einrichten.main(argv[1:])
