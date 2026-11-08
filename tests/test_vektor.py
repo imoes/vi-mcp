@@ -61,7 +61,7 @@ def test_semantische_suche(fake):
     g.neues_objekt("erkenntnis", "Disk voll auf web1", ["host:web1"], {"quelle": "z"}, grund="T")
     schlaf.lauf("Test")
     r = werkzeuge.rufe("vi_erinnere", {"filter": "Verbindung haengt", "semantisch": True}, "a", True)
-    assert r.splitlines()[1].strip().startswith(f"[{a.id[:34]}]") and "semantisch (Embedding" in r
+    assert r.splitlines()[1].strip().startswith(f"[{a.id}]") and "semantisch (Embedding" in r
     assert "nichts im Gedächtnis" in werkzeuge.rufe("vi_erinnere", {"filter": "Verbindung haengt"}, "a", True)  # FTS findet es nicht
     with pytest.raises(werkzeuge.Abgelehnt, match="Freitext"):
         werkzeuge.rufe("vi_erinnere", {"filter": "host:cue1", "semantisch": True}, "a", True)

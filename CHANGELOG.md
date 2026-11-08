@@ -3,6 +3,13 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.18.1 — 2026-11-08 — Angezeigte IDs sind nachschlagbar
+
+### Was wurde behoben
+
+- `vi_erinnere`, die Hinweise vor einer Handlung und gelernte Suchen zeigten Objekt-IDs gekürzt (24 bis 34 Zeichen); `vi_objekt` kannte diese IDs nicht. Ein angezeigter Treffer ließ sich so nicht vollständig lesen.
+  Jetzt steht überall die volle ID, und `vi_objekt` nimmt auch einen eindeutigen Anfang ab 16 Zeichen. Gefunden beim nächtlichen Vergleich mit der AIKB. *Nachweis:* `test_angezeigte_ids_sind_nachschlagbar`.
+
 ## 0.18.0 — 2026-11-08 — Wissen vor dem passenden Shell-Befehl, Säuberung von Dokumenten
 
 ### Was ist neu

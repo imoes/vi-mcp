@@ -146,7 +146,7 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
             from . import skills
             aus_gedaechtnis.append(f"{skills.zeile(o)}{erk} [{o.id}]")
             continue
-        aus_gedaechtnis.append(f"{'Gelernt' if o.art == 'erkenntnis' else 'Regel'}{erk} [{o.id[:28]}] ({herkunft}"
+        aus_gedaechtnis.append(f"{'Gelernt' if o.art == 'erkenntnis' else 'Regel'}{erk} [{o.id}] ({herkunft}"
                                + (", STRITTIG — von einer anderen Instanz widersprochen" if o.modus == "strittig" else "")
                                + f"; {', '.join(t for t in o.hashtags if t.startswith(('modus:', 'skill:', 'kollektiv:')))[:60]}): "
                                f"{o.text[:300]} [Quelle: {str(o.daten.get('quelle', '—'))[:120]}]"
@@ -159,7 +159,7 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
         gefunden += [su.id] + [o.id for o in treffer]
         suchen.append({"suche": su.id, "name": su.daten.get("name"), "treffer": [o.id for o in treffer]})
         aus_gedaechtnis.append(f"Gelernte Suche „{su.daten.get('name')}“ [{su.daten.get('filter')}] — {su.text[:120]}: "
-                               + ("; ".join(f"[{o.id[:24]}] {o.text[:90]}" for o in treffer) if treffer else "keine Treffer"))
+                               + ("; ".join(f"[{o.id}] {o.text[:90]}" for o in treffer) if treffer else "keine Treffer"))
     # Arbeitsgedächtnis: höchstens HINWEIS_BUDGET Hinweise aus dem Gedächtnis (Cowan 2001: ~4 Chunks); der Rest auf Abruf
     if len(aus_gedaechtnis) > HINWEIS_BUDGET:
         uebrig += len(aus_gedaechtnis) - HINWEIS_BUDGET

@@ -231,3 +231,14 @@ def test_befehle_werden_reize(kommando, erwartet):
 def test_shell_reize_nur_bei_shell(gd):
     assert "skill:proxmox" in intuition.reize("Bash", {"command": "vzdump 1"})
     assert "skill:proxmox" not in intuition.reize("netbox_get_vms", {"command": "vzdump 1"})
+
+
+def test_angezeigte_ids_sind_nachschlagbar(gd):
+    from vi_mcp import werkzeuge
+    werkzeuge.rufe("vi_lerne", {"text": "Eine Erkenntnis zum Nachschlagen hier", "hashtags": ["thema:id"], "quelle": "Test 8.11."}, "a", False)
+    liste = werkzeuge.rufe("vi_erinnere", {"filter": "thema:id"}, "a", False)
+    oid = liste.split("[", 1)[1].split("]", 1)[0]
+    assert "Nachschlagen" in werkzeuge.rufe("vi_objekt", {"id": oid}, "a", False)
+    assert "Nachschlagen" in werkzeuge.rufe("vi_objekt", {"id": oid[:20]}, "a", False)  # gekürzt aus älteren Ausgaben
+    with pytest.raises(werkzeuge.Abgelehnt):
+        werkzeuge.rufe("vi_objekt", {"id": "erkenntnis:%"}, "a", False)

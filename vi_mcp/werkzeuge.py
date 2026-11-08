@@ -201,12 +201,16 @@ def _vorschlag(text: str, tags: list[str], daten: dict, wichtigkeit: int) -> str
 def _zeile(o: g.Objekt, gw: dict | None = None) -> str:
     gew = f" · R{gw['relevanz']} A{gw['aktualitaet']} W{gw['wichtigkeit']}" if gw else ""
     tags = " ".join(t for t in o.hashtags if not t.startswith(("art:", "frage:")))[:160]
-    return f"  [{o.id[:34]}] {o.art} {o.zeit[:16]} {o.modus if o.modus != 'aktiv' else ''} {o.text[:200].replace(chr(10), ' ')}\n     {tags}{gew}"
+    return f"  [{o.id}] {o.art} {o.zeit[:16]} {o.modus if o.modus != 'aktiv' else ''} {o.text[:200].replace(chr(10), ' ')}\n     {tags}{gew}"
 
 
 def _sichtbar(oid: str, instanz: str) -> g.Objekt:
     """Objekt laden — privates einer anderen Instanz gilt als unbekannt (kein Hinweis, dass es existiert)."""
     o = g.lade(oid or "")
+    if not o and oid and len(oid) >= 16:  # ältere Ausgaben zeigten gekürzte IDs; eindeutiger Anfang genügt
+        with g.sperre:
+            treffer = [r[0] for r in g.db().execute("SELECT id FROM objekt WHERE id LIKE ? ESCAPE '\\' LIMIT 2", (oid.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%",))]
+        o = g.lade(treffer[0]) if len(treffer) == 1 else None
     if not o or not g.sichtbar_fuer(o, instanz):
         raise Abgelehnt(f"Objekt {oid} unbekannt")
     return o
@@ -558,7 +562,7 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
             raise Abgelehnt(str(e)) from e
         probe = [o2 for _, o2, _g in g.erinnere(o.daten["filter"], limit=3) if o2.id != o.id]
         return (f"Suche „{n}“ gelernt ({o.id}) — läuft vor Handlungen mit {', '.join(rz)}; "
-                f"jetzt {len(probe)} Treffer: " + "; ".join(f"[{x.id[:24]}] {x.text[:80]}" for x in probe))
+                f"jetzt {len(probe)} Treffer: " + "; ".join(f"[{x.id}] {x.text[:80]}" for x in probe))
     if name == "vi_vertiefe":
         filt = (args.get("filter") or "").strip()
         if filt.startswith("suche:"):
