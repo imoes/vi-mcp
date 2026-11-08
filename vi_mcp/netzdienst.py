@@ -436,6 +436,8 @@ def main() -> int:
     d = Netzdienst(k, McpKlient(k.mcp_url, k.mcp_token_datei))
     if k.modus == "peerhost":
         d.starte_server()
+    import signal
+    signal.signal(signal.SIGUSR1, lambda *_: d.wach.set())  # systemctl kill -s USR1 vi-p2p: Runde sofort
     log(f"Netz: Modus {k.modus}, Pseudonym {lb.pseudonym(d.log.pub)}, {len(d.log.mitglieder())} Mitglieder bekannt")
     try:
         d.schleife()

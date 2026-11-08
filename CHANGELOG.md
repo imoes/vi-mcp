@@ -3,6 +3,14 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.14.3 — 2026-11-08 — Netzdienst übersteht Upgrades
+
+### Was wurde behoben
+
+- Nach einem Debian-Upgrade blieb `vi-p2p` angehalten (`prerm` stoppt ihn, `try-restart` startet keinen angehaltenen Dienst). Jetzt startet ihn das Paket neu, wenn er aktiviert ist.
+  *Nachweis:* Upgrade 0.14.2 → 0.14.3 unter systemd in einem Ubuntu-24.04-Container, Dienst danach aktiv. Aufgefallen beim Rollout auf dem produktiven Server.
+- `SIGUSR1` beendete den Netzdienst; jetzt löst es sofort eine Runde aus (`systemctl kill -s USR1 vi-p2p`). *Nachweis:* gleicher Prozess, 0 Neustarts nach dem Signal.
+
 ## 0.14.2 — 2026-11-08 — Hostnamen mit zweistelliger Nummer
 
 ### Was wurde behoben
