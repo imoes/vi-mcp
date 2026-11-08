@@ -269,7 +269,12 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
         if args.get("jetzt"):
             if not reflex_recht:
                 raise Abgelehnt(f"Instanz {instanz} ist nicht vertraut — Schlaf von Hand nur mit Reflex-Recht")
-            b = schlaf.lauf(f"von Hand durch {instanz}")
+            try:
+                b = schlaf.lauf_im_hintergrund(f"von Hand durch {instanz}")
+            except schlaf.LaeuftBereits:
+                return "Ein Schlaf läuft bereits; den Bericht zeigt vi_schlaf, sobald er fertig ist."
+            if b is None:
+                return f"Der Schlaf läuft noch (länger als {schlaf.WARTE_S} s, meist wegen vieler neuer Vektoren); den Bericht zeigt vi_schlaf, sobald er fertig ist."
             return b.text + "\n" + json.dumps({k: v for k, v in b.daten.items() if k != "top"}, ensure_ascii=False)[:3000]
         l = schlaf.letzter()
         if not l:

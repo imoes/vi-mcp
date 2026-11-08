@@ -3,6 +3,25 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.16.0 — 2026-11-08 — Inhalt als Merkmal, Schlaf ohne Proxy-Abbruch
+
+### Was ist neu
+
+- **Der Router gewichtet Hinweise auch nach Inhalt:** Bedeutungsnähe zwischen Hinweis und Situation (`naehe`) und Bedeutungsgruppen (`inhalt:<n>`, K-Means) als Merkmale; ein neuer Hinweis erbt das Gewicht seiner Gruppe.
+  Nichts wird live eingebettet, der Schlaf rechnet Mittelpunkte und Gruppen vor. *Nachweis:* `tests/test_inhalt.py` (Nähe ohne Selbstbestätigung, Gruppen, ein Modell lernt einen Inhaltseffekt, den kein einzelner Hinweis erklärt).
+  *Gemessen auf einer Kopie der Produktivdaten (545 Beobachtungen, 1.044 Vektoren, 23 Gruppen, 73 Mittelpunkte):* Gewicht der Nähe +0,41; Holdout-AUC gesamt 0,959 mit und ohne; nur Handlungen mit Hinweis 0,857 → 0,863 bei 50 Prüffällen, **kein messbarer Gewinn**.
+  `vi_vorher` 1,7 ms Median, Vorberechnung 1,3 s.
+
+### Was wurde behoben
+
+- `vi_schlaf(jetzt)` wartete synchron; hinter nginx brach die Anfrage nach 120 s mit 504 ab, obwohl der Schlaf weiterlief (gemessen: ein Lauf mit 102 neuen Vektoren dauerte 115 s). Jetzt wartet das Werkzeug höchstens 90 s und meldet sonst „läuft noch“.
+- Zwei Schläfe konnten gleichzeitig laufen (von Hand und durch den Loop). Jetzt läuft immer nur einer.
+
+### Was fehlt noch
+
+- Nur 97 von 250 Beobachtungen mit Hinweis bekommen einen Nähewert: Die Reize einer Handlung (meist `tool:`) haben oft keinen Mittelpunkt aus Wissensobjekten.
+- Ob der Inhalt den Hinweis-Lift verbessert, zeigt sich erst mit mehr Daten; bleibt die AUC gleich, ist das Merkmal nur Ballast.
+
 ## Signierte Releases — 2026-11-08
 
 ### Was ist neu

@@ -28,6 +28,8 @@ MIN_JE_MERKMAL = 10
 MIN_EREIGNISSE = 50
 AUC_MIN = 0.6
 EPSILON = 0.1
+#: Bedeutungsnähe und Inhaltsgruppe als Merkmale (inhalt.py). Abschaltbar, um den Unterschied zu messen.
+INHALT = True
 HOLDOUT = 0.2
 REIZ_ARTEN = ("tool:", "skill:", "host:", "thema:")
 
@@ -38,8 +40,15 @@ def merkmale_handlung(reize: list[str], zeit: str) -> dict:
     return m
 
 
-def merkmale_hinweis(hid: str) -> dict:
-    return {f"hinweis:{hid}": 1.0, f"hinweisart:{hid.split(':')[0]}": 1.0}
+def merkmale_hinweis(hid: str, reize: list[str] | None = None) -> dict:
+    m = {f"hinweis:{hid}": 1.0, f"hinweisart:{hid.split(':')[0]}": 1.0}
+    if INHALT:
+        from . import inhalt
+        if (c := inhalt.gruppe(hid)) is not None:
+            m[f"inhalt:{c}"] = 1.0
+        if reize and (n := inhalt.naehe(hid, [r for r in reize if r.startswith(REIZ_ARTEN)])) is not None:
+            m["naehe"] = n
+    return m
 
 
 def beobachtungen(seit: str | None = None) -> list[tuple[dict, int, str]]:
@@ -70,7 +79,7 @@ def beobachtungen(seit: str | None = None) -> list[tuple[dict, int, str]]:
         if not gezeigt:
             aus.append((basis, y, oid))
         for h in gezeigt:
-            aus.append(({**basis, **merkmale_hinweis(h)}, y, oid))
+            aus.append(({**basis, **merkmale_hinweis(h, v.get("reize", []))}, y, oid))
     return aus
 
 
@@ -93,7 +102,7 @@ def rangfolge(m: g.Objekt, reize: list[str], kandidaten: list[str], zeit: str | 
     basis = merkmale_handlung(reize, zeit or g.jetzt())
     mit = {**basis, "hinweis_n:1": 1.0}
     p0 = vorhersage(m, {**basis, "hinweis_n:0": 1.0})
-    return sorted(((h, vorhersage(m, {**mit, **merkmale_hinweis(h)}) - p0) for h in kandidaten), key=lambda x: -x[1])
+    return sorted(((h, vorhersage(m, {**mit, **merkmale_hinweis(h, reize)}) - p0) for h in kandidaten), key=lambda x: -x[1])
 
 
 def aktiv() -> g.Objekt | None:
@@ -172,5 +181,10 @@ def erklaerung(limit: int = 12) -> str:
     w = sorted(d.get("gewichte", {}).items(), key=lambda kv: -abs(kv[1]))[:limit]
     if w:
         z.append("  stärkste Gewichte (positiv = erhöht P(ok)):")
-        z += [f"    {k:50} {v:+.3f}" for k, v in w]
+        from . import inhalt
+        z += [f"    {k:50} {v:+.3f}" + (f"  ({inhalt.gruppen_name(int(k[7:]))})" if k.startswith("inhalt:") and k[7:].isdigit() else "")
+              + ("  (Bedeutungsnähe Hinweis ↔ Situation, 0–1)" if k == "naehe" else "") for k, v in w]
+    if INHALT:
+        from . import inhalt
+        z.append(f"  Inhalt: {inhalt.zeile()}")
     return "\n".join(z)

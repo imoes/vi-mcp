@@ -13,11 +13,13 @@ Schritte — jeder zählt, jeder steht im Bericht (Objekt `schlaf:<zeit>`, Zusta
   5 Housekeeping nicht mehr verwendete Einträge und alte Rohverläufe ins Langzeitlager (lager.py; Stummel bleibt)
   6 Selbst-Ist  Kompetenz je Skill, Schwächen, Beziehungen neu berechnen
   7 Vektoren    fehlende Embeddings geteilter Wissensobjekte nachziehen (Batch), semantische Nähe → Kanten / dublette:moeglich
+  7c Inhalt     Mittelpunkte je Reiz und Bedeutungsgruppen für den Router (inhalt.py)
   8 Lernen      Router-Modell trainieren (lernen.py)
   9 Bericht
 """
 from __future__ import annotations
 
+import threading
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -58,8 +60,42 @@ def _inhalt(o: g.Objekt) -> set[str]:
     return {t for t in o.hashtags if t.startswith(("host:", "skill:", "tool:", "thema:"))}
 
 
+_laeuft = threading.Lock()
+WARTE_S = 90  # so lange wartet vi_schlaf(jetzt) auf das Ergebnis; ein Reverse-Proxy bricht oft nach 120 s ab
+
+
+class LaeuftBereits(Exception):
+    pass
+
+
 def lauf(grund: str) -> g.Objekt:
-    """Ein Schlaf. Liefert den Bericht; Fehler eines Schritts brechen nicht die anderen ab, sondern stehen im Bericht."""
+    """Ein Schlaf, nie zwei zugleich. Liefert den Bericht; Fehler eines Schritts brechen nicht die anderen ab, sondern stehen im Bericht."""
+    if not _laeuft.acquire(blocking=False):
+        raise LaeuftBereits("ein Schlaf läuft bereits")
+    try:
+        return _lauf(grund)
+    finally:
+        _laeuft.release()
+
+
+def lauf_im_hintergrund(grund: str, warte_s: float | None = None) -> g.Objekt | None:
+    """Startet den Schlaf in einem eigenen Thread und wartet höchstens warte_s. None: läuft noch, der Bericht kommt mit vi_schlaf."""
+    ergebnis: dict = {}
+
+    def los():
+        try:
+            ergebnis["o"] = lauf(grund)
+        except Exception as e:  # noqa: BLE001 — wird dem Aufrufer gemeldet
+            ergebnis["e"] = e
+    t = threading.Thread(target=los, name="vi-schlaf", daemon=True)
+    t.start()
+    t.join(WARTE_S if warte_s is None else warte_s)
+    if "e" in ergebnis:
+        raise ergebnis["e"]
+    return ergebnis.get("o")
+
+
+def _lauf(grund: str) -> g.Objekt:
     from . import lager
     t0 = time.monotonic()
     l = letzter()
@@ -86,6 +122,7 @@ def lauf(grund: str) -> g.Objekt:
     schritt("6_selbst_ist", lambda: _selbst_ist())
     schritt("7_vektoren", lambda: _vektoren())
     schritt("7b_naehe", lambda: _naehe())
+    schritt("7c_inhalt", lambda: _inhalt_merkmale())
     schritt("8_lernen", lambda: _lernen())
     dauer = int((time.monotonic() - t0) * 1000)
     zustand = "fehler" if bericht["fehler"] else "fertig"
@@ -252,6 +289,11 @@ def _pruefer() -> dict:
     from . import pruefer
     from . import p2p
     return {**pruefer.abarbeiten(100), "auto_freigegeben": p2p.auto_freigeben()}
+
+
+def _inhalt_merkmale() -> dict:
+    from . import inhalt
+    return inhalt.berechne()
 
 
 def _lernen() -> dict:

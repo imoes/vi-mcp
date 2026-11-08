@@ -56,8 +56,11 @@ def schritt() -> int:
     from . import schlaf
     grund_schlaf = schlaf.faellig()
     if grund_schlaf:
-        b = schlaf.lauf(grund_schlaf)
-        stand["schlaf_zuletzt"] = b.text
+        try:
+            b = schlaf.lauf(grund_schlaf)
+            stand["schlaf_zuletzt"] = b.text
+        except schlaf.LaeuftBereits:
+            pass  # ein von Hand gestarteter Schlaf läuft noch; die nächste Runde prüft erneut
     if abgelaufene_fragen:
         log(f"Rückfragen abgelaufen (ohne Antwort): {abgelaufene_fragen}")
     for s in sitzung.offene():

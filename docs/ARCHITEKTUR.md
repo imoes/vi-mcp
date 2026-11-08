@@ -265,6 +265,11 @@ entscheidet eine Instanz, nicht der Server). `vi_erinnere(filter, semantisch=tru
 jetzt ein und ordnet Kandidaten nach Nähe — die Dauer steht im Ergebnis. Ohne Konfiguration: Schritte benannt
 übersprungen, Werkzeug lehnt mit Grund ab.
 
+
+**Inhalt als Merkmal des Routers (seit 0.16.0, `inhalt.py`).** Live wird nichts eingebettet. Der Schlaf (Schritt `7c_inhalt`) rechnet je Reiz-Hashtag mit mindestens 3 Wissensobjekten
+den Mittelpunkt ihrer Vektoren und gruppiert alle Wissensobjekte mit K-Means (k = √(n/2), höchstens 40; Name einer Gruppe = ihre häufigsten Hashtags). `vi_vorher` gibt dem Modell je Kandidat
+`naehe` = Kosinus zwischen Hinweis und dem Mittel der Mittelpunkte der aktuellen Reize (der Hinweis selbst herausgerechnet) und `inhalt:<gruppe>`. So gewichtet das Modell auch nach Inhalt,
+und ein neuer Hinweis erbt das Gewicht seiner Gruppe. `lernen.INHALT = False` schaltet es zum Vergleich ab.
 ## P2P-Import — fremdes Wissen kommt nur geprüft herein
 
 `p2p.py`, `pruefung.py`, `pruefer.py`. Fremdes Wissen kommt als signierter Logbuch-Eintrag über den Netzdienst (siehe „Netz — Logbücher statt Bundles“), nur Quelltext und Text als JSON. Ein Torrent-Hash
