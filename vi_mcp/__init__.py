@@ -1,2 +1,2 @@
 """vi-mcp — das VI-Gedächtnis als eigenständiger MCP-Server über HTTP."""
-__version__ = "0.5.0"
+__version__ = "0.6.0"

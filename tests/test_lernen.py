@@ -114,3 +114,28 @@ def test_router_lernt_welcher_hinweis_nuetzt(gd):
     assert v["zugriff"]["router"] == "modell" and v["zugriff"]["gezeigt"][0] == r.id
     assert "Router-Modell (aktiv)" in werkzeuge.rufe("vi_modell", {}, "a", True)
     assert schlaf.lauf("Test").daten["schritte"]["8_lernen"]["zustand"] == "aktiv"
+
+
+def test_bandit_zaehler_und_rangordnung(gd):
+    from vi_mcp import bandit
+    gut = g.neues_objekt("regel", "Zeitraum setzen hilft", ["skill:graylog"], {"quelle": "x"}, grund="T")
+    schlecht = g.neues_objekt("erkenntnis", "graylog ist immer schnell", ["skill:graylog"], {"quelle": "x"}, grund="T")
+    v = intuition.vorher("graylog_search", {"q": 0}, "a")
+    assert v["zugriff"]["router"] == "heuristik" and set(v["zugriff"]["gezeigt"]) == {gut.id, schlecht.id}
+    # Zähler: 20× nach dem Zeigen von „gut“ ok, 20× nach „schlecht“ nicht ok (direkt verbucht, wie nachher es tut)
+    assert bandit.verbuche([gut.id], True) == 1 and bandit.verbuche(["antwort:x"], True) == 0 and bandit.verbuche([gut.id], None) == 0
+    for _ in range(19):
+        bandit.verbuche([gut.id], True)
+    for _ in range(20):
+        bandit.verbuche([schlecht.id], False)
+    assert bandit.zaehler(g.lade(gut.id)) == (20, 0) and bandit.zaehler(g.lade(schlecht.id)) == (0, 20)
+    assert "genützt 20 / nicht 0" in werkzeuge.rufe("vi_objekt", {"id": gut.id}, "a", True)
+    rnd = random.Random(1)
+    frisch = [g.lade(schlecht.id), g.lade(gut.id)]  # Zähler stehen in der DB; vorher() lädt Kandidaten immer frisch
+    vorne = sum(1 for _ in range(100) if bandit.ordne(frisch, rnd)[0].id == gut.id)
+    assert vorne >= 95  # Beta(21,1) gegen Beta(1,21)
+    v = intuition.vorher("graylog_search", {"q": 1}, "a")
+    assert v["zugriff"]["router"] == "bandit"
+    n = intuition.nachher("graylog_search", {"q": 1}, False, 1, "Fehler", None, v["vorher_id"], "a")
+    assert n["bewertet"] == len(v["zugriff"]["gezeigt"])
+    assert bandit.zaehler(g.lade(gut.id))[1] == 1  # „nein“ nach echter Handlung verbucht

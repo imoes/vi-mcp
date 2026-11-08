@@ -219,6 +219,13 @@ welchem Kontext zum Erfolg führte — docs/TRAINING.md 4a/4b.
 - *Beobachtungspunkt:* Hinweis-Lift (`vi_erfahrung`) vor/nach `router: modell`. Steigt er nicht, ist das Modell nicht
   besser als die Heuristik → zurück auf `test`.
 
+**Stufe 2 — Thompson Sampling (`bandit.py`)**, wirksam ab der ersten Handlung, ohne sklearn: jeder Hinweis führt
+`daten.nuetzlich = {ja, nein}` (Handlungen nach dem Zeigen gelungen / gescheitert; atomar per `json_set`). Ist kein
+Modell aktiv, aber mindestens ein Kandidat bewertet, zieht der Router je Kandidat eine Stichprobe aus Beta(1+ja, 1+nein)
+und ordnet danach (`router: bandit`) — selten Gezeigtes bleibt im Spiel, oft Gescheitertes rückt nach hinten.
+`vi_objekt` zeigt die Zähler („genützt 20 / nicht 1, Erwartung 91 %“). Rangordnung erschöpfend: `modell` > `bandit`
+> `heuristik`. Quellen: Russo et al. 2017 (arXiv 1707.02038), Agrawal & Goyal 2012 (arXiv 1209.3352).
+
 ## Loop
 
 Genau einer, alle 60 s: Antworten älter als 1 h löschen · wiederholte Fehler → Regel (test, idempotent) ·

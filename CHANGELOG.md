@@ -3,6 +3,17 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.6.0 — 2026-11-08 — Stufe 2
+
+### Was ist neu
+
+- **Thompson Sampling je Hinweis** (`bandit.py`): Zählerpaar genützt/nicht je Erkenntnis, Regel, Suche, verbucht bei
+  `vi_nachher`; Router ordnet ohne aktives Modell nach Beta-Stichprobe (`router: bandit`). Wirkt sofort, ohne Daten
+  sammeln zu müssen. *Nachweis:* `test_bandit_zaehler_und_rangordnung` (Beta(21,1) vs Beta(1,21): ≥ 95/100 vorne;
+  Zähler atomar; `antwort:` und `ok:unbekannt` zählen nicht).
+- `vi_objekt` zeigt die Hinweis-Bewertung; `vi_status` nennt die Rangordnung.
+- 56/56 Tests grün.
+
 ## 0.5.0 — 2026-11-08
 
 ### Was ist neu

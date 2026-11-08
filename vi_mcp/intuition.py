@@ -80,7 +80,7 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     # Matthäus-Effekt). Verstärkt wird in nachher(), wenn die Handlung danach gelang — Annahme „der Hinweis hat genützt“,
     # benannt in docs/ARCHITEKTUR.md; Beobachtungspunkt: vi_erfahrung (Erfolg mit/ohne Hinweise).
     # Kandidaten (Heuristik: Aktualität + Wichtigkeit + Bonus), dann ggf. Router-Modell (gelernter Lift), dann Erkundung
-    from . import lernen
+    from . import bandit, lernen
     import random as _random
     kand = [o for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=HINWEIS_BUDGET + 8, arten=("erkenntnis", "regel"))]
     router = "heuristik"
@@ -89,6 +89,9 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
         rang = dict(lernen.rangfolge(m, such_reize, [o.id for o in kand]))
         kand.sort(key=lambda o: -rang.get(o.id, 0.0))
         router = "modell"
+    elif bandit.hat_zaehler(kand):  # Stufe 2: Thompson Sampling, sobald irgendein Kandidat bewertet wurde
+        kand = bandit.ordne(kand)
+        router = "bandit"
     gezeigt_obj = kand[:HINWEIS_BUDGET]
     exploration = False
     rest = kand[HINWEIS_BUDGET:]
@@ -147,6 +150,8 @@ def nachher(tool: str, args: dict, ok: bool, dauer_ms: int, fehler: str | None, 
     zugriff = offen[3] if offen else {"reize": reize(tool, args or {}), "gefunden": [], "suchen": [],
                                       "aus_gedaechtnis": False, "ohne_vorher": True}
     o = erfahrung(tool, args or {}, ok, dauer_ms, fehler, ergebnis, zugriff, instanz, ist_lesend)
+    from . import bandit
+    bewertet = bandit.verbuche(zugriff.get("gezeigt", []), ok)  # Zählerpaar je gezeigtem Hinweis (Stufe 2)
     verstaerkt = 0
     if ok:  # Hinweise, nach denen die Handlung gelang, werden verstärkt (Konsolidierung) — nicht schon beim Zeigen
         for oid in zugriff.get("gefunden", []):
@@ -156,7 +161,7 @@ def nachher(tool: str, args: dict, ok: bool, dauer_ms: int, fehler: str | None, 
                     h.zugriff()
                     verstaerkt += 1
     hinweise = reflexe.nachher(tool, dict(args or {}), ergebnis or "") if ok else []
-    return {"erfahrung": o.id, "hinweise": hinweise, "vorher_gefunden": bool(offen), "verstaerkt": verstaerkt}
+    return {"erfahrung": o.id, "hinweise": hinweise, "vorher_gefunden": bool(offen), "verstaerkt": verstaerkt, "bewertet": bewertet}
 
 
 def offene_abschliessen(gespraech: str | None = None, nur_aelter_als_s: float | None = None) -> int:
