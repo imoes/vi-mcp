@@ -27,6 +27,8 @@ Bei der Erstinstallation öffnet sich das Menü von selbst, wenn ein Terminal da
 | Tests | `.venv/bin/python -m pytest -q tests -p no:cacheprovider` (`.venv`: scikit-learn, cryptography, pyyaml, numpy) |
 | Debian-Paket | `deploy/debian/build.sh` |
 | RPM-Paket | `deploy/rpm/build.sh` (baut in einem Fedora-Container, wenn `rpmbuild` fehlt) |
+| Release | `deploy/release.sh --gh`: baut beide Pakete, signiert `SHA256SUMS` (Schlüssel außerhalb des Repos, `VI_MCP_RELEASE_SCHLUESSEL`), prüft und veröffentlicht |
+| Release prüfen | `deploy/pruefe-release.sh <verzeichnis>` |
 
 Module: `gedaechtnis` (Objekte, Suche), `intuition` (vorher/nachher), `sitzung`, `schlaf`, `scorer`, `lernen`, `bandit`, `vektor`, `reflexion`, `skills`, `reflexe`, `sandbox`,
 `lager`, `p2p` (Gedächtnis am Netz), `logbuch`, `netzdienst` (eigener Prozess `vi-p2p`), `netz_torrent`, `netz_cli`, `anonym`, `pruefung`, `pruefer`, `einrichten`, `server`, `werkzeuge`.

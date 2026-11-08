@@ -49,6 +49,17 @@ sudo dnf install ./vi-mcp-0.13.0-1.noarch.rpm   # Fedora 43
 sudo dnf install epel-release && sudo dnf install ./vi-mcp-0.13.0-1.noarch.rpm   # AlmaLinux/RHEL 10
 ```
 
+**Ein Release vor der Installation prüfen.** Ab v0.15.0 ist `SHA256SUMS` mit dem Release-Schlüssel signiert (Ed25519, `SHA256SUMS.sig`). Leg dir eine eigene Kopie von
+[`deploy/release-schluessel.pem`](deploy/release-schluessel.pem) ab und vergleiche den Fingerabdruck einmal über einen Weg, dem du vertraust:
+`c88aa8ce6f0cf15652b0137ee89fd5835b9a5d22285906b092e92b0ae576dd15` (SHA-256 des öffentlichen Schlüssels in DER-Form,
+`openssl pkey -pubin -in release-schluessel.pem -outform DER | sha256sum`). Eine Prüfsummendatei aus demselben Release allein beweist nicht, wer es veröffentlicht hat.
+
+```bash
+openssl pkeyutl -verify -pubin -inkey release-schluessel.pem -rawin -in SHA256SUMS -sigfile SHA256SUMS.sig   # "Signature Verified Successfully"
+sha256sum --ignore-missing -c SHA256SUMS
+# oder beides in einem Schritt: deploy/pruefe-release.sh <download-verzeichnis> [release-schluessel.pem]
+```
+
 **Enterprise Linux 9 geht nicht:** Python 3.9 ist zu alt, und für neuere Python-Versionen gibt es dort kein scikit-learn. Gedächtnis und Konfiguration bleiben beim Deinstallieren erhalten.
 
 ## Einrichten

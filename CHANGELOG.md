@@ -3,6 +3,20 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## Signierte Releases — 2026-11-08
+
+### Was ist neu
+
+- `SHA256SUMS` jedes Releases ist mit einem Ed25519-Release-Schlüssel signiert (`SHA256SUMS.sig`); der öffentliche Schlüssel liegt in `deploy/release-schluessel.pem`, sein Fingerabdruck steht im README.
+  Prüfen geht mit `openssl` allein oder mit `deploy/pruefe-release.sh`. v0.15.0 wurde nachträglich signiert, ältere Releases nicht.
+  *Nachweis:* echtes Release in Ordnung (Exit 0); veränderte `SHA256SUMS`, fremder Schlüssel und verändertes Paket werden abgelehnt (Exit 1).
+- `deploy/release.sh` baut, signiert, prüft und veröffentlicht in einem Schritt und bricht ab, wenn der private Schlüssel nicht zum veröffentlichten passt.
+
+### Was fehlt noch
+
+- Der private Schlüssel liegt auf einem Entwicklungsrechner, nicht in einem Hardware-Schlüssel. Geht er verloren, braucht es einen neuen Schlüssel, und alle müssen ihn neu festhalten.
+- Wer den öffentlichen Schlüssel aus dem Repo statt aus einer eigenen Kopie nimmt, ist gegen ein übernommenes Konto nicht geschützt.
+
 ## 0.15.0 — 2026-11-08 — HTTPS für weitere Peers
 
 ### Was ist neu
