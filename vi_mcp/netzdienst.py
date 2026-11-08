@@ -7,6 +7,9 @@ Einträge prüfen sich selbst; HTTPS und Torrent sind austauschbare Wege dorthin
 """
 from __future__ import annotations
 
+import base64
+import hashlib
+import http.client
 import json
 import os
 import ssl
@@ -28,6 +31,8 @@ MODI = ("standalone", "peer", "peerhost")
 ZEIT_FENSTER = 300
 MAX_KOERPER = 1024 * 1024
 ANFRAGEN_JE_MIN = 240
+BEITRITTE_JE_MIN = 10
+CODE_PRAEFIX = "vinetz1."
 JE_ABRUF = 500
 LOKAL = ("127.0.0.1", "localhost", "::1")
 
@@ -53,6 +58,8 @@ class NetzKonfig:
     mcp_url: str = "http://127.0.0.1:8765/mcp"
     mcp_token_datei: str = "/etc/vi-p2p/mcp-token"
     torrent: dict = field(default_factory=dict)
+    proxy: str | None = None
+    kein_proxy: list = field(default_factory=list)
 
 
 def pfad() -> Path:
@@ -145,18 +152,54 @@ class Netzdienst:
         u = urllib.parse.urlsplit(adresse)
         return u.scheme == "https" or self.k.http_erlaubt or (u.hostname or "") in LOKAL
 
+    def _proxy_fuer(self, host: str) -> tuple[str, int] | None:
+        if not self.k.proxy or host in LOKAL or any(host == n.lstrip(".") or host.endswith("." + n.lstrip(".")) for n in self.k.kein_proxy):
+            return None
+        u = urllib.parse.urlsplit(self.k.proxy)
+        return u.hostname, u.port or 80
+
     def _anfrage(self, adresse: str, methode: str, pfad_: str, daten=None):
+        """Signierte Anfrage. HTTPS prüft das Zertifikat über die CA oder, wenn ein Pin bekannt ist, über dessen SHA-256. HTTPS-Proxy per CONNECT."""
         if not self._erlaubt(adresse):
             raise ValueError("unverschlüsseltes HTTP zu einem fremden Rechner ist nicht erlaubt")
         koerper = json.dumps(daten).encode() if daten is not None else b""
         h = {"Authorization": _signiere(self.log.k, methode, pfad_, koerper), "Content-Type": "application/json"}
         u = urllib.parse.urlsplit(adresse)
-        handler: list = [urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=self.k.ca_datei))]
-        if (u.hostname or "") in LOKAL:
-            handler.append(urllib.request.ProxyHandler({}))
-        op = urllib.request.build_opener(*handler)
-        with op.open(urllib.request.Request(adresse + pfad_, data=koerper if methode == "POST" else None, headers=h, method=methode), timeout=30) as a:
-            roh = a.read()
+        host, https = u.hostname or "", u.scheme == "https"
+        port = u.port or (443 if https else 80)
+        proxy = self._proxy_fuer(host)
+        pin = self.log.pin(adresse)
+        try:
+            if https:
+                if pin:  # selbstsigniert: nicht die CA, sondern genau dieses Zertifikat zählt
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                else:
+                    ctx = ssl.create_default_context(cafile=self.k.ca_datei)
+                c = http.client.HTTPSConnection(*(proxy or (host, port)), context=ctx, timeout=30)
+                if proxy:
+                    c.set_tunnel(host, port)
+                c.connect()
+                if pin and hashlib.sha256(c.sock.getpeercert(binary_form=True)).hexdigest() != pin:
+                    c.close()
+                    raise ValueError("Zertifikat passt nicht zum bekannten Pin")
+            else:
+                c = http.client.HTTPConnection(host, port, timeout=30)
+            try:
+                c.request(methode, u.path.rstrip("/") + pfad_, body=koerper if methode == "POST" else None, headers=h)
+                r = c.getresponse()
+                roh = r.read()
+            finally:
+                c.close()
+        except http.client.HTTPException as e:
+            raise ValueError(f"HTTP-Fehler: {type(e).__name__}") from e
+        if r.status >= 400:
+            try:
+                grund = json.loads(roh).get("fehler", "")
+            except (ValueError, AttributeError):
+                grund = ""
+            raise ValueError(f"HTTP {r.status}" + (f": {grund}" if grund else ""))
         return json.loads(roh) if roh else None
 
     def abgleich(self, adresse: str) -> int:
@@ -283,9 +326,18 @@ class Netzdienst:
                     return
                 self.log.stand_setzen(pub, reihe[-1]["kopf"]["seq"])
 
+    def eigener_pin(self) -> str | None:
+        """Nur ein selbst betriebenes TLS hat einen Pin; hinter einem Reverse-Proxy prüft die CA."""
+        if not self.k.tls_cert:
+            return None
+        return zertifikat_pin(Path(self.k.tls_cert))
+
     def _adresse_melden(self) -> int:
-        if self.k.modus == "peerhost" and self.k.adresse and self.log.letzte_eigene_adresse() != self.k.adresse.rstrip("/"):
-            self.log.anhaengen("adresse", {"adresse": self.k.adresse.rstrip("/")})
+        if self.k.modus != "peerhost" or not self.k.adresse:
+            return 0
+        soll = {"adresse": self.k.adresse.rstrip("/"), **({"pin": p} if (p := self.eigener_pin()) else {})}
+        if self.log.letzte_eigene_adresse() != soll:
+            self.log.anhaengen("adresse", soll)
             return 1
         return 0
 
@@ -293,7 +345,7 @@ class Netzdienst:
         for a in peers:
             try:
                 self._anfrage(a, "POST", "/netz/anstoss", {})
-            except (urllib.error.URLError, OSError, ValueError):
+            except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
                 pass
 
     def runde(self) -> int:
@@ -327,12 +379,12 @@ class Netzdienst:
 
     # ---- Server ----
 
-    def _begrenzt(self, pub: str) -> bool:
+    def _begrenzt(self, pub: str, grenze: int = ANFRAGEN_JE_MIN) -> bool:
         jetzt = time.time()
         z = [t for t in self._zaehler.get(pub, []) if jetzt - t < 60]
         z.append(jetzt)
         self._zaehler[pub] = z
-        return len(z) > ANFRAGEN_JE_MIN
+        return len(z) > grenze
 
     def _handler(self):
         dienst = self
@@ -350,6 +402,23 @@ class Netzdienst:
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(roh)
+
+            def _beitritt(self, koerper: bytes):
+                """Ohne Mitgliedschaft, aber mit Beweis des Schlüssels und einem einmaligen Code."""
+                pub = pruefe_kopf(self.headers.get("Authorization"), self.command, self.path, koerper)
+                if not pub:
+                    return self._sende(401, {"fehler": "Anfrage nicht signiert oder veraltet"})
+                if dienst._begrenzt("beitritt", BEITRITTE_JE_MIN):
+                    return self._sende(429, {"fehler": "zu viele Beitrittsversuche"})
+                try:
+                    nonce = json.loads(koerper).get("code")
+                except (ValueError, AttributeError):
+                    nonce = None
+                if grund := dienst.log.beitritt_einloesen(nonce, pub):
+                    return self._sende(403, {"fehler": grund})
+                log(f"Netz: {lb.pseudonym(pub)} mit Beitrittscode eingeladen")
+                dienst.wach.set()
+                return self._sende(200, {"eingeladen": lb.pseudonym(pub)})
 
             def _anmelden(self, koerper: bytes) -> str | None:
                 pub = pruefe_kopf(self.headers.get("Authorization"), self.command, self.path, koerper)
@@ -387,6 +456,8 @@ class Netzdienst:
                 if laenge > MAX_KOERPER:
                     return self._sende(413, {"fehler": "zu groß"})
                 koerper = self.rfile.read(laenge)
+                if self.path == "/netz/beitritt":
+                    return self._beitritt(koerper)
                 if not self._anmelden(koerper):
                     return None
                 if self.path == "/netz/koepfe":
@@ -423,6 +494,38 @@ class Netzdienst:
         if self.schwarm:
             self.schwarm.stoppe()
         self.log.schliessen()
+
+
+def zertifikat_pin(pfad_: Path) -> str:
+    """SHA-256 des Zertifikats in DER-Form, wie es der Peer beim Verbindungsaufbau sieht."""
+    pem = pfad_.read_text()
+    teil = pem[pem.index("-----BEGIN CERTIFICATE-----"):pem.index("-----END CERTIFICATE-----")]
+    return hashlib.sha256(base64.b64decode("".join(teil.splitlines()[1:]))).hexdigest()
+
+
+def code_bauen(gruender: list[str], start: str, pin: str | None, nonce: str, ablauf: float) -> str:
+    roh = json.dumps({"g": gruender, "s": start, "p": pin, "n": nonce, "a": int(ablauf)}, separators=(",", ":")).encode()
+    return CODE_PRAEFIX + base64.urlsafe_b64encode(roh).decode().rstrip("=")
+
+
+def code_lesen(code: str) -> dict:
+    """Rein. ValueError mit Grund, wenn der Code nicht passt."""
+    code = (code or "").strip()
+    if not code.startswith(CODE_PRAEFIX):
+        raise ValueError("kein Beitrittscode (beginnt nicht mit vinetz1.)")
+    try:
+        d = json.loads(base64.urlsafe_b64decode(code[len(CODE_PRAEFIX):] + "=" * (-len(code) % 4)))
+    except (ValueError, TypeError) as e:
+        raise ValueError("Beitrittscode ist beschädigt") from e
+    if not isinstance(d, dict) or not isinstance(d.get("g"), list) or not all(isinstance(x, str) and lb._HEX64.match(x) for x in d["g"]) or not d["g"]:
+        raise ValueError("Beitrittscode nennt keine gültigen Gründer")
+    if not isinstance(d.get("s"), str) or not lb._ADRESSE.match(d["s"]) or not isinstance(d.get("n"), str):
+        raise ValueError("Beitrittscode nennt keine gültige Adresse")
+    if d.get("p") is not None and not (isinstance(d["p"], str) and lb._HEX64.match(d["p"])):
+        raise ValueError("Beitrittscode hat einen unbrauchbaren Pin")
+    if not isinstance(d.get("a"), int) or d["a"] < time.time():
+        raise ValueError("Beitrittscode ist abgelaufen")
+    return d
 
 
 def main() -> int:

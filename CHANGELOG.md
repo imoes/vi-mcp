@@ -3,6 +3,28 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.15.0 — 2026-11-08 — HTTPS für weitere Peers
+
+### Was ist neu
+
+- **Beitritt mit einem Befehl:** `vi-mcp netz einladung` gibt auf einem peerhost einen einmaligen, befristeten Code aus, `vi-mcp netz beitreten <code>` richtet den neuen Server ein und lässt ihn einladen. Kein Austausch von Schlüsseln von Hand.
+- **Selbstsigniertes TLS mit Pin:** `--tls-selbst` erzeugt ein Zertifikat; Peers prüfen es über den SHA-256, der im signierten `adresse`-Eintrag und im Beitrittscode steht. Kein öffentliches Zertifikat nötig.
+- **HTTPS-Proxy** für fremde Peers (`--proxy`, `--kein-proxy`), per CONNECT.
+- `vi-mcp netz peers` zeigt bekannte Peers mit Pin oder CA und Erreichbarkeit.
+- *Nachweis:* `tests/test_netz_beitritt.py` (Code-Format, falscher Pin, ohne Pin kein Vertrauen, abgelaufener und wiederverwendeter Code, unsignierte Anfrage, Pin wandert über das Logbuch, echter CONNECT-Proxy, alle Befehle hintereinander).
+  Drei Pakete unter systemd (Ubuntu 24.04, Debian 13, Fedora 43), nur HTTPS mit selbstsignierten Zertifikaten, `http_erlaubt` aus: B tritt mit dem Code von A bei, C mit dem Code von B und lernt A samt Pin aus dem Logbuch;
+  Wissen A → C in 7 s, C → A in 7 s (Takt 4 s), Widerruf in 9 s, keine Interna in den Netzdatenbanken, 0 Fehler im Journal.
+
+### Was hat sich geändert
+
+- Der Client nutzt `http.client` statt `urllib`: Nur so lässt sich das Zertifikat vor dem Senden der Anfrage gegen den Pin prüfen.
+- `adresse`-Einträge können ein Feld `pin` tragen. **Peers vor 0.15.0 lehnen solche Einträge ab** und brechen den Abgleich mit diesem Herausgeber ab; erst alle Server aktualisieren, dann `--tls-selbst` nutzen.
+
+### Was fehlt noch
+
+- Ein neues Zertifikat ändert den Pin; Peers lernen ihn erst über einen anderen Peer, der den neuen `adresse`-Eintrag schon hat.
+- Wer einen Beitrittscode abfängt, bevor er eingelöst ist, wird Mitglied. Eingelöste Codes und ausgeschlossene Schlüssel sind gesperrt.
+
 ## 0.14.3 — 2026-11-08 — Netzdienst übersteht Upgrades
 
 ### Was wurde behoben

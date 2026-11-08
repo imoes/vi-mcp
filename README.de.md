@@ -107,12 +107,21 @@ Jeder Server führt ein signiertes, verkettetes Logbuch. Die Server gleichen ihr
 | `peerhost` | nimmt auch Verbindungen an und versorgt andere |
 
 ```bash
-sudo vi-mcp netz einrichten --modus peerhost --gruenden --adresse https://wissen.example:8766 --tls-cert … --tls-key …   # erster Server
-sudo vi-mcp netz id                                                       # öffentlicher Schlüssel dieses Servers
-sudo vi-mcp netz einrichten --modus peer --gruender <Schlüssel des Gründers> --start https://wissen.example:8766         # jeder weitere
-sudo vi-mcp netz einladen <Schlüssel des neuen Servers>                 # auf einem beliebigen Mitglied
+# erster Server: gründet das Netz, selbstsigniertes Zertifikat, Peers prüfen es über den Pin
+sudo vi-mcp netz einrichten --modus peerhost --gruenden --adresse https://wissen.example:8766 --tls-selbst
+sudo vi-mcp netz einladung --stunden 24          # einmaliger Beitrittscode, wie ein Passwort behandeln
+
+# jeder weitere Server: ein Befehl
+sudo vi-mcp netz beitreten <code>                                                        # nur ausgehend (peer)
+sudo vi-mcp netz beitreten <code> --modus peerhost --adresse https://b.example:8766 --tls-selbst
+sudo vi-mcp netz beitreten <code> --proxy http://proxy.example:3128                      # hinter einem Firmen-Proxy
+
+sudo vi-mcp netz peers                           # bekannte Peers, Pin oder CA, erreichbar oder nicht
 sudo vi-mcp netz status
 ```
+
+Ein Beitrittscode enthält die Schlüssel der Gründer, Adresse und Zertifikats-Pin des ausgebenden peerhost und ein einmaliges Geheimnis mit Ablaufzeit. Beim Aussteller liegt nur dessen Hash.
+Hinter einem Reverse-Proxy mit öffentlichem Zertifikat: `--adresse https://host/vi-p2p` ohne `--tls-selbst`. Von Hand ohne Code: `vi-mcp netz id` auf dem neuen Server, `vi-mcp netz einladen <Schlüssel>` auf einem Mitglied.
 
 - **Mitglied durch Einladung.** Ein Server gehört dazu, wenn von einem Gründer eine Kette von Einladungen zu ihm führt. Gründer und der Einladende können ausschließen; wer nur über einen Ausgeschlossenen kam, fällt mit heraus.
 - **Weitertragen ist nicht glauben.** Ein Server reicht signierte Einträge nach Prüfung von Signatur und Regeln weiter, sein Gedächtnis behandelt sie trotzdem als fremd: Quarantäne, Prüfmodell, Freigabe, dann Modus `test`.

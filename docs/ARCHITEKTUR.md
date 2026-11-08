@@ -307,7 +307,11 @@ Fremde Einträge werden nur angenommen, wenn Kette, Signatur, Mitgliedschaft, Ta
 Der Netzdienst (`netzdienst.py`, systemd `vi-p2p`, eigener Nutzer, `InaccessiblePaths=/var/lib/vi-mcp`) macht je Runde: Ausgang des Gedächtnisses ins eigene Logbuch (`vi_netz_ausgang`), Abgleich mit bis zu 6 zufälligen Peers
 (Köpfe tauschen, Fehlendes holen, Eigenes schieben), Neues ans Gedächtnis (`vi_netz_eingang`, Instanz `p2p`), Nachbarn anstoßen. Takt 300 s, ein Anstoß weckt sofort. Peers kommen aus der Startliste und aus `adresse`-Einträgen.
 Jede Anfrage trägt `Authorization: VI-Netz <Schlüssel> <Zeit> <Signatur über Methode, Pfad, Zeit, SHA-256 des Körpers>`, gültig 300 s; nur Mitglieder bekommen Antwort, 240 Anfragen je Minute und Schlüssel.
-Unverschlüsseltes HTTP nur zum eigenen Rechner oder mit `http_erlaubt`. Ab 1.000 fehlenden Einträgen eines Herausgebers holt der Dienst fertige Segmente (2.000 Einträge, JSON-Zeilen) per BitTorrent direkt vom Peer
+Unverschlüsseltes HTTP nur zum eigenen Rechner oder mit `http_erlaubt`. TLS wird über die CA geprüft (`ca_datei`) oder, wenn für die Adresse ein Pin bekannt ist, über den SHA-256 des Zertifikats in DER-Form.
+Ein Pin kommt nur aus signierter Quelle: dem `adresse`-Eintrag des Peers selbst (Feld `pin`, seit 0.15.0) oder einem Beitrittscode. Ein `proxy` wird für fremde Peers per CONNECT genutzt, `kein_proxy` nimmt Domains aus.
+Beitritt: `einladung` legt auf einem peerhost den SHA-256 eines Zufallsgeheimnisses mit Ablaufzeit ab und gibt einen Code aus (`vinetz1.` + Base64 von Gründern, Adresse, Pin, Geheimnis, Ablauf).
+`beitreten` richtet den Server ein und schickt das Geheimnis an `POST /netz/beitritt`, signiert mit dem neuen Schlüssel (Beweis des Besitzes, keine Mitgliedschaft nötig, 10 Versuche je Minute).
+Passt es, wird es als benutzt markiert und der peerhost schreibt eine Einladung in sein Logbuch. Ab 1.000 fehlenden Einträgen eines Herausgebers holt der Dienst fertige Segmente (2.000 Einträge, JSON-Zeilen) per BitTorrent direkt vom Peer
 (privat, ohne DHT, LSD, UPnP); ein Segment mit vergessenem Inhalt wird verworfen.
 
 Im Gedächtnis (`p2p.py`) wird jede Signatur erneut geprüft, weil der Netzdienst fremde Daten liest. `glauben` in `/etc/vi-p2p/config.json` begrenzt, wessen Objekte überhaupt ins Gedächtnis gehen; Widerrufe gelten immer.

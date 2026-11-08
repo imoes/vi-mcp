@@ -118,7 +118,9 @@ def steuer_form(typ: str, inhalt) -> bool:
     if typ in ("einladung", "ausschluss"):
         return set(inhalt) == {"pub"} and isinstance(inhalt["pub"], str) and bool(_HEX64.match(inhalt["pub"]))
     if typ == "adresse":
-        return set(inhalt) == {"adresse"} and isinstance(inhalt["adresse"], str) and bool(_ADRESSE.match(inhalt["adresse"]))
+        # pin: SHA-256 des TLS-Zertifikats, für peerhosts ohne öffentliche CA (seit 0.15.0; ältere Peers lehnen das Feld ab)
+        return set(inhalt) in ({"adresse"}, {"adresse", "pin"}) and isinstance(inhalt["adresse"], str) and bool(_ADRESSE.match(inhalt["adresse"])) \
+            and ("pin" not in inhalt or (isinstance(inhalt["pin"], str) and bool(_HEX64.match(inhalt["pin"]))))
     return False
 
 
@@ -143,8 +145,11 @@ class Logbuch:
             CREATE TABLE IF NOT EXISTS verstoss (pub TEXT PRIMARY KEY, n INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS stand (pub TEXT PRIMARY KEY, seq INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS peer (adresse TEXT PRIMARY KEY, quelle TEXT NOT NULL, zuletzt REAL, fehler INTEGER NOT NULL DEFAULT 0, naechster REAL NOT NULL DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS beitritt (nonce_sha TEXT PRIMARY KEY, ablauf REAL NOT NULL, benutzt TEXT);
             CREATE TABLE IF NOT EXISTS segment (sha256 TEXT PRIMARY KEY, pub TEXT NOT NULL, von INTEGER NOT NULL, bis INTEGER NOT NULL, torrent TEXT NOT NULL, port INTEGER NOT NULL, datei TEXT NOT NULL);
         """)
+        if "pin" not in [r[1] for r in self.db.execute("PRAGMA table_info(peer)")]:
+            self.db.execute("ALTER TABLE peer ADD COLUMN pin TEXT")
         self.k = privat(seed)
         self.pub = oeffentlich_hex(self.k)
         self.gruender = list(gruender)
@@ -185,7 +190,7 @@ class Logbuch:
         if kopf["typ"] in ("einladung", "ausschluss"):
             self._mitglieder = None
         elif kopf["typ"] == "adresse" and kopf["pub"] != self.pub:
-            self.peer_merken(inhalt["adresse"], "logbuch")
+            self.peer_merken(inhalt["adresse"], "logbuch", inhalt.get("pin"))
         elif kopf["typ"] == "widerruf":
             self.vergiss(inhalt["ziel"], inhalt["token"])
 
@@ -344,16 +349,55 @@ class Logbuch:
         with self.sperre:
             return {r[0] for r in self.db.execute("SELECT netz_id FROM eintrag WHERE pub = ? AND typ = 'widerruf'", (self.pub,))}
 
-    def letzte_eigene_adresse(self) -> str | None:
+    def letzte_eigene_adresse(self) -> dict | None:
         with self.sperre:
             z = self.db.execute("SELECT i.daten FROM eintrag e JOIN inhalt i ON i.sha = e.sha WHERE e.pub = ? AND e.typ = 'adresse' ORDER BY e.seq DESC LIMIT 1", (self.pub,)).fetchone()
-        return json.loads(z[0])["adresse"] if z else None
+        return json.loads(z[0]) if z else None
 
     # ---- Peers ----
 
-    def peer_merken(self, adresse: str, quelle: str) -> None:
+    def peer_merken(self, adresse: str, quelle: str, pin: str | None = None) -> None:
+        """Ein Pin kommt nur aus einer signierten Quelle: dem adresse-Eintrag des Peers selbst oder einem Beitrittscode."""
         with self.sperre:
             self.db.execute("INSERT OR IGNORE INTO peer (adresse, quelle) VALUES (?,?)", (adresse.rstrip("/"), quelle))
+            if pin:
+                self.db.execute("UPDATE peer SET pin = ? WHERE adresse = ?", (pin, adresse.rstrip("/")))
+
+    def pin(self, adresse: str) -> str | None:
+        with self.sperre:
+            z = self.db.execute("SELECT pin FROM peer WHERE adresse = ?", (adresse.rstrip("/"),)).fetchone()
+        return z[0] if z else None
+
+    def peers(self) -> list[dict]:
+        with self.sperre:
+            zeilen = self.db.execute("SELECT adresse, quelle, pin, zuletzt, fehler, naechster FROM peer ORDER BY adresse").fetchall()
+        return [{"adresse": a, "quelle": q, "pin": p, "zuletzt": z, "fehler": f, "naechster": n} for a, q, p, z, f, n in zeilen]
+
+    # ---- Beitritt mit Code: einmalig, befristet, nur der Hash liegt hier ----
+
+    def beitritt_anlegen(self, nonce: str, gueltig_s: float) -> None:
+        with self.sperre:
+            self.db.execute("INSERT INTO beitritt (nonce_sha, ablauf) VALUES (?,?)", (hashlib.sha256(nonce.encode()).hexdigest(), time.time() + gueltig_s))
+
+    def beitritt_einloesen(self, nonce: str, pub: str) -> str | None:
+        """Grund der Ablehnung oder None. Bei Erfolg lädt dieser Server den neuen Schlüssel ein."""
+        if not isinstance(nonce, str) or len(nonce) > 200:
+            return "Code unbrauchbar"
+        with self.sperre:
+            self.db.execute("BEGIN IMMEDIATE")
+            try:
+                z = self.db.execute("SELECT ablauf, benutzt FROM beitritt WHERE nonce_sha = ?", (hashlib.sha256(nonce.encode()).hexdigest(),)).fetchone()
+                if not z or z[1] or z[0] < time.time():
+                    self.db.execute("ROLLBACK")
+                    return "Beitrittscode ungültig, abgelaufen oder schon benutzt"
+                self.db.execute("UPDATE beitritt SET benutzt = ? WHERE nonce_sha = ?", (pub, hashlib.sha256(nonce.encode()).hexdigest()))
+                self.db.execute("COMMIT")
+            except BaseException:
+                self.db.execute("ROLLBACK")
+                raise
+        if not self.ist_mitglied(pub):
+            self.anhaengen("einladung", {"pub": pub})
+        return None
 
     def peers_waehlen(self, n: int, ausser: str | None = None) -> list[str]:
         with self.sperre:

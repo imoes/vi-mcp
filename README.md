@@ -107,12 +107,21 @@ Each server keeps a signed, chained log. Servers compare logs with their neighbo
 | `peerhost` | also accepts connections and serves others |
 
 ```bash
-sudo vi-mcp netz einrichten --modus peerhost --gruenden --adresse https://knowledge.example:8766 --tls-cert … --tls-key …   # first server
-sudo vi-mcp netz id                                                       # public key of this server
-sudo vi-mcp netz einrichten --modus peer --gruender <founder key> --start https://knowledge.example:8766                    # every other server
-sudo vi-mcp netz einladen <key of the new server>                       # on any member
+# first server: founds the network, self-signed certificate, peers verify it by its pin
+sudo vi-mcp netz einrichten --modus peerhost --gruenden --adresse https://knowledge.example:8766 --tls-selbst
+sudo vi-mcp netz einladung --stunden 24          # one-time join code, treat it like a password
+
+# every further server: one command
+sudo vi-mcp netz beitreten <code>                                                        # outgoing only (peer)
+sudo vi-mcp netz beitreten <code> --modus peerhost --adresse https://b.example:8766 --tls-selbst
+sudo vi-mcp netz beitreten <code> --proxy http://proxy.example:3128                      # behind a company proxy
+
+sudo vi-mcp netz peers                           # known peers, pin or CA, reachable or not
 sudo vi-mcp netz status
 ```
+
+A join code contains the founders' keys, the address and certificate pin of the issuing peerhost, and a one-time secret that expires. Only its hash stays on the issuer.
+Behind a reverse proxy with a public certificate use `--adresse https://host/vi-p2p` without `--tls-selbst`. Manual way without a code: `vi-mcp netz id` on the new server, `vi-mcp netz einladen <key>` on a member.
 
 - **Membership by invitation.** A server belongs if a chain of invitations leads to it from a founder. Founders and the inviting member can expel; whoever was only invited by an expelled server leaves with it.
 - **Forwarding is not believing.** A server carries signed entries onward after checking signature and rules, but its memory treats them as foreign: quarantine, the review model, release, then mode `test`.
