@@ -7,13 +7,15 @@ Endpunkt `/mcp` (MCP-Spezifikation „Streamable HTTP“, https://modelcontextpr
   DELETE beendet die Sitzung (Gespräch wird gesichert, Zustand `beendet`).
 Sitzung: `initialize` vergibt `Mcp-Session-Id`; jede weitere Anfrage braucht sie (fehlt → 400, unbekannt → 404).
 Schutz: Bearer-Token je Instanz (401 ohne/mit falschem Token), Origin-Prüfung gegen DNS-Rebinding (403),
-Bind standardmäßig 127.0.0.1.
+Bind standardmäßig 127.0.0.1; mehrere Adressen möglich (z. B. zusätzlich das Gateway eines Docker-Netzes, über
+das ein Reverse-Proxy im Container zugreift) — alle teilen denselben Prozess, dasselbe Gedächtnis.
 Zusätzlich `GET /gesund` ohne Anmeldung: nur „ok“ + Version, für systemd/Monitoring.
 """
 from __future__ import annotations
 
 import json
 import signal
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -85,6 +87,21 @@ def _initialize(msg: dict, inst: konfig.Instanz) -> tuple[dict, sitzung.Sitzung]
                          "vi_erinnere/vi_vertiefe zum Nachlesen, vi_lerne mit Quelle zum Lernen.")}), s
 
 
+class Server(ThreadingHTTPServer):
+    daemon_threads = True
+    request_queue_size = 64  # Python-Vorgabe 5 ist für viele gleichzeitige Clients zu knapp
+
+    def server_bind(self):
+        # IP_FREEBIND: an eine Adresse binden, die (noch) nicht existiert — z. B. das Docker-Gateway beim Booten,
+        # bevor das Netz angelegt ist. Linux; fehlt die Option, wird normal gebunden.
+        if hasattr(socket, "IP_FREEBIND"):
+            try:
+                self.socket.setsockopt(socket.IPPROTO_IP, socket.IP_FREEBIND, 1)
+            except OSError:
+                pass
+        super().server_bind()
+
+
 class Handler(BaseHTTPRequestHandler):
     k: konfig.Konfig  # vom Server gesetzt
     protocol_version = "HTTP/1.1"
@@ -105,7 +122,9 @@ class Handler(BaseHTTPRequestHandler):
         if daten:
             self.wfile.write(daten)
         if code >= 400:
-            log(f"{self.command} {self.path} → {code} ({self.client_address[0]}): {koerper if isinstance(koerper, str) else ''}"[:300])
+            fwd = self.headers.get("X-Forwarded-For")
+            von = self.client_address[0] + (f" für {fwd}" if fwd else "")
+            log(f"{self.command} {self.path} → {code} ({von}): {koerper if isinstance(koerper, str) else ''}"[:300])
 
     def _pruefe(self) -> konfig.Instanz | None:
         origin = self.headers.get("Origin")
@@ -175,22 +194,23 @@ class Handler(BaseHTTPRequestHandler):
         self._sende(200, antworten if isinstance(nachricht, list) else antworten[0], {"Mcp-Session-Id": s.id})
 
 
-def baue(k: konfig.Konfig) -> ThreadingHTTPServer:
+def baue(k: konfig.Konfig) -> list[Server]:
+    """Ein Gedächtnis, ein Loop — ein HTTP-Server je Bind-Adresse, alle im selben Prozess."""
     if not k.instanzen:
-        raise SystemExit(f"keine Instanz konfiguriert ({konfig.pfad()}) — erst: python3 -m vi_mcp instanz <name>")
+        raise SystemExit(f"keine Instanz konfiguriert ({konfig.pfad()}) — erst: vi-mcp instanz <name>")
     g.oeffne(k.db)
     intuition.ttl_je_werkzeug.clear()
     intuition.ttl_je_werkzeug.update(k.ttl)
     n = len(reflexe.lade_alle())
     handler = type("KHandler", (Handler,), {"k": k})
-    srv = ThreadingHTTPServer((k.bind, k.port), handler)
-    srv.daemon_threads = True
-    log(f"vi-mcp {__version__} auf http://{k.bind}:{srv.server_address[1]}/mcp · Gedächtnis {k.db} · {n} Reflexe · "
+    srvs = [Server((adr, k.port), handler) for adr in k.bind]
+    adressen = ", ".join(f"http://{s.server_address[0]}:{s.server_address[1]}/mcp" for s in srvs)
+    log(f"vi-mcp {__version__} auf {adressen} · Gedächtnis {k.db} · {n} Reflexe · "
         f"Instanzen {', '.join(sorted(k.instanzen))} · Loop alle {schleife.LOOP_S} s")
-    return srv
+    return srvs
 
 
-def beende(srv: ThreadingHTTPServer) -> None:
+def beende(srvs) -> None:
     schleife.halte()
     n = sitzung.alle_beenden("unterbrochen")
     g.schliesse()
@@ -199,16 +219,22 @@ def beende(srv: ThreadingHTTPServer) -> None:
 
 def main() -> None:
     k = konfig.lade()
-    srv = baue(k)
+    srvs = baue(k)
     schleife.starte()
+    for s in srvs[1:]:
+        threading.Thread(target=s.serve_forever, name=f"http-{s.server_address[0]}", daemon=True).start()
 
     def _stopp(*_a):
-        threading.Thread(target=srv.shutdown, daemon=True).start()
+        def _alle():
+            for s in srvs:
+                s.shutdown()
+        threading.Thread(target=_alle, daemon=True).start()
 
     signal.signal(signal.SIGTERM, _stopp)
     signal.signal(signal.SIGINT, _stopp)
     try:
-        srv.serve_forever()
+        srvs[0].serve_forever()
     finally:
-        srv.server_close()
-        beende(srv)
+        for s in srvs:
+            s.server_close()
+        beende(srvs)

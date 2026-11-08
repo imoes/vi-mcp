@@ -36,7 +36,10 @@ fehlen nur die Vorher-Hinweise, sonst nichts.
 
 ## Eintragen (noch nicht geschehen — braucht Freigabe)
 
-Voraussetzung: vi-mcp läuft (`deploy/install.sh`), Token in `~/.config/vi-mcp/token-$USER`.
+Voraussetzung: vi-mcp läuft und ist erreichbar. Für den Server auf <host> die Umgebung setzen (z. B. im
+`env`-Block von `~/.claude/settings.json`):
+`VI_MCP_URL=https://<host>/vi-mcp/mcp`, `VI_MCP_TOKEN_FILE=~/.config/vi-mcp/token-anna-<host>`.
+Der Firmen-Proxy wird dabei nicht benutzt (`no_proxy` enthält `.<domain>`, geprüft 08.11.2026).
 In `~/.claude/settings.json`:
 
 ```json

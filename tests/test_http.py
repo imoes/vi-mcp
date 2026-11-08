@@ -18,13 +18,13 @@ def srv(tmp_path, monkeypatch):
     roh = json.loads(cfg.read_text())
     roh.update({"port": 0, "db": str(tmp_path / "vi.db")})
     cfg.write_text(json.dumps(roh))
-    s = server.baue(konfig.lade())
+    (s,) = server.baue(konfig.lade())
     th = threading.Thread(target=s.serve_forever, daemon=True)
     th.start()
     yield s.server_address[1], tok_a, tok_b
     s.shutdown()
     s.server_close()
-    server.beende(s)
+    server.beende([s])
 
 
 def anfrage(port, methode, koerper=None, token=None, sid=None, kopf=None):
@@ -131,3 +131,30 @@ def test_stapel_und_unbekanntes(srv):
     assert st == 200 and len(a) == 2 and a[0]["result"] == {} and a[1]["error"]["code"] == -32601
     st, _, a = anfrage(port, "POST", {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "nix"}}, tok, sid)
     assert a["error"]["code"] == -32602
+
+
+def test_mehrere_adressen_ein_gedaechtnis(tmp_path, monkeypatch):
+    cfg = tmp_path / "config.json"
+    monkeypatch.setenv("VI_MCP_CONFIG", str(cfg))
+    tok = konfig.instanz_anlegen("x")
+    roh = json.loads(cfg.read_text())
+    roh.update({"port": 0, "db": str(tmp_path / "vi.db"), "bind": ["127.0.0.1", "127.0.0.2"]})
+    cfg.write_text(json.dumps(roh))
+    srvs = server.baue(konfig.lade())
+    assert [s.server_address[0] for s in srvs] == ["127.0.0.1", "127.0.0.2"] and srvs[0].request_queue_size == 64
+    for s in srvs:
+        threading.Thread(target=s.serve_forever, daemon=True).start()
+    try:
+        sids = []
+        for s in srvs:
+            c = http.client.HTTPConnection(s.server_address[0], s.server_address[1], timeout=5)
+            c.request("POST", "/mcp", body=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
+                      headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"})
+            r = c.getresponse(); r.read()
+            sids.append(r.getheader("Mcp-Session-Id"))
+        # beide Adressen, ein Prozess: zwei Gespräche im selben Gedächtnis
+        assert len([o for _, o, _g in g.erinnere("art:gespraech instanz:x")]) == 2
+    finally:
+        for s in srvs:
+            s.shutdown(); s.server_close()
+        server.beende(srvs)

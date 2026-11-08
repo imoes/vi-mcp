@@ -2,7 +2,7 @@
 
 Pfad: $VI_MCP_CONFIG oder ~/.config/vi-mcp/config.json. Inhalt:
   {
-    "bind": "127.0.0.1", "port": 8765,
+    "bind": "127.0.0.1" | ["127.0.0.1", "<docker-gateway>"], "port": 8765,
     "db": "~/.local/share/vi-mcp/vi.db",
     "instanzen": {"<name>": {"token_sha256": "<hex>", "reflexe": false}},
     "ttl": {"<werkzeug>": <sekunden>},
@@ -33,7 +33,7 @@ class Instanz:
 
 @dataclass
 class Konfig:
-    bind: str = "127.0.0.1"
+    bind: list[str] = field(default_factory=lambda: ["127.0.0.1"])
     port: int = 8765
     db: Path = Path("~/.local/share/vi-mcp/vi.db").expanduser()
     instanzen: dict[str, Instanz] = field(default_factory=dict)
@@ -60,7 +60,8 @@ def lade(p: Path | None = None) -> Konfig:
     p = p or pfad()
     roh = json.loads(p.read_text()) if p.exists() else {}
     k = Konfig()
-    k.bind = roh.get("bind", k.bind)
+    b = roh.get("bind", k.bind)
+    k.bind = [b] if isinstance(b, str) else list(b)
     k.port = int(roh.get("port", k.port))
     k.db = Path(roh.get("db", str(k.db))).expanduser()
     k.ttl = {w: int(s) for w, s in (roh.get("ttl") or {}).items()}

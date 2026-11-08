@@ -25,7 +25,35 @@ ssh host sudo systemctl restart vi-mcp
 Ohne Instanz bleibt der Dienst nach der Installation aus und `postinst` sagt, was zu tun ist.
 
 **Installiert auf `<host>`** (08.11.2026, als `<admin>`): Ubuntu 24.04.5, Python 3.12.3, SQLite 3.45.1
-mit FTS5; Instanz `anna` (Reflex-Recht), lauscht auf `127.0.0.1:8765`. Abnahme siehe CHANGELOG.
+mit FTS5; Instanz `anna` (Reflex-Recht). Abnahme siehe CHANGELOG.
+
+### Zugang von außen: `https://<host>/vi-mcp/mcp`
+
+```
+Client ──TLS──▶ nginx (Container, <docker-netz>, Zertifikat <zertifikat>)
+                 location /vi-mcp/  → rewrite → http://<docker-gateway>:8765   (Gateway des Docker-Netzes <docker-netz>)
+                                                     │
+                 vi-mcp (Systemdienst auf dem Host) ◀┘  bind ["127.0.0.1", "<docker-gateway>"], ein Prozess
+```
+
+- vi-mcp lauscht auf zwei Adressen: `127.0.0.1` (Host selbst) und `<docker-gateway>` (für den nginx-Container; der
+  Container erreicht `127.0.0.1` des Hosts nicht). `IP_FREEBIND` erlaubt den Start, bevor Docker das Netz anlegt.
+- nginx: Block `location /vi-mcp/` in `<nginx.conf>`, Sicherung
+  `<sicherung von nginx.conf>`. Änderung nur mit `docker exec nginx nginx -t && docker exec nginx nginx -s reload`
+  (kein Neustart). Anmeldung macht vi-mcp selbst; kein API-Key von nginx.
+- **Annahme mit Beobachtungspunkt:** das Gateway bleibt `<docker-gateway>`, solange das Docker-Netz `<docker-netz>`
+  nicht neu angelegt wird. Ändert es sich, liefert `https://<host>/vi-mcp/gesund` 502 — dann
+  `docker network inspect <docker-netz>` und `bind` in `/etc/vi-mcp/config.json` + `proxy_pass` anpassen.
+- Prüfen: `curl -s https://<host>/vi-mcp/gesund` → `ok vi-mcp <version>`.
+
+### An Claude Code anschließen (dieser Server)
+
+```bash
+claude mcp add --transport http -s user vi-mcp https://<host>/vi-mcp/mcp \
+  --header "Authorization: Bearer $(cat ~/.config/vi-mcp/token-anna-<host>)"
+```
+
+Noch nicht ausgeführt: solange `~/skills/server.py` seine eingebaute VI betreibt, gäbe es zwei Gedächtnisse.
 
 ## Benutzerdienst (Entwicklung)
 
