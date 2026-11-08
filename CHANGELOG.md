@@ -11,6 +11,8 @@ Verlinkt aus [README.md](README.md).
   (test, Belegkanten, `herkunft:schlaf-llm`); Antworten mit Anweisungsmustern oder ohne echte Belege werden mit Grund
   verworfen. *Nachweis:* `test_reflexion_erzeugt_geprueft_erkenntnis_test`, `test_reflexion_verwirft_injektion`,
   `test_pruefung_verwirft_unsauberes`, `test_ohne_llm_uebersprungen`.
+- `docs/erzaehlung.html`: „Das Nachtbuch der Station“ — die Erklärung als Science-Fiction, mit Randnotizen, was davon
+  wirklich so gebaut ist.
 - Damit sind die vier Stufen aus der 10/10-Antwort gebaut: gelernter Router (0.5.0), Thompson Sampling (0.6.0),
   Vektoren (0.7.0), Reflexion (0.8.0). 63/63 Tests grün.
 

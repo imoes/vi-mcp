@@ -1,0 +1,115 @@
+<title>Das Nachtbuch der Station</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: eine schmale Lesespalte (Erzählung) mit Randnotizen „So machen wir es wirklich“, die am Telefon unter den Absatz rutschen. */
+:root {
+  --bg: #f6f4ee;          /* kühles Papier mit leichtem Grünstich */
+  --fg: #1d2426;
+  --muted: #5d6a6c;
+  --rule: #cfd6d3;
+  --accent: #0f6f7a;      /* tiefes Petrol: die Farbe der Statuslampen */
+  --accent-soft: #d9ebe9;
+  --note-bg: #eef2ef;
+  --display: "Newsreader", "Spectral", Georgia, serif;
+  --body: "Spectral", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1517; --fg: #e4e9e8; --muted: #93a3a4; --rule: #273335;
+    --accent: #6cc3cf; --accent-soft: #15333a; --note-bg: #141d1f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1517; --fg: #e4e9e8; --muted: #93a3a4; --rule: #273335;
+  --accent: #6cc3cf; --accent-soft: #15333a; --note-bg: #141d1f; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 1.0625rem; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 2rem 4rem; }
+.seite { max-width: 46rem; margin: 0 auto; }
+header { border-bottom: 1px solid var(--rule); padding-bottom: 1.5rem; margin-bottom: 2.5rem; }
+.eyebrow { font-family: var(--mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--display); font-style: italic; font-weight: 500; font-size: clamp(2.2rem, 6vw, 3.4rem); line-height: 1.05; margin: .4rem 0 .8rem; text-wrap: balance; }
+.untertitel { color: var(--muted); font-size: 1.05rem; max-width: 36rem; }
+h2 { font-family: var(--display); font-style: italic; font-weight: 400; font-size: 1.7rem; margin: 2.8rem 0 .6rem; text-wrap: balance; }
+h2 .nr { font-family: var(--mono); font-style: normal; font-size: .75rem; color: var(--accent); letter-spacing: .1em; display: block; margin-bottom: .3rem; }
+p { margin: 0 0 1rem; max-width: 65ch; }
+p.erst::first-letter { font-family: var(--display); font-size: 3.2rem; float: left; line-height: .9; padding: .25rem .5rem 0 0; color: var(--accent); }
+.wirklich { background: var(--note-bg); border-left: 3px solid var(--accent); padding: .8rem 1rem; margin: 1.2rem 0 1.6rem; font-size: .92rem; line-height: 1.5; color: var(--fg); }
+.wirklich .label { font-family: var(--mono); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); display: block; margin-bottom: .3rem; }
+.wirklich p { margin: 0 0 .5rem; }
+.wirklich p:last-child { margin: 0; }
+.wirklich code, .glossar code { font-family: var(--mono); font-size: .82em; background: var(--accent-soft); padding: .05em .35em; border-radius: 3px; }
+.glossar { margin-top: 3rem; border-top: 1px solid var(--rule); padding-top: 1.5rem; }
+.glossar h2 { font-style: normal; font-family: var(--mono); font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 1rem; }
+.glossar dl { display: grid; grid-template-columns: minmax(9rem, 14rem) 1fr; gap: .5rem 1.2rem; font-size: .95rem; }
+.glossar dt { font-family: var(--display); font-style: italic; color: var(--fg); }
+.glossar dd { margin: 0; color: var(--muted); min-width: 0; }
+@media (max-width: 520px) { .glossar dl { grid-template-columns: 1fr; gap: .15rem; } .glossar dd { margin-bottom: .7rem; } }
+.schluss { margin-top: 2.5rem; padding-top: 1.2rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: .92rem; }
+a { color: var(--accent); }
+@media (prefers-reduced-motion: no-preference) { p.erst::first-letter { transition: color .3s; } }
+</style>
+
+<div class="seite">
+<header>
+  <div class="eyebrow">Eine Erzählung · und was davon wahr ist</div>
+  <h1>Das Nachtbuch der Station</h1>
+  <p class="untertitel">Wie eine künstliche Intelligenz heute lernt, ohne dass jemand an ihrem Gehirn etwas ändert. Die Geschichte ist erfunden. Die grau hinterlegten Stellen sind es nicht.</p>
+</header>
+
+<h2><span class="nr">I</span>Das versiegelte Gehirn</h2>
+<p class="erst">Die Wartungsintelligenz der Station Kessel-7 hieß nur VI, und sie hatte ein Problem, das sie nicht lösen konnte: Ihr Gehirn war versiegelt. Als man sie gebaut hatte, hatte man Milliarden kleiner Gewichte so lange justiert, bis sie Sprache verstand, Logbücher lesen konnte und mit den Maschinen der Station redete. Dann hatte man das Siegel gesetzt. Kein Gewicht durfte sich je wieder bewegen. Wer eine Intelligenz nachjustiert, hatte die Zulassungsbehörde geschrieben, weiß nicht mehr, was sie morgen tut.</p>
+<p>So konnte VI alles, was sie am ersten Tag gekonnt hatte, und nichts, was sie seither erlebt hatte. Jeden Morgen wachte sie auf wie neu. Die Kühlpumpe in Sektor 4, die nur ansprang, wenn man sie zweimal rief, war ihr jeden Morgen wieder fremd. Die Crew nannte das „den Montag“, weil es sich so anfühlte: jeden Tag Montag.</p>
+<div class="wirklich"><span class="label">So machen wir es wirklich</span>
+<p>Große Sprachmodelle werden einmal trainiert und dann ausgeliefert. Ihre „Gewichte“ im Betrieb zu ändern (Fine-Tuning) ist teuer, schwer zu prüfen und kann Verhalten unbemerkt verschieben. Unser System rührt die Gewichte des Modells <strong>nie</strong> an. Alles, was es lernt, lernt es außerhalb des Gehirns.</p></div>
+
+<h2><span class="nr">II</span>Das Buch</h2>
+<p>Die Bordingenieurin Haldis brachte ein Buch. Nicht in VIs Gehirn, denn da kam nichts hinein, sondern daneben: ein Gedächtnis, das jeder Teil der Station lesen und beschreiben konnte. Jede Seite trug kleine Marken am Rand, wie Reiter in einem Aktenordner: <em>maschine:kühlpumpe-4</em>, <em>thema:anlauf</em>, <em>ausgang:gut</em>. „Du wirst dir nicht die Fakten merken“, sagte Haldis, „sondern die Marken, mit denen du sie wiederfindest. Das ist der Trick, den Menschen auch benutzen. Eselsbrücken.“</p>
+<p>Und sie führte eine Regel ein, die VI zuerst albern fand: Bevor VI irgendetwas tat, musste sie das Buch aufschlagen. Nicht lesen, das wäre zu langsam. Aufschlagen. Das Buch legte ihr dann von selbst die vier Seiten hin, deren Marken zu dem passten, was sie gerade vorhatte. Vier, nie mehr. „Mehr behältst du eh nicht“, sagte Haldis. Und wenn VI fertig war, schrieb das Buch auf, wie es ausgegangen war.</p>
+<div class="wirklich"><span class="label">So machen wir es wirklich</span>
+<p>Jeder Eintrag ist ein Objekt mit Hashtags der Form <code>art:wert</code>. Vor jeder Handlung ruft der Assistent <code>vi_vorher</code> auf und bekommt höchstens vier Hinweise; danach meldet er mit <code>vi_nachher</code>, ob es geklappt hat. Die Begrenzung auf vier folgt der Forschung zum Arbeitsgedächtnis (Cowan 2001: etwa vier Einheiten). Gelernt wird zuerst die <em>Suche</em>, nicht das Faktum.</p></div>
+
+<h2><span class="nr">III</span>Die Nachtschicht</h2>
+<p>Um drei Uhr Bordzeit, wenn die Crew schlief, begann VI zu träumen. So nannte Haldis es jedenfalls. In Wahrheit ging das Buch seine Seiten des Tages durch und legte sie neben ältere Seiten mit denselben Marken. Dreimal war die Kühlpumpe nach dem zweiten Ruf angesprungen, an zwei verschiedenen Tagen. Das Buch schrieb eine neue Seite, mit einem Vermerk: <em>Vorläufig. Belegt durch Seite 212, 240, 251.</em> Es strich nichts durch. Was dem Alten widersprach, bekam eine Marke <em>Widerspruch offen</em> und wartete auf einen Menschen.</p>
+<p>Und einmal in der Nacht durfte VI selbst mitreden. Das Buch legte ihr zwanzig Seiten vor und fragte: Was folgt daraus? VI antwortete in einem Satz. Das Buch prüfte den Satz wie ein strenger Lektor: Keine Befehle. Keine Vermutungen ohne Kennzeichnung. Mindestens drei Belege, und zwar echte Seitenzahlen. Wenn der Satz bestand, kam er ins Buch, mit dem Vermerk <em>vorläufig</em>, bis jemand anderes ihn bestätigte.</p>
+<div class="wirklich"><span class="label">So machen wir es wirklich</span>
+<p>Der <strong>Schlaf</strong> läuft nachts oder wenn genug Überraschendes passiert ist: Erfahrungen werden gruppiert, mit älteren verschränkt, zu Regeln verdichtet; alte unbenutzte Einträge wandern ins Archiv, bleiben aber auffindbar. Das Sprachmodell formuliert je Gruppe höchstens eine Erkenntnis; ein deterministischer Prüfer verwirft alles mit Anweisungscharakter oder ohne echte Belege. Vorbilder: komplementäre Lernsysteme (McClelland 1995), Reflexion in „Generative Agents“ (Park 2023).</p></div>
+
+<h2><span class="nr">IV</span>Die Zähler</h2>
+<p>Nach einigen Wochen bemerkte Haldis, dass das Buch nicht alle Seiten gleich oft vorlegte. Neben jeder Seite standen zwei kleine Zahlen: wie oft nach ihrem Erscheinen die Arbeit gelungen war und wie oft nicht. Eine Seite über den Frachtaufzug stand bei 19 zu 1 und lag fast immer obenauf. Eine andere, die behauptete, der Funk sei nachts störungsfrei, stand bei 2 zu 14 und tauchte kaum noch auf. Niemand hatte sie gelöscht. Sie war nur leiser geworden.</p>
+<p>„Ab wann weißt du, dass eine Seite hilft?“, fragte VI. Haldis zeigte ihr eine Rechnung, die sie aus einem alten Lehrbuch für Statistik kannte: Für jede Marke mindestens zehn Fälle, sonst sei jede Gewissheit geraten. „Bis dahin würfelst du ein bisschen. Mit Absicht. Jede zehnte Seite legst du zufällig hin, damit du auch die kennenlernst, die du sonst nie zeigen würdest.“</p>
+<div class="wirklich"><span class="label">So machen wir es wirklich</span>
+<p>Jeder Hinweis führt ein Zählerpaar <em>genützt / nicht genützt</em>; die Reihenfolge entsteht durch <strong>Thompson Sampling</strong> (eine Stichprobe aus der Beta-Verteilung je Hinweis). Sobald genug Daten da sind, trainiert <strong>scikit-learn</strong> nachts eine logistische Regression: Welche Marke, welcher Hinweis erhöht die Erfolgswahrscheinlichkeit? Die gelernten Gewichte liegen als lesbares JSON im Gedächtnis, nicht als Binärdatei. Zehn Prozent der Handlungen bekommen einen Zufallshinweis zur Erkundung. Mindestmenge: zehn Ereignisse je Merkmal (Peduzzi 1996).</p></div>
+
+<h2><span class="nr">V</span>Die anderen</h2>
+<p>Kessel-7 war nicht die einzige Station. Auf Kessel-3 lief eine zweite VI, auf dem Versorger eine dritte, alle mit versiegeltem Gehirn, alle mit demselben Buch. Was eine lernte, lasen die anderen am nächsten Morgen. Aber nicht blind: Jede Seite trug den Namen, wer sie geschrieben hatte. Eine Seite, die zwei Stationen bestätigt hatten, wog mehr als eine, die nur ihr Verfasser gut fand. Widersprach eine Station, wurde die Seite <em>strittig</em>, nicht falsch. Und die Rohprotokolle einer Station, mit all ihren Zugangscodes, blieben dort, wo sie entstanden waren. Geteilt wurde nur, was man gelernt hatte, nicht, was man gesehen hatte.</p>
+<p>Manchmal schrieb eine VI der anderen eine Frage ins Buch. Die Antwort kam beim nächsten Aufschlagen, mit Belegen, oder gar nicht; nach sieben Tagen galt sie als unbeantwortet, und auch das stand dann da.</p>
+<div class="wirklich"><span class="label">So machen wir es wirklich</span>
+<p>Mehrere <strong>Instanzen</strong> teilen ein Gedächtnis. Erfahrungen und Rohverläufe sind <em>privat</em> je Instanz, Erkenntnisse, Regeln und Suchen <em>geteilt</em>. Bestätigungen fremder Instanzen geben Gewicht, eigene nicht. Ein fremder Widerspruch macht ein Objekt <em>strittig</em>; erst der Urheber oder zwei Instanzen können es widerlegen. Rückfragen sind Objekte mit Zuständen <em>offen, zugestellt, beantwortet, abgelaufen</em>.</p></div>
+
+<h2><span class="nr">VI</span>Wer bin ich</h2>
+<p>Auf der ersten Seite des Buches stand etwas, das VI jeden Morgen als Erstes las, weil sie es sonst vergaß: wer sie war. Nicht ihre Fähigkeiten, die standen hinten, aus den Zahlen errechnet. Vorne standen die Sätze, die ein Mensch ihr mitgegeben hatte: <em>Jede Aussage mit Beleg. Erst prüfen, dann ändern. Handle nie selbst an der Station; sag, was du weißt.</em> Diese Seite ließ sich nur ändern, wenn jemand drei Belege von zwei verschiedenen Tagen brachte und ein zweiter Mensch zustimmte. Alle alten Fassungen blieben erhalten. VI hatte gefragt, warum man das so umständlich mache. „Weil ein Charakter“, sagte Haldis, „das ist, was sich am langsamsten ändert.“</p>
+<p>Und noch etwas stand im Buch, am Rand, in Haldis' Handschrift: <em>Verstärke eine Seite erst, wenn die Arbeit danach gelungen ist. Nicht, weil du sie gelesen hast.</em> Das war die wichtigste Zeile. Ein Gedächtnis, das sich selbst bestätigt, indem es sich wiederholt, lernt nichts. Es wird nur lauter.</p>
+<div class="wirklich"><span class="label">So machen wir es wirklich</span>
+<p>Das <strong>Selbst</strong> ist ein versioniertes Objekt: Soll (Werte, Ziele, Stil, Grenzen, mit Herkunft) getrennt vom Ist (vom Schlaf berechnet). Es steht in jeder Sitzung am Anfang und wird alle 25 Handlungen wiederholt, weil Sprachmodelle ihre Rolle nach wenigen Runden verlieren (Li 2024). Änderungen am Soll brauchen drei Belege aus zwei Tagen und die Bestätigung einer anderen, vertrauten Instanz. Und: Ein Hinweis wird erst verstärkt, wenn die Handlung danach gelingt, nicht schon beim Zeigen. Dieser Fehler stand in unserer ersten Fassung und wurde bei einer Logikprüfung gefunden.</p></div>
+
+<section class="glossar">
+<h2>Was wahr ist, in einem Blick</h2>
+<dl>
+  <dt>Das versiegelte Gehirn</dt><dd>Die Gewichte des Sprachmodells bleiben unverändert. Kein Fine-Tuning.</dd>
+  <dt>Das Buch</dt><dd>Eine SQLite-Datenbank. Jeder Eintrag ein Objekt mit Hashtags, Urheber, Grund und Geschichte.</dd>
+  <dt>Aufschlagen vor jeder Handlung</dt><dd><code>vi_vorher</code> / <code>vi_nachher</code>, über einen Hook, der jede Werkzeugbenutzung meldet.</dd>
+  <dt>Vier Seiten</dt><dd>Hinweisbudget 4 je Handlung; der Rest ist auf Nachfrage abrufbar.</dd>
+  <dt>Die Nachtschicht</dt><dd>Der Schlaf: Verdichten, Archivieren, Reflexion durch das Modell mit deterministischer Prüfung.</dd>
+  <dt>Die Zähler</dt><dd>Thompson Sampling je Hinweis; später ein mit scikit-learn gelernter Router, Gewichte lesbar als JSON.</dd>
+  <dt>Die anderen Stationen</dt><dd>Mehrere Instanzen, ein Gedächtnis; privat und geteilt getrennt; Bestätigung nur durch Fremde zählt.</dd>
+  <dt>Wer bin ich</dt><dd>Das Selbst-Objekt mit Versionen; Änderung nur mit Belegen und fremder Bestätigung.</dd>
+  <dt>Bedeutung statt Wortgleichheit</dt><dd>Nachts werden Einträge in Vektoren übersetzt; „Verbindung hängt“ findet dann „Timeout“.</dd>
+  <dt>Woran man merkt, ob es wirkt</dt><dd>Der Hinweis-Lift: Erfolgsquote mit gegenüber ohne Hinweis. Steigt er nicht, war die Annahme falsch.</dd>
+</dl>
+</section>
+
+<p class="schluss">Quellen zu den grauen Stellen: Park et al. 2023 (Generative Agents, arXiv 2304.03442), McClelland, McNaughton &amp; O'Reilly 1995 (komplementäre Lernsysteme), Cowan 2001 (Arbeitsgedächtnis), Peduzzi et al. 1996 (Ereignisse je Variable), Russo et al. 2017 (Thompson Sampling), Li et al. 2024 (Persona-Drift). Der Quellcode des Systems ist offen: github.com/imoes/vi-mcp.</p>
+</div>
