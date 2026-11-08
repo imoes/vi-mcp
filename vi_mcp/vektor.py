@@ -28,7 +28,7 @@ BATCH = 16
 BATCH_MAX = 256
 NAEHE_KANTE = 0.85
 NAEHE_DUBLETTE = 0.95
-VEKTOR_ARTEN = ("erkenntnis", "regel", "suche")
+VEKTOR_ARTEN = ("erkenntnis", "regel", "suche", "skill")
 TIMEOUT_S = 120
 
 #: Konfiguration: {"url": "https://host/embed/v1/embeddings", "token": "...", "modell": "..."} oder None

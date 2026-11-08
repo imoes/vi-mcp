@@ -28,15 +28,16 @@ from pathlib import Path
 
 from .protokoll import log
 
-ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell")
+ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell", "skill")
 #: strittig = von genau einer fremden Instanz widerlegt (erscheint weiter, mit Vermerk); widerlegt = vom Urheber
 #: oder von ≥ 2 verschiedenen Instanzen widerlegt (erscheint nicht mehr)
 #: archiviert = Stummel (Text, Hashtags) bleibt, Inhalt komprimiert in Tabelle archiv; nur mit modus:archiviert im Filter sichtbar
-MODI = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt", "archiviert")
+#: aufgegangen = Skill ist in einem anderen aufgegangen (Fusion); bleibt mit Verweis, erscheint nicht mehr in Suchen
+MODI = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt", "archiviert", "aufgegangen")
 #: Kollektiv: wer darf ein Objekt lesen? privat = nur die Urheber-Instanz (Ergebnisse können Zugangsdaten enthalten),
 #: geteilt = alle Instanzen. Der Loop (Server) sieht alles. Erschöpfend für ARTEN.
 SICHT_JE_ART = {"erfahrung": "privat", "antwort": "privat", "erkenntnis": "geteilt", "regel": "geteilt", "reflex": "geteilt",
-                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt"}
+                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt", "skill": "geteilt"}
 #: Urheber für Objekte, die der Server selbst anlegt (Loop) — eine benannte Instanz, kein NULL
 SERVER_INSTANZ = "vi"
 #: Gewichtbonus je verschiedener FREMDER Instanz, die bestätigt hat (Selbstbestätigung zählt nicht als Beleg)
@@ -52,7 +53,7 @@ VERFALL_D = 0.3
 TAG = re.compile(r"^[a-z][a-z0-9_-]{0,30}:[^\s()]+$")
 #: Hashtags, die Verwaltung sind und nicht Inhalt (für Verknüpfung und Trichter ignoriert)
 VERWALTUNG = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:", "an:", "von:", "ueberraschung:",
-              "modus:", "herkunft:", "konflikt:", "selbst:", "selbstbereich:", "modell:")
+              "modus:", "herkunft:", "konflikt:", "selbst:", "selbstbereich:", "modell:", "fusion:", "dublette:")
 
 sperre = threading.RLock()
 _db: sqlite3.Connection | None = None
@@ -394,6 +395,8 @@ def erinnere(filtertext: str, limit: int = 10, arten: tuple[str, ...] = (), betr
     if arten:
         gruppen.append([f"art:{a}" for a in arten])
     sql, par = "SELECT id FROM objekt WHERE modus <> 'widerlegt'", []
+    if not any("modus:aufgegangen" in grp for grp in gruppen):
+        sql += " AND modus <> 'aufgegangen'"  # Aufgegangenes nur auf Nachfrage (Verweis steht im Objekt)
     if not any("modus:archiviert" in grp for grp in gruppen):
         sql += " AND modus <> 'archiviert'"  # Archiviertes nur auf ausdrückliche Nachfrage
     if betrachter is not None:

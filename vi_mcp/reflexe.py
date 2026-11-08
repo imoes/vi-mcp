@@ -6,8 +6,9 @@ Drei Arten (erschöpfend):
   nachher   `def run(tool, args, ergebnis) -> None | str`                     → läuft in `vi_nachher` (Hook)
 
 Modi: `test` (nur Hinweis, Start), `aktiv` (wirkt), `aus`, `defekt` (nach REFLEX_FEHLER_AB Fehlern, benannt).
-Schutz: AST-Prüfung (Import-Whitelist, kein exec/eval/open/…), Zeitlimit je Lauf. Der Code läuft im
-Serverprozess — kein Prozess-Isolat; deshalb dürfen nur Instanzen mit `reflexe: true` Reflexe lernen/schalten.
+Schutz: AST-Prüfung (Import-Whitelist, kein exec/eval/open/…) als erste Schranke; seit 0.9.0 läuft jeder Lauf in
+einem eigenen Prozess (sandbox.py: Landlock + seccomp, Ressourcengrenzen, kein Netz, keine Dateien, keine Kindprozesse)
+als zweite; ist die Sandbox nicht herstellbar, läuft der Code nicht. Lernen/schalten dürfen weiter nur Instanzen mit `reflexe: true`.
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ import json
 import threading
 
 from . import gedaechtnis as g
+from . import sandbox
 from .protokoll import log
 
 REFLEX_ARTEN = ("werkzeug", "vorher", "nachher")
@@ -59,21 +61,21 @@ def pruefe(code: str, art: str) -> str:
 
 
 def lade_alle() -> dict[str, dict]:
-    """Alle Reflexe im Modus aktiv/test aus dem Gedächtnis übersetzen. Liefert {name: reflex}."""
+    """Alle Reflexe im Modus aktiv/test registrieren. Das TOOL-Schema eines Werkzeug-Reflexes wird in der Sandbox
+    ermittelt — kein Code läuft im Server."""
     neu: dict[str, dict] = {}
     for _, o, _g in g.erinnere("(modus:aktiv OR modus:test)", limit=500, arten=("reflex",)):
         if o.modus not in ("aktiv", "test"):
             continue
-        ns: dict = {"__name__": f"reflex_{o.daten['name']}"}
-        try:
-            exec(compile(o.daten["code"], f"<reflex {o.daten['name']}>", "exec"), ns)  # noqa: S102 — geprüfter Code
-        except Exception as exc:  # noqa: BLE001
-            log(f"Reflex {o.daten['name']} lädt nicht: {exc}")
-            continue
-        if not callable(ns.get("run")):
-            continue
-        neu[o.daten["name"]] = {"objekt": o, "name": o.daten["name"], "art": o.daten["art"], "modus": o.modus, "run": ns["run"],
-                                "schema": ns.get("TOOL") if o.daten["art"] == "werkzeug" else None}
+        schema = None
+        if o.daten["art"] == "werkzeug":
+            erg = sandbox.lauf(o.daten["code"], [], nur_schema=True)
+            if "fehler" in erg:
+                log(f"Reflex {o.daten['name']} lädt nicht ({erg['isolation']}): {erg['fehler']}")
+                continue
+            schema = erg.get("schema")
+        neu[o.daten["name"]] = {"objekt": o, "name": o.daten["name"], "art": o.daten["art"], "modus": o.modus, "code": o.daten["code"],
+                                "schema": schema}
     with _sperre:
         geladen.clear()
         geladen.update(neu)
@@ -89,22 +91,13 @@ def werkzeug_schemas() -> list[dict]:
 
 
 def lauf(r: dict, *args) -> dict:
-    erg: dict = {}
-
-    def _t():
-        try:
-            erg["wert"] = r["run"](*args)
-        except Exception as exc:  # noqa: BLE001
-            erg["fehler"] = f"{type(exc).__name__}: {exc}"
-
-    th = threading.Thread(target=_t, daemon=True, name=f"reflex-{r['name']}")
-    th.start()
-    th.join(REFLEX_ZEIT_S)
-    if th.is_alive():
-        erg["fehler"] = f"Zeitlimit {REFLEX_ZEIT_S} s"
+    erg = sandbox.lauf(r["code"], list(args), wanduhr_s=REFLEX_ZEIT_S + 2)
     o = g.lade(r["objekt"].id) or r["objekt"]
     o.daten["laeufe"] = o.daten.get("laeufe", 0) + 1
-    if "fehler" in erg:
+    o.daten["isolation"] = erg.get("isolation")
+    if erg.get("isolation") == "keine":  # Umgebung, nicht der Reflex: benannt, aber kein Fehlerpunkt gegen ihn
+        o.daten["letzter_fehler"] = erg.get("fehler", "")[:300]
+    elif "fehler" in erg:
         o.daten["fehler"] = o.daten.get("fehler", 0) + 1
         o.daten["letzter_fehler"] = erg["fehler"][:300]
         if o.daten["fehler"] >= REFLEX_FEHLER_AB:

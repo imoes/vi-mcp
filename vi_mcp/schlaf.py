@@ -8,6 +8,7 @@ Schritte — jeder zählt, jeder steht im Bericht (Objekt `schlaf:<zeit>`, Zusta
   3 Schema      passt eine Erkenntnis zum Cluster? gleicher Ausgang → Beleg-Kante; anderer → `konflikt:offen`
   4b Reflexion  Sprachmodell formuliert je Cluster ohne Schema höchstens eine Erkenntnis (test, geprüft, Belegkanten) — reflexion.py
   4 Abstraktion Rückfall aus Vorlage für Cluster ohne Reflexion: ≥ 3 Erfahrungen an ≥ 2 Tagen → Erkenntnis (test)
+  4c Skills     Erfolg nach Fehlern im selben Gespräch → Skill (Lösungsweg); scheiternde Skills → strittig; gleiche Probleme → fusion:vorschlag
   5 Archiv      Erfahrungen älter als ARCHIV_TAGE, nie zugegriffen, ohne Belegkante → `archiviert` (Stummel bleibt)
   6 Selbst-Ist  Kompetenz je Skill, Schwächen, Beziehungen neu berechnen
   7 Vektoren    fehlende Embeddings geteilter Wissensobjekte nachziehen (Batch), semantische Nähe → Kanten / dublette:moeglich
@@ -87,6 +88,7 @@ def lauf(grund: str) -> g.Objekt:
     schritt("3_schema", lambda: _schema(bericht))
     schritt("4b_reflexion", lambda: _reflexion(bericht))  # Sprachmodell zuerst (Stufe 4); was es belegt erklärt, gilt als Schema
     schritt("4_abstraktion", lambda: _abstraktion(bericht))  # Vorlage als Rückfall für Cluster ohne Reflexion
+    schritt("4c_skills", lambda: _skills(seit))
     schritt("5_archiv", lambda: _archiv())
     schritt("6_selbst_ist", lambda: _selbst_ist())
     schritt("7_vektoren", lambda: _vektoren())
@@ -185,6 +187,14 @@ def _schema(bericht: dict) -> dict:
                 bericht["geaendert"].append(s.id)
                 konflikte += 1
     return {"belegt": belegt, "konflikte": konflikte}
+
+
+def _skills(seit: str) -> dict:
+    from . import skills
+    r = skills.aus_erholung(seit)
+    r.update(skills.bewerte())
+    r.update(skills.fusions_vorschlaege())
+    return r
 
 
 def _reflexion(bericht: dict) -> dict:

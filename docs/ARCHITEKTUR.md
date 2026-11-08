@@ -63,6 +63,7 @@ Einträge; ältere werden **gezählt** gekürzt (`daten.aenderungen_gekuerzt`, i
 | `suche` | Eselsbrücke: Name, Filter, **Reize**, Geschichte | `vi_suche_lerne` |
 | `gespraech` | eine Sitzung, Seriennummer `YYYYMMDDNNN`, Zusammenfassung + Hashtags; Verlauf zlib in `gespraech_roh` | `initialize` |
 | `frage` | Rückfrage einer Instanz an eine andere oder an alle; Zustände `offen`/`zugestellt`/`beantwortet`/`abgelaufen` | `vi_frage` |
+| `skill` | Lösungsweg: Problem (Reize), Schritte, Anleitung, Versionen, Belege; Modi `test`/`aktiv`/`strittig`/`aufgegangen` | `vi_geloest`; Schlaf (Erfolg nach Fehlern) |
 | `selbst` | `selbst:kern` = das Selbst (Soll/Ist/Erzählung, versioniert); sonst Vorschläge fürs Soll (Modus `test`) | Start / `vi_selbst_vorschlag` |
 | `schlaf` | Bericht eines Konsolidierungslaufs: Zähler je Schritt, Dauer, Fehler, neue/geänderte IDs | Loop (nachts oder ab Wichtigkeitssumme) |
 
@@ -173,6 +174,20 @@ gemerkte Antworten, Rohverlauf und deren Kanten; das Gesprächsobjekt bleibt als
 Zeit, Urheber, Grund, Anzahl). Geteiltes Wissen aus dem Gespräch bleibt — es ist Wissen, kein Verlauf.
 Instanzweit (Person): `vi-mcp loesche-instanz <name> "<grund>"` auf dem Host (Admin, nicht per Token).
 
+## Skills — Lösungswege, die sich entwickeln
+
+`skills.py` (prozedurales Gedächtnis). Ein Skill entsteht, wenn etwas als gelöst gilt: eine Instanz meldet es mit
+`vi_geloest`, oder der Schlaf erkennt, dass eine Handlung nach Fehlern desselben Werkzeugs im selben Gespräch gelang
+(`ueberraschung:erholt`; die Werkzeugfolge vom ersten Fehler bis zum Erfolg ist der Lösungsweg). Er erscheint als
+Hinweis vor passenden Handlungen und ist **Text**: ausführbar wird Wissen nur über Reflexe in der Sandbox.
+
+**Weiterentwicklung:** Gleicher Name bzw. gleiches Problem ergibt eine neue Version mit Grund und Belegen; fehlende
+Schritte kommen hinzu, alte Fassungen bleiben in `daten.versionen`. Nützt ein Skill wiederholt nicht (≥ 3 Fehlschläge,
+Erfolgsquote < 30 %), setzt der Schlaf ihn auf `strittig`. **Zusammenführen:** `vi_skill_fusion(a, b, name, grund)` erzeugt
+einen neuen Skill aus beiden (Reize und Belege vereinigt, Schritte hintereinander); a und b werden `aufgegangen` mit
+Verweis, erscheinen nicht mehr in Suchen, bleiben aber abrufbar. Der Schlaf schlägt Fusionen nur vor (`fusion:vorschlag`
+bei gleichem Werkzeug + Fehlersignatur); entscheiden muss eine Instanz.
+
 ## Selbst — die virtuelle Persönlichkeit als Objekt
 
 `selbst:kern` (docs/FORSCHUNG.md A12, C1; Vorbild: Conways Self-Memory-System, Parks Steckbrief). **Intension und
@@ -256,8 +271,15 @@ offene Gespräche sichern · Leerlauf → `abgelaufen` · WAL-Checkpoint. Fehler
 
 Code im Gedächtnis, den die VI sich selbst schreibt. Prüfung per AST: Import-Whitelist
 (`reflexe.REFLEX_MODULE`), kein `exec`/`eval`/`open`/`getattr`/…, keine Dunder-Attribute; Zeitlimit 10 s; nach 3
-Fehlern `defekt` (benannt, entladen). **Grenze:** der Code läuft im Serverprozess — kein Prozess-Isolat. Deshalb
-dürfen nur Instanzen mit `reflexe: true` Reflexe lernen oder schalten; ausführen (als Hook) tun sie für alle.
+Fehlern `defekt` (benannt, entladen).
+
+**Sandbox (`sandbox.py`, seit 0.9.0):** Jeder Lauf ist ein eigener Prozess (`python3 -I -S`), der sich vor dem Übersetzen
+des fremden Codes unumkehrbar begrenzt: Landlock (lesbar nur `/usr`, `/lib`, `/lib64`, `/bin`; nichts schreib- oder
+kürzbar; kein TCP), seccomp (kein `socket()`, damit auch kein UDP; kein `execve`, `fork`, `clone`, `ptrace`), Grenzen für CPU,
+Speicher, Dateien; Wanduhr und Ausgabelimit erzwingt der Server. Die Sandbox setzt voraus, dass die AST-Prüfung
+versagt hat, und schützt auch die `vi.db`, obwohl das Kind unter demselben Nutzer läuft. Ist sie nicht herstellbar
+(kein Landlock ABI ≥ 4, nicht x86_64), läuft der Code **nicht** (`isolation: keine`). Kosten: ≈ 14 ms je Lauf
+(gemessen 08.11.2026). Reflexe lernen oder schalten dürfen nur Instanzen mit `reflexe: true`.
 
 ## Schutz
 

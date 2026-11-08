@@ -3,6 +3,36 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.9.0 — 2026-11-08 — Skills und Sandbox
+
+### Was ist neu
+
+- **Erinnerungsklasse Skill** (`skills.py`): entsteht aus `vi_geloest` oder im Schlaf aus „Erfolg nach Fehlern“, entwickelt
+  sich in Versionen, wird `strittig`, wenn sie nicht nützt, und lässt sich mit `vi_skill_fusion` zusammenführen (die alten
+  bleiben als `aufgegangen` mit Verweis). Werkzeuge `vi_geloest`, `vi_skills`, `vi_skill`, `vi_skill_fusion`.
+  *Nachweis:* `tests/test_skills.py` (4 Tests).
+- **Reflexe laufen in einer Sandbox** (`sandbox.py`): eigener Prozess, Landlock + seccomp. *Nachweis:* `tests/test_sandbox.py`
+  umgeht bewusst die AST-Prüfung: Datei lesen, schreiben und kürzen, UDP und Unix-Socket, `fork` scheitern;
+  Endlosschleife und Ausgabeflut werden beendet; ohne Sandbox läuft nichts. Am Produktivhost unter den Härtungsoptionen
+  des Dienstes geprüft (siehe `docs/LOKAL.md`). 77/77 Tests grün.
+
+### Was hat sich geändert
+
+- **Reflex-Läufe kosten jetzt ≈ 14 ms statt nahezu nichts** (gemessen, 10 Läufe, ein Host), weil jeder ein eigener Prozess ist.
+
+### Was wurde behoben
+
+- **Reflex-Code lief bis 0.8.0 per `exec` im Serverprozess**; nur die AST-Prüfung trennte ihn vom Gedächtnis.
+- `docs/erzaehlung.html` ist jetzt ein Betriebsbericht in Fachsprache (Wunsch des Nutzers) statt einer Geschichte.
+
+### Was fehlt noch
+
+- seccomp-Filter nur für x86_64 (auf anderen Architekturen läuft kein Reflex).
+- Landlock sperrt den Lesezugriff auf `/usr` nicht: Code kann dort liegende Dateien lesen.
+- `vi-mcp` ist bei Claude Code noch nicht registriert, der Hook nicht eingetragen (`~/.claude/settings.json` geprüft).
+  Deshalb liegen keine echten Handlungen vor, und **alle Lernstufen sind im Betrieb unbewiesen**.
+- Stufe 5 (P2P mit Import-Prüfung): nicht gebaut.
+
 ## 0.8.0 — 2026-11-08 — Stufe 4
 
 ### Was ist neu
@@ -20,7 +50,7 @@ Verlinkt aus [README.md](README.md).
 
 - Nachweis im Betrieb: alle vier Stufen warten auf echte Handlungen (Hook/Registrierung). Der Hinweis-Lift bleibt der
   Maßstab.
-- Stufe 5 (P2P-Austausch von Lerninhalten mit Import-Prüfung) und Stufe 6 (Erinnerungsklasse Skill) sind in Planung.
+- Stufe 5 (P2P-Austausch von Lerninhalten mit Import-Prüfung) ist in Planung.
 
 ## 0.7.0 — 2026-11-08 — Stufe 3
 

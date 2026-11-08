@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import gedaechtnis as g
-from . import bandit, fragen, intuition, lernen, messung, reflexe, schlaf, selbst, sitzung, vektor
+from . import bandit, fragen, intuition, lernen, messung, reflexe, schlaf, selbst, sitzung, skills, vektor
 from .schleife import stand as loop_stand, LOOP_S
 
 _O = {"type": "object"}
@@ -65,6 +65,20 @@ TOOLS = [
     {"name": "vi_modell", "description": "VI: das gelernte Router-Modell — Zustand (aktiv/test/zu wenig Daten), Beobachtungen, Holdout-AUC und die "
                                          "stärksten Gewichte je Merkmal (positiv = erhöht P(ok)). Erklärt, warum ein Hinweis vorne steht.",
      "inputSchema": _schema({})},
+    {"name": "vi_geloest",
+     "description": "VI-Skill: ein Problem gilt als gelöst — den Lösungsweg als Skill speichern (oder einen bestehenden weiterentwickeln). "
+                    "reize = Hashtags des Problems (tool:, host:, thema:, fehler:), schritte = Werkzeugfolge, anleitung = ein Satz, "
+                    "belege = Objekt-IDs (Erfahrungen). Skill startet im Modus test und erscheint vor passenden Handlungen.",
+     "inputSchema": _schema({"name": _S, "reize": _TAGS, "schritte": {"type": "array", "items": {"type": "string"}}, "anleitung": _S,
+                             "grund": _S, "belege": _TAGS}, ["name", "reize", "schritte", "anleitung", "grund"])},
+    {"name": "vi_skills", "description": "VI-Skill: alle Skills (Name, Version, Modus, Nutzen, Schritte); filter optional (Hashtags).",
+     "inputSchema": _schema({"filter": _S})},
+    {"name": "vi_skill", "description": "VI-Skill: ein Skill mit Problem, Lösungsweg, Versionen, Belegen, Fusionsherkunft.",
+     "inputSchema": _schema({"id": _S}, ["id"])},
+    {"name": "vi_skill_fusion",
+     "description": "VI-Skill: zwei Skills zu einem neuen zusammenführen (Reize vereinigt, Schritte hintereinander, Belege vereinigt). "
+                    "Die alten bekommen Modus aufgegangen mit Verweis — nichts verschwindet.",
+     "inputSchema": _schema({"a": _S, "b": _S, "name": _S, "grund": _S}, ["a", "b", "name", "grund"])},
     {"name": "vi_status", "description": "VI: Gedächtnis-Stand — Objekte je Art, Erfahrungen 24 h, offene Gespräche, Kanten, Loop.",
      "inputSchema": _schema({})},
     {"name": "vi_lerne",
@@ -226,6 +240,35 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
         if not l:
             return f"noch kein Schlaf — nächster um {schlaf.SCHLAF_STUNDE:02d}:00 UTC oder ab Wichtigkeitssumme {schlaf.SCHWELLE}"
         return l.text + "\n" + json.dumps({k: v for k, v in l.daten.items() if k != "top"}, ensure_ascii=False)[:3000]
+    if name == "vi_geloest":
+        try:
+            o = skills.neu(args.get("name") or "", args.get("reize") or [], args.get("schritte") or [], args.get("anleitung") or "",
+                           args.get("grund") or "", args.get("belege") or [], instanz)
+        except ValueError as e:
+            raise Abgelehnt(str(e)) from e
+        return f"{skills.zeile(o)} [{o.id}]"
+    if name == "vi_skills":
+        treffer = g.erinnere("art:skill " + (args.get("filter") or ""), limit=100)
+        return ("Skills:\n" + "\n".join(f"  {skills.zeile(o)} [{o.id}]" for _, o, _g in treffer)) if treffer else "keine Skills"
+    if name == "vi_skill":
+        o = _sichtbar(args.get("id"), instanz)
+        if o.art != "skill":
+            raise Abgelehnt(f"{o.id} ist kein Skill")
+        d = o.daten
+        z = [skills.zeile(o), f"  Problem: {' '.join(d['problem']['reize'])}", "  Schritte: " + " → ".join(f"{s['tool']}" + (f" ({s['hinweis']})" if s.get("hinweis") else "") for s in d["loesung"]["schritte"])]
+        if d.get("fusion_aus"):
+            z.append(f"  hervorgegangen aus: {', '.join(d['fusion_aus'])}")
+        if d.get("aufgegangen_in"):
+            z.append(f"  AUFGEGANGEN in {d['aufgegangen_in']}")
+        z.append(f"  Belege: {len(d.get('belege', []))} · Kanten: {len(o.kanten())}")
+        z += [f"  v{v['version']} {v['zeit'][:16]} {v['wer']}: {v['grund'][:120]} ({len(v.get('belege', []))} Belege)" for v in d["versionen"][-8:]]
+        return "\n".join(z)
+    if name == "vi_skill_fusion":
+        try:
+            o = skills.fusion(args.get("a") or "", args.get("b") or "", args.get("name") or "", args.get("grund") or "", instanz)
+        except ValueError as e:
+            raise Abgelehnt(str(e)) from e
+        return f"zusammengeführt → {skills.zeile(o)} [{o.id}]; {args['a']} und {args['b']} sind darin aufgegangen"
     if name == "vi_modell":
         return lernen.erklaerung()
     if name == "vi_status":
@@ -252,6 +295,7 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
                 f"Erfahrung 24 h: {n} Aufrufe, {aus} aus dem Gedächtnis, {fehler} Fehler · Antwort-TTL {intuition.TTL_STANDARD} s (max {intuition.TTL_MAX})\n"
                 + messung.zeile(messung.hinweis_lift(24, betrachter=None)) + "\n"
                 f"Schlaf: {(schlaf.letzter().text if schlaf.letzter() else 'noch keiner')[:200]}\n"
+                f"Reflex-Sandbox: {__import__('vi_mcp.sandbox', fromlist=['x']).beschreibung()}\n"
                 f"Router: {(lernen.modell().text if lernen.modell() else 'kein Modell')[:160]} · Rangordnung ohne Modell: Thompson Sampling (bandit), sobald Hinweise bewertet sind\n"
                 f"Loop: alle {LOOP_S} s, {ls['laeufe']} Läufe, zuletzt {ls['zuletzt'] or '—'}, {ls['regeln_neu']} Regeln daraus, "
                 f"{ls['fehler']} Fehler{(' (zuletzt: ' + ls['letzter_fehler'] + ')') if ls['letzter_fehler'] else ''}")

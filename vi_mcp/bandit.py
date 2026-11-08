@@ -17,7 +17,7 @@ import random
 
 from . import gedaechtnis as g
 
-HINWEIS_ARTEN = ("erkenntnis:", "regel:", "suche:")
+HINWEIS_ARTEN = ("erkenntnis:", "regel:", "suche:", "skill:")
 
 
 def zaehler(o: g.Objekt) -> tuple[int, int]:

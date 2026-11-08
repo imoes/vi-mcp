@@ -82,7 +82,7 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     # Kandidaten (Heuristik: Aktualität + Wichtigkeit + Bonus), dann ggf. Router-Modell (gelernter Lift), dann Erkundung
     from . import bandit, lernen
     import random as _random
-    kand = [o for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=HINWEIS_BUDGET + 8, arten=("erkenntnis", "regel"))]
+    kand = [o for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=HINWEIS_BUDGET + 8, arten=("erkenntnis", "regel", "skill"))]
     router = "heuristik"
     m = lernen.aktiv()
     if m is not None and kand:
@@ -102,6 +102,10 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
         gefunden.append(o.id)
         herkunft = f"von {o.instanz}" + (f", bestätigt von {o.fremde_bestaetigungen()} weiteren Instanz(en)" if o.fremde_bestaetigungen() else "")
         erk = " (Erkundung)" if exploration and i == len(gezeigt_obj) - 1 else ""
+        if o.art == "skill":
+            from . import skills
+            aus_gedaechtnis.append(f"{skills.zeile(o)}{erk} [{o.id}]")
+            continue
         aus_gedaechtnis.append(f"{'Gelernt' if o.art == 'erkenntnis' else 'Regel'}{erk} [{o.id[:28]}] ({herkunft}"
                                + (", STRITTIG — von einer anderen Instanz widersprochen" if o.modus == "strittig" else "")
                                + f"; {', '.join(t for t in o.hashtags if t.startswith(('modus:', 'skill:', 'kollektiv:')))[:60]}): "
