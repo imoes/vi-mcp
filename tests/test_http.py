@@ -86,7 +86,10 @@ def test_zwei_sitzungen_zwei_gespraeche(srv):
     rufe(port, tok_a, sa, "vi_nachher", {"tool": "netbox_get_devices", "args": {"host": "web1"}, "ok": True, "dauer_ms": 40,
                                          "ergebnis": "web1: aktiv", "vorher_id": v["vorher_id"]})
     v2 = json.loads(rufe(port, tok_b, sb, "vi_vorher", {"tool": "netbox_get_devices", "args": {"host": "web1"}})["content"][0]["text"])
-    assert v2["antwort"] == "web1: aktiv"  # gemeinsames Gedächtnis über Sitzungen und Instanzen
+    assert v2["antwort"] is None  # gemerkte Antworten sind privat je Instanz (können Zugangsdaten enthalten)
+    sa2 = init(port, tok_a, "claude-code-2")  # neue Sitzung derselben Instanz → bekommt die Antwort
+    v2b = json.loads(rufe(port, tok_a, sa2, "vi_vorher", {"tool": "netbox_get_devices", "args": {"host": "web1"}})["content"][0]["text"])
+    assert v2b["antwort"] == "web1: aktiv"
     # Gelerntes aus B erscheint vor der Handlung in A
     r = rufe(port, tok_b, sb, "vi_lerne", {"text": "web1 antwortet nur über den Proxy", "hashtags": ["host:web1"],
                                             "quelle": "curl -v am 08.11."})
@@ -95,7 +98,7 @@ def test_zwei_sitzungen_zwei_gespraeche(srv):
     assert any("Proxy" in h for h in v3["hinweise"])
     # Status nennt beide offenen Gespräche
     status = rufe(port, tok_a, sa, "vi_status", {})["content"][0]["text"]
-    assert "Offene Gespräche: 2" in status
+    assert "Offene Gespräche: 3" in status
     # Sitzung A beenden → Gespräch gesichert, Id danach unbekannt
     serial_a = sitzung.finde_ohne_beruehren(sa).serial
     assert anfrage(port, "DELETE", None, tok_a, sa)[0] == 204

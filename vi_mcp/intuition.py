@@ -42,15 +42,15 @@ def lesend(tool: str, angabe: bool | None = None) -> bool:
     return angabe if isinstance(angabe, bool) else not SCHREIBEND.search(tool)
 
 
-def reize(tool: str, args: dict, instanz: str | None = None) -> list[str]:
-    """Hinweisreize einer Handlung: Werkzeug, Skill (Präfix bis zum ersten _), Host aus den Argumenten, Instanz."""
+def reize(tool: str, args: dict, kontext: list[str] | None = None) -> list[str]:
+    """Hinweisreize einer Handlung: Werkzeug, Skill (Präfix bis zum ersten _), Host aus den Argumenten, dazu die
+    Kontext-Hashtags des Clients (woran er gerade arbeitet, z. B. thema:oom). Ungültige Hashtags fallen weg."""
     r = [f"tool:{tool}", f"skill:{tool.split('_')[0]}"]
     for k, v in (args or {}).items():
         if k in HOSTKEYS and isinstance(v, str) and v.strip():
             r.append(f"host:{v.strip().lower()}")
-    if instanz:
-        r.append(f"instanz:{instanz}")
-    return [t for t in r if g.TAG.match(t)]
+    r += [t.strip() for t in (kontext or []) if isinstance(t, str) and not t.startswith(g.VERWALTUNG)]
+    return list(dict.fromkeys(t for t in r if g.TAG.match(t)))
 
 
 def fehler_signatur(text: str) -> str:
@@ -61,16 +61,21 @@ def _frage(tool: str, args: dict) -> str:
     return g.hashwert(tool, json.dumps(args, sort_keys=True, ensure_ascii=False))
 
 
-def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool | None = None) -> dict:
+def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool | None = None,
+           kontext: list[str] | None = None) -> dict:
     args, hinweise = reflexe.vorher(tool, dict(args or {}))
-    rz = reize(tool, args, instanz)
-    such_reize = [t for t in rz if not t.startswith("instanz:")]
+    from . import fragen  # spät: fragen nutzt gedaechtnis wie wir
+    hinweise += fragen.zustellen(instanz)
+    rz = reize(tool, args, kontext)
+    such_reize = rz
     gefunden, suchen = [], []
     for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=4, arten=("erkenntnis", "regel")):
         o.zugriff()
         gefunden.append(o.id)
-        hinweise.append(f"{'Gelernt' if o.art == 'erkenntnis' else 'Regel'} [{o.id[:28]}] "
-                        f"({', '.join(t for t in o.hashtags if t.startswith(('modus:', 'skill:')))[:60]}): "
+        herkunft = f"von {o.instanz}" + (f", bestätigt von {o.fremde_bestaetigungen()} weiteren Instanz(en)" if o.fremde_bestaetigungen() else "")
+        hinweise.append(f"{'Gelernt' if o.art == 'erkenntnis' else 'Regel'} [{o.id[:28]}] ({herkunft}"
+                        + (", STRITTIG — von einer anderen Instanz widersprochen" if o.modus == "strittig" else "")
+                        + f"; {', '.join(t for t in o.hashtags if t.startswith(('modus:', 'skill:', 'kollektiv:')))[:60]}): "
                         f"{o.text[:300]} [Quelle: {str(o.daten.get('quelle', '—'))[:120]}]")
     # 1. Zugriff auf Gelerntes: Suchen, deren Hinweisreize zur Handlung passen, laufen automatisch
     for _, su, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=3, arten=("suche",)):
@@ -85,7 +90,7 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     antwort, alter_s, ttl = None, None, None
     if lesend(tool, ist_lesend):
         ttl = min(ttl_je_werkzeug.get(tool, TTL_STANDARD), TTL_MAX)
-        for _, o, _g in g.erinnere(f"art:antwort frage:{_frage(tool, args)}", limit=1):
+        for _, o, _g in g.erinnere(f"art:antwort cache:{_frage(tool, args)}", limit=1, betrachter=instanz):
             alter = (datetime.now(timezone.utc) - datetime.fromisoformat(o.zeit)).total_seconds()
             if alter <= ttl:
                 o.zugriff()
@@ -107,7 +112,7 @@ def nachher(tool: str, args: dict, ok: bool, dauer_ms: int, fehler: str | None, 
             vorher_id: str | None = None, instanz: str | None = None, ist_lesend: bool | None = None) -> dict:
     with _offen_sperre:
         offen = _offen.pop(vorher_id, None) if vorher_id else None
-    zugriff = offen[3] if offen else {"reize": reize(tool, args or {}, instanz), "gefunden": [], "suchen": [],
+    zugriff = offen[3] if offen else {"reize": reize(tool, args or {}), "gefunden": [], "suchen": [],
                                       "aus_gedaechtnis": False, "ohne_vorher": True}
     o = erfahrung(tool, args or {}, ok, dauer_ms, fehler, ergebnis, zugriff, instanz, ist_lesend)
     hinweise = reflexe.nachher(tool, dict(args or {}), ergebnis or "") if ok else []
@@ -136,7 +141,7 @@ def offene_abschliessen(gespraech: str | None = None, nur_aelter_als_s: float | 
 def erfahrung(tool: str, args: dict, ok: bool | None, dauer_ms: int, fehler: str | None, ergebnis: str | None,
               zugriff: dict, instanz: str | None = None, ist_lesend: bool | None = None) -> g.Objekt:
     tags = [f"tool:{tool}", f"skill:{tool.split('_')[0]}", f"ok:{'unbekannt' if ok is None else 'ja' if ok else 'nein'}"]
-    tags += [t for t in zugriff.get("reize", []) if t.startswith(("host:", "instanz:"))]
+    tags += [t for t in zugriff.get("reize", []) if t.startswith("host:")]
     if fehler:
         sig = fehler_signatur(fehler)[:60].replace(" ", "_").replace("(", "_").replace(")", "_")
         if g.TAG.match(f"fehler:{sig}"):
@@ -145,16 +150,18 @@ def erfahrung(tool: str, args: dict, ok: bool | None, dauer_ms: int, fehler: str
     text = f"{tool}({json.dumps(args, ensure_ascii=False)[:300]}) → " + (f"Fehler: {fehler[:300]}" if fehler else "kein Ergebnis gemeldet (vi_nachher fehlt)" if ok is None
                                                                        else f"ok, {len(ergebnis or '')} Zeichen, {dauer_ms} ms")
     o = g.neues_objekt("erfahrung", text, tags, {"args": args, "dauer_ms": dauer_ms, "fehler": fehler, "vorher": zugriff},
-                       wichtigkeit=2 if fehler else 0, grund="Werkzeugaufruf")
+                       wichtigkeit=2 if fehler else 0, grund="Werkzeugaufruf", instanz=instanz)
     for oid in zugriff.get("gefunden", []):
         o.verknuepfe(oid, "vor der Handlung erinnert")
     if ok and ergebnis is not None and lesend(tool, ist_lesend) and not zugriff.get("aus_gedaechtnis") and len(ergebnis) <= 200_000:
         fh = _frage(tool, args)
         with g.sperre:
-            alt = [r[0] for r in g.db().execute("SELECT objekt_id FROM tag WHERE tag = ?", (f"frage:{fh}",))]
+            # nur die eigene gemerkte Antwort ersetzen — der Cache ist privat je Instanz
+            alt = [r[0] for r in g.db().execute("SELECT t.objekt_id FROM tag t JOIN objekt o ON o.id = t.objekt_id "
+                                                "WHERE t.tag = ? AND o.instanz = ?", (f"cache:{fh}", o.instanz))]
         g.loesche(alt)
-        g.neues_objekt("antwort", text, [f"tool:{tool}", f"frage:{fh}"], {"ergebnis": ergebnis, "args": args},
-                       wichtigkeit=0, grund="Antwort gemerkt")
+        g.neues_objekt("antwort", text, [f"tool:{tool}", f"cache:{fh}"], {"ergebnis": ergebnis, "args": args},
+                       wichtigkeit=0, grund="Antwort gemerkt", instanz=instanz)
     from . import sitzung  # spät: sitzung kennt intuition nicht
     s = sitzung.aktuelle()
     if s:

@@ -28,14 +28,25 @@ from pathlib import Path
 
 from .protokoll import log
 
-ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche")
-MODI = ("aktiv", "test", "aus", "defekt", "widerlegt")
+ARTEN = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage")
+#: strittig = von genau einer fremden Instanz widerlegt (erscheint weiter, mit Vermerk); widerlegt = vom Urheber
+#: oder von ≥ 2 verschiedenen Instanzen widerlegt (erscheint nicht mehr)
+MODI = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt")
+#: Kollektiv: wer darf ein Objekt lesen? privat = nur die Urheber-Instanz (Ergebnisse können Zugangsdaten enthalten),
+#: geteilt = alle Instanzen. Der Loop (Server) sieht alles. Erschöpfend für ARTEN.
+SICHT_JE_ART = {"erfahrung": "privat", "antwort": "privat", "erkenntnis": "geteilt", "regel": "geteilt", "reflex": "geteilt",
+                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt"}
+#: Urheber für Objekte, die der Server selbst anlegt (Loop) — eine benannte Instanz, kein NULL
+SERVER_INSTANZ = "vi"
+#: Gewichtbonus je verschiedener FREMDER Instanz, die bestätigt hat (Selbstbestätigung zählt nicht als Beleg)
+BONUS_JE_INSTANZ = 0.2
+BONUS_MAX = 0.6
 #: Aktualität: Verfall je Stunde seit dem letzten Zugriff. Annahme (Erklärer zu Park et al. nennen γ = 0,995/h,
 #: ungeprüft gegen den Paper-Text) — benannt, nicht belegt.
 VERFALL_JE_H = 0.995
 TAG = re.compile(r"^[a-z][a-z0-9_-]{0,30}:[^\s()]+$")
 #: Hashtags, die Verwaltung sind und nicht Inhalt (für Verknüpfung und Trichter ignoriert)
-VERWALTUNG = ("art:", "frage:", "ok:", "serial:", "tag:")
+VERWALTUNG = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:", "an:", "von:")
 
 sperre = threading.RLock()
 _db: sqlite3.Connection | None = None
@@ -43,6 +54,8 @@ fts = False
 
 #: Das Gespräch (Seriennummer), in dessen Auftrag gerade gearbeitet wird — je Anfrage-Thread gesetzt
 aktuelles_gespraech: contextvars.ContextVar[str | None] = contextvars.ContextVar("aktuelles_gespraech", default=None)
+#: Die Instanz, in deren Auftrag gerade gelesen/geschrieben wird. None = der Server selbst (Loop): sieht alles.
+aktuelle_instanz: contextvars.ContextVar[str | None] = contextvars.ContextVar("aktuelle_instanz", default=None)
 
 
 def jetzt() -> str:
@@ -79,7 +92,8 @@ def oeffne(pfad: Path) -> None:
             id TEXT PRIMARY KEY, art TEXT NOT NULL, zeit TEXT NOT NULL, zuletzt TEXT NOT NULL,
             text TEXT NOT NULL DEFAULT '', daten TEXT NOT NULL DEFAULT '{}', wichtigkeit INTEGER NOT NULL DEFAULT 1,
             bestaetigt INTEGER NOT NULL DEFAULT 0, widerlegt INTEGER NOT NULL DEFAULT 0, zugriffe INTEGER NOT NULL DEFAULT 0,
-            modus TEXT NOT NULL DEFAULT 'aktiv', aenderungen TEXT NOT NULL DEFAULT '[]', gespraech TEXT);
+            modus TEXT NOT NULL DEFAULT 'aktiv', aenderungen TEXT NOT NULL DEFAULT '[]', gespraech TEXT,
+            instanz TEXT NOT NULL DEFAULT 'vi', sicht TEXT NOT NULL DEFAULT 'geteilt');
         CREATE INDEX IF NOT EXISTS objekt_art_zeit ON objekt(art, zeit);
         CREATE TABLE IF NOT EXISTS tag (objekt_id TEXT NOT NULL, tag TEXT NOT NULL, PRIMARY KEY (objekt_id, tag));
         CREATE INDEX IF NOT EXISTS tag_tag ON tag(tag);
@@ -87,6 +101,7 @@ def oeffne(pfad: Path) -> None:
             PRIMARY KEY (a, b));
         CREATE TABLE IF NOT EXISTS gespraech_roh (serial TEXT PRIMARY KEY, roh BLOB NOT NULL, laenge INTEGER NOT NULL);
     """)
+    _migriere(con)
     try:
         con.execute("CREATE VIRTUAL TABLE IF NOT EXISTS objekt_fts USING fts5(id UNINDEXED, text)")
         fts = True
@@ -98,6 +113,32 @@ def oeffne(pfad: Path) -> None:
         if _db is not None:
             _db.close()
         _db = con
+
+
+def _migriere(con: sqlite3.Connection) -> None:
+    """0.1.x → 0.2.0: Spalten instanz/sicht nachrüsten (Urheber aus dem Hashtag instanz:, Sicht aus der Art);
+    Cache-Hashtag frage:<hash> → cache:<hash> (frage ist jetzt eine Art)."""
+    spalten = {r[1] for r in con.execute("PRAGMA table_info(objekt)")}
+    if "instanz" not in spalten:
+        con.execute("ALTER TABLE objekt ADD COLUMN instanz TEXT NOT NULL DEFAULT 'vi'")
+        con.execute("UPDATE objekt SET instanz = COALESCE((SELECT substr(tag, 9) FROM tag WHERE objekt_id = objekt.id "
+                    "AND tag LIKE 'instanz:%' LIMIT 1), 'vi')")
+        log("Migration: Spalte instanz nachgerüstet")
+    if "sicht" not in spalten:
+        con.execute("ALTER TABLE objekt ADD COLUMN sicht TEXT NOT NULL DEFAULT 'geteilt'")
+        for art, sicht in SICHT_JE_ART.items():
+            con.execute("UPDATE objekt SET sicht = ? WHERE art = ?", (sicht, art))
+        log("Migration: Spalte sicht nachgerüstet")
+    n = con.execute("UPDATE tag SET tag = 'cache:' || substr(tag, 7) WHERE tag LIKE 'frage:%'").rowcount
+    if n:
+        log(f"Migration: {n} Cache-Hashtags frage: → cache:")
+    con.execute("CREATE INDEX IF NOT EXISTS objekt_instanz ON objekt(instanz, sicht)")
+    con.commit()
+
+
+def sichtbar_fuer(o: "Objekt", instanz: str | None) -> bool:
+    """Darf diese Instanz das Objekt lesen? None = der Server selbst."""
+    return instanz is None or o.sicht == "geteilt" or o.instanz == instanz
 
 
 def schliesse() -> None:
@@ -126,6 +167,8 @@ class Objekt:
     modus: str = "aktiv"
     aenderungen: list = field(default_factory=list)
     gespraech: str | None = None
+    instanz: str = SERVER_INSTANZ
+    sicht: str = "geteilt"
 
     @staticmethod
     def _grund_pflicht(grund: str) -> None:
@@ -148,18 +191,35 @@ class Objekt:
         self.aendere(wer, " ".join([f"+{t}" for t in hinzu] + [f"-{t}" for t in weg]), grund)
         return speichere(self)
 
-    def bestaetige(self, wer: str, grund: str) -> "Objekt":
+    def bestaetige(self, wer: str, grund: str, instanz: str | None = None) -> "Objekt":
+        """Bestätigen. Zählt je Instanz (daten.bestaetigt_von); Gewichtbonus nur für FREMDE Instanzen."""
         self._grund_pflicht(grund)  # erst prüfen, dann ändern — eine Ablehnung lässt das Objekt unverändert
+        i = instanz or SERVER_INSTANZ
+        von = dict(self.daten.get("bestaetigt_von") or {})
+        von[i] = von.get(i, 0) + 1
+        self.daten["bestaetigt_von"] = von
         self.bestaetigt += 1
-        self.aendere(wer, "bestätigt", grund)
+        if self.modus == "strittig" and i != self.instanz:
+            self.modus = "aktiv"  # eine fremde Bestätigung hebt den Streit auf — mit Geschichte
+        self.aendere(wer, "bestätigt" + (" (Selbstbestätigung, kein Gewichtbonus)" if i == self.instanz else ""), grund)
         return speichere(self)
 
-    def widerlege(self, wer: str, grund: str) -> "Objekt":
+    def widerlege(self, wer: str, grund: str, instanz: str | None = None) -> "Objekt":
+        """Widerlegen. Urheber selbst oder ≥ 2 verschiedene Instanzen → widerlegt (verschwindet aus Suchen);
+        genau eine fremde Instanz → strittig (bleibt sichtbar, mit Vermerk) — eine Instanz allein löscht nicht
+        das Wissen einer anderen."""
         self._grund_pflicht(grund)
+        i = instanz or SERVER_INSTANZ
+        von = dict(self.daten.get("widerlegt_von") or {})
+        von[i] = von.get(i, 0) + 1
+        self.daten["widerlegt_von"] = von
         self.widerlegt += 1
-        self.modus = "widerlegt"
-        self.aendere(wer, "widerlegt", grund)
+        self.modus = "widerlegt" if (i == self.instanz or len(von) >= 2) else "strittig"
+        self.aendere(wer, self.modus, grund)
         return speichere(self)
+
+    def fremde_bestaetigungen(self) -> int:
+        return len([i for i in (self.daten.get("bestaetigt_von") or {}) if i != self.instanz])
 
     def verknuepfe(self, anderes_id: str, grund: str) -> None:
         with sperre:
@@ -182,7 +242,7 @@ class Objekt:
 
 
 SPALTEN = ("id", "art", "zeit", "zuletzt", "text", "daten", "wichtigkeit", "bestaetigt", "widerlegt", "zugriffe",
-           "modus", "aenderungen", "gespraech")
+           "modus", "aenderungen", "gespraech", "instanz", "sicht")
 
 
 def _objekt_aus(row) -> Objekt:
@@ -202,11 +262,12 @@ def lade(oid: str) -> Objekt | None:
 
 
 def speichere(o: Objekt) -> Objekt:
-    tags = sorted(set(o.hashtags) | {f"art:{o.art}"})
+    tags = sorted(set(o.hashtags) | {f"art:{o.art}", f"instanz:{o.instanz}"})
     with sperre:
         db().execute(f"INSERT OR REPLACE INTO objekt ({', '.join(SPALTEN)}) VALUES ({', '.join('?' * len(SPALTEN))})",
                      (o.id, o.art, o.zeit, o.zuletzt, o.text, json.dumps(o.daten, ensure_ascii=False)[:400_000], o.wichtigkeit,
-                      o.bestaetigt, o.widerlegt, o.zugriffe, o.modus, json.dumps(o.aenderungen, ensure_ascii=False), o.gespraech))
+                      o.bestaetigt, o.widerlegt, o.zugriffe, o.modus, json.dumps(o.aenderungen, ensure_ascii=False), o.gespraech,
+                      o.instanz, o.sicht))
         db().execute("DELETE FROM tag WHERE objekt_id = ?", (o.id,))
         db().executemany("INSERT OR IGNORE INTO tag (objekt_id, tag) VALUES (?, ?)", [(o.id, t) for t in tags])
         if fts:
@@ -230,18 +291,21 @@ def loesche(oids: list[str]) -> int:
 
 def neues_objekt(art: str, text: str, hashtags: list[str], daten: dict | None = None, wichtigkeit: int = 1,
                  wer: str = "vi", grund: str = "", oid: str | None = None, modus: str = "aktiv",
-                 gespraech: str | None = None) -> Objekt:
+                 gespraech: str | None = None, instanz: str | None = None, sicht: str | None = None) -> Objekt:
     if art not in ARTEN:
         raise ValueError(f"art muss {', '.join(ARTEN)} sein")
     for t in hashtags:
         if not TAG.match(t):
             raise ValueError(f"Hashtag {t!r} hat nicht die Form art:wert")
+    # instanz: ist kein freier Hashtag, sondern der Urheber (Spalte instanz) — ein Ding, ein Ort
+    hashtags = [t for t in hashtags if not t.startswith("instanz:")]
     zeit = jetzt()
     # Zufallsanteil: zwei gleiche Handlungen in derselben Sekunde sind zwei Objekte, nicht eines (sonst überschreibt
     # INSERT OR REPLACE das erste still — gefunden von test_eingebaute_werkzeuge_nie_aus_gedaechtnis)
     o = Objekt(id=oid or f"{art}:{hashwert(art, text, zeit, json.dumps(daten or {}, sort_keys=True), secrets.token_hex(8))}", art=art, zeit=zeit,
                zuletzt=zeit, text=text, daten=daten or {}, hashtags=list(hashtags), wichtigkeit=max(0, min(3, wichtigkeit)),
                modus=modus, gespraech=gespraech or aktuelles_gespraech.get(),
+               instanz=instanz or aktuelle_instanz.get() or SERVER_INSTANZ, sicht=sicht or SICHT_JE_ART[art],
                aenderungen=[{"zeit": zeit, "wer": wer, "was": "angelegt", "grund": (grund or "angelegt")[:300]}])
     speichere(o)
     verknuepfe_aehnliche(o)
@@ -250,7 +314,7 @@ def neues_objekt(art: str, text: str, hashtags: list[str], daten: dict | None = 
 
 def verknuepfe_aehnliche(o: Objekt, mindestens: int = 2, limit: int = 5) -> None:
     """Zettelkasten: Objekte, die ≥ `mindestens` inhaltliche Hashtags teilen, werden verbunden (A-Mem-Idee)."""
-    inhalt = [t for t in o.hashtags if not t.startswith(("art:", "ok:", "frage:"))]
+    inhalt = [t for t in o.hashtags if not t.startswith(VERWALTUNG)]  # sonst verbände instanz:/art: alles mit allem
     if len(inhalt) < mindestens or o.art in ("antwort",):
         return
     with sperre:
@@ -288,12 +352,19 @@ def _tag_bedingung(tag: str) -> tuple[str, tuple]:
     return ("tag LIKE ?", (tag[:-1] + "%",)) if tag.endswith("*") else ("tag = ?", (tag,))
 
 
-def erinnere(filtertext: str, limit: int = 10, arten: tuple[str, ...] = ()) -> list[tuple[float, Objekt, dict]]:
-    """Objekte zum Filter, gewichtet: Relevanz (Tag-/Worttreffer) + Aktualität + Wichtigkeit (Park et al. 2023)."""
+def erinnere(filtertext: str, limit: int = 10, arten: tuple[str, ...] = (), betrachter: str | None = "aktuell") -> list[tuple[float, Objekt, dict]]:
+    """Objekte zum Filter, gewichtet: Relevanz (Tag-/Worttreffer) + Aktualität + Wichtigkeit (Park et al. 2023)
+    + Bonus je fremder bestätigender Instanz. Sichtbar ist, was geteilt ist oder dem Betrachter gehört
+    (betrachter "aktuell" = Instanz der laufenden Anfrage; None = Server, sieht alles)."""
+    if betrachter == "aktuell":
+        betrachter = aktuelle_instanz.get()
     gruppen, weg, worte = lies_filter(filtertext)
     if arten:
         gruppen.append([f"art:{a}" for a in arten])
     sql, par = "SELECT id FROM objekt WHERE modus <> 'widerlegt'", []
+    if betrachter is not None:
+        sql += " AND (sicht = 'geteilt' OR instanz = ?)"
+        par.append(betrachter)
     for g in gruppen:
         teile = [_tag_bedingung(t) for t in g]
         sql += " AND id IN (SELECT objekt_id FROM tag WHERE " + " OR ".join(b for b, _ in teile) + ")"
@@ -326,7 +397,8 @@ def erinnere(filtertext: str, limit: int = 10, arten: tuple[str, ...] = ()) -> l
             continue
         stunden = max(0.0, (jetzt_dt - datetime.fromisoformat(o.zuletzt)).total_seconds() / 3600)
         aktualitaet = VERFALL_JE_H ** stunden
-        wichtigkeit = min(1.0, o.wichtigkeit / 3 * 0.6 + math.log1p(o.bestaetigt * 2 + o.zugriffe) / 6 - o.widerlegt * 0.5)
+        bonus = min(BONUS_MAX, BONUS_JE_INSTANZ * o.fremde_bestaetigungen())
+        wichtigkeit = min(1.0, o.wichtigkeit / 3 * 0.6 + math.log1p(o.bestaetigt * 2 + o.zugriffe) / 6 - o.widerlegt * 0.5) + bonus
         relevanz = (wort_treffer.get(oid, 0.0) / hoechste_wort) if worte else 1.0
         bewertet.append((relevanz + aktualitaet + wichtigkeit, o, {"relevanz": round(relevanz, 2), "aktualitaet": round(aktualitaet, 2),
                                                                    "wichtigkeit": round(wichtigkeit, 2)}))

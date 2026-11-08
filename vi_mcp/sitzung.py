@@ -58,9 +58,11 @@ def im_auftrag(s: Sitzung | None):
     """Für die Dauer einer Anfrage: Objekte gehören zu diesem Gespräch, Züge landen in seinem Verlauf."""
     t1 = _aktuell.set(s)
     t2 = g.aktuelles_gespraech.set(s.serial if s else None)
+    t3 = g.aktuelle_instanz.set(s.instanz if s else None)
     try:
         yield s
     finally:
+        g.aktuelle_instanz.reset(t3)
         g.aktuelles_gespraech.reset(t2)
         _aktuell.reset(t1)
 
@@ -89,9 +91,9 @@ def beginne(instanz: str, client: str) -> Sitzung:
     serial = neue_seriennummer()
     tag = serial[:8]
     g.neues_objekt("gespraech", f"Gespräch {serial} begonnen ({client}, Instanz {instanz})",
-                   [f"serial:{serial}", f"tag:{tag}", f"instanz:{instanz}"],
-                   {"serial": serial, "aufrufe": 0, "client": client, "instanz": instanz},
-                   oid=f"gespraech:{serial}", grund="Sitzung gestartet", gespraech=serial)
+                   [f"serial:{serial}", f"tag:{tag}"],
+                   {"serial": serial, "aufrufe": 0, "client": client},
+                   oid=f"gespraech:{serial}", grund="Sitzung gestartet", gespraech=serial, instanz=instanz)
     s = Sitzung(id=secrets.token_urlsafe(24), serial=serial, instanz=instanz, client=client)
     with _reg_sperre:
         _sitzungen[s.id] = s

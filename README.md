@@ -10,7 +10,8 @@ erscheint der nächsten vor der passenden Handlung als Hinweis.
 
 **Was ist neu?** → [CHANGELOG.md](CHANGELOG.md) · **Wie ist es gebaut?** → [docs/ARCHITEKTUR.md](docs/ARCHITEKTUR.md) ·
 **Wie betreibe ich es?** → [docs/BETRIEB.md](docs/BETRIEB.md) ·
-**Handlungen automatisch melden** → [docs/HOOK.md](docs/HOOK.md)
+**Handlungen automatisch melden** → [docs/HOOK.md](docs/HOOK.md) ·
+**Wie Menschen sich erinnern — und was daraus folgt** → [docs/FORSCHUNG.md](docs/FORSCHUNG.md)
 
 ## In einem Bild
 
@@ -32,7 +33,7 @@ erscheint der nächsten vor der passenden Handlung als Hinweis.
 
 ```bash
 cd ~/Dev/code/vi-mcp
-python3 -m pytest -q tests          # 27 Tests, nur Standardbibliothek + pytest
+python3 -m pytest -q tests          # 37 Tests, nur Standardbibliothek + pytest
 deploy/install.sh                   # Instanz $USER anlegen, systemd-User-Dienst starten
 curl -s http://127.0.0.1:8765/gesund
 claude mcp add --transport http -s user vi-mcp http://127.0.0.1:8765/mcp \
@@ -45,9 +46,10 @@ Voraussetzungen: Python ≥ 3.11 (getestet mit 3.12.3), SQLite mit FTS5 (geteste
 
 | Werkzeug | Wofür |
 |---|---|
-| `vi_vorher` | **Hook**: vor einer Handlung melden → gemerkte Antwort (wenn lesend und frisch), Hinweise, ggf. geänderte Argumente, `vorher_id` |
+| `vi_vorher` | **Hook**: vor einer Handlung melden (optional `kontext_hashtags`) → gemerkte Antwort (wenn lesend und frisch, nur eigene Instanz), Hinweise aller Instanzen, Rückfragen, ggf. geänderte Argumente, `vorher_id` |
 | `vi_nachher` | **Hook**: nach der Handlung melden → Erfahrung, gemerkte Antwort, Nachher-Reflexe |
-| `vi_status` | Stand: Objekte je Art, Erfahrung 24 h, offene Gespräche, Loop (mit Fehlerzähler) |
+| `vi_frage` · `vi_antwort` · `vi_fragen` | **Kollektiv**: Rückfragen zwischen Instanzen (Antwort nur mit Belegen) |
+| `vi_status` | Stand: Objekte je Art, geteiltes Wissen je Instanz, offene Rückfragen, Erfahrung 24 h, offene Gespräche, Loop |
 | `vi_lerne` | Erkenntnis mit Hashtags und **Quelle (Pflicht)** |
 | `vi_erinnere` | Suche: `art:wert`, `!art:wert`, `(a OR b)`, `art:wert*`, Freitext; gewichtet, verstärkt |
 | `vi_vertiefe` | Trichter: auffälligsten Hashtag ergänzen, erneut suchen (bis 3 Stufen) |

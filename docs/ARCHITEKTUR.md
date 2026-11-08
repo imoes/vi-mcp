@@ -61,20 +61,56 @@ Eintrag in `aenderungen` (wer, wann, **Grund — Pflicht**, vor der Änderung ge
 | `reflex` | Python-Code: `werkzeug`, `vorher`, `nachher` | `vi_reflex_lerne` |
 | `suche` | Eselsbrücke: Name, Filter, **Reize**, Geschichte | `vi_suche_lerne` |
 | `gespraech` | eine Sitzung, Seriennummer `YYYYMMDDNNN`, Zusammenfassung + Hashtags; Verlauf zlib in `gespraech_roh` | `initialize` |
+| `frage` | Rückfrage einer Instanz an eine andere oder an alle; Zustände `offen`/`zugestellt`/`beantwortet`/`abgelaufen` | `vi_frage` |
 
 **Hashtags** `art:wert` (Tabelle `tag`); `art:<art>` immer gesetzt. Verwaltungs-Hashtags (`art:`, `frage:`, `ok:`,
 `serial:`, `tag:`) zählen nicht als Inhalt. **Kanten** (Tabelle `kante`, beidseitig, mit Grund): automatisch bei ≥ 2
 gemeinsamen inhaltlichen Hashtags (Zettelkasten-Idee, A-Mem) und von jeder Erfahrung zu den vorher gefundenen Objekten.
 
-**Modi** (erschöpfend): `aktiv`, `test`, `aus`, `defekt`, `widerlegt`. Widerlegte Objekte erscheinen in keiner Suche.
+**Modi** (erschöpfend): `aktiv`, `test`, `aus`, `defekt`, `strittig`, `widerlegt`. Widerlegte Objekte erscheinen in
+keiner Suche; strittige erscheinen mit Vermerk.
+
+**Urheber und Sicht** (Spalten `instanz`, `sicht`): Jedes Objekt gehört der Instanz, deren Token die Anfrage trug
+(Objekte des Loops: Instanz `vi`); das Hashtag `instanz:<name>` wird daraus gesetzt und ist nicht frei wählbar.
+`sicht` folgt der Art: **privat** sind `erfahrung` und `antwort` (und der Rohverlauf eines Gesprächs) — Ergebnisse
+können Zugangsdaten enthalten; **geteilt** ist alles andere. Eine Instanz liest Geteiltes und ihr Eigenes; private
+Objekte anderer Instanzen gelten für sie als unbekannt. Der Server (Loop) sieht alles.
+
+## Kollektiv: Instanzen lernen voneinander
+
+Eine **Instanz** ist ein Agentensystem mit eigenem Token (z. B. `claude-code`, ein Leitstand, ein anderer Agent) —
+benannt nach System, nicht nach Person. Alle Instanzen teilen ein Gedächtnis; was sie voneinander lernen, läuft über
+fünf Wege:
+
+1. **Vor der Handlung** liefert `vi_vorher` Erkenntnisse, Regeln und gelernte Suchen *aller* Instanzen, jeweils mit
+   Urheber („von b, bestätigt von 2 weiteren Instanzen“). Mit `kontext_hashtags` meldet ein Client, woran er gerade
+   arbeitet — mehr Reize, bessere Treffer.
+2. **Bestätigen über Instanzen:** `bestaetigt_von` zählt je Instanz. Nur *fremde* Bestätigungen geben Gewicht
+   (keine Selbstbestätigung, CLAUDE.md Regel 5).
+3. **Widersprechen über Instanzen:** Eine fremde Instanz allein macht ein Objekt `strittig` (bleibt sichtbar, mit
+   Vermerk) — sie kann nicht das Wissen einer anderen löschen. `widerlegt` wird es durch den Urheber selbst oder
+   durch zwei verschiedene Instanzen; eine fremde Bestätigung hebt `strittig` wieder auf.
+4. **Rückfragen:** `vi_frage(an, text)` → die Zielinstanz sieht die Frage bei ihrer nächsten Handlung (einmal je
+   Instanz), antwortet mit `vi_antwort(id, text, belege)` (Belege Pflicht); der Fragesteller sieht die Antwort bei
+   seiner nächsten Handlung oder über `vi_fragen`. Nach 7 Tagen ohne Antwort: `abgelaufen`.
+5. **Der Loop verdichtet über Instanzen:** gleicher Fehler ≥ 3× in 24 h → Regel; trat er bei ≥ 2 Instanzen auf,
+   trägt sie `kollektiv:ja` und nennt die Instanzen. Die Regel enthält nur Werkzeug und Fehlersignatur, nie Ergebnisse.
+
+Gemerkte Antworten (`antwort`) gelten seit 0.2.0 **nur innerhalb einer Instanz**.
 
 ## Erinnern
 
 Filtersprache: `art:wert` (UND), `(a OR b)`, `!art:wert`, Präfix `art:wert*`, Freiwörter → FTS5.
 Gewicht = **Relevanz** (FTS-Rang normiert, sonst 1) + **Aktualität** `0,995^Stunden seit zuletzt` + **Wichtigkeit**
-`wichtigkeit/3·0,6 + log1p(2·bestätigt + zugriffe)/6 − 0,5·widerlegt` (gedeckelt bei 1). Nach Park et al. 2023,
-„Generative Agents“ (arXiv 2304.03442); der Verfallsfaktor 0,995/h ist eine **Annahme** (nicht gegen das Paper
-geprüft). Jeder Treffer wird **verstärkt** (`zugriffe + 1` atomar, `zuletzt = jetzt`).
+`wichtigkeit/3·0,6 + log1p(2·bestätigt + zugriffe)/6 − 0,5·widerlegt` (gedeckelt bei 1) + **Kollektiv-Bonus**
+0,2 je *fremder* bestätigender Instanz (höchstens 0,6). Nach Park et al. 2023, „Generative Agents“ (arXiv 2304.03442).
+Jeder Treffer wird **verstärkt** (`zugriffe + 1` atomar, `zuletzt = jetzt`).
+
+> **Korrektur (08.11.2026):** Hier stand, der Verfallsfaktor 0,995/h sei eine *ungeprüfte Annahme*. Geprüft
+> (docs/FORSCHUNG.md, B1): Park et al. nennen 0,995 in Abschnitt 4.1 — aber **je Spielstunde**, und eine Spielstunde
+> entspricht dort etwa einer Minute Echtzeit (Anhang A). vi-mcp wendet den Faktor **je Echtzeit-Stunde** an
+> (Halbwertszeit ≈ 5,8 Tage). Der Faktor ist also belegt, die Zeiteinheit ist eine eigene Wahl. Außerdem normiert Park
+> die drei Bestandteile per Min-Max auf [0,1]; vi-mcp nicht. Beides steht unter „Was fehlt noch“ im CHANGELOG.
 
 **Vertiefen**: häufigster inhaltlicher Hashtag der Treffer, der nicht im Filter steht (≥ 2 Treffer), wird angehängt;
 erneut suchen; höchstens 3 (max 5) Stufen.
