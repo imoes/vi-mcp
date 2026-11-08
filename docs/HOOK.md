@@ -36,10 +36,10 @@ fehlen nur die Vorher-Hinweise, sonst nichts.
 
 ## Eintragen (noch nicht geschehen — braucht Freigabe)
 
-Voraussetzung: vi-mcp läuft und ist erreichbar. Für den Server auf <host> die Umgebung setzen (z. B. im
+Voraussetzung: vi-mcp läuft und ist erreichbar. Für einen entfernten Server die Umgebung setzen (z. B. im
 `env`-Block von `~/.claude/settings.json`):
 `VI_MCP_URL=https://<host>/vi-mcp/mcp`, `VI_MCP_TOKEN_FILE=~/.config/vi-mcp/token-anna-<host>`.
-Der Firmen-Proxy wird dabei nicht benutzt (`no_proxy` enthält `.<domain>`, geprüft 08.11.2026).
+Ein HTTP-Proxy aus der Umgebung (`http_proxy`) gilt auch für den Hook — die Domain des Servers gehört in `no_proxy`.
 In `~/.claude/settings.json`:
 
 ```json

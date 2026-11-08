@@ -24,8 +24,9 @@ ssh host sudo systemctl restart vi-mcp
 `dpkg -r vi-mcp` lässt Gedächtnis und Konfiguration stehen; `dpkg -P vi-mcp` löscht beides und den Nutzer.
 Ohne Instanz bleibt der Dienst nach der Installation aus und `postinst` sagt, was zu tun ist.
 
-**Installiert auf `<host>`** (08.11.2026, als `<admin>`): Ubuntu 24.04.5, Python 3.12.3, SQLite 3.45.1
-mit FTS5; Instanz `anna` (Reflex-Recht). Abnahme siehe CHANGELOG.
+**Produktivinstallation:** Host, Zugang, Instanzen und Pfade stehen in `docs/LOKAL.md` — bewusst **nicht** im Repo
+(`.gitignore`); hier stehen Platzhalter wie `<host>` und `<docker-gateway>`. Getestet auf Ubuntu 24.04.5,
+Python 3.12.3, SQLite 3.45.1 mit FTS5. Abnahme siehe CHANGELOG.
 
 ### Zugang von außen: `https://<host>/vi-mcp/mcp`
 

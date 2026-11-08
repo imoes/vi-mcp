@@ -17,11 +17,13 @@ install -m 0644 docs/*.md "$r/usr/share/doc/vi-mcp/docs/"
 install -m 0755 hook/vi_hook.py "$r/usr/share/vi-mcp/hook/vi_hook.py"
 for s in postinst prerm postrm; do install -m 0755 "deploy/debian/$s" "$r/DEBIAN/$s"; done
 groesse=$(du -sk "$r" | cut -f1)
+# Maintainer aus DEB_MAINTAINER oder der git-Konfiguration — steht nicht fest im Repo
+maintainer="${DEB_MAINTAINER:-$(git config user.name) <$(git config user.email)>}"
 cat > "$r/DEBIAN/control" <<CTRL
 Package: vi-mcp
 Version: ${version}-${rev}
 Architecture: all
-Maintainer: Thomas Kluge <Thomas.Kluge@example.org>
+Maintainer: ${maintainer}
 Depends: python3 (>= 3.11), adduser, systemd
 Section: net
 Priority: optional
