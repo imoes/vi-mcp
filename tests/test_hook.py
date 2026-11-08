@@ -84,3 +84,29 @@ def test_ausfall_laeuft_durch(h, monkeypatch, capsys):
     assert h.main() == 0
     assert capsys.readouterr().out == ""
     assert "ohne Gedächtnis weiter" in (h.ZUSTAND / "hook.log").read_text()
+
+
+def test_maskierung_und_kuerzung():
+    a = hook.bereinige({"command": "sshpass -p geheim1 ssh x; curl -H 'Authorization: Bearer abc123' https://u:pw2@h/ ; PASSWORD=xyz; curl -u a:b9 h", "n": 3, "l": ["token=t0k"]}, 300)
+    for geheim in ("geheim1", "abc123", "pw2", "xyz", "b9", "t0k"):
+        assert geheim not in json.dumps(a), geheim
+    assert a["n"] == 3 and "ssh x" in a["command"]
+    assert len(hook.bereinige({"content": "x" * 5000}, 300)["content"]) == 300
+    assert hook.lesend_angabe("mcp__skills__pwdepot_search_entries") is False and hook.lesend_angabe("mcp__skills__netbox_get_vms") is None
+
+
+def test_ergebnis_nur_bei_mcp(h, monkeypatch):
+    gesendet = {}
+    echt = h.rufe
+
+    def spion(s, c, name, args):
+        gesendet[(name, args["tool"])] = args
+        return echt(s, c, name, args)
+    monkeypatch.setattr(h, "rufe", spion)
+    for tool, uid in (("Read", "e1"), ("mcp__skills__netbox_get_vms", "e2"), ("mcp__skills__pwdepot_search_entries", "e3")):
+        h.verarbeite(ev("PreToolUse", tool_name=tool, tool_input={"q": uid}, tool_use_id=uid))
+        h.verarbeite(ev("PostToolUse", tool_name=tool, tool_input={"q": uid}, tool_use_id=uid, tool_response="INHALT"))
+    assert "ergebnis" not in gesendet[("vi_nachher", "Read")]
+    assert "ergebnis" not in gesendet[("vi_nachher", "pwdepot_search_entries")]
+    assert gesendet[("vi_nachher", "netbox_get_vms")]["ergebnis"] == "INHALT"
+    assert h.verarbeite(ev("PreToolUse", tool_name="mcp__skills__vi_status", tool_input={}, tool_use_id="v2")) is None

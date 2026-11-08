@@ -17,7 +17,10 @@
 - **Werkzeugname**: `mcp__<server>__<werkzeug>` → `<werkzeug>` (so heißen die Reize `tool:`/`skill:` wie die Werkzeuge selbst).
 - **Nie aus dem Gedächtnis**: eingebaute Werkzeuge (Bash, Read, Edit, Grep, …) melden `lesend: false` — Dateien und
   Systemzustand ändern sich. Nur MCP-Werkzeuge können eine gemerkte Antwort bekommen (und nur lesende, nach Namensmuster).
-- **Eigene Werkzeuge** (`mcp__vi-mcp__*`) werden nicht gemeldet.
+- **Werkzeuge des Gedächtnisses** (`vi_*` auf einem MCP-Server) werden nicht gemeldet.
+- **Datensparsamkeit**: Passwörter, Tokens und Zugangsdaten in URLs werden vor dem Senden maskiert. Das Ergebnis geht nur bei
+  MCP-Werkzeugen an den Server; eingebaute Werkzeuge und Werkzeuge für Zugangsdaten melden nur den Ausgang. Argumente
+  eingebauter Werkzeuge werden auf 300 Zeichen gekürzt. Die Maskierung arbeitet mit Mustern und kann Geheimnisse übersehen.
 - **Ausfall**: vi-mcp nicht erreichbar, Token fehlt, falsche Antwort → Exit 0 ohne Ausgabe, der Aufruf läuft ohne
   Gedächtnis; der Grund steht in `~/.cache/vi-mcp/hook/hook.log`. Ein Hook-Fehler hält nie eine Sitzung auf.
 

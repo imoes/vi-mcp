@@ -45,6 +45,7 @@ BONUS_JE_INSTANZ = 0.2
 BONUS_MAX = 0.6
 #: Änderungsgeschichte je Objekt; ältere Einträge werden gezählt gekürzt (daten.aenderungen_gekuerzt)
 GESCHICHTE_MAX = 50
+DATEN_MAX = 400_000
 #: Aktualität nach **Potenzgesetz** (Wixted & Ebbesen 1991; ACT-R: Anderson & Schooler 1991 — docs/FORSCHUNG.md A9):
 #: aktualitaet = (1 + h)^(−VERFALL_D), h = Stunden seit dem letzten Zugriff. Schnell am Anfang, langsam danach:
 #: 1 h 0,81 · 1 d 0,38 · 7 d 0,21 · 30 d 0,14 · 1 a 0,07. Bis 0.3.0 exponentiell 0,995^h (Park et al., dort je
@@ -292,11 +293,20 @@ def lade(oid: str) -> Objekt | None:
         return _objekt_aus(row) if row else None
 
 
+def _daten_json(o: Objekt) -> str:
+    """Zu große Daten werden benannt ersetzt. Ein Abschneiden des JSON-Textes machte das Objekt unlesbar."""
+    js = json.dumps(o.daten, ensure_ascii=False)
+    if len(js) <= DATEN_MAX:
+        return js
+    log(f"{o.id}: daten mit {len(js)} Zeichen über Grenze {DATEN_MAX} — ersetzt")
+    return json.dumps({"gekuerzt_zeichen": len(js), "grund": f"daten über {DATEN_MAX} Zeichen"})
+
+
 def speichere(o: Objekt) -> Objekt:
     tags = sorted(set(o.hashtags) | {f"art:{o.art}", f"instanz:{o.instanz}"})
     with sperre:
         db().execute(f"INSERT OR REPLACE INTO objekt ({', '.join(SPALTEN)}) VALUES ({', '.join('?' * len(SPALTEN))})",
-                     (o.id, o.art, o.zeit, o.zuletzt, o.text, json.dumps(o.daten, ensure_ascii=False)[:400_000], o.wichtigkeit,
+                     (o.id, o.art, o.zeit, o.zuletzt, o.text, _daten_json(o), o.wichtigkeit,
                       o.bestaetigt, o.widerlegt, o.zugriffe, o.modus, json.dumps(o.aenderungen, ensure_ascii=False), o.gespraech,
                       o.instanz, o.sicht))
         db().execute("DELETE FROM tag WHERE objekt_id = ?", (o.id,))

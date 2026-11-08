@@ -3,6 +3,18 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.9.1 — 2026-11-08 — Hook datensparsam
+
+### Was hat sich geändert
+
+- Der Hook maskiert Geheimnisse vor dem Senden, schickt Ergebnisse nur noch bei MCP-Werkzeugen und kürzt lange Argumente
+  eingebauter Werkzeuge. *Nachweis:* `test_maskierung_und_kuerzung`, `test_ergebnis_nur_bei_mcp`.
+
+### Was wurde behoben
+
+- Daten über 400 000 Zeichen wurden mitten im JSON abgeschnitten; das Objekt ließ sich danach nicht mehr laden. Jetzt
+  benannt ersetzt. *Nachweis:* `test_zu_grosse_daten_bleiben_lesbar`.
+
 ## 0.9.0 — 2026-11-08 — Skills und Sandbox
 
 ### Was ist neu

@@ -173,3 +173,9 @@ def test_instanz_anlegen_behaelt_rechte(tmp_path):
     os.chmod(p, 0o640)
     konfig.instanz_anlegen("b", p=p)
     assert stat.S_IMODE(os.stat(p).st_mode) == 0o640 and set(konfig.lade(p).instanzen) == {"a", "b"}
+
+
+def test_zu_grosse_daten_bleiben_lesbar(gd):
+    o = g.neues_objekt("erkenntnis", "viel Inhalt hier", ["thema:gross"], {"blob": "x" * (g.DATEN_MAX + 10)}, grund="T")
+    d = g.lade(o.id).daten
+    assert d["gekuerzt_zeichen"] > g.DATEN_MAX and "blob" not in d

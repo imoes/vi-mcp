@@ -11,7 +11,11 @@ Claude Code ruft das Skript als Hook auf (Ereignis aus stdin: `hook_event_name`)
 Jede Claude-Sitzung (`session_id`) ist in vi-mcp genau ein Gespräch; die Mcp-Session-Id liegt in einer Zustandsdatei.
 
 Ausfall: ist vi-mcp nicht erreichbar oder antwortet falsch, läuft der Aufruf durch (Exit 0, keine Ausgabe) — und der
-Grund steht in der Protokolldatei (benannt, nicht still). Eigene Werkzeuge (mcp__vi-mcp__*) werden nicht gemeldet.
+Grund steht in der Protokolldatei (benannt, nicht still). Werkzeuge des Gedächtnisses selbst (vi_*) werden nicht gemeldet.
+
+Datensparsamkeit: Geheimnisse in Argumenten und Fehlern werden vor dem Senden maskiert. Ergebnisse gehen nur bei
+MCP-Werkzeugen an den Server, weil nur dort eine gemerkte Antwort möglich ist; eingebaute Werkzeuge (Bash, Read, …) und
+Werkzeuge für Zugangsdaten melden nur den Ausgang. Lange Argumente eingebauter Werkzeuge werden gekürzt.
 
 Umgebung:
   VI_MCP_URL         Standard http://127.0.0.1:8765/mcp
@@ -24,6 +28,7 @@ from __future__ import annotations
 import getpass
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -35,8 +40,17 @@ URL = os.environ.get("VI_MCP_URL", "http://127.0.0.1:8765/mcp")
 TOKEN_DATEI = Path(os.environ.get("VI_MCP_TOKEN_FILE", f"~/.config/vi-mcp/token-{getpass.getuser()}")).expanduser()
 ZUSTAND = Path(os.environ.get("VI_HOOK_STATE", "~/.cache/vi-mcp/hook")).expanduser()
 TIMEOUT = float(os.environ.get("VI_HOOK_TIMEOUT", "3"))
-EIGENE = ("mcp__vi-mcp__",)
 MAX_ERGEBNIS = 200_000
+MAX_ARG_EINGEBAUT = 300
+MAX_ARG_MCP = 2000
+GEHEIM_WERKZEUG = re.compile(r"pwdepot|passw|secret|credential|_auth_|token", re.I)
+GEHEIM_MUSTER = [
+    (re.compile(r"(?i)\bbearer\s+[^\s\"']+"), "Bearer ***"),
+    (re.compile(r"(sshpass\s+-p\s*)\S+"), r"\1***"),
+    (re.compile(r"(\s-u\s+[^:\s]+:)\S+"), r"\1***"),
+    (re.compile(r"(://[^/\s:@]+:)[^@/\s]+@"), r"\1***@"),
+    (re.compile(r"(?i)((?:passwor[dt]|passwd|pwd|secret|token|api[_-]?key)[\"']?\s*[:=]\s*[\"']?)[^\s\"'&,;]+"), r"\1***"),
+]
 
 
 class Ausfall(Exception):
@@ -66,7 +80,24 @@ def werkzeug(tool_name: str) -> tuple[str, str | None]:
 def lesend_angabe(tool_name: str) -> bool | None:
     """Eingebaute Werkzeuge (Bash, Read, Edit, …) werden NIE aus dem Gedächtnis beantwortet — Dateien und
     Systemzustand ändern sich zwischen zwei Aufrufen. Bei MCP-Werkzeugen entscheidet vi-mcp nach dem Namen."""
-    return None if tool_name.startswith("mcp__") else False
+    return None if tool_name.startswith("mcp__") and not GEHEIM_WERKZEUG.search(tool_name) else False
+
+
+def maskiere(text: str) -> str:
+    for muster, ersatz in GEHEIM_MUSTER:
+        text = muster.sub(ersatz, text)
+    return text
+
+
+def bereinige(wert, max_laenge: int):
+    """Geheimnisse maskieren und lange Texte kürzen, rekursiv. Rein."""
+    if isinstance(wert, str):
+        return maskiere(wert)[:max_laenge]
+    if isinstance(wert, dict):
+        return {k: bereinige(v, max_laenge) for k, v in wert.items()}
+    if isinstance(wert, list):
+        return [bereinige(v, max_laenge) for v in wert[:50]]
+    return wert
 
 
 # ── Zustand: Gespräch je Sitzung, Vorher je tool_use_id ───────────────────────
@@ -173,16 +204,15 @@ def beende(claude_sitzung: str) -> None:
 # ── Ereignisse ────────────────────────────────────────────────────────────────
 
 def _ergebnis_text(antwort) -> str:
-    if isinstance(antwort, str):
-        return antwort[:MAX_ERGEBNIS]
-    return json.dumps(antwort, ensure_ascii=False)[:MAX_ERGEBNIS]
+    text = antwort if isinstance(antwort, str) else json.dumps(antwort, ensure_ascii=False)
+    return maskiere(text)[:MAX_ERGEBNIS]
 
 
 def vor_dem_werkzeug(e: dict) -> dict | None:
     """Liefert die Hook-Ausgabe (JSON für stdout) oder None (nichts zu sagen)."""
     tool_name = e.get("tool_name") or ""
     name, server = werkzeug(tool_name)
-    args = e.get("tool_input") or {}
+    args = bereinige(e.get("tool_input") or {}, MAX_ARG_MCP if server else MAX_ARG_EINGEBAUT)
     melde = {"tool": name, "args": args}
     lesend = lesend_angabe(tool_name)
     if lesend is not None:
@@ -205,12 +235,12 @@ def vor_dem_werkzeug(e: dict) -> dict | None:
 
 def nach_dem_werkzeug(e: dict, ok: bool) -> dict | None:
     tool_name = e.get("tool_name") or ""
-    name, _server = werkzeug(tool_name)
+    name, server = werkzeug(tool_name)
     v = lies("vorher", e.get("tool_use_id") or "") or {}
     entferne("vorher", e.get("tool_use_id") or "")
     # Dauer: von Claude Code gemessen (duration_ms, ohne Rückfragen und PreToolUse-Hooks), sonst eigene Zeitnahme
     dauer = e.get("duration_ms")
-    melde = {"tool": name, "args": v.get("args", e.get("tool_input") or {}), "ok": ok,
+    melde = {"tool": name, "args": v.get("args", bereinige(e.get("tool_input") or {}, MAX_ARG_MCP if server else MAX_ARG_EINGEBAUT)), "ok": ok,
              "dauer_ms": int(dauer) if isinstance(dauer, (int, float)) else int((time.time() - v["t0"]) * 1000) if v.get("t0") else 0}
     if v.get("vorher_id"):
         melde["vorher_id"] = v["vorher_id"]
@@ -218,9 +248,11 @@ def nach_dem_werkzeug(e: dict, ok: bool) -> dict | None:
     if lesend is not None:
         melde["lesend"] = lesend
     if ok:
-        melde["ergebnis"] = _ergebnis_text(e.get("tool_response"))
+        if lesend is None:  # nur hier kann eine Antwort gemerkt werden; sonst bleibt das Ergebnis in der Sitzung
+            melde["ergebnis"] = _ergebnis_text(e.get("tool_response"))
     else:
         fehler = e.get("error") or e.get("tool_response") or "unbekannter Fehler"
+        fehler = maskiere(fehler) if isinstance(fehler, str) else fehler
         melde["fehler"] = ("[abgebrochen] " if e.get("is_interrupt") else "") + _ergebnis_text(fehler)[:2000]
     n = rufe(e["session_id"], e.get("cwd"), "vi_nachher", melde)
     hinweise = n.get("hinweise") or []
@@ -234,7 +266,8 @@ def verarbeite(e: dict) -> dict | None:
     ereignis = e.get("hook_event_name")
     if not e.get("session_id"):
         raise Ausfall("session_id fehlt im Hook-Ereignis")
-    if ereignis in ("PreToolUse", "PostToolUse", "PostToolUseFailure") and (e.get("tool_name") or "").startswith(EIGENE):
+    name, server = werkzeug(e.get("tool_name") or "")
+    if ereignis in ("PreToolUse", "PostToolUse", "PostToolUseFailure") and server and name.startswith("vi_"):
         return None
     if ereignis == "PreToolUse":
         return vor_dem_werkzeug(e)
