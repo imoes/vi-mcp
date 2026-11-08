@@ -1,0 +1,20 @@
+[Unit]
+Description=vi-mcp — VI-Gedächtnis als MCP-Server (Streamable HTTP, ein Prozess)
+Documentation=file://%h/Dev/code/vi-mcp/README.md
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Dev/code/vi-mcp
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m vi_mcp
+Restart=on-failure
+RestartSec=5
+# SIGTERM → offene Gespräche werden als „unterbrochen“ gesichert, WAL zurückgeschrieben
+KillSignal=SIGTERM
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

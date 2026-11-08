@@ -78,7 +78,7 @@ def instanz_anlegen(name: str, reflexe: bool = False, p: Path | None = None) -> 
     roh = json.loads(p.read_text()) if p.exists() else {}
     token = secrets.token_urlsafe(32)
     roh.setdefault("instanzen", {})[name] = {"token_sha256": hashlib.sha256(token.encode()).hexdigest(), "reflexe": reflexe}
-    p.parent.mkdir(parents=True, exist_ok=True)
+    p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     tmp = p.with_suffix(".tmp")
     alte = os.umask(0o077)
     try:

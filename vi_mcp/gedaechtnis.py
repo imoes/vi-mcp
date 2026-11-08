@@ -62,7 +62,7 @@ def oeffne(pfad: Path) -> None:
     """Datenbank öffnen bzw. anlegen. Datei und Begleitdateien nur für den Eigentümer lesbar (0600):
     das Gedächtnis enthält Gesprächsverläufe und Werkzeugergebnisse, darin können Zugangsdaten stehen."""
     global _db, fts
-    pfad.parent.mkdir(parents=True, exist_ok=True)
+    pfad.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     alte_umask = os.umask(0o077)
     try:
         con = sqlite3.connect(str(pfad), check_same_thread=False, timeout=30)
