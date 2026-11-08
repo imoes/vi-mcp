@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import gedaechtnis as g
-from . import fragen, intuition, reflexe, sitzung
+from . import fragen, intuition, messung, reflexe, sitzung
 from .schleife import stand as loop_stand, LOOP_S
 
 _O = {"type": "object"}
@@ -72,8 +72,13 @@ TOOLS = [
      "inputSchema": _schema({"id": _S, "grund": _S}, ["id", "grund"])},
     {"name": "vi_vergiss", "description": "VI: gemerkte Antworten eines Werkzeugs verwerfen (nächster Aufruf fragt frisch).",
      "inputSchema": _schema({"tool": _S}, ["tool"])},
-    {"name": "vi_erfahrung", "description": "VI: Erfahrung je Werkzeug im Zeitraum — Aufrufe, Fehler, aus Gedächtnis, Median-Dauer, letzte Fehler.",
+    {"name": "vi_erfahrung", "description": "VI: Erfahrung je Werkzeug im Zeitraum — Aufrufe, Fehler, aus Gedächtnis, Median-Dauer, letzte Fehler; "
+                                            "dazu der Hinweis-Lift (Erfolg mit vs. ohne Hinweis) — der Messpunkt, ob die VI nützt.",
      "inputSchema": _schema({"tool": _S, "stunden": {"type": "number"}})},
+    {"name": "vi_loesche_gespraech",
+     "description": "VI: privaten Inhalt eines eigenen, beendeten Gesprächs löschen (Erfahrungen, gemerkte Antworten, Rohverlauf). "
+                    "Das Gespräch bleibt als Grabstein mit Grund; geteiltes Wissen daraus bleibt.",
+     "inputSchema": _schema({"serial": _S, "grund": _S}, ["serial", "grund"])},
     {"name": "vi_gespraech",
      "description": "VI: Gespräche (Sitzungen) — Liste mit Seriennummer YYYYMMDDNNN, eines mit Verlauf (serial), oder Volltextsuche (suche).",
      "inputSchema": _schema({"serial": _S, "suche": _S, "limit": {"type": "integer"}})},
@@ -192,6 +197,7 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
                 f"Objekte: " + ", ".join(f"{a} {arten.get(a, 0)}" for a in g.ARTEN) + f" · Kanten {kanten} · Volltext {'FTS5' if g.fts else 'LIKE'}\n"
                 f"Geteiltes Wissen je Instanz: " + (", ".join(f"{i} {k}" for i, k in je_inst) or "—") + f" · offene Rückfragen {offen_fragen}\n"
                 f"Erfahrung 24 h: {n} Aufrufe, {aus} aus dem Gedächtnis, {fehler} Fehler · Antwort-TTL {intuition.TTL_STANDARD} s (max {intuition.TTL_MAX})\n"
+                + messung.zeile(messung.hinweis_lift(24, betrachter=None)) + "\n"
                 f"Loop: alle {LOOP_S} s, {ls['laeufe']} Läufe, zuletzt {ls['zuletzt'] or '—'}, {ls['regeln_neu']} Regeln daraus, "
                 f"{ls['fehler']} Fehler{(' (zuletzt: ' + ls['letzter_fehler'] + ')') if ls['letzter_fehler'] else ''}")
     if name == "vi_lerne":
@@ -253,13 +259,24 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool) -> str:
         je: dict[str, list] = {}
         for o in treffer:
             je.setdefault(next((t[5:] for t in o.hashtags if t.startswith("tool:")), "?"), []).append(o)
-        z = [f"Erfahrung, letzte {h:g} h (Aufrufe / Fehler / aus Gedächtnis / Median ms):"]
+        lift = messung.hinweis_lift(h, args.get("tool"), betrachter=instanz)
+        z = [messung.zeile(lift)]
+        for t, d in sorted(lift["je_tool"].items(), key=lambda kv: -(kv[1]["mit"]["n"] + kv[1]["ohne"]["n"]))[:10]:
+            if d["mit"]["n"] and d["ohne"]["n"]:
+                z.append(f"  {t:42} mit {d['mit']['ok']}/{d['mit']['n']} · ohne {d['ohne']['ok']}/{d['ohne']['n']} → {d['urteil']}")
+        z.append(f"Erfahrung, letzte {h:g} h (Aufrufe / Fehler / aus Gedächtnis / Median ms):")
         for t, os_ in sorted(je.items(), key=lambda kv: -len(kv[1])):
             d = sorted(o.daten.get("dauer_ms", 0) for o in os_)
             z.append(f"  {t:42} {len(os_):>5} / {sum(1 for o in os_ if o.daten.get('fehler')):>4} / "
                      f"{sum(1 for o in os_ if o.daten.get('vorher', {}).get('aus_gedaechtnis')):>4} / {d[len(d) // 2] if d else 0:>6}")
         z += ["Letzte Fehler:"] + [f"  {o.zeit[:16]} {o.text[:140]}" for o in treffer if o.daten.get("fehler")][:8]
         return "\n".join(z)
+    if name == "vi_loesche_gespraech":
+        try:
+            r = sitzung.loesche_gespraech((args.get("serial") or "").strip(), instanz, args.get("grund") or "")
+        except ValueError as e:
+            raise Abgelehnt(str(e)) from e
+        return f"Gespräch {r['serial']}: {r['objekte']} private Objekte und der Rohverlauf gelöscht; Grabstein mit Grund bleibt"
     if name == "vi_gespraech":
         if args.get("serial"):
             offen = next((x for x in sitzung.offene() if x.serial == args["serial"]), None)

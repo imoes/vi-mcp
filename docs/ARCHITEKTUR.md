@@ -55,7 +55,7 @@ Einträge; ältere werden **gezählt** gekürzt (`daten.aenderungen_gekuerzt`, i
 
 | Art | Wozu | Entsteht durch |
 |---|---|---|
-| `erfahrung` | jede gemeldete Handlung: Werkzeug, Argumente, Dauer, `ok:ja`/`ok:nein`/`ok:unbekannt`; `daten.vorher` = Gedächtniszugriff davor | `vi_nachher`; `vi_vorher` mit gemerkter Antwort; vorher ohne nachher (Sitzungsende/1 h) |
+| `erfahrung` | jede gemeldete Handlung: Werkzeug, Argumente, Dauer, `ok:ja`/`ok:nein`/`ok:unbekannt`; `daten.vorher` = Gedächtniszugriff davor; **Wichtigkeit aus Überraschung** (`ueberraschung:neu` 3 · `wiederholt`/`erholt` 2 · `chronisch` 1 · `keine` 0 — Vorhersagefehler als Lernsignal, docs/FORSCHUNG.md A7) | `vi_nachher`; `vi_vorher` mit gemerkter Antwort; vorher ohne nachher (Sitzungsende/1 h) |
 | `antwort` | gemerktes Ergebnis eines **lesenden** Aufrufs (`frage:<hash>`), gilt 120 s (je Werkzeug konfigurierbar, max 1 h) | `vi_nachher` |
 | `erkenntnis` | Gelerntes mit Quelle und Wichtigkeit 0–3 | `vi_lerne` |
 | `regel` | verdichtet: gleicher Fehler ≥ 3× in 24 h, Modus `test` | Loop |
@@ -138,8 +138,9 @@ vi_nachher(tool, args, ok, dauer_ms, fehler?, ergebnis?, vorher_id) → {erfahru
 Gezeigtes wurde allein durchs Zeigen wichtiger und deshalb wieder gezeigt (Selbstbestätigung, Matthäus-Effekt;
 CLAUDE.md Regel 5). Seit 0.2.1 verstärkt `vi_nachher` mit `ok=true` die vorher gefundenen Objekte. Das ist eine
 **Annahme** („der Hinweis hat genützt“, Testing-Effekt: nur erfolgreiches Abrufen stärkt, docs/FORSCHUNG.md A10).
-*Beobachtungspunkt:* `vi_erfahrung` — Erfolgsquote mit gegenüber ohne Hinweise; steigt sie nicht, ist die Annahme
-falsch. Bewusstes Nachlesen (`vi_erinnere`, `vi_objekt`, `vi_vertiefe`) verstärkt weiterhin sofort.
+*Beobachtungspunkt:* **Hinweis-Lift** (`messung.py`, in `vi_erfahrung` je Werkzeug und in `vi_status` gesamt):
+Erfolgsquote der Handlungen mit Hinweis gegen ohne; unter 10 Fällen je Seite „zu wenig Daten“; Lift < −5 Punkte heißt
+„Hinweise schaden — Annahme widerlegt“. Bewusstes Nachlesen (`vi_erinnere`, `vi_objekt`, `vi_vertiefe`) verstärkt weiterhin sofort.
 
 **Lesend oder schreibend?** Gibt der Client `lesend` an, gilt seine Angabe; sonst das Namensmuster
 `intuition.SCHREIBEND` (create, update, delete, send, …). Schreibende Werkzeuge werden **nie** aus dem Gedächtnis
@@ -156,6 +157,13 @@ auch über 999). Während einer Anfrage gehören neue Objekte zu diesem Gespräc
 
 Zustände (erschöpfend): `offen` · `beendet` (DELETE) · `abgelaufen` (4 h ohne Anfrage) · `unterbrochen`
 (Server beendet). Bei jedem Übergang aus `offen` wird gesichert; danach liefert die Sitzungs-Id 404.
+
+## Löschen — nichts verschwindet still
+
+`vi_loesche_gespraech(serial, grund)`: nur die Urheber-Instanz, nur beendete Gespräche. Entfernt Erfahrungen,
+gemerkte Antworten, Rohverlauf und deren Kanten; das Gesprächsobjekt bleibt als **Grabstein** (`zustand:geloescht`,
+Zeit, Urheber, Grund, Anzahl). Geteiltes Wissen aus dem Gespräch bleibt — es ist Wissen, kein Verlauf.
+Instanzweit (Person): `vi-mcp loesche-instanz <name> "<grund>"` auf dem Host (Admin, nicht per Token).
 
 ## Loop
 

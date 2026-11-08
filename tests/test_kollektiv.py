@@ -188,3 +188,62 @@ def test_geschichte_kuerzung_benannt(gd):
     o = g.lade(o.id)
     assert len(o.aenderungen) == g.GESCHICHTE_MAX and o.daten["aenderungen_gekuerzt"] == 5
     assert "5 ältere Änderungen gekürzt" in werkzeuge.rufe("vi_objekt", {"id": o.id}, "a", True)
+
+
+def test_ueberraschung_bestimmt_wichtigkeit(gd):
+    def fehl(i):
+        v = intuition.vorher("graylog_search", {"q": i}, "a")
+        return g.lade(intuition.nachher("graylog_search", {"q": i}, False, 1, "ConnectionError: refused 10.0.0.9", None, v["vorher_id"], "a")["erfahrung"])
+    stufen = [fehl(i).daten["ueberraschung"]["stufe"] for i in range(5)]
+    assert stufen == ["neu", "wiederholt", "wiederholt", "chronisch", "chronisch"]
+    assert g.erinnere("ueberraschung:neu", betrachter=None)[0][1].wichtigkeit == 3
+    assert g.erinnere("ueberraschung:chronisch", betrachter=None)[0][1].wichtigkeit == 1
+    v = intuition.vorher("graylog_search", {"q": "x"}, "a")
+    e = g.lade(intuition.nachher("graylog_search", {"q": "x"}, True, 1, None, "ok", v["vorher_id"], "a")["erfahrung"])
+    assert e.daten["ueberraschung"]["stufe"] == "erholt" and e.wichtigkeit == 2
+    v = intuition.vorher("netbox_get_sites", {}, "a")
+    e = g.lade(intuition.nachher("netbox_get_sites", {}, True, 1, None, "ok", v["vorher_id"], "a")["erfahrung"])
+    assert e.daten["ueberraschung"]["stufe"] == "keine" and e.wichtigkeit == 0
+
+
+def test_hinweis_lift_messpunkt(gd):
+    from vi_mcp import messung
+    g.neues_objekt("erkenntnis", "web9 nur über Proxy", ["host:web9"], {"quelle": "x"}, grund="T")
+    for i in range(12):  # mit Hinweis (host:web9) → 10/12 ok
+        v = intuition.vorher("checkmk_get_host", {"host": "web9", "i": i}, "a")
+        intuition.nachher("checkmk_get_host", {"host": "web9", "i": i}, i < 10, 1, None if i < 10 else "Timeout", "ok" if i < 10 else None, v["vorher_id"], "a")
+    for i in range(12):  # ohne Hinweis → 4/12 ok
+        v = intuition.vorher("checkmk_get_host", {"host": "web8", "i": i}, "a")
+        intuition.nachher("checkmk_get_host", {"host": "web8", "i": i}, i < 4, 1, None if i < 4 else "Timeout", "ok" if i < 4 else None, v["vorher_id"], "a")
+    l = messung.hinweis_lift(24, betrachter=None)
+    assert l["mit"] == {"n": 12, "ok": 10} and l["ohne"] == {"n": 12, "ok": 4} and l["urteil"] == "Hinweise nützen"
+    assert "+50 Punkte" in messung.zeile(l)
+    assert "zu wenig Daten" in messung.hinweis_lift(24, tool="gibtsnicht", betrachter=None)["urteil"]
+    assert "Hinweis-Lift" in werkzeuge.rufe("vi_status", {}, "a", True)
+
+
+def test_gespraech_loeschen_grabstein(ab):
+    a, b = ab
+    with sitzung.im_auftrag(a):
+        v = intuition.vorher("t_x", {"passwort": "geheim123"}, "a")
+        e = intuition.nachher("t_x", {"passwort": "geheim123"}, True, 1, None, "geheimes Ergebnis", v["vorher_id"], "a")["erfahrung"]
+        k = g.neues_objekt("erkenntnis", "aus dem Gespräch gelernt", ["thema:l"], {"quelle": "x"}, grund="T")
+    with pytest.raises(werkzeuge.Abgelehnt, match="noch offen"):
+        als(a, "vi_loesche_gespraech", {"serial": a.serial, "grund": "Test"})
+    sitzung.beende(a.id)
+    with pytest.raises(werkzeuge.Abgelehnt, match="gehört Instanz a"):
+        als(b, "vi_loesche_gespraech", {"serial": a.serial, "grund": "fremd"})
+    r = als(a, "vi_loesche_gespraech", {"serial": a.serial, "grund": "Zugangsdaten im Verlauf"})
+    assert "2 private Objekte" in r
+    assert g.lade(e) is None and g.lade(k.id) is not None  # privat weg, geteiltes Wissen bleibt
+    with g.sperre:
+        assert g.db().execute("SELECT COUNT(*) FROM gespraech_roh WHERE serial = ?", (a.serial,)).fetchone()[0] == 0
+        assert g.db().execute("SELECT COUNT(*) FROM kante WHERE a = ? OR b = ?", (e, e)).fetchone()[0] == 0
+    gs = g.lade(f"gespraech:{a.serial}")
+    assert gs.daten["zustand"] == "geloescht" and gs.daten["geloescht"]["objekte"] == 2 and "zustand:geloescht" in gs.hashtags
+    assert "geheim" not in gs.text and "Zugangsdaten im Verlauf" in gs.text
+    with pytest.raises(werkzeuge.Abgelehnt, match="bereits gelöscht"):
+        als(a, "vi_loesche_gespraech", {"serial": a.serial, "grund": "nochmal"})
+    sitzung.beende(b.id)
+    r = sitzung.loesche_instanz_daten("b", "Admin: Instanz aufgelöst")  # Admin-Weg (CLI): alle Gespräche → Grabsteine
+    assert r["gespraeche"] == 1 and g.lade(f"gespraech:{b.serial}").daten["zustand"] == "geloescht"

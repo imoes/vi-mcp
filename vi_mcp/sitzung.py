@@ -178,6 +178,50 @@ def finde_ohne_beruehren(sitzungs_id: str) -> Sitzung | None:
         return _sitzungen.get(sitzungs_id)
 
 
+def loesche_gespraech(serial: str, instanz: str, grund: str) -> dict:
+    """Privaten Inhalt eines Gesprächs löschen: Erfahrungen, gemerkte Antworten, Rohverlauf, deren Kanten.
+    Das Gesprächsobjekt bleibt als **Grabstein** (Zustand `geloescht`, mit Zeit, Urheber, Grund, Anzahl) — nichts
+    verschwindet still. Geteiltes Wissen aus dem Gespräch (Erkenntnisse, Suchen, Regeln) bleibt: es ist Wissen, kein
+    Verlauf. Nur die Urheber-Instanz darf löschen; offene Gespräche nicht (erst beenden)."""
+    if not (grund or "").strip():
+        raise ValueError("Grund ist Pflicht")
+    o = g.lade(f"gespraech:{serial}")
+    if not o:
+        raise ValueError(f"Gespräch {serial} unbekannt")
+    if o.instanz != instanz:
+        raise ValueError(f"Gespräch {serial} gehört Instanz {o.instanz}, nicht {instanz}")
+    if any(s.serial == serial for s in offene()):
+        raise ValueError(f"Gespräch {serial} ist noch offen — erst beenden (DELETE)")
+    if o.daten.get("zustand") == "geloescht":
+        raise ValueError(f"Gespräch {serial} ist bereits gelöscht ({o.daten['geloescht']['zeit']})")
+    with g.sperre:
+        ids = [r[0] for r in g.db().execute("SELECT id FROM objekt WHERE gespraech = ? AND sicht = 'privat'", (serial,))]
+        g.db().execute("DELETE FROM gespraech_roh WHERE serial = ?", (serial,))
+        g.db().commit()
+    g.loesche(ids)
+    o.text = f"Gespräch {serial} ({o.daten.get('client', '?')}, Instanz {o.instanz}): Inhalt gelöscht am {g.jetzt()[:16]} — {grund.strip()[:200]}"
+    o.daten = {"serial": serial, "client": o.daten.get("client"), "zustand": "geloescht",
+               "geloescht": {"zeit": g.jetzt(), "wer": f"ki@{instanz}", "grund": grund.strip()[:300], "objekte": len(ids)}}
+    o.hashtags = [t for t in o.hashtags if t.startswith(("serial:", "tag:"))] + ["zustand:geloescht"]
+    o.aendere(f"ki@{instanz}", "gelöscht", grund)
+    g.speichere(o)
+    return {"serial": serial, "objekte": len(ids)}
+
+
+def loesche_instanz_daten(instanz: str, grund: str) -> dict:
+    """Admin (CLI, nicht per MCP): alle privaten Daten einer Instanz — jedes ihrer Gespräche bekommt einen Grabstein."""
+    with g.sperre:
+        serials = [r[0][len("gespraech:"):] for r in g.db().execute(
+            "SELECT id FROM objekt WHERE art = 'gespraech' AND instanz = ? AND json_extract(daten, '$.zustand') <> 'geloescht'", (instanz,))]
+    n = 0
+    for s in serials:
+        n += loesche_gespraech(s, instanz, grund)["objekte"]
+    with g.sperre:  # private Objekte ohne Gespräch (z. B. aus Tests ohne Sitzung)
+        rest = [r[0] for r in g.db().execute("SELECT id FROM objekt WHERE instanz = ? AND sicht = 'privat'", (instanz,))]
+    n += g.loesche(rest)
+    return {"gespraeche": len(serials), "objekte": n}
+
+
 def alle_beenden(zustand: str = "beendet") -> int:
     with _reg_sperre:
         ids = list(_sitzungen)

@@ -48,7 +48,7 @@ GESCHICHTE_MAX = 50
 VERFALL_JE_H = 0.995
 TAG = re.compile(r"^[a-z][a-z0-9_-]{0,30}:[^\s()]+$")
 #: Hashtags, die Verwaltung sind und nicht Inhalt (für Verknüpfung und Trichter ignoriert)
-VERWALTUNG = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:", "an:", "von:")
+VERWALTUNG = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:", "an:", "von:", "ueberraschung:")
 
 sperre = threading.RLock()
 _db: sqlite3.Connection | None = None
@@ -285,10 +285,12 @@ def speichere(o: Objekt) -> Objekt:
 
 
 def loesche(oids: list[str]) -> int:
+    """Objekte samt Hashtags, Volltext und Kanten entfernen — keine hängenden Kanten auf Nichts."""
     with sperre:
         for a in oids:
             db().execute("DELETE FROM objekt WHERE id = ?", (a,))
             db().execute("DELETE FROM tag WHERE objekt_id = ?", (a,))
+            db().execute("DELETE FROM kante WHERE a = ? OR b = ?", (a, a))
             if fts:
                 db().execute("DELETE FROM objekt_fts WHERE id = ?", (a,))
         db().commit()

@@ -16,7 +16,7 @@ import re
 import secrets
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from . import gedaechtnis as g
 from . import reflexe
@@ -151,19 +151,54 @@ def offene_abschliessen(gespraech: str | None = None, nur_aelter_als_s: float | 
     return len(faelle)
 
 
+#: Überraschung (Vorhersagefehler als Lernsignal, docs/FORSCHUNG.md A7): Stufe → Wichtigkeit. Erschöpfend.
+UEBERRASCHUNG = {"neu": 3, "wiederholt": 2, "erholt": 2, "chronisch": 1, "keine": 0, "unbekannt": 0}
+
+
+def ueberraschung(tool: str, ok: bool | None, fehler_sig: str | None) -> tuple[str, str]:
+    """(Stufe, Grund). Erster Fehler dieser Art in 24 h = neu; 2.–3. = wiederholt; ab dem 4. = chronisch;
+    Erfolg nach Fehlern desselben Werkzeugs = erholt; sonst keine. Zählt über alle Instanzen (Server-Sicht)."""
+    if ok is None:
+        return "unbekannt", "kein Ergebnis gemeldet"
+    seit = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(timespec="seconds")
+    with g.sperre:
+        if not ok and fehler_sig:
+            n = g.db().execute("SELECT COUNT(*) FROM objekt o JOIN tag t1 ON t1.objekt_id = o.id AND t1.tag = ? "
+                               "JOIN tag t2 ON t2.objekt_id = o.id AND t2.tag = ? WHERE o.art = 'erfahrung' AND o.zeit >= ?",
+                               (f"tool:{tool}", f"fehler:{fehler_sig}", seit)).fetchone()[0]
+            if n == 0:
+                return "neu", "erster Fehler dieser Art in 24 h"
+            if n <= 2:
+                return "wiederholt", f"{n + 1}. gleicher Fehler in 24 h"
+            return "chronisch", f"{n + 1}. gleicher Fehler in 24 h — bekannt, nicht mehr überraschend"
+        if ok:
+            n = g.db().execute("SELECT COUNT(*) FROM objekt o JOIN tag t1 ON t1.objekt_id = o.id AND t1.tag = ? "
+                               "JOIN tag t2 ON t2.objekt_id = o.id AND t2.tag = 'ok:nein' WHERE o.art = 'erfahrung' AND o.zeit >= ?",
+                               (f"tool:{tool}", seit)).fetchone()[0]
+            if n:
+                return "erholt", f"Erfolg nach {n} Fehler(n) desselben Werkzeugs in 24 h"
+    return "keine", "erwarteter Ausgang"
+
+
 def erfahrung(tool: str, args: dict, ok: bool | None, dauer_ms: int, fehler: str | None, ergebnis: str | None,
               zugriff: dict, instanz: str | None = None, ist_lesend: bool | None = None) -> g.Objekt:
     tags = [f"tool:{tool}", f"skill:{tool.split('_')[0]}", f"ok:{'unbekannt' if ok is None else 'ja' if ok else 'nein'}"]
     tags += [t for t in zugriff.get("reize", []) if t.startswith("host:")]
+    sig = None
     if fehler:
         sig = fehler_signatur(fehler)[:60].replace(" ", "_").replace("(", "_").replace(")", "_")
         if g.TAG.match(f"fehler:{sig}"):
             tags.append(f"fehler:{sig}")
+        else:
+            sig = None
+    stufe, grund_u = ueberraschung(tool, ok, sig)  # VOR dem Speichern zählen, sonst zählt sich die Erfahrung selbst mit
+    tags.append(f"ueberraschung:{stufe}")
     tags = [t for t in tags if g.TAG.match(t)]
     text = f"{tool}({json.dumps(args, ensure_ascii=False)[:300]}) → " + (f"Fehler: {fehler[:300]}" if fehler else "kein Ergebnis gemeldet (vi_nachher fehlt)" if ok is None
                                                                        else f"ok, {len(ergebnis or '')} Zeichen, {dauer_ms} ms")
-    o = g.neues_objekt("erfahrung", text, tags, {"args": args, "dauer_ms": dauer_ms, "fehler": fehler, "vorher": zugriff},
-                       wichtigkeit=2 if fehler else 0, grund="Werkzeugaufruf", instanz=instanz)
+    o = g.neues_objekt("erfahrung", text, tags, {"args": args, "dauer_ms": dauer_ms, "fehler": fehler, "vorher": zugriff,
+                                                  "ueberraschung": {"stufe": stufe, "grund": grund_u}},
+                       wichtigkeit=UEBERRASCHUNG[stufe], grund=f"Werkzeugaufruf · Überraschung {stufe}: {grund_u}", instanz=instanz)
     for oid in zugriff.get("gefunden", []):
         o.verknuepfe(oid, "vor der Handlung erinnert")
     if ok and ergebnis is not None and lesend(tool, ist_lesend) and not zugriff.get("aus_gedaechtnis") and len(ergebnis) <= 200_000:
