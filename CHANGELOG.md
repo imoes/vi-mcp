@@ -3,6 +3,18 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.3 — 2026-11-09 — Kein fester Nachtlauf mehr
+
+### Was hat sich geändert
+
+- **Der Nachtlauf um 03:00 UTC ist nur noch ein Sicherheitsnetz:** Er läuft, wenn seit 24 Stunden kein Schlaf lief. Trainiert wird seit 0.20.0 bei Bedarf;
+  geschlafen wird, sobald die Wichtigkeit neuer Erfahrungen 40 erreicht (auf dem Produktivsystem in der Nacht zum 09.11. etwa alle 10–80 Minuten).
+
+### Was wurde behoben
+
+- Der Nachtlauf fiel still aus, sobald am selben Kalendertag schon ein Schlaf gelaufen war. Am 09.11. liefen Schläfe um 00:28, 01:50, 02:00, 02:10 und
+  02:44 UTC; um 03:00 passierte nichts, und das stand nirgends. *Nachweis:* `test_nachtlauf_nur_wenn_24_h_kein_schlaf` (schlägt mit 0.20.2 fehl).
+
 ## 0.20.2 — 2026-11-09 — Fallstricke von Alltagswerkzeugen werden erkannt
 
 ### Was wurde behoben

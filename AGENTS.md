@@ -6,7 +6,7 @@ Ein Serverprozess mit einem Gedächtnis für viele KI-Sitzungen über MCP (Strea
 ## Wie es funktioniert
 
 Vor jeder Handlung fragt die Sitzung `vi_vorher` und bekommt höchstens vier Hinweise aus dem Gedächtnis; danach meldet sie `vi_nachher`.
-Der Schlaf (nachts oder bei genug Wichtigem) verdichtet Erfahrungen zu Erkenntnissen und Skills und bewertet die Arbeit (Scorer). Router, Bandit und Vektoren
+Der Schlaf (bei genug Wichtigem; nachts nur nach 24 h ohne Schlaf) verdichtet Erfahrungen zu Erkenntnissen und Skills und bewertet die Arbeit (Scorer). Router, Bandit und Vektoren
 lernen bei Bedarf (`bedarf`), etwa eine Minute nach neuen Erfahrungen oder neuem Wissen. Sichten: privat, geteilt, intern (nur mit Token, nie im Netz).
 Alles ist ein Objekt in SQLite mit Hashtags (`art:wert`), Urheber-Instanz und Sicht privat/geteilt. Trainiert wird nie das Sprachmodell.
 

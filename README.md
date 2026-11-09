@@ -32,7 +32,7 @@ Code, API tables and commands are stored in full, because what is missing from m
 
 - **Objects, not notes.** Everything is an object with hashtags (`kind:value`), an author and a visibility (private, shared, or internal: token holders only, never the network): experience, insight, rule, skill, score.
 - **Before every action** (`vi_vorher`) a session receives at most four hints. A hint is only reinforced once the action succeeds.
-- **Sleep.** At night, or once enough important events pile up, the server condenses experiences, compares them with what it knows and archives what goes unused.
+- **Sleep.** Once enough important events pile up (at night only if none ran in the last 24 hours), the server condenses experiences, compares them with what it knows and archives what goes unused.
 - **Scorer.** Code rules, the local language model and you judge whether work succeeded. "The tool did not crash" alone does not say that.
 - **Learning.** From those scores the router (logistic regression, weights kept as readable JSON) learns which hint helps when. Training runs on demand, about a minute after new experiences arrive (one run takes under a second), not only at night.
 - **Reflexes and skills.** Proven solutions become skills; small checks run as code in a sandbox (Landlock, seccomp).

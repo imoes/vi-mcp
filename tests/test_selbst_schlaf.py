@@ -87,7 +87,7 @@ def test_schlaf_abstraktion_schema_konflikt_und_bericht(gd):
     # Cluster (host:web5, skill:checkmk): 4 Handlungen an 2 Tagen, alle ok → Erkenntnis (test) mit Belegkanten
     ids = [_erfahrung("checkmk_get_host", "web5", True) for _ in range(4)]
     _alter(ids[0], 1); _alter(ids[1], 1)
-    assert schlaf.faellig(datetime(2026, 11, 9, 3, 5, tzinfo=timezone.utc)) == "Nachtlauf 03:00 UTC"
+    assert schlaf.faellig(datetime(2026, 11, 9, 3, 5, tzinfo=timezone.utc)) == "Nachtlauf 03:00 UTC (kein Schlaf in 24 h)"
     assert schlaf.faellig(datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc)) is None  # Wichtigkeit 0, keine Nacht
     b = schlaf.lauf("Test")
     assert b.art == "schlaf" and "zustand:fertig" in b.hashtags and b.daten["schritte"]["4_abstraktion"] == 1
@@ -116,3 +116,12 @@ def test_schlaf_selbst_ist(gd):
     ist = selbst.kern().daten["ist"]
     assert ist["kompetenz"][0] == {"bereich": "skill:netbox", "erfahrungen": 5, "erfolgsquote": 0.8, "zeitraum": "30 d"}
     assert "Erfahren in: skill:netbox (5 Handlungen, 80 % ok, 30 d)" in selbst.kern().daten["erzaehlung"]
+
+
+def test_nachtlauf_nur_wenn_24_h_kein_schlaf(gd):
+    """0.20.3: Ein Schlaf am selben Kalendertag (00:28) ließ den Nachtlauf still ausfallen; jetzt ist der Nachtlauf Sicherheitsnetz für ruhige Tage."""
+    b = schlaf.lauf("Wichtigkeit")
+    jetzt = datetime.fromisoformat(b.zeit)
+    um_drei = jetzt.replace(hour=3, minute=5) if jetzt.hour >= 3 else jetzt.replace(hour=3, minute=5)
+    assert schlaf.faellig(um_drei + timedelta(days=0 if um_drei > jetzt else 1)) is None  # Schlaf liegt < 24 h zurück
+    assert schlaf.faellig(um_drei + timedelta(days=2)).startswith("Nachtlauf")       # > 24 h ohne Schlaf

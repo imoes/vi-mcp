@@ -48,8 +48,11 @@ def faellig(jetzt: datetime | None = None) -> str | None:
     jetzt = jetzt or datetime.now(timezone.utc)
     l = letzter()
     seit = l.zeit if l else "1970-01-01T00:00:00+00:00"
-    if jetzt.hour == SCHLAF_STUNDE and (not l or l.zeit[:10] != jetzt.date().isoformat()):
-        return f"Nachtlauf {SCHLAF_STUNDE:02d}:00 UTC"
+    # Seit 0.20.3 nur noch Sicherheitsnetz: Training läuft bei Bedarf (bedarf.py), geschlafen wird ab der Wichtigkeitsschwelle. Nachts nur,
+    # wenn seit 24 h kein Schlaf lief (ruhige Tage). Vorher zählte jeder Schlaf desselben Kalendertags — nach einem Schlaf um 00:28 fiel
+    # der Nachtlauf aus, ohne dass es irgendwo stand (gesehen 09.11.2026).
+    if jetzt.hour == SCHLAF_STUNDE and (not l or datetime.fromisoformat(l.zeit) < jetzt - timedelta(hours=24)):
+        return f"Nachtlauf {SCHLAF_STUNDE:02d}:00 UTC (kein Schlaf in 24 h)"
     with g.sperre:
         summe = g.db().execute("SELECT COALESCE(SUM(wichtigkeit), 0) FROM objekt WHERE art = 'erfahrung' AND zeit > ?", (seit,)).fetchone()[0]
     if summe >= SCHWELLE:

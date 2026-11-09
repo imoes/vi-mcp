@@ -65,7 +65,7 @@ Einträge; ältere werden **gezählt** gekürzt (`daten.aenderungen_gekuerzt`, i
 | `frage` | Rückfrage einer Instanz an eine andere oder an alle; Zustände `offen`/`zugestellt`/`beantwortet`/`abgelaufen` | `vi_frage` |
 | `skill` | Lösungsweg: Problem (Reize), Schritte, Anleitung, Versionen, Belege; Modi `test`/`aktiv`/`strittig`/`aufgegangen` | `vi_geloest`; Schlaf (Erfolg nach Fehlern) |
 | `selbst` | `selbst:kern` = das Selbst (Soll/Ist/Erzählung, versioniert); sonst Vorschläge fürs Soll (Modus `test`) | Start / `vi_selbst_vorschlag` |
-| `schlaf` | Bericht eines Konsolidierungslaufs: Zähler je Schritt, Dauer, Fehler, neue/geänderte IDs | Loop (nachts oder ab Wichtigkeitssumme) |
+| `schlaf` | Bericht eines Konsolidierungslaufs: Zähler je Schritt, Dauer, Fehler, neue/geänderte IDs | Loop (ab Wichtigkeitssumme; nachts nur nach 24 h ohne Schlaf) |
 
 **Hashtags** `art:wert` (Tabelle `tag`); `art:<art>` immer gesetzt. Verwaltungs-Hashtags (`art:`, `frage:`, `ok:`,
 `serial:`, `tag:`) zählen nicht als Inhalt. **Kanten** (Tabelle `kante`, beidseitig, mit Grund): automatisch bei ≥ 2
@@ -227,8 +227,8 @@ es sonst ohne Anmeldung lesbar, auch was in Confluence Leseschutz hat. Gesetzt �
 
 ## Schlaf — Konsolidierung
 
-Ein Lauf im Loop-Thread (`schlaf.py`), nachts um 03:00 UTC oder sobald die Wichtigkeitssumme neuer Erfahrungen
-≥ 40 ist (Parks Reflexions-Trigger auf Skala 0–3). Sieben Schritte, jeder gezählt, alles im Bericht `schlaf:<zeit>`:
+Ein Lauf im Loop-Thread (`schlaf.py`), sobald die Wichtigkeitssumme neuer Erfahrungen ≥ 40 ist; um 03:00 UTC nur noch als Sicherheitsnetz,
+wenn seit 24 h kein Schlaf lief (seit 0.20.3) (Parks Reflexions-Trigger auf Skala 0–3). Sieben Schritte, jeder gezählt, alles im Bericht `schlaf:<zeit>`:
 Triage (Überraschung + Wichtigkeit + Zukunftsrelevanz) → Replay nach (host, skill) mit älteren Erfahrungen
 verschränkt (CLS: Neues gegen Altes lesen, nicht überschreiben) → Schema-Abgleich (**neue** Erfahrungen gegen
 bestehende Erkenntnis: gleicher Ausgang = Belegkanten; anderer = `konflikt:offen`, keine stille Änderung) →
