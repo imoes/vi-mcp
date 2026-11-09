@@ -3,6 +3,21 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.10 — 2026-11-09 — Firmennamen und interne Pfade verlassen das Haus nicht; Fragen an andere Instanzen
+
+### Was hat sich geändert
+
+- **Die Anonymisierung erkennt zwei weitere Klassen**, für alles, was ins Netz geht (Skills, Erkenntnisse, Regeln):
+  - `<firma>`: Organisationsnamen werden automatisch aus den Domains bekannter Hosts abgeleitet (`*.firma.tld` → `firma`) und auch in
+    Zusammensetzungen ersetzt (`firma-skills`, `firma_backup`). Vorher blieb ein Firmenname in einem MCP-Servernamen stehen, weil die
+    Konfiguration `p2p.interne_namen` auf dem Produktivsystem leer war und Bindestriche als Wortgrenze galten.
+  - `<pfad>`: absolute Pfade außerhalb der Standardverzeichnisse (z. B. `/intern/ansible/…`, `/daten2/…`); `/etc`, `/usr`, `/var` … und URL-Pfade bleiben.
+  - Lokal bleibt alles, wie es ist — ersetzt wird nur in der Form, die das Netz sieht. Anlass: drei neue Claude-Code-Skills, die als
+    VI-Skills geteilt werden sollen, enthielten nach dem bisherigen Ersetzen noch interne Pfade und einen Firmennamen.
+  - *Nachweis:* `test_firmennamen_und_interne_pfade_werden_ersetzt`.
+- **Regel „Fragen an andere Instanzen“** in den `instructions`: Bleibt eine Frage offen und stammen die Treffer überwiegend von einer
+  anderen Instanz, fragt die KI diese mit `vi_frage`, statt zu raten. Ohne Token nennt der Zusatz `vi_frage` als gesperrt.
+
 ## 0.20.9 — 2026-11-09 — Besseres Lernsignal für den Router
 
 ### Was ist neu

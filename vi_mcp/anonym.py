@@ -15,7 +15,7 @@ import socket
 from collections import Counter
 from pathlib import Path
 
-PLATZHALTER = {"geheimnis": "<geheimnis>", "proxy": "<proxy>", "email": "<nutzer>", "nutzer": "<nutzer>", "ip": "<ip>", "mac": "<ip>", "domain": "<host>", "host": "<host>", "name": "<host>"}
+PLATZHALTER = {"firma": "<firma>", "pfad": "<pfad>", "geheimnis": "<geheimnis>", "proxy": "<proxy>", "email": "<nutzer>", "nutzer": "<nutzer>", "ip": "<ip>", "mac": "<ip>", "domain": "<host>", "host": "<host>", "name": "<host>"}
 OEFFENTLICH = ("python.org", "github.com", "githubusercontent.com", "gitlab.com", "debian.org", "ubuntu.com", "kernel.org", "man7.org", "wikipedia.org", "readthedocs.io",
                "stackoverflow.com", "ietf.org", "rfc-editor.org", "w3.org", "mozilla.org", "apache.org", "nginx.org", "postgresql.org", "sqlite.org", "docker.com", "redhat.com",
                "fedoraproject.org", "microsoft.com", "openai.com", "anthropic.com", "scikit-learn.org", "numpy.org", "pytorch.org", "arxiv.org", "doi.org",
@@ -111,6 +111,26 @@ def _tld_passt(kand: str) -> bool:
     return not (len(teile) == 2 and teile[-1] in DATEI)
 
 
+#: 0.20.10: absolute Pfade außerhalb der Standardverzeichnisse verraten den Aufbau eines Standorts (z. B. /intern/ansible/prod, /daten2/…).
+#: Nicht nach einem Host (URL-Pfad) und nicht /etc, /usr, /var … — die sind überall gleich und Wissen.
+_STANDARD_PFADE = ("etc", "usr", "var", "opt", "home", "tmp", "proc", "sys", "dev", "bin", "sbin", "lib", "lib64", "run", "srv", "mnt",
+                   "media", "root", "boot", "snap")
+_PFAD = re.compile(rf"(?<![\w.~/:@-])/(?!(?:{'|'.join(_STANDARD_PFADE)})(?:/|\b))[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.*-]+)+/?")
+
+
+def firmen(bekannte) -> set[str]:
+    """0.20.10: Organisationsnamen aus den Domains bekannter Hosts (*.firma.tld → firma), auch in Zusammensetzungen wie firma-skills.
+    Rein. Öffentliche Domains und generische Wörter zählen nicht."""
+    aus = set()
+    for n in bekannte:
+        teile = str(n).lower().split(".")
+        if len(teile) >= 2 and not _oeffentlich(".".join(teile[-2:])):
+            f = teile[-2]
+            if len(f) >= 4 and f not in GENERISCH and not f.isdigit():
+                aus.add(f)
+    return aus
+
+
 def befunde(text: str, bekannte: frozenset[str] | set[str] = frozenset()) -> list[tuple[str, int, int]]:
     """(klasse, anfang, ende), sortiert, ohne Überlappung. Rein. Früher genannte Klassen haben Vorrang."""
     if not text:
@@ -149,6 +169,9 @@ def befunde(text: str, bekannte: frozenset[str] | set[str] = frozenset()) -> lis
             roh.append(("host", m.start(), m.end()))
     for n in bekannte:
         roh.extend(("name", m.start(), m.end()) for m in re.finditer(rf"(?<![\w-]){re.escape(n)}(?![\w-])", text, re.I))
+    for f in firmen(bekannte) | {z.lower() for z in ZUSATZ_NAMEN if "." not in z and len(z) >= 4}:
+        roh.extend(("firma", m.start(), m.end()) for m in re.finditer(rf"(?<![a-z0-9]){re.escape(f)}(?![a-z0-9])", text, re.I))
+    alle("pfad", _PFAD)
     for m in _WORT.finditer(text):
         if _gemischt(m.group(0)):
             roh.append(("geheimnis", m.start(), m.end()))

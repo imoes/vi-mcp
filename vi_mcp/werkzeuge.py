@@ -37,6 +37,7 @@ BEFRAGEN (vi_erinnere mit semantisch=true für Freitext oder art:wert; dann vi_o
 2. Vor jeder ändernden Handlung an einem System (Deploy, Neustart, Konfiguration, Playbook, Löschen), wenn Schritt 1 sie nicht schon abgedeckt hat.
 3. Bei einem Fehler oder unerwarteten Ergebnis: nach Werkzeug und Fehlertext suchen, bevor du selbst nach der Ursache suchst.
 4. Bei Fragen zu internen Systemen, Abläufen und Zuständigkeiten: zuerst die VI, dann andere Quellen.
+Bleibt eine Frage offen und stammen die Treffer zum Thema überwiegend von einer anderen Instanz („von <instanz>“): frage diese Instanz mit vi_frage (an, text, reize) statt zu raten — sie antwortet aus ihrem eigenen Kontext, die Antwort erscheint vor deiner nächsten Handlung oder über vi_fragen.
 Nicht nötig für allgemeines Programmierwissen oder Dateien, die du gerade selbst vor dir hast. Hinweise „[VI-Gedächtnis …]“ vor einer Handlung sind schon Treffer: lesen und befolgen oder begründet widersprechen.
 LERNEN (vi_lerne: text = eine konkrete Kernaussage; inhalt = vollständig mit Befehlen und Code; hashtags host:/tool:/skill:/thema:/fehler:; quelle = Befehl, Host und Zeit oder URL):
 5. Ein Problem ist gelöst, dessen Lösung nicht offensichtlich war (mehr als ein Versuch, Fehlersuche): Ursache, Lösung, Beleg.
@@ -46,8 +47,8 @@ LERNEN (vi_lerne: text = eine konkrete Kernaussage; inhalt = vollständig mit Be
 Vor dem Lernen suchen: Steht es schon da, vi_bestaetige statt neu anlegen. Hat ein Hinweis geholfen, vi_bestaetige; war er falsch, vi_widerlege.
 Nie lernen: Passwörter, Tokens, Schlüssel; Unbelegtes (höchstens ausdrücklich als Hypothese); Flüchtiges (Fortschritt, momentane Last); was im Repository oder in der Doku gepflegt wird. Firmenwissen mit sicht=intern."""
 #: Ohne Token sind Bestätigen, Widerlegen und sicht=intern nicht erlaubt (OFFEN_ERLAUBT) — die Regeln sagen es, statt es erst abzulehnen
-REGELN_OHNE_TOKEN = ("Ohne eigenes Token: suchen, lesen und mit vi_lerne Wissen vorschlagen (sicht=geteilt) — Bestätigen, Widerlegen und sicht=intern "
-                     "brauchen ein Token; nenne falsches Wissen stattdessen dem Nutzer.")
+REGELN_OHNE_TOKEN = ("Ohne eigenes Token: suchen, lesen und mit vi_lerne Wissen vorschlagen (sicht=geteilt) — Bestätigen, Widerlegen, vi_frage und "
+                     "sicht=intern brauchen ein Token; nenne falsches Wissen stattdessen dem Nutzer.")
 
 TOOLS = [
     {"name": "vi_vorher",

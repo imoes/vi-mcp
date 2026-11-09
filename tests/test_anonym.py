@@ -290,3 +290,16 @@ def test_zugangsdaten_entfernen_findet(text, bleibt):
 def test_zugangsdaten_entfernen_laesst_stehen(text):
     aus, n = anonym.zugangsdaten_entfernen(text)
     assert n == 0 and aus == text, aus
+
+
+def test_firmennamen_und_interne_pfade_werden_ersetzt():
+    """0.20.10: Skills enthielten nach dem Anonymisieren noch einen internen Pfad und einen Firmennamen in einer Zusammensetzung (<firma>-skills)."""
+    from vi_mcp import anonym
+    bek = frozenset({"build07.beispiel-firma.media", "build07", "hna09.anderefirma.de"})
+    a = anonym.ersetze("ssh build07 'cd /intern/ansible/prod' (beispiel-firma-skills, anderefirma_backup)", bek)
+    assert "intern/" not in a and "beispiel-firma" not in a and "anderefirma" not in a and "build07" not in a
+    assert "<pfad>" in a and "<firma>" in a
+    # Standardpfade, URL-Pfade und Schrägstriche im Text bleiben Wissen
+    for t in ("Konfig in /etc/nginx/nginx.conf und /var/log/syslog", "https://github.com/imoes/vi-mcp/releases", "und/oder TCP/UDP 1/2"):
+        assert anonym.ersetze(t, bek) == t
+    assert anonym.firmen({"x.github.com", "a.b"}) == set()  # öffentliche Domains und zu kurze Namen sind keine Firmen

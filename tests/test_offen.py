@@ -166,4 +166,5 @@ def test_regeln_ohne_token_verlangen_nichts_unmoegliches(gd):
     """0.20.7: Die Regeln nennen vi_bestaetige/vi_widerlege/sicht=intern — ohne Token ist das gesperrt, also steht es dort dabei."""
     from vi_mcp import werkzeuge
     assert "vi_bestaetige" in werkzeuge.REGELN and "vi_bestaetige" not in werkzeuge.OFFEN_ERLAUBT
-    assert "Bestätigen, Widerlegen und sicht=intern" in werkzeuge.REGELN_OHNE_TOKEN
+    assert "Bestätigen, Widerlegen, vi_frage und sicht=intern" in werkzeuge.REGELN_OHNE_TOKEN
+    assert "vi_frage" in werkzeuge.REGELN and "vi_frage" not in werkzeuge.OFFEN_ERLAUBT
