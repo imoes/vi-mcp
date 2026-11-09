@@ -33,6 +33,9 @@ NACHZIEH_MAX_S = 300
 PAUSE_ANTEIL = 0.0
 NAEHE_KANTE = 0.85
 NAEHE_DUBLETTE = 0.95
+#: 0.20.6: höchstens so viele semantische Nachbarn je neuem Vektor. Ohne Grenze verband der Confluence-Import fast gleiche Vorlagenseiten
+#: alle miteinander: 2,24 Mio. Kanten, bis 1.316 je Objekt, 96 s je Nähe-Schritt (gemessen 09.11. 07:41 UTC).
+NAEHE_MAX = 10
 VEKTOR_ARTEN = ("erkenntnis", "regel", "suche", "skill")
 TIMEOUT_S = 120
 
@@ -189,7 +192,10 @@ def naehe_kanten() -> dict:
         naehe = m @ m[i]
         naehe[i] = -1.0
         naehe[ist_neu & (np.arange(len(ids)) < i)] = -1.0  # Paare zweier neuer Vektoren nur einmal
-        for k in np.nonzero(naehe >= NAEHE_KANTE)[0]:
+        nahe = np.nonzero(naehe >= NAEHE_KANTE)[0]
+        if len(nahe) > NAEHE_MAX:
+            nahe = nahe[np.argsort(-naehe[nahe])[:NAEHE_MAX]]
+        for k in nahe:
             j, c = int(k), float(naehe[k])
             a, b = g.lade(ids[min(i, j)]), g.lade(ids[max(i, j)])
             if not a or not b:
@@ -209,7 +215,31 @@ def naehe_kanten() -> dict:
     with g.sperre:
         g.db().executemany("UPDATE vektor SET verglichen = 1 WHERE id = ?", [(ids[i],) for i in neu])
         g.db().commit()
-    return {"kanten_neu": kanten, "dubletten_moeglich": dubletten, "vektoren": len(ids), "neu_verglichen": len(neu)}
+    return {"kanten_neu": kanten, "dubletten_moeglich": dubletten, "vektoren": len(ids), "neu_verglichen": len(neu), "gekappt": kappen()}
+
+
+def kappen(je_objekt: int | None = None) -> int:
+    """Semantische Kanten auf gegenseitige nächste Nachbarn begrenzen (mutual kNN): Ein Paar bleibt nur, wenn jede Seite die andere unter
+    ihren `je_objekt` ähnlichsten hat — so hat kein Objekt mehr als `je_objekt` semantische Kanten (bei Gleichstand entscheidet die Id).
+    Belege und Hashtag-Kanten bleiben unberührt; semantische Kanten sind abgeleitet und jederzeit neu berechenbar.
+    Liefert die Zahl gelöschter Zeilen (beide Richtungen gezählt) — nichts verschwindet still."""
+    n = je_objekt or NAEHE_MAX
+    with g.sperre:
+        db = g.db()
+        if not db.execute("SELECT 1 FROM kante WHERE grund LIKE 'semantisch%' GROUP BY a HAVING COUNT(*) > ? LIMIT 1", (n,)).fetchone():
+            return 0  # schon begrenzt
+        db.execute("DROP TABLE IF EXISTS temp.behalte")
+        db.execute("CREATE TEMP TABLE behalte AS SELECT a, b FROM (SELECT a, b, ROW_NUMBER() OVER (PARTITION BY a ORDER BY grund DESC, b) r "
+                   "FROM kante WHERE grund LIKE 'semantisch%') WHERE r <= ?", (n,))
+        db.execute("CREATE INDEX temp.behalte_ab ON behalte (a, b)")
+        geloescht = db.execute("DELETE FROM kante WHERE grund LIKE 'semantisch%' AND NOT ("
+                               "EXISTS (SELECT 1 FROM behalte k WHERE k.a = kante.a AND k.b = kante.b) AND "
+                               "EXISTS (SELECT 1 FROM behalte k WHERE k.a = kante.b AND k.b = kante.a))").rowcount
+        db.execute("DROP TABLE temp.behalte")
+        db.commit()
+    if geloescht:
+        log(f"Vektoren: {geloescht} semantische Kanten gekappt (höchstens {n} nächste Nachbarn je Objekt)")
+    return geloescht
 
 
 def aehnlich(text: str, kandidaten: list[str], limit: int = 10) -> list[tuple[str, float]]:

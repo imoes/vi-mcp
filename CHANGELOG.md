@@ -3,6 +3,26 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.6 — 2026-11-09 — Semantische Kanten mit Obergrenze
+
+### Was wurde behoben
+
+- **Fast gleiche Texte verbanden sich alle miteinander.** Nach dem Confluence-Import hatte das Produktivsystem 2.315.212 Kanten „semantisch
+  ähnlich“, bis zu 1.346 je Objekt; der Nähe-Schritt brauchte 96 s je Trainingslauf und die Datenbank wuchs auf 780 MB. Ursache: jede Nähe
+  ≥ 0,85 wurde zur Kante, ohne Grenze — viele Vorlagenseiten haben dieselbe Kernaussage (cos 1,00). Jetzt bekommt ein neuer Vektor höchstens
+  10 Nachbarn, und bestehende semantische Kanten werden auf **gegenseitige** nächste Nachbarn gekappt (ein Paar bleibt, wenn jede Seite die
+  andere unter ihren 10 ähnlichsten hat). Belege und Hashtag-Kanten bleiben unberührt; die Zahl gelöschter Kanten steht im Bericht (`gekappt`).
+- *Nachweis:* an einer Kopie der Produktivdatenbank (09.11. 07:44 UTC): 2.267.336 Kanten gekappt in 17,1 s (einmalig), danach 47.876,
+  höchstens 10 je Objekt, 9.780 von 12.058 Objekten mit Vektor behalten mindestens eine; zweiter Aufruf 0,16 s, nichts zu tun.
+  Test `test_semantische_kanten_haben_eine_obergrenze`.
+
+### Was fehlt noch
+
+- Die Kernaussage (`text`) vieler importierter KB-Abschnitte ist ein Vorlagensatz („Hier können betriebliche Notizen … eingetragen werden“);
+  eingebettet wird nur `text`, also sehen diese Abschnitte für die Bedeutungssuche gleich aus. Der Fehler liegt im Importskript (erster Absatz
+  > 40 Zeichen als Kernaussage); der Volltext über `inhalt` ist davon nicht betroffen. Korrektur braucht ein Werkzeug, das `text` eines
+  bestehenden Objekts ändert.
+
 ## 0.20.5 — 2026-11-09 — Der Schlaf hält nichts mehr an
 
 ### Was wurde behoben
