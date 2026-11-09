@@ -20,7 +20,9 @@ Eine Instanz (Claude Code) lernte sieben Erfahrungsnotizen. Eine zweite Instanz 
 - **Vor dem Befehl:** vorher 0 von 7, danach stand die passende Notiz 7 von 7 Mal auf Platz 1, 0,01–0,02 s je Aufruf, ohne Schlaf dazwischen.
   (Das Skript zählte zuerst 4, weil es ein Stichwort im Hinweistext suchte. Drei Hinweise zeigten aber nur das Thema der Notiz, die Lösung stand im
   Inhalt. Der Hinweistext sollte die Kernaussage tragen, nicht nur das Thema.)
-- **Auf Nachfrage:** vorher 1, danach 1 von 8. Grund war der oben behobene Fehler.
+- **Auf Nachfrage:** vorher 1, danach 1 von 8. Grund war der oben behobene Fehler. **Mit 0.19.5 auf dem Produktivhost wiederholt: 8 von 8**
+  (alle „ja“, 7–18 s je Frage einschließlich Lesen der vier Fundstellen; die Notizen hatten noch keinen Vektor, gefunden über den Volltext-Anteil).
+  Einschränkung: Die Fragen sind nah an den Notizen formuliert; die AIKB kam bei denselben acht Fragen auf 1.
 - Die AIKB hat keinen Schreibweg aus einer Sitzung; ihr Stand bleibt bei einem solchen Test unverändert.
 
 ## 0.19.4 — 2026-11-09 — Jeder Befehl ist ein Reiz
