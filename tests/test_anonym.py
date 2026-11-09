@@ -303,3 +303,5 @@ def test_firmennamen_und_interne_pfade_werden_ersetzt():
     for t in ("Konfig in /etc/nginx/nginx.conf und /var/log/syslog", "https://github.com/imoes/vi-mcp/releases", "und/oder TCP/UDP 1/2"):
         assert anonym.ersetze(t, bek) == t
     assert anonym.firmen({"x.github.com", "a.b"}) == set()  # öffentliche Domains und zu kurze Namen sind keine Firmen
+    # Nicht-Hosts aus host:-Hashtags (Dateinamen, Pfade) liefern keine Firmennamen (gesehen auf dem Produktivsystem: changelog, felder)
+    assert anonym.firmen({"CHANGELOG.md", "felder.py", "app/services/stibodx", "docs/*", "web1.beispiel-firma.media"}) == {"beispiel-firma"}

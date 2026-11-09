@@ -84,3 +84,18 @@ def test_fusion_mit_verweis_und_vorschlag(gd):
     assert "AUFGEGANGEN in" in werkzeuge.rufe("vi_skill", {"id": a.id}, "a", True)
     with pytest.raises(werkzeuge.Abgelehnt, match="bereits aufgegangen"):
         werkzeuge.rufe("vi_skill_fusion", {"a": a.id, "b": neu_o.id, "name": "x", "grund": "nochmal"}, "c", True)
+
+
+def test_weiterentwickeln_ersetzt_die_reize(gd):
+    """0.20.11: v2 eines Skills behielt den zu allgemeinen Reiz tool:Bash aus v1 und erschien vor jedem Shell-Befehl."""
+    from vi_mcp import skills
+    from vi_mcp import gedaechtnis as g
+    s1 = skills.neu("pruefen", ["thema:ansible-lint", "tool:Bash"], ["Bash"], "ansible-lint --offline rolle", "erste Fassung", [], "a")
+    assert "tool:Bash" in s1.hashtags
+    s2 = skills.neu("pruefen", ["thema:ansible-lint", "thema:yamllint"], ["Bash"], "ansible-lint --offline rolle; yamllint -d relaxed",
+                    "zu allgemeiner Reiz entfernt", [], "a")
+    o = g.lade(s2.id)
+    assert o.daten["version"] == 2 and "tool:Bash" not in o.hashtags and "thema:yamllint" in o.hashtags
+    assert o.daten["problem"]["reize"] == ["thema:ansible-lint", "thema:yamllint"]
+    assert o.daten["versionen"][-1]["reize_vorher"] == ["thema:ansible-lint", "tool:Bash"]
+    assert [x.id for _, x, _g in g.erinnere("tool:Bash", arten=("skill",), betrachter=None)] == []

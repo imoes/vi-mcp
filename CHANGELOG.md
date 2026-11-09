@@ -3,6 +3,24 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.11 — 2026-11-09 — Firmennamen nur aus echten Hostnamen; Skill-Reize änderbar
+
+### Was wurde behoben
+
+- Die Ableitung der Firmennamen (0.20.10) nahm auch `host:`-Hashtags, die gar keine Hosts sind: Auf dem Produktivsystem entstanden aus
+  Dateinamen und Pfaden „Firmen“ wie `changelog` und `felder`, die im Export unnötig ersetzt worden wären. Jetzt zählen nur Namen aus
+  DNS-Zeichen mit passender Top-Level-Domain. *Nachweis:* `test_firmennamen_und_interne_pfade_werden_ersetzt` (erweitert); gemessen an den
+  bekannten Namen des Produktivsystems: Die drei neuen Skills enthalten nach dem Ersetzen keine internen Namen, Pfade oder Firmennamen mehr.
+
+- **Weiterentwickelte Skills übernehmen die neuen Reize.** Bisher behielt jede neue Version die Reize der ersten; ein zu allgemeiner Reiz
+  ließ sich nie mehr entfernen (`tool:` setzt nur das System, `vi_markiere` lehnt ihn ab). Gesehen am 09.11.: Zwei neue Skills mit
+  `tool:Bash` erschienen auch in v2 vor jedem Shell-Befehl (17× in wenigen Minuten). Die alten Reize stehen in der Version (`reize_vorher`).
+  *Nachweis:* `test_weiterentwickeln_ersetzt_die_reize`.
+
+### Was fehlt noch
+
+- Die `host:`-Hashtags selbst enthalten Dateinamen und Pfade (z. B. aus Befehlen erkannt). Die Ursache ist nicht untersucht.
+
 ## 0.20.10 — 2026-11-09 — Firmennamen und interne Pfade verlassen das Haus nicht; Fragen an andere Instanzen
 
 ### Was hat sich geändert

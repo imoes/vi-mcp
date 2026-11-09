@@ -123,8 +123,12 @@ def firmen(bekannte) -> set[str]:
     Rein. Öffentliche Domains und generische Wörter zählen nicht."""
     aus = set()
     for n in bekannte:
-        teile = str(n).lower().split(".")
-        if len(teile) >= 2 and not _oeffentlich(".".join(teile[-2:])):
+        n = str(n).lower()
+        # nur echte Hostnamen: Zeichen eines DNS-Namens und eine passende Top-Level-Domain (nicht CHANGELOG.md, felder.py, app/x)
+        if not re.fullmatch(r"[a-z0-9-]+(?:\.[a-z0-9-]+)+", n) or not _tld_passt(n):
+            continue
+        teile = n.split(".")
+        if not _oeffentlich(".".join(teile[-2:])):
             f = teile[-2]
             if len(f) >= 4 and f not in GENERISCH and not f.isdigit():
                 aus.add(f)

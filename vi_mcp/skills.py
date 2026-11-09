@@ -72,7 +72,7 @@ def neu(name: str, reize: list[str], schritte, anleitung: str, grund: str, beleg
     oid = oid or f"skill:{n}"
     alt = g.lade(oid)
     if alt and alt.art == "skill":
-        return weiterentwickeln(alt, st, anleitung, grund, belege, instanz, wer)
+        return weiterentwickeln(alt, st, anleitung, grund, belege, instanz, wer, reize=rz)
     o = g.neues_objekt("skill", anleitung.strip()[:600], rz + [f"skill:{n}", "modus:test"],
                        {"name": n, "problem": {"reize": rz}, "loesung": {"schritte": st, "text": anleitung.strip()[:600]}, **_inhalt(anleitung),
                         "version": 1, "versionen": [{"version": 1, "zeit": g.jetzt(), "wer": wer or f"ki@{instanz}", "grund": grund.strip()[:300],
@@ -84,13 +84,21 @@ def neu(name: str, reize: list[str], schritte, anleitung: str, grund: str, beleg
     return o
 
 
-def weiterentwickeln(o: g.Objekt, schritte, anleitung: str, grund: str, belege: list[str], instanz: str, wer: str | None = None) -> g.Objekt:
-    """Neue Version: Schritte, die noch fehlen, kommen hinten dazu; Anleitung wird ersetzt, alte steht in der Version."""
+def weiterentwickeln(o: g.Objekt, schritte, anleitung: str, grund: str, belege: list[str], instanz: str, wer: str | None = None,
+                     reize: list[str] | None = None) -> g.Objekt:
+    """Neue Version: Schritte, die noch fehlen, kommen hinten dazu; Anleitung wird ersetzt, alte steht in der Version.
+    0.20.11: Neue Reize ersetzen die alten (vorher blieben sie stehen — ein zu allgemeiner Reiz wie tool:Bash ließ sich nie mehr entfernen);
+    die alten stehen in der Version."""
     st = _schritte_ok(schritte)
+    reize_vorher = list(o.daten["problem"]["reize"])
+    if reize and sorted(reize) != sorted(reize_vorher):
+        o.hashtags = [t for t in o.hashtags if t not in reize_vorher] + [t for t in reize if t not in o.hashtags]
+        o.daten["problem"]["reize"] = list(reize)
     vorhanden = {s["tool"] for s in o.daten["loesung"]["schritte"]}
     o.daten["loesung"]["schritte"] += [s for s in st if s["tool"] not in vorhanden]
     o.daten["versionen"].append({"version": o.daten["version"] + 1, "zeit": g.jetzt(), "wer": wer or f"ki@{instanz}", "grund": grund.strip()[:300],
-                                 "belege": list(belege or [])[:50], "vorher_text": o.daten["loesung"]["text"]})
+                                 "belege": list(belege or [])[:50], "vorher_text": o.daten["loesung"]["text"],
+                                 **({"reize_vorher": reize_vorher} if o.daten["problem"]["reize"] != reize_vorher else {})})
     o.daten["version"] += 1
     if (anleitung or "").strip():
         o.daten["loesung"]["text"] = anleitung.strip()[:600]
