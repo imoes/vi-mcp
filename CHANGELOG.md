@@ -3,6 +3,19 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.19.4 — 2026-11-09 — Jeder Befehl ist ein Reiz
+
+### Was hat sich geändert
+
+- **Jeder fachliche Befehl einer Kommandozeile wird zum Reiz `thema:<befehl>`**, nicht nur Proxmox-, Ansible-, Docker- und PostgreSQL-Befehle.
+  Vorher erzeugten `sudo ipa-client-install`, `sudo pip3 install ansible` und `llama-server … --load-mode mlock` nur `tool:Bash`. Eine Warnung zu diesen
+  Befehlen konnte deshalb nie vor ihnen erscheinen. Shell-Alltag (cd, grep, sed, echo …) bleibt ohne Reiz.
+- **Hostnamen hinter `ansible-playbook -l/--limit` werden zu `host:`** (nur Namen mit Punkt, ausgeschlossene mit `!` nicht).
+- **Text in Anführungszeichen ist nur ein Befehl, wenn er ausgeführt wird** (`ssh host '…'`, `sh -c '…'`, `su -c '…'`). `psql -c "select 1"` erzeugte
+  vorher `thema:select`, `grep 'muster' datei` den Reiz `thema:datei`.
+- *Nachweis:* `test_befehle_werden_reize` um 8 Fälle erweitert; 7 davon schlagen mit 0.19.3 fehl. Gefunden beim Vorbereiten eines Lerntests:
+  Die Reize der geplanten Prüfbefehle passten zu keiner gelernten Notiz.
+
 ## 0.19.3 — 2026-11-09 — Handbücher drängen keine Erfahrung mehr aus den Hinweisen
 
 ### Was hat sich geändert

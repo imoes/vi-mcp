@@ -217,7 +217,16 @@ def test_skill_anleitung_bleibt_vollstaendig(gd):
 
 @pytest.mark.parametrize("kommando,erwartet", [
     ("vzdump 101 --mode snapshot", {"skill:proxmox", "thema:vzdump"}),
-    ("ssh root@pve1.example 'qm list && pct list'", {"skill:proxmox", "thema:qm", "thema:pct", "host:pve1.example"}),
+    ("ssh root@pve1.example 'qm list && pct list'", {"thema:ssh", "skill:proxmox", "thema:qm", "thema:pct", "host:pve1.example"}),
+    # 0.19.4: jeder fachliche Befehl wird thema:, Shell-Alltag nicht; Argumente in Anführungszeichen sind keine Befehle
+    ("sudo ipa-client-install --domain example.org", {"thema:ipa-client-install"}),
+    ("ssh gpu1.example 'llama-server -m m.gguf --load-mode mlock'", {"thema:ssh", "thema:llama-server", "host:gpu1.example"}),
+    ('sudo -u postgres psql -c "select 1"', {"skill:postgres", "thema:psql"}),
+    ("grep 'vzdump' job.log && qm list", {"skill:proxmox", "thema:qm"}),
+    ("sudo sh -c 'apt-get update; pip3 install ansible'", {"thema:apt-get", "thema:pip3"}),
+    ("ansible-playbook site.yml -l web1.example,web2.example", {"skill:ansible", "thema:ansible-playbook", "host:web1.example", "host:web2.example"}),
+    ("ansible-playbook site.yml --limit 'sites_a:!zeit1.example'", {"skill:ansible", "thema:ansible-playbook"}),
+    ('echo "a; qm b" | tee x', set()),
     ("sudo -u postgres pg_dump app > /tmp/a.sql", {"skill:postgres", "thema:pg_dump"}),
     ("cd x; ansible-playbook -i hosts site.yml", {"skill:ansible", "thema:ansible-playbook"}),
     ("docker compose up -d", {"skill:docker", "thema:docker"}),

@@ -60,9 +60,31 @@ _SUDO_MIT_WERT = {"-u", "-g", "-C", "-D", "-h", "-p", "-R", "-r", "-T"}
 _SSH_ZIEL = re.compile(r"\bssh\s+(?:-\S+(?:\s+\S+)?\s+)*(?:[\w.-]+@)?([a-z][\w.-]*[a-z0-9])", re.I)
 
 
+_FUEHRT_AUS = re.compile(r"(?:\bssh\s+(?:-\S+(?:\s+\S+)?\s+)*\S+|\b(?:ba|z)?sh\s+-\w*c|\bsu\s+(?:-\s+)?(?:\S+\s+)?-c)\s*$")
+
+
+def _teilbefehle(kommando: str):
+    """Teilbefehle der Kommandozeile. Text in Anführungszeichen ist nur dann ein Befehl, wenn er ausgeführt wird
+    (ssh <ziel> '…', sh -c '…', su -c '…'); sonst ist er ein Argument (psql -c "select 1", grep 'muster') und wird übersprungen."""
+    teile = re.split(r"([;&|()`\n]|\$\(|['\"])", kommando)
+    offen, ausfuehren, vorher_text, fortsetzung = None, False, "", False
+    for i in range(0, len(teile), 2):
+        text = teile[i]
+        if (offen is None and not fortsetzung) or (offen is not None and ausfuehren):
+            yield text
+        vorher_text = text if offen is None else vorher_text
+        trenner = teile[i + 1] if i + 1 < len(teile) else ""
+        fortsetzung = False
+        if trenner in ("'", '"'):
+            if offen is None:
+                offen, ausfuehren = trenner, bool(_FUEHRT_AUS.search(vorher_text))
+            elif trenner == offen:
+                offen, ausfuehren, fortsetzung = None, False, True  # nach dem schließenden Zeichen geht dasselbe Kommando weiter
+
+
 def _befehle(kommando: str):
     """Das erste Wort jedes Teilbefehls, ohne Variablenzuweisungen und ohne sudo samt Optionen."""
-    for teil in _TRENNUNG.split(kommando):
+    for teil in _teilbefehle(kommando):
         w = teil.split()
         i = 0
         while i < len(w) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w[i]):
@@ -75,13 +97,26 @@ def _befehle(kommando: str):
             yield w[i]
 
 
+#: Shell-Handwerkszeug ohne fachliche Aussage: wird kein thema:-Reiz (sonst passte jede Notiz über grep zu jedem zweiten Befehl).
+SHELL_ALLTAG = frozenset("""cd ls ll echo printf cat less more head tail grep egrep fgrep rg sed awk cut tr sort uniq wc tee xargs find true false test
+    [ sleep export set unset source . env nohup setsid timeout time watch date pwd which type command exec eval read wait kill pkill pgrep ps
+    mkdir rmdir touch cp mv ln chmod chown stat file basename dirname realpath readlink diff jq yes column printenv exit return bash sh zsh
+    python python3 perl""".split())
+_ANSIBLE_LIMIT = re.compile(r"(?:^|\s)(?:-l|--limit)(?:\s+|=)(\S+)")
+
+
 def befehls_reize(kommando: str) -> list[str]:
-    """Rein. thema:<befehl> für jeden erkannten Befehl, skill:<bereich> für bekannte, host:<ziel> für ssh."""
+    """Rein. thema:<befehl> für jeden erkannten Befehl außer Shell-Alltag (seit 0.19.4, vorher nur bekannte), skill:<bereich> für bekannte,
+    host:<ziel> für ssh und für Hostnamen hinter ansible -l/--limit."""
     aus = []
     for b in _befehle(kommando or ""):
         if b in BEFEHL_SKILL:
             aus += [f"skill:{BEFEHL_SKILL[b]}", f"thema:{b}"]
+        elif b not in SHELL_ALLTAG and re.fullmatch(r"[a-z][a-z0-9._+-]{1,40}", b):
+            aus.append(f"thema:{b}")
     aus += [f"host:{h.lower()}" for h in _SSH_ZIEL.findall(kommando or "")]
+    for ziel in _ANSIBLE_LIMIT.findall(kommando or ""):
+        aus += [f"host:{h.lower()}" for h in re.split(r"[:,]", ziel.strip("'\"")) if "." in h and not h.startswith(("!", "&", "~"))]
     return aus
 
 
@@ -139,7 +174,7 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
         router = "bandit"
     # Erst Passung, dann gelernter Nutzen: Eine neue, genau passende Regel hat noch keine Geschichte und verlöre sonst gegen
     # eingespielte allgemeine Hinweise. Wichtigkeit 3 (Warnung) geht vor. Werkzeug-Reize einer Shell sagen nichts Spezifisches.
-    allgemein = {f"tool:{tool}", f"skill:{tool.split('_')[0]}"} if tool in SHELL_WERKZEUGE else set()
+    allgemein = {f"tool:{tool}", f"skill:{tool.split('_')[0]}", "thema:ssh"} if tool in SHELL_WERKZEUGE else set()  # ssh ist nur der Transport
     passend = set(such_reize) - allgemein
     kand.sort(key=lambda o: (-(o.wichtigkeit >= 3 and bool(passend & set(o.hashtags))), -len(passend & set(o.hashtags))))
     # Überzählige Handbuch-Absätze nie regulär zeigen, nur über die Erkundung (so lernt der Bandit, ob sie doch helfen)
