@@ -19,6 +19,11 @@ Verlinkt aus [README.md](README.md).
   1,9–6,5 s. Ob die VI die Ursache war, ist **nicht belegt** (ein Gegenversuch ergab 56,8 / 4,4 / 0,06 s). Die Pause halbiert höchstens den
   eigenen Durchsatz (vorher gemessen rund 1.550 Vektoren je Stunde). Der Schlaf bettet höchstens 300 s statt 1.200 s ein, den Rest übernimmt
   das Training bei Bedarf. Der Bericht nennt `pause_s`. *Nachweis:* `test_einbettung_pausiert_zwischen_batches`.
+- **Firmendoku, nachgeholt mit dem lokalen Richter** (09.11. ~07:20 UTC, dieselben 6 Fragen und dieselbe Abfrage wie in den Läufen 2/3):
+  VI 3× ja, 1× teilweise, 2× nein = **3,5 von 6** (AIKB bester Lauf 4 von 6, Lauf 3 0 von 6). Die eigene Bewertung aus 0.20.4 (4 von 6)
+  war also um 0,5 zu hoch, je nach Lesart: Bei der VPLEX-Frage urteilte der Richter „nein“, obwohl er in seiner Begründung zitiert, dass
+  „NUR die VPLEX1, NICHT die VPLEX2“ im gelieferten Text steht; bei NiFi „teilweise“ (nur Verweis auf ein PDF). Das Urteil des Richters
+  zählt, die Unstimmigkeit steht hier.
 - Gemessen (09.11. 07:00 UTC, 6 Fragen): Suche nur im Volltext 0,08–0,16 s; hybrid 20,6–25,4 s, davon Einbettung der Frage 20,3–25,1 s.
   Die Zeit der Bedeutungssuche liegt fast ganz im Embedding-Dienst, nicht in der VI.
 
