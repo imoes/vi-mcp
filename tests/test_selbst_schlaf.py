@@ -125,3 +125,15 @@ def test_nachtlauf_nur_wenn_24_h_kein_schlaf(gd):
     um_drei = jetzt.replace(hour=3, minute=5) if jetzt.hour >= 3 else jetzt.replace(hour=3, minute=5)
     assert schlaf.faellig(um_drei + timedelta(days=0 if um_drei > jetzt else 1)) is None  # Schlaf liegt < 24 h zurück
     assert schlaf.faellig(um_drei + timedelta(days=2)).startswith("Nachtlauf")       # > 24 h ohne Schlaf
+
+
+
+def test_schlaf_hoechstens_alle_zwei_stunden(gd):
+    """0.21.1: 45 Schläfe in 24 h mit zusammen 3 neuen Erkenntnissen — Schwelle 80 und Mindestabstand 120 min."""
+    from datetime import datetime, timedelta, timezone
+    for i in range(30):
+        g.neues_objekt("erfahrung", f"Handlung {i}", ["tool:x"], {}, wichtigkeit=3, grund="T")
+    jetzt = datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc)
+    assert schlaf.faellig(jetzt) is not None  # 90 ≥ 80, noch nie geschlafen
+    g.neues_objekt("schlaf", "Schlaf fertig", ["zustand:fertig"], {}, grund="T")
+    assert schlaf.faellig(jetzt) is None  # gerade geschlafen

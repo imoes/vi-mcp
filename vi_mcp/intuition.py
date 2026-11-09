@@ -174,7 +174,11 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     # Kandidaten (Heuristik: Aktualität + Wichtigkeit + Bonus), dann ggf. Router-Modell (gelernter Lift), dann Erkundung
     from . import bandit, lernen
     import random as _random
-    kand = [o for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=HINWEIS_BUDGET + 16, arten=("erkenntnis", "regel", "skill"))]
+    kand = [o for _, o, _g in g.erinnere("(" + " OR ".join(such_reize) + ")", limit=HINWEIS_BUDGET + 24, arten=("erkenntnis", "regel", "skill"))]
+    # 0.21.1: Strittiges und unbestätigte Sprachmodell-Hypothesen nur auf Nachfrage (vi_erinnere), nicht ungefragt vor Handlungen.
+    # Gemessen 09.11.: eine strittige Schlaf-Hypothese war mit 719 Verstärkungen der meistgezeigte Hinweis und verdrängte belegtes Wissen.
+    nur_auf_nachfrage = [o for o in kand if o.modus == "strittig" or ("herkunft:schlaf-llm" in o.hashtags and not o.fremde_bestaetigungen())]
+    kand = [o for o in kand if o not in nur_auf_nachfrage]
     from . import p2p  # Quellen, die sich als schädlich erwiesen haben, werden nicht mehr gezeigt
     kand = p2p.ohne_gesperrte(kand)
     router = "heuristik"
@@ -226,8 +230,9 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     if len(aus_gedaechtnis) > HINWEIS_BUDGET:
         uebrig += len(aus_gedaechtnis) - HINWEIS_BUDGET
         aus_gedaechtnis = aus_gedaechtnis[:HINWEIS_BUDGET]
-    if uebrig > 0:
-        aus_gedaechtnis.append(f"… {uebrig} weitere Treffer im Gedächtnis — vi_vertiefe(\"{' '.join(such_reize)}\") zeigt sie")
+    if uebrig > 0 or nur_auf_nachfrage:
+        zusatz = f" (davon {len(nur_auf_nachfrage)} strittig oder unbestätigte Hypothese, nur auf Nachfrage)" if nur_auf_nachfrage else ""
+        aus_gedaechtnis.append(f"… {uebrig + len(nur_auf_nachfrage)} weitere Treffer im Gedächtnis{zusatz} — vi_vertiefe(\"{' '.join(such_reize)}\") zeigt sie")
     hinweise += aus_gedaechtnis
     from . import lager
     hinweise += lager.hinweis(such_reize)

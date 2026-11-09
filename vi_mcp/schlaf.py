@@ -30,7 +30,10 @@ from . import selbst
 from .protokoll import log
 
 SCHLAF_STUNDE = 3
-SCHWELLE = 40
+#: 0.21.1: 40 → 80 und höchstens alle MIN_ABSTAND_MIN Minuten. Gemessen 08./09.11.: 45 Schläfe in 24 h (Median 83 s), zusammen nur
+#: 3 neue Erkenntnisse — der Schlaf lief fast im Halbstundentakt und belastete das Sprachmodell, ohne viel zu liefern (vi_statistik, F).
+SCHWELLE = 80
+MIN_ABSTAND_MIN = 120
 TOP_N = 200
 REPLAY_ALTE = 5
 CLUSTER_MIN, CLUSTER_TAGE = 3, 2
@@ -53,6 +56,8 @@ def faellig(jetzt: datetime | None = None) -> str | None:
     # der Nachtlauf aus, ohne dass es irgendwo stand (gesehen 09.11.2026).
     if jetzt.hour == SCHLAF_STUNDE and (not l or datetime.fromisoformat(l.zeit) < jetzt - timedelta(hours=24)):
         return f"Nachtlauf {SCHLAF_STUNDE:02d}:00 UTC (kein Schlaf in 24 h)"
+    if l and datetime.fromisoformat(l.zeit) > jetzt - timedelta(minutes=MIN_ABSTAND_MIN):
+        return None  # zu kurz nach dem letzten Schlaf; die Wichtigkeit sammelt sich weiter
     with g.sperre:
         summe = g.db().execute("SELECT COALESCE(SUM(wichtigkeit), 0) FROM objekt WHERE art = 'erfahrung' AND zeit > ?", (seit,)).fetchone()[0]
     if summe >= SCHWELLE:

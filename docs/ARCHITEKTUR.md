@@ -116,6 +116,12 @@ Seit 0.21.0 zählt der Server jeden Aufruf eines VI-Werkzeugs (`statistik.zeichn
 `vi_statistik(tage)` wertet Nutzung, Einhaltung der Regeln, Hinweise und Warnungen, Wissen, Suche sowie Schlaf und Training aus
 (`statistik.bericht`). Eine ändernde Handlung gilt als vorbereitet, wenn dieselbe Instanz in den 30 min davor die VI befragt hat.
 
+## Was ungefragt gezeigt wird
+
+Seit 0.21.1 erscheinen strittiges Wissen und Sprachmodell-Hypothesen aus dem Schlaf (`herkunft:schlaf-llm`) ohne Bestätigung durch eine
+andere Instanz nicht mehr als Hinweis vor Handlungen. Sie bleiben über `vi_erinnere` auffindbar; `vi_vorher` nennt ihre Zahl
+(„nur auf Nachfrage“). Anlass: Eine strittige Hypothese war mit 719 Verstärkungen der meistgezeigte Hinweis.
+
 ## Warnung vor riskanten Handlungen
 
 Seit 0.20.8 warnt `vi_vorher`, wenn das Router-Modell die Lage einer Handlung als riskant einstuft (`lernen.warnung`). Die Schwelle
@@ -246,7 +252,7 @@ es sonst ohne Anmeldung lesbar, auch was in Confluence Leseschutz hat. Gesetzt �
 
 ## Schlaf — Konsolidierung
 
-Ein Lauf in einem eigenen Thread, den der Loop startet (`schlaf.py`; seit 0.20.5, vorher synchron im Loop, der dann minutenlang stand), sobald die Wichtigkeitssumme neuer Erfahrungen ≥ 40 ist; um 03:00 UTC nur noch als Sicherheitsnetz,
+Ein Lauf in einem eigenen Thread, den der Loop startet (`schlaf.py`; seit 0.20.5, vorher synchron im Loop, der dann minutenlang stand), sobald die Wichtigkeitssumme neuer Erfahrungen ≥ 80 ist und der letzte Schlaf mindestens 120 min zurückliegt (seit 0.21.1; vorher ≥ 40 ohne Abstand); um 03:00 UTC nur noch als Sicherheitsnetz,
 wenn seit 24 h kein Schlaf lief (seit 0.20.3) (Parks Reflexions-Trigger auf Skala 0–3). Sieben Schritte, jeder gezählt, alles im Bericht `schlaf:<zeit>`:
 Triage (Überraschung + Wichtigkeit + Zukunftsrelevanz) → Replay nach (host, skill) mit älteren Erfahrungen
 verschränkt (CLS: Neues gegen Altes lesen, nicht überschreiben) → Schema-Abgleich (**neue** Erfahrungen gegen

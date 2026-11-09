@@ -68,7 +68,10 @@ def test_widerspruch_strittig_dann_widerlegt(ab):
         o = g.neues_objekt("erkenntnis", "z läuft auf Port 80", ["thema:z"], {"quelle": "ss -ltn"}, grund="T")
     g.lade(o.id).widerlege("ki@b", "bei mir Port 8080", "b")
     assert g.lade(o.id).modus == "strittig"
-    assert "STRITTIG" in intuition.vorher("t", {}, "c", kontext=["thema:z"])["hinweise"][0]
+    # 0.21.1: Strittiges erscheint nicht mehr ungefragt vor Handlungen — benannt mitgezählt, auf Nachfrage weiter auffindbar
+    h = intuition.vorher("t", {}, "c", kontext=["thema:z"])["hinweise"]
+    assert not any("Port 80" in x for x in h) and any("strittig oder unbestätigte Hypothese, nur auf Nachfrage" in x for x in h)
+    assert any(x.id == o.id for _, x, _g in g.erinnere("thema:z", betrachter=None))
     g.lade(o.id).bestaetige("ki@c", "Port 80 gemessen", "c")
     assert g.lade(o.id).modus == "aktiv"  # fremde Bestätigung hebt den Streit auf
     g.lade(o.id).widerlege("ki@d", "Port 8080", "d")
@@ -247,3 +250,13 @@ def test_gespraech_loeschen_grabstein(ab):
     sitzung.beende(b.id)
     r = sitzung.loesche_instanz_daten("b", "Admin: Instanz aufgelöst")  # Admin-Weg (CLI): alle Gespräche → Grabsteine
     assert r["gespraeche"] == 1 and g.lade(f"gespraech:{b.serial}").daten["zustand"] == "geloescht"
+
+
+
+def test_sprachmodell_hypothese_erst_nach_fremder_bestaetigung_als_hinweis(gd):
+    """0.21.1: Eine unbestätigte Schlaf-Hypothese war der meistgezeigte Hinweis (719×). Erst eine fremde Bestätigung macht sie zum Hinweis."""
+    o = g.neues_objekt("erkenntnis", "Auf Host web4 deuten Latenzen auf Instabilität hin", ["host:web4", "herkunft:schlaf-llm"],
+                       {"quelle": "Schlaf-Reflexion"}, grund="T", instanz="vi")
+    assert not any("web4 deuten" in x for x in intuition.vorher("Bash", {"command": "ssh web4 uptime"}, "a")["hinweise"])
+    g.lade(o.id).bestaetige("ki@b", "Latenz selbst gemessen", "b")
+    assert any("web4 deuten" in x for x in intuition.vorher("Bash", {"command": "ssh web4 uptime"}, "a")["hinweise"])

@@ -3,6 +3,26 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.21.1 — 2026-11-09 — Belegtes vor Vermutetem; seltener schlafen
+
+Beides folgt aus dem ersten Bericht von `vi_statistik` auf dem Produktivsystem (09.11. 11:30 UTC, 24 h).
+
+### Was hat sich geändert
+
+- **Strittiges und unbestätigte Sprachmodell-Hypothesen erscheinen nicht mehr ungefragt vor Handlungen.** Gemessen: Die meistgezeigte
+  Erkenntnis überhaupt (719 Verstärkungen) war eine Schlaf-Hypothese, der eine andere Instanz widersprochen hatte; sie stand vor fast
+  jedem Befehl auf einem Host und belegte einen der vier Hinweisplätze. Jetzt: nur auf Nachfrage (`vi_erinnere` findet sie weiter),
+  `vi_vorher` nennt ihre Zahl („… davon n strittig oder unbestätigte Hypothese, nur auf Nachfrage“). Eine Hypothese wird zum Hinweis,
+  sobald eine andere Instanz sie bestätigt.
+- **Der Schlaf läuft seltener:** Schwelle 80 statt 40 und höchstens alle 120 min. Gemessen: 45 Schläfe in 24 h (Median 83 s) mit zusammen
+  3 neuen Erkenntnissen; jeder Schlaf belastet das Sprachmodell. Der Nachtlauf als Sicherheitsnetz bleibt.
+- *Nachweis:* `test_widerspruch_strittig_dann_widerlegt` (neuer Vertrag), `test_sprachmodell_hypothese_erst_nach_fremder_bestaetigung_als_hinweis`,
+  `test_schlaf_hoechstens_alle_zwei_stunden`.
+
+### Was fehlt noch
+
+- Ob belegtes Wissen jetzt häufiger gezeigt wird und der Hinweis-Lift steigt, zeigt erst der Bericht in einer Woche.
+
 ## 0.21.0 — 2026-11-09 — Nutzungsstatistik
 
 ### Was ist neu
