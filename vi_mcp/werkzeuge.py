@@ -30,6 +30,25 @@ _S = {"type": "string"}
 _TAGS = {"type": "array", "items": _S}
 
 TEXT_MAX = 1000
+#: 0.20.7: Wann eine KI die VI befragt und wann sie lernt — geht mit den instructions an jeden Client (server._initialize). Eine Quelle.
+REGELN = """Regeln für die VI — gelten in jeder Sitzung:
+BEFRAGEN (vi_erinnere mit semantisch=true für Freitext oder art:wert; dann vi_objekt für den vollen Inhalt):
+1. Vor Beginn jeder Aufgabe einmal: nach den Hosts, Systemen, Produkten und Fehlermeldungen der Aufgabe suchen — bevor geplant oder etwas geändert wird.
+2. Vor jeder ändernden Handlung an einem System (Deploy, Neustart, Konfiguration, Playbook, Löschen), wenn Schritt 1 sie nicht schon abgedeckt hat.
+3. Bei einem Fehler oder unerwarteten Ergebnis: nach Werkzeug und Fehlertext suchen, bevor du selbst nach der Ursache suchst.
+4. Bei Fragen zu internen Systemen, Abläufen und Zuständigkeiten: zuerst die VI, dann andere Quellen.
+Nicht nötig für allgemeines Programmierwissen oder Dateien, die du gerade selbst vor dir hast. Hinweise „[VI-Gedächtnis …]“ vor einer Handlung sind schon Treffer: lesen und befolgen oder begründet widersprechen.
+LERNEN (vi_lerne: text = eine konkrete Kernaussage; inhalt = vollständig mit Befehlen und Code; hashtags host:/tool:/skill:/thema:/fehler:; quelle = Befehl, Host und Zeit oder URL):
+5. Ein Problem ist gelöst, dessen Lösung nicht offensichtlich war (mehr als ein Versuch, Fehlersuche): Ursache, Lösung, Beleg.
+6. Der Nutzer nennt eine Regel, Vorgabe oder Entscheidung, die über diese Sitzung hinaus gilt.
+7. Ein wiederverwendbarer Fakt zu einem System wurde nachgeschlagen oder gemessen (Pfad, Port, Version, Eigenheit, Zugangsweg ohne Geheimnis).
+8. Etwas erweist sich als falsch: falsches VI-Wissen mit vi_widerlege markieren, die Korrektur lernen.
+Vor dem Lernen suchen: Steht es schon da, vi_bestaetige statt neu anlegen. Hat ein Hinweis geholfen, vi_bestaetige; war er falsch, vi_widerlege.
+Nie lernen: Passwörter, Tokens, Schlüssel; Unbelegtes (höchstens ausdrücklich als Hypothese); Flüchtiges (Fortschritt, momentane Last); was im Repository oder in der Doku gepflegt wird. Firmenwissen mit sicht=intern."""
+#: Ohne Token sind Bestätigen, Widerlegen und sicht=intern nicht erlaubt (OFFEN_ERLAUBT) — die Regeln sagen es, statt es erst abzulehnen
+REGELN_OHNE_TOKEN = ("Ohne eigenes Token: suchen, lesen und mit vi_lerne Wissen vorschlagen (sicht=geteilt) — Bestätigen, Widerlegen und sicht=intern "
+                     "brauchen ein Token; nenne falsches Wissen stattdessen dem Nutzer.")
+
 TOOLS = [
     {"name": "vi_vorher",
      "description": "VI-Hook für Clients, VOR einer Handlung: meldet Werkzeug + Argumente. Antwort (JSON): antwort (gemerktes "
@@ -102,7 +121,8 @@ TOOLS = [
     {"name": "vi_status", "description": "VI: Gedächtnis-Stand — Objekte je Art, Erfahrungen 24 h, offene Gespräche, Kanten, Loop.",
      "inputSchema": _schema({})},
     {"name": "vi_lerne",
-     "description": "VI: Wissen als Objekt speichern — mit Hashtags art:wert (z. B. tool:graylog_search, host:web1.example, "
+     "description": "VI: Wissen als Objekt speichern. Wann: gelöstes nicht offensichtliches Problem, Vorgabe des Nutzers, nachgeschlagener "
+                    "Systemfakt, Korrektur (Regeln 5–8 der VI); nie Geheimnisse, vorher suchen. Mit Hashtags art:wert (z. B. tool:graylog_search, host:web1.example, "
                     "thema:timeout) und quelle (Pflicht). text = die Kernaussage, sie erscheint vor passenden Handlungen als Hinweis. "
                     "inhalt = das vollständige Wissen: Code, API-Tabellen, Befehle, Konfigurationen, unverkürzt (bis 200.000 Zeichen). "
                     "Lege es vollständig ab und verweise nicht auf Dateien, die nur auf einem Rechner liegen: Was hier fehlt, ist eine Lücke im Gedächtnis. "
@@ -114,7 +134,8 @@ TOOLS = [
                                          "description": "optional: beschreibt die Erkenntnis einen funktionierenden oder gestörten Zustand? Der Schlaf vergleicht neue Erfahrungen damit."}},
                             ["text", "hashtags", "quelle"])},
     {"name": "vi_erinnere",
-     "description": "VI: im Gedächtnis suchen — art:wert, !art:wert, (a OR b), Präfix art:wert*, Freitext (Volltext). Gewichtet nach "
+     "description": "VI: im Gedächtnis suchen. Wann: vor Beginn jeder Aufgabe, vor ändernden Handlungen an Systemen, bei Fehlern, bei Fragen "
+                    "zu internen Systemen (Regeln 1–4 der VI). Syntax: art:wert, !art:wert, (a OR b), Präfix art:wert*, Freitext (Volltext). Gewichtet nach "
                     "Relevanz, Aktualität und Wichtigkeit; jeder Treffer wird verstärkt. semantisch=true sucht hybrid: Bedeutungsnähe "
                     "zum Freitext (Embedding — dauert einige Sekunden, wird genannt) plus Volltext, per Rangfusion zusammengeführt.",
      "inputSchema": _schema({"filter": _S, "limit": {"type": "integer"}, "semantisch": {"type": "boolean"}}, ["filter"])},

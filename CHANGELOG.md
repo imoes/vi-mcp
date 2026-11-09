@@ -3,6 +3,29 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.7 — 2026-11-09 — Regeln, wann eine KI die VI befragt und wann sie lernt
+
+### Was ist neu
+
+- **Jeder Client bekommt beim Verbinden feste Regeln** (MCP `instructions`, eine Quelle: `werkzeuge.REGELN`). Vorher stand dort nur, was die
+  Werkzeuge tun, nicht wann man sie nutzt.
+  - *Befragen:* vor Beginn jeder Aufgabe (Hosts, Systeme, Produkte, Fehlermeldungen der Aufgabe); vor jeder ändernden Handlung an einem
+    System; bei Fehlern, bevor man selbst sucht; bei Fragen zu internen Systemen zuerst die VI. Automatische Hinweise vor einer Handlung
+    sind schon Treffer.
+  - *Lernen:* nach einem gelösten, nicht offensichtlichen Problem; wenn der Nutzer eine bleibende Regel nennt; nach nachgeschlagenen oder
+    gemessenen Systemfakten; Korrekturen (dazu falsches Wissen widerlegen). Vorher suchen, Vorhandenes bestätigen statt doppelt anlegen.
+  - *Nie lernen:* Geheimnisse, Unbelegtes, Flüchtiges, was im Repository gepflegt wird. Firmenwissen mit `sicht=intern`.
+  - Ohne Token kommt ein Zusatz dazu: Bestätigen, Widerlegen und `sicht=intern` brauchen ein Token — die Regeln verlangen nichts, was
+    danach abgelehnt würde.
+- Die Beschreibungen von `vi_erinnere` und `vi_lerne` nennen jetzt das „Wann“.
+- *Nachweis:* `init()` in `tests/test_http.py` prüft die Regeln in den `instructions` jeder HTTP-Sitzung;
+  `test_regeln_ohne_token_verlangen_nichts_unmoegliches`.
+
+### Was fehlt noch
+
+- Ob die Regeln befolgt werden, ist nicht gemessen. Beobachtungspunkt: Anteil der Sitzungen mit `vi_erinnere` vor der ersten ändernden
+  Handlung und Zahl der `vi_lerne` je Sitzung (aus den Erfahrungen ablesbar).
+
 ## 0.20.6 — 2026-11-09 — Semantische Kanten mit Obergrenze
 
 ### Was wurde behoben

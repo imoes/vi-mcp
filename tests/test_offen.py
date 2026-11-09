@@ -160,3 +160,10 @@ def test_ungueltige_sicht_wird_abgelehnt(offen):
     _, sa, _ = _init(port, tok)
     fehler, text = _ruf(port, sa, "vi_lerne", {"text": "eine ausreichend lange Kernaussage", "hashtags": ["thema:x"], "quelle": "Beobachtung 9.11.", "sicht": "privat-oder-so"}, tok)
     assert fehler and "sicht" in text
+
+
+def test_regeln_ohne_token_verlangen_nichts_unmoegliches(gd):
+    """0.20.7: Die Regeln nennen vi_bestaetige/vi_widerlege/sicht=intern — ohne Token ist das gesperrt, also steht es dort dabei."""
+    from vi_mcp import werkzeuge
+    assert "vi_bestaetige" in werkzeuge.REGELN and "vi_bestaetige" not in werkzeuge.OFFEN_ERLAUBT
+    assert "Bestätigen, Widerlegen und sicht=intern" in werkzeuge.REGELN_OHNE_TOKEN

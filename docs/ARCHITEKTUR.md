@@ -103,6 +103,13 @@ fünf Wege:
 
 Gemerkte Antworten (`antwort`) gelten seit 0.2.0 **nur innerhalb einer Instanz**.
 
+## Regeln für Clients
+
+Beim Verbinden bekommt jeder Client in den MCP-`instructions` feste Regeln (`werkzeuge.REGELN`, seit 0.20.7): befragen vor Beginn
+jeder Aufgabe, vor ändernden Handlungen, bei Fehlern und bei Fragen zu internen Systemen; lernen nach gelösten nicht offensichtlichen
+Problemen, bei bleibenden Vorgaben des Nutzers, nach nachgeschlagenen Systemfakten und bei Korrekturen; nie Geheimnisse, Unbelegtes oder
+Flüchtiges. Ohne Token kommt `REGELN_OHNE_TOKEN` dazu. Ob die Regeln befolgt werden, ist noch nicht gemessen.
+
 ## Erinnern
 
 Filtersprache: `art:wert` (UND), `(a OR b)`, `!art:wert`, Präfix `art:wert*`, Freiwörter → FTS5.

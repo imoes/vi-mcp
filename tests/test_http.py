@@ -50,6 +50,8 @@ def init(port, token, name="pytest"):
                                                     "capabilities": {}}}, token)
     assert st == 200, a
     assert a["result"]["protocolVersion"] == "2025-03-26"
+    # 0.20.7: Jeder Client bekommt die Regeln, wann er die VI befragt und wann er lernt
+    assert "BEFRAGEN" in a["result"]["instructions"] and "LERNEN" in a["result"]["instructions"] and "Nie lernen" in a["result"]["instructions"]
     sid = kopf["Mcp-Session-Id"]
     st, _, _ = anfrage(port, "POST", {"jsonrpc": "2.0", "method": "notifications/initialized"}, token, sid)
     assert st == 202
