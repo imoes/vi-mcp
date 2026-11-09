@@ -227,6 +227,10 @@ def test_skill_anleitung_bleibt_vollstaendig(gd):
     ("ansible-playbook site.yml -l web1.example,web2.example", {"skill:ansible", "thema:ansible-playbook", "host:web1.example", "host:web2.example"}),
     ("ansible-playbook site.yml --limit 'sites_a:!zeit1.example'", {"skill:ansible", "thema:ansible-playbook"}),
     ('echo "a; qm b" | tee x', set()),
+    # 0.20.1: Code in Anführungszeichen innerhalb eines ssh-Befehls ist kein Befehl
+    ("""ssh web1.example 'curl -s http://x/slots | python3 -c "import json,sys; d=json.load(sys.stdin); print([s for s in d])"; top -bn1'""",
+     {"thema:ssh", "thema:curl", "thema:top", "host:web1.example"}),
+    ("""ssh web1.example 'sudo sh -c "apt-get update; qm list"'""", {"thema:ssh", "host:web1.example", "thema:apt-get", "skill:proxmox", "thema:qm"}),
     ("sudo -u postgres pg_dump app > /tmp/a.sql", {"skill:postgres", "thema:pg_dump"}),
     ("cd x; ansible-playbook -i hosts site.yml", {"skill:ansible", "thema:ansible-playbook"}),
     ("docker compose up -d", {"skill:docker", "thema:docker"}),

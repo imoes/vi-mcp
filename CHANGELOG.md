@@ -3,6 +3,15 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.1 — 2026-11-09 — Verschachtelte Anführungszeichen
+
+### Was wurde behoben
+
+- Code in Anführungszeichen **innerhalb** eines ssh-Befehls wurde als Shellbefehl gelesen: Aus `ssh host 'curl … | python3 -c "import json; …print(…)"'`
+  wurden die Reize `thema:import`, `thema:print`, `thema:for`, `thema:sys.stdin`. Gesehen im Hook auf dem Produktivsystem (09.11., kurz nach 02:20 UTC).
+  Ein Stapel hält jetzt jede Ebene von Anführungszeichen; innerer Text ist nur ein Befehl, wenn auch er ausgeführt wird (`sh -c "…"` innerhalb `ssh '…'`).
+  *Nachweis:* zwei neue Fälle in `test_befehle_werden_reize`, der erste schlägt mit 0.20.0 fehl.
+
 ## 0.20.0 — 2026-11-09 — Lernen bei Bedarf, Sicht „intern“ für Firmenwissen
 
 ### Was ist neu

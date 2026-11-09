@@ -65,21 +65,24 @@ _FUEHRT_AUS = re.compile(r"(?:\bssh\s+(?:-\S+(?:\s+\S+)?\s+)*\S+|\b(?:ba|z)?sh\s
 
 def _teilbefehle(kommando: str):
     """Teilbefehle der Kommandozeile. Text in Anführungszeichen ist nur dann ein Befehl, wenn er ausgeführt wird
-    (ssh <ziel> '…', sh -c '…', su -c '…'); sonst ist er ein Argument (psql -c "select 1", grep 'muster') und wird übersprungen."""
+    (ssh <ziel> '…', sh -c '…', su -c '…'); sonst ist er ein Argument (psql -c "select 1", python3 -c "…", grep 'muster') und wird übersprungen.
+    Verschachtelt (seit 0.20.1): in ssh '… python3 -c "code" …' ist der innere Code kein Befehl — ein Stapel hält jede Ebene."""
     teile = re.split(r"([;&|()`\n]|\$\(|['\"])", kommando)
-    offen, ausfuehren, vorher_text, fortsetzung = None, False, "", False
+    stapel: list[tuple[str, bool]] = []  # (Anführungszeichen, wird ausgeführt)
+    vorher_text, fortsetzung = "", False
     for i in range(0, len(teile), 2):
         text = teile[i]
-        if (offen is None and not fortsetzung) or (offen is not None and ausfuehren):
+        if all(ausf for _z, ausf in stapel) and not fortsetzung:
             yield text
-        vorher_text = text if offen is None else vorher_text
+        vorher_text = text
         trenner = teile[i + 1] if i + 1 < len(teile) else ""
         fortsetzung = False
         if trenner in ("'", '"'):
-            if offen is None:
-                offen, ausfuehren = trenner, bool(_FUEHRT_AUS.search(vorher_text))
-            elif trenner == offen:
-                offen, ausfuehren, fortsetzung = None, False, True  # nach dem schließenden Zeichen geht dasselbe Kommando weiter
+            if stapel and stapel[-1][0] == trenner:
+                stapel.pop()
+                fortsetzung = True  # nach dem schließenden Zeichen geht dasselbe Kommando weiter
+            else:
+                stapel.append((trenner, bool(_FUEHRT_AUS.search(vorher_text))))
 
 
 def _befehle(kommando: str):
