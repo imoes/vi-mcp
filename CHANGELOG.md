@@ -3,6 +3,18 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.21.2 — 2026-11-09 — Zustandsabhängige Werkzeuge werden nie aus dem Gedächtnis beantwortet
+
+### Was wurde behoben
+
+- **Browser-, Warte- und Live-Werkzeuge bekommen keine gemerkte Antwort mehr.** Gemeldet von einer CentralStation-Sitzung am 09.11.
+  ~12:54 UTC: `browser_wait_for(time=5)` wurde nicht ausgeführt; der Hook lieferte die gemerkte Antwort von vor 53 s — mit einer anderen
+  Seiten-URL als der tatsächlich geladenen. „Lesend“ hieß bisher nur: kein schreibendes Wort im Namen. Bei Werkzeugen, die vom Zustand
+  außerhalb abhängen, heißen gleiche Argumente aber nicht gleicher Zustand; ein Test, der auf Text wartet, würde falsch grün oder rot.
+  Jetzt werden Werkzeuge mit `browser`, `playwright`, `wait`/`wait_for`, `sleep`, `snapshot`, `screenshot`, `evaluate`, `console`,
+  `network_requests`, `tabs`, `navigate`, `health`, `ping`, `now`, `live` im Namen weder gemerkt noch aus dem Gedächtnis beantwortet
+  (`intuition.zustandsabhaengig`). *Nachweis:* `test_zustandsabhaengige_werkzeuge_werden_nie_gemerkt` (schlägt mit 0.21.1 fehl).
+
 ## 0.21.1 — 2026-11-09 — Belegtes vor Vermutetem; seltener schlafen
 
 Beides folgt aus dem ersten Bericht von `vi_statistik` auf dem Produktivsystem (09.11. 11:30 UTC, 24 h).

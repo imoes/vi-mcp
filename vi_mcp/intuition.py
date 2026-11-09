@@ -27,6 +27,15 @@ SCHREIBEND = re.compile(r"(create|add|update|launch|acknowledge|push|transition|
                         r"schedule|delete|link|comment|modify|set_|_auth_|login|logout|focus|foreground|move_|write|edit|"
                         r"activate|bake|discovery|downtime|reschedule|refresh|vergiss|lerne|markiere|bestaetige|widerlege)", re.I)
 TTL_STANDARD = 120
+#: 0.21.2: Werkzeuge, deren Ergebnis vom Zustand außerhalb abhängt (Browser, Warten, Live-Zustand), werden nie gemerkt und nie aus dem
+#: Gedächtnis beantwortet — gleiche Argumente heißen dort nicht gleicher Zustand. Gemeldet von CentralStation am 09.11. ~12:54 UTC:
+#: browser_wait_for(time=5) bekam die gemerkte Antwort von vor 53 s mit einer anderen Seiten-URL, statt zu warten.
+ZUSTANDSABHAENGIG = re.compile(r"(^|_)(browser|playwright|wait|wait_for|sleep|snapshot|screenshot|evaluate|console|network_requests?|"
+                               r"tabs|navigate|health|ping|now|uhrzeit|live)(_|$)", re.I)
+
+
+def zustandsabhaengig(tool: str) -> bool:
+    return bool(ZUSTANDSABHAENGIG.search(tool or ""))
 TTL_MAX = 3600
 HINWEIS_BUDGET = 4
 #: Nachschlagewerk (importierte Herstellerdoku): wird gesucht, aber vor einer Handlung höchstens NACHSCHLAG_MAX-mal ungefragt gezeigt,
@@ -238,7 +247,7 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
     hinweise += lager.hinweis(such_reize)
     antwort, alter_s, ttl = None, None, None
     from .konfig import OFFEN
-    if lesend(tool, ist_lesend) and instanz != OFFEN:  # ohne Token teilen sich alle eine Instanz: keine gemerkten Antworten
+    if lesend(tool, ist_lesend) and instanz != OFFEN and not zustandsabhaengig(tool):  # ohne Token teilen sich alle eine Instanz: keine gemerkten Antworten
         ttl = min(ttl_je_werkzeug.get(tool, TTL_STANDARD), TTL_MAX)
         for _, o, _g in g.erinnere(f"art:antwort cache:{_frage(tool, args)}", limit=1, betrachter=instanz):
             alter = (datetime.now(timezone.utc) - datetime.fromisoformat(o.zeit)).total_seconds()
@@ -373,7 +382,8 @@ def erfahrung(tool: str, args: dict, ok: bool | None, dauer_ms: int, fehler: str
     for oid in zugriff.get("gefunden", []):
         o.verknuepfe(oid, "vor der Handlung erinnert")
     from .konfig import OFFEN
-    if ok and ergebnis is not None and lesend(tool, ist_lesend) and not zugriff.get("aus_gedaechtnis") and len(ergebnis) <= 200_000 and instanz != OFFEN:
+    if (ok and ergebnis is not None and lesend(tool, ist_lesend) and not zugriff.get("aus_gedaechtnis") and len(ergebnis) <= 200_000
+            and instanz != OFFEN and not zustandsabhaengig(tool)):
         fh = _frage(tool, args)
         with g.sperre:
             # nur die eigene gemerkte Antwort ersetzen — der Cache ist privat je Instanz

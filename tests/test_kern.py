@@ -304,3 +304,16 @@ def test_fehlendes_pflichtfeld_wird_abgelehnt_statt_still_beantwortet(gd):
     werkzeuge.rufe("vi_erinnere", {"filter": "Lizenz"}, "a", True)  # richtig benannt: geht
     with pytest.raises(werkzeuge.Abgelehnt, match="Pflichtfeld fehlt: id$"):
         werkzeuge.rufe("vi_objekt", {}, "a", True)
+
+
+def test_zustandsabhaengige_werkzeuge_werden_nie_gemerkt(gd):
+    """0.21.2: browser_wait_for(time=5) bekam die gemerkte Antwort von vor 53 s (andere Seiten-URL), statt zu warten."""
+    from vi_mcp import intuition
+    for tool in ("browser_wait_for", "browser_snapshot", "browser_take_screenshot", "browser_evaluate", "openclaw_health"):
+        assert intuition.zustandsabhaengig(tool), tool
+        args = {"time": 5, "n": tool}
+        v = intuition.vorher(tool, args, "a", True)
+        intuition.nachher(tool, args, True, 5000, None, "Seite geladen: https://x/a", v["vorher_id"], "a", True)
+        assert intuition.vorher(tool, args, "a", True)["antwort"] is None, tool
+    for tool in ("netbox_get_devices", "checkmk_get_hosts", "Read"):
+        assert not intuition.zustandsabhaengig(tool), tool
