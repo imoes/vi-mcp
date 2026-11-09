@@ -293,3 +293,14 @@ def test_inhaltsleerer_auto_skill_wird_widerlegt(gd):
     assert skills.inhaltsleer(o) and not skills.inhaltsleer(echt)
     skills.bewerte()
     assert g.lade(o.id).modus == "widerlegt" and g.lade(echt.id).modus != "widerlegt"
+
+
+def test_fehlendes_pflichtfeld_wird_abgelehnt_statt_still_beantwortet(gd):
+    """0.20.4: vi_erinnere mit „text“ statt „filter“ lieferte die wichtigsten Objekte, als wäre gesucht worden."""
+    import pytest
+    from vi_mcp import werkzeuge
+    with pytest.raises(werkzeuge.Abgelehnt, match="Pflichtfeld fehlt: filter — übergeben, aber unbekannt: text"):
+        werkzeuge.rufe("vi_erinnere", {"text": "Lizenz Dongle"}, "a", True)
+    werkzeuge.rufe("vi_erinnere", {"filter": "Lizenz"}, "a", True)  # richtig benannt: geht
+    with pytest.raises(werkzeuge.Abgelehnt, match="Pflichtfeld fehlt: id$"):
+        werkzeuge.rufe("vi_objekt", {}, "a", True)

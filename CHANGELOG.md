@@ -3,6 +3,26 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.4 — 2026-11-09 — Fehlende Pflichtfelder werden abgelehnt
+
+### Was wurde behoben
+
+- **Ein Werkzeugaufruf ohne Pflichtfeld wird abgelehnt und nennt das Feld**, statt still mit Standardwerten zu antworten. Am 09.11. lieferte
+  `vi_erinnere` mit `text` statt `filter` die fünf wichtigsten Objekte — sechs Vergleichsfragen sahen aus wie beantwortet, waren aber nie gesucht
+  („5 Objekte zu „““). Jetzt: `vi_erinnere: Pflichtfeld fehlt: filter — übergeben, aber unbekannt: text`. Geprüft wird gegen das `required` des
+  Werkzeug-Schemas, für alle Werkzeuge. *Nachweis:* `test_fehlendes_pflichtfeld_wird_abgelehnt_statt_still_beantwortet` (schlägt mit 0.20.3 fehl).
+
+### Gemessen: Firmendoku nach dem Import
+
+- Nach dem Import von rund 10.000 Abschnitten aus einem internen Confluence-Space (Sicht `intern`) beantwortet die VI **4 von 6** Firmendoku-Fragen
+  aus dem Vergleich vom 08./09.11. (vorher 0 von 6), dieselben vier wie die AIKB in ihrem besten Lauf (4 von 6; im zweiten Lauf 0 von 6, alle sechs
+  Anfragen nach 300 s abgebrochen). Die Kernaussage steht jeweils inhaltlich im Treffer (Platz 1–3, im Volltext des Objekts geprüft). Die VI meldete
+  für die Einbettung der Frage 1,9–6,5 s (Gesamtzeit nicht gemessen); die AIKB brauchte 57–300 s. Zwei der vier Treffer kamen nur über den Volltext, weil ihr Vektor noch fehlte (Einbettung hinkt dem
+  Import hinterher, gemessen rund 1.550 Vektoren je Stunde).
+- **Einschränkung:** Bewertet hat diesmal Claude anhand des Trefferinhalts, nicht das lokale Sprachmodell wie in den früheren Läufen — es lieferte
+  ab 05:04 UTC nur noch unbrauchbare Ausgaben. Die Bewertung mit dem lokalen Richter wird nachgeholt.
+- Nicht gefunden: eine Frage zu Elasticsearch-Shards (auch die AIKB nicht); eine Seite (NiFi) verweist nur auf ein PDF, die Kernaussage steht nicht im Text.
+
 ## 0.20.3 — 2026-11-09 — Kein fester Nachtlauf mehr
 
 ### Was hat sich geändert

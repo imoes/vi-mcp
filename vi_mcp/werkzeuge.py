@@ -163,6 +163,18 @@ TOOLS = [
      "inputSchema": _schema({"name": _S, "modus": {"type": "string", "enum": ["test", "aktiv", "aus"]}}, ["name", "modus"])},
 ]
 _NAMEN = {t["name"] for t in TOOLS}
+_SCHEMAS = {t["name"]: t["inputSchema"] for t in TOOLS}
+
+
+def _pflicht(name: str, args: dict) -> None:
+    """0.20.4: fehlende Pflichtfelder ablehnen statt still mit Standardwerten zu antworten (gemessen 09.11.: vi_erinnere mit „text“
+    statt „filter“ lieferte die fünf wichtigsten Objekte, als wäre gesucht worden). Unbekannte Felder werden als Hinweis genannt."""
+    schema = _SCHEMAS.get(name) or {}
+    fehlt = [k for k in schema.get("required", []) if k not in args]
+    if fehlt:
+        fremd = sorted(set(args) - set(schema.get("properties", {})))
+        raise Abgelehnt(f"{name}: Pflichtfeld fehlt: {', '.join(fehlt)}"
+                        + (f" — übergeben, aber unbekannt: {', '.join(fremd)}" if fremd else ""))
 REFLEX_RECHT = ("vi_reflex_lerne", "vi_reflex_schalte")  # „vertraute Instanz“; vi_schlaf(jetzt) prüft es selbst
 
 
@@ -228,6 +240,7 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
         raise Abgelehnt(f"{name} braucht eine eigene Instanz mit Token. Ohne Token darf man lesen, Handlungen melden und mit vi_lerne Wissen vorschlagen.")
     if name.startswith("vi_reflex_") and name not in _NAMEN:
         return reflexe.als_werkzeug(name, args)
+    _pflicht(name, args)
     if name in REFLEX_RECHT and not reflex_recht:
         raise Abgelehnt(f"Instanz {instanz} hat kein Reflex-Recht (Konfiguration: instanzen.{instanz}.reflexe)")
     if name == "vi_vorher":
