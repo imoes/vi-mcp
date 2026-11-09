@@ -64,12 +64,14 @@ def test_hintergrund_thread_laeuft_nach_anstoss(fake, monkeypatch):
 
 
 def test_einbettung_pausiert_zwischen_batches(fake, monkeypatch):
-    """0.20.5: Der Embedding-Dienst ist geteilt — nach jedem Batch eine Pause in Länge seiner Dauer (pause_anteil 1.0)."""
+    """0.20.5: Für geteilte Embedding-Dienste: nach jedem Batch eine Pause in Länge seiner Dauer (pause_anteil 1.0); Standard ungedrosselt."""
+    assert vektor.PAUSE_ANTEIL == 0
     def langsam(texte):
         time.sleep(0.05)
         return fake_einbetten(texte)
     monkeypatch.setattr(vektor, "einbetten_fn", langsam)
     monkeypatch.setattr(vektor, "BATCH", 1)
+    monkeypatch.setattr(vektor, "konfig", {"modell": "fake", "pause_anteil": 1.0})
     for i in range(3):
         g.neues_objekt("erkenntnis", f"Proxy timeout Nummer {i} auf web{i}", [f"host:web{i}"], {"quelle": "x"}, grund="T")
     t0 = time.monotonic()

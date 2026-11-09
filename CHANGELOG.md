@@ -3,7 +3,7 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
-## 0.20.5 — 2026-11-09 — Der Schlaf hält nichts mehr an; Einbettung mit Pausen
+## 0.20.5 — 2026-11-09 — Der Schlaf hält nichts mehr an
 
 ### Was wurde behoben
 
@@ -14,10 +14,10 @@ Verlinkt aus [README.md](README.md).
 
 ### Was hat sich geändert
 
-- **Einbettung mit Pausen:** Nach jedem Batch wartet die VI so lange, wie der Batch gedauert hat (`embed.pause_anteil`, Standard 1.0,
-  0 schaltet ab). Der Embedding-Dienst ist geteilt; eine einzelne kurze Frage brauchte dort am 09.11. um 07:00 UTC 23–27 s, um 06:13 UTC
-  1,9–6,5 s. Ob die VI die Ursache war, ist **nicht belegt** (ein Gegenversuch ergab 56,8 / 4,4 / 0,06 s). Die Pause halbiert höchstens den
-  eigenen Durchsatz (vorher gemessen rund 1.550 Vektoren je Stunde). Der Schlaf bettet höchstens 300 s statt 1.200 s ein, den Rest übernimmt
+- **Einbettung mit Pausen, wählbar:** Mit `embed.pause_anteil` = 1.0 wartet die VI nach jedem Batch so lange, wie der Batch gedauert hat.
+  Standard ist 0 = ungedrosselt (Entscheidung des Nutzers am 09.11.). Der Embedding-Dienst ist geteilt; eine einzelne kurze Frage brauchte dort am 09.11. um 07:00 UTC 23–27 s, um 06:13 UTC
+  1,9–6,5 s. Ob die VI die Ursache war, ist **nicht belegt** (ein Gegenversuch ergab 56,8 / 4,4 / 0,06 s). Eingeschaltet halbiert die Pause
+  höchstens den eigenen Durchsatz (gemessen rund 1.550 Vektoren je Stunde). Der Schlaf bettet höchstens 300 s statt 1.200 s ein, den Rest übernimmt
   das Training bei Bedarf. Der Bericht nennt `pause_s`. *Nachweis:* `test_einbettung_pausiert_zwischen_batches`.
 - **Firmendoku, nachgeholt mit dem lokalen Richter** (09.11. ~07:20 UTC, dieselben 6 Fragen und dieselbe Abfrage wie in den Läufen 2/3):
   VI 3× ja, 1× teilweise, 2× nein = **3,5 von 6** (AIKB bester Lauf 4 von 6, Lauf 3 0 von 6). Die eigene Bewertung aus 0.20.4 (4 von 6)

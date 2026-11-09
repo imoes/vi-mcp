@@ -28,10 +28,9 @@ from .protokoll import log
 BATCH = 16
 #: Zeitgrenze statt Stückzahl: Ein Schlaf soll nicht stundenlang einbetten, der Rest kommt im nächsten (gemessen rund 1,5 s je Text)
 NACHZIEH_MAX_S = 300
-#: 0.20.5: Pause nach jedem Batch, als Anteil seiner Dauer (1.0 = höchstens halbe Auslastung). Der Embedding-Dienst ist geteilt
-#: (AIKB, CentralStation): am 09.11. 07:00 UTC brauchte eine einzelne kurze Frage dort 23–27 s statt sonst 1,9–6,5 s.
-#: Einstellbar über konfig embed.pause_anteil; 0 schaltet die Pause ab.
-PAUSE_ANTEIL = 1.0
+#: 0.20.5: Pause nach jedem Batch, als Anteil seiner Dauer (1.0 = höchstens halbe Auslastung), für geteilte Embedding-Dienste.
+#: Standard 0 = ungedrosselt (Entscheidung des Nutzers, 09.11.); einschalten über konfig embed.pause_anteil.
+PAUSE_ANTEIL = 0.0
 NAEHE_KANTE = 0.85
 NAEHE_DUBLETTE = 0.95
 VEKTOR_ARTEN = ("erkenntnis", "regel", "suche", "skill")

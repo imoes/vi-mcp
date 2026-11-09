@@ -287,9 +287,9 @@ für das Lernen zu Misserfolgen. Bewertungen sind privat. Das Protokoll für das
 `vektor.py`: Embeddings (OpenAI-kompatibler Dienst, konfig `embed`) für geteilte Wissensobjekte, als float32-BLOB in
 Tabelle `vektor` (TRAINING.md 4c). Eingebettet wird nur `text` (die Kernaussage), nicht `inhalt`. Nachgezogen wird im Hintergrund:
 beim Training bei Bedarf (höchstens 120 s je Lauf) und im Schlaf (Schritt 7, höchstens 300 s), in Batches zu 16. Der Dienst ist auf dem
-Produktivhost geteilt; seit 0.20.5 pausiert die VI nach jedem Batch so lange, wie er gedauert hat (`embed.pause_anteil`, Standard 1.0,
-0 = aus), weil eine einzelne Frage anderer Nutzer dort sonst 23–27 s brauchte (gemessen 09.11.2026 07:00 UTC). Für `vi_vorher` bleibt der
-Dienst zu langsam. Schritt 7b: Kosinus ≥ 0,85
+Produktivhost geteilt; seit 0.20.5 kann die VI nach jedem Batch eine Pause im Verhältnis zur Batchdauer einlegen (`embed.pause_anteil`,
+Standard 0 = ungedrosselt; 1.0 = höchstens halbe Auslastung). Anlass: Eine einzelne Frage anderer Nutzer brauchte dort 23–27 s (gemessen
+09.11.2026 07:00 UTC; ob die VI die Ursache war, ist nicht belegt). Für `vi_vorher` bleibt der Dienst zu langsam. Schritt 7b: Kosinus ≥ 0,85
 → Kante „semantisch ähnlich“; ≥ 0,95 zwischen **verschiedenen** Instanzen → `dublette:moeglich` (zusammenlegen
 entscheidet eine Instanz, nicht der Server). `vi_erinnere(filter, semantisch=true)` bettet den Freitext ausdrücklich
 jetzt ein und ordnet **alle** sichtbaren Kandidaten nach Nähe (seit 0.19.2 ohne Obergrenze); seit 0.19.5 hybrid: Bedeutungs- und
