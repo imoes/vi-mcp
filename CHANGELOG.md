@@ -3,6 +3,27 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.8 — 2026-11-09 — Warnung vor riskanten Handlungen
+
+### Was ist neu
+
+- **Das Router-Modell warnt vor Handlungen, die in vergleichbarer Lage oft scheitern.** Vor der Handlung erscheint dann
+  `[VI-Warnung] Handlungen wie diese scheitern oft — host:x: 23 von 41 Handlungen scheiterten (56 %); insgesamt 11 %. Im Test scheiterten …`.
+  Begründet wird mit **gezählten Quoten** je Merkmal, nicht mit der Modellwahrscheinlichkeit: Die ist wegen `class_weight="balanced"`
+  nicht kalibriert. Genannt werden nur Merkmale, die schlechter als der Durchschnitt abschneiden; ohne benennbaren Grund keine Warnung.
+- **Die Schwelle legt das Training selbst fest**, im zeitlich letzten Fünftel der Daten (Holdout): gewarnt wird nur bis zu der
+  Modellwahrscheinlichkeit, bei der dort mindestens 50 % der so eingestuften Handlungen tatsächlich scheiterten, bei mindestens 10 Fällen.
+  Gibt es keine solche Schwelle, ist die Warnung aus — `vi_modell` nennt Zustand, Treffsicherheit und Abdeckung oder den Grund.
+- `vi_vorher` vermerkt `warnung` in der Beobachtung, damit sich später messen lässt, ob gewarnte Handlungen seltener scheitern.
+- *Nachweis:* `test_warnung_vor_riskanten_handlungen` (synthetisch: ein Host scheitert zu 90 % → Warnung mit Quote; ein guter Host → keine).
+
+### Was fehlt noch
+
+- **Auf den Produktivdaten liegt das Signal an der Grenze** (Kopie vom 09.11. ~09:20 UTC): Im Holdout scheiterten nur 9 von 230
+  Handlungen, 8 davon mit dem Werkzeug `analyse`; von den 10 riskantesten Einstufungen scheiterten 5 (50 %), von den 20 riskantesten 8
+  (40 %). Bei einem Training fünf Minuten früher lag es knapp darunter (Warnung aus). Die Warnung wird also anfangs selten oder gar nicht
+  erscheinen und schaltet sich ein, sobald die Daten sie tragen. Ob sie Fehlschläge verhindert, ist nicht gemessen.
+
 ## 0.20.7 — 2026-11-09 — Regeln, wann eine KI die VI befragt und wann sie lernt
 
 ### Was ist neu

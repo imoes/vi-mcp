@@ -164,3 +164,20 @@ def test_wirkungsloser_hinweis_bleibt_bei_haelfte(gd):
     alt = g.neues_objekt("regel", "Altlast mit falschen Zählern", ["tool:x"], {"quelle": "x", "nuetzlich": {"ja": 226, "nein": 1}}, grund="T")
     bandit.neu_berechnen()
     assert "nuetzlich" not in g.lade(alt.id).daten  # ohne bewertete Handlung keine Zähler
+
+
+@pytest.mark.skipif(not HAT_SKLEARN, reason="scikit-learn fehlt")
+def test_warnung_vor_riskanten_handlungen(gd):
+    """0.20.8: Das Router-Modell erkennt Lagen, in denen Handlungen oft scheitern, und warnt mit gezählter Begründung."""
+    rnd = random.Random(7)
+    for _ in range(400):
+        kaputt = rnd.random() < 0.3
+        handlung("deploy_run", "kaputt1" if kaputt else f"gut{rnd.randint(1, 5)}", (rnd.random() < 0.1) if kaputt else (rnd.random() < 0.95))
+    r = lernen.trainiere("Test")
+    assert r["zustand"] == "aktiv" and r["warnung"]["zustand"] == "aktiv" and r["warnung"]["praezision_pct"] >= 50
+    w = lernen.warnung(intuition.reize("deploy_run", {"host": "kaputt1"}))
+    assert w and w.startswith("[VI-Warnung]") and "host:kaputt1:" in w and "Handlungen scheiterten" in w
+    assert lernen.warnung(intuition.reize("deploy_run", {"host": "gut2"})) is None
+    v = intuition.vorher("deploy_run", {"host": "kaputt1", "n": -1}, "a")
+    assert any(h.startswith("[VI-Warnung]") for h in v["hinweise"])
+    assert "Warnung vor riskanten Handlungen: aktiv" in lernen.erklaerung()

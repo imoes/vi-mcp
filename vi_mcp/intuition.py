@@ -162,6 +162,10 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
         if s.handlungen % selbst.WIEDERHOLUNG_JE == 0:
             hinweise.append(selbst.hinweis())
     rz = reize(tool, args, kontext)
+    from . import lernen as _lernen
+    warn = _lernen.warnung(rz)  # 0.20.8: Router-Modell erkennt riskante Lagen; nur mit gezählter Begründung
+    if warn:
+        hinweise.append(warn)
     such_reize = rz
     gefunden, suchen, aus_gedaechtnis = [], [], []
     # Kein zugriff() beim automatischen Zeigen: Gezeigtes würde sonst allein durchs Zeigen wichtiger (Selbstbestätigung,
@@ -236,7 +240,7 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
             if alter <= ttl:
                 gefunden.append(o.id)
                 antwort, alter_s = o.daten.get("ergebnis", ""), int(alter)
-    zugriff = {"reize": rz, "gefunden": gefunden, "gezeigt": [o.id for o in gezeigt_obj], "kandidaten": kandidaten_ids,
+    zugriff = {"reize": rz, "warnung": bool(warn), "gefunden": gefunden, "gezeigt": [o.id for o in gezeigt_obj], "kandidaten": kandidaten_ids,
                "router": router, "exploration": exploration, "suchen": suchen, "aus_gedaechtnis": antwort is not None}
     vorher_id = secrets.token_hex(8)
     if antwort is not None:

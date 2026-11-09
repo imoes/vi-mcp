@@ -110,6 +110,12 @@ jeder Aufgabe, vor ändernden Handlungen, bei Fehlern und bei Fragen zu internen
 Problemen, bei bleibenden Vorgaben des Nutzers, nach nachgeschlagenen Systemfakten und bei Korrekturen; nie Geheimnisse, Unbelegtes oder
 Flüchtiges. Ohne Token kommt `REGELN_OHNE_TOKEN` dazu. Ob die Regeln befolgt werden, ist noch nicht gemessen.
 
+## Warnung vor riskanten Handlungen
+
+Seit 0.20.8 warnt `vi_vorher`, wenn das Router-Modell die Lage einer Handlung als riskant einstuft (`lernen.warnung`). Die Schwelle
+bestimmt das Training im Holdout (≥ 50 % gescheitert bei ≥ 10 Fällen, sonst aus); die Begründung sind gezählte Quoten je Merkmal
+(`quoten` im Objekt `modell:router`), weil die Wahrscheinlichkeiten des balancierten Modells nicht kalibriert sind.
+
 ## Erinnern
 
 Filtersprache: `art:wert` (UND), `(a OR b)`, `!art:wert`, Präfix `art:wert*`, Freiwörter → FTS5.

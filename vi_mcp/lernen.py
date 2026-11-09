@@ -27,6 +27,11 @@ MODELL = "modell:router"
 MIN_JE_MERKMAL = 10
 MIN_EREIGNISSE = 50
 AUC_MIN = 0.6
+#: 0.20.8: Warnung vor riskanten Handlungen. Die Schwelle legt das Training im Holdout fest: gewarnt wird nur, wo dort mindestens
+#: WARN_PRAEZISION der so eingestuften Handlungen tatsächlich scheiterte, bei mindestens WARN_MIN_N Fällen. Die Wahrscheinlichkeiten
+#: des Modells sind wegen class_weight="balanced" nicht kalibriert — deshalb nennt die Warnung gezählte Quoten, nicht P(ok).
+WARN_PRAEZISION = 0.5
+WARN_MIN_N = 10
 EPSILON = 0.1
 #: Bedeutungsnähe und Inhaltsgruppe als Merkmale (inhalt.py). Abschaltbar, um den Unterschied zu messen.
 INHALT = True
@@ -153,9 +158,76 @@ def trainiere(grund: str = "Schlaf") -> dict:
     else:
         bericht.update(zustand="aktiv", urteil=f"Holdout-AUC {auc:.3f} > {AUC_MIN} — Router nutzt das Modell")
         modus = "aktiv"
+    bericht["warnung"] = _warnschwelle(clf, vec, beob[-n_test:]) if modus == "aktiv" else {"zustand": "aus", "grund": "Modell nicht aktiv"}
+    bericht["quoten"] = _quoten(beob, behalten)
     _speichere(bericht, gewichte, float(clf.intercept_[0]), modus)
-    log(f"Lernen: {bericht['zustand']} — n {len(beob)}, Merkmale {len(behalten)}, AUC {bericht.get('auc_holdout')}")
+    log(f"Lernen: {bericht['zustand']} — n {len(beob)}, Merkmale {len(behalten)}, AUC {bericht.get('auc_holdout')}, "
+        f"Warnung {bericht['warnung'].get('zustand')}")
     return bericht
+
+
+def _basis(m: dict) -> dict:
+    """Nur die Lage der Handlung (ohne Hinweise) — so, wie vi_vorher sie vor dem Zeigen kennt."""
+    return {**{k: v for k, v in m.items() if k.startswith(REIZ_ARTEN + ("stunde:",))}, "hinweis_n:0": 1.0}
+
+
+def _je_erfahrung(beob: list) -> list[tuple[dict, int]]:
+    gesehen, aus = set(), []
+    for m, y, oid in beob:
+        if oid not in gesehen:
+            gesehen.add(oid)
+            aus.append((_basis(m), y))
+    return aus
+
+
+def _quoten(beob: list, behalten: set) -> dict:
+    """[Handlungen, gescheitert] je Situationsmerkmal, je Erfahrung einmal gezählt; „_gesamt“ für alle."""
+    q: dict[str, list[int]] = {"_gesamt": [0, 0]}
+    for b, y in _je_erfahrung(beob):
+        for k in ["_gesamt"] + [k for k in b if k in behalten and k.startswith(REIZ_ARTEN)]:
+            e = q.setdefault(k, [0, 0])
+            e[0] += 1
+            e[1] += 1 - y
+    return q
+
+
+def _warnschwelle(clf, vec, holdout: list) -> dict:
+    """Größte Schwelle t, bei der im Holdout von den Handlungen mit P(ok) ≤ t mindestens WARN_PRAEZISION scheiterten (≥ WARN_MIN_N Fälle)."""
+    faelle = _je_erfahrung(holdout)
+    if not faelle:
+        return {"zustand": "aus", "grund": "kein Holdout"}
+    p = clf.predict_proba(vec.transform([b for b, _y in faelle]))[:, 1]
+    paare = sorted(zip(p.tolist(), [y for _b, y in faelle]))
+    gescheitert_ges = sum(1 - y for _p, y in paare)
+    best, n, f = None, 0, 0
+    for i, (pp, y) in enumerate(paare):
+        n, f = i + 1, f + (1 - y)
+        if n >= WARN_MIN_N and f / n >= WARN_PRAEZISION and (i + 1 == len(paare) or paare[i + 1][0] > pp):
+            best = {"schwelle": round(pp, 4), "gewarnt": n, "scheiterten": f}
+    if not best:
+        return {"zustand": "aus", "grund": f"keine Schwelle mit ≥ {WARN_MIN_N} Fällen und ≥ {int(WARN_PRAEZISION * 100)} % gescheitert im Holdout"}
+    return {"zustand": "aktiv", **best, "praezision_pct": round(100 * best["scheiterten"] / best["gewarnt"]),
+            "abdeckung_pct": round(100 * best["scheiterten"] / gescheitert_ges) if gescheitert_ges else 0, "holdout_handlungen": len(paare)}
+
+
+def warnung(reize: list[str], zeit: str | None = None) -> str | None:
+    """Warnung vor einer riskanten Handlung — nur bei aktivem Modell und aktiver Schwelle, nur mit benennbarem Grund (gezählte Quote)."""
+    m = aktiv()
+    w = (m.daten.get("warnung") or {}) if m else {}
+    if w.get("zustand") != "aktiv":
+        return None
+    basis = _basis(merkmale_handlung(reize, zeit or g.jetzt()))
+    if vorhersage(m, basis) > w["schwelle"]:
+        return None
+    q, gw = m.daten.get("quoten") or {}, m.daten.get("gewichte") or {}
+    ges = q.get("_gesamt") or [1, 0]
+    rate_ges = ges[1] / max(1, ges[0])
+    gruende = sorted((k for k in basis if gw.get(k, 0.0) < 0 and k in q and q[k][1] / max(1, q[k][0]) > rate_ges), key=lambda k: gw[k])[:3]
+    if not gruende:
+        return None  # ohne benennbaren Grund keine Warnung
+    teile = "; ".join(f"{k}: {q[k][1]} von {q[k][0]} Handlungen scheiterten ({round(100 * q[k][1] / q[k][0])} %)" for k in gruende)
+    return (f"[VI-Warnung] Handlungen wie diese scheitern oft — {teile}; insgesamt {round(100 * rate_ges)} %. Im Test scheiterten "
+            f"{w['scheiterten']} von {w['gewarnt']} so eingestuften Handlungen ({w['praezision_pct']} %). Vorher Argumente, Pfade und Erreichbarkeit prüfen.")
 
 
 def _speichere(bericht: dict, gewichte: dict, achsenabschnitt: float, modus: str) -> g.Objekt:
@@ -184,6 +256,10 @@ def erklaerung(limit: int = 12) -> str:
         from . import inhalt
         z += [f"    {k:50} {v:+.3f}" + (f"  ({inhalt.gruppen_name(int(k[7:]))})" if k.startswith("inhalt:") and k[7:].isdigit() else "")
               + ("  (Bedeutungsnähe Hinweis ↔ Situation, 0–1)" if k == "naehe" else "") for k, v in w]
+    w = d.get("warnung") or {}
+    z.append("  Warnung vor riskanten Handlungen: " + (f"aktiv — Schwelle P ≤ {w['schwelle']}, im Holdout scheiterten {w['scheiterten']} von "
+             f"{w['gewarnt']} gewarnten ({w['praezision_pct']} %), erfasst {w['abdeckung_pct']} % aller Fehlschläge"
+             if w.get("zustand") == "aktiv" else f"aus — {w.get('grund', 'noch nicht trainiert')}"))
     if INHALT:
         from . import inhalt
         z.append(f"  Inhalt: {inhalt.zeile()}")
