@@ -162,7 +162,7 @@ beantwortet.
 **Reize aus Kommandozeilen (seit 0.18.0).** Bei Shell-Werkzeugen (`Bash` u. a.) zerlegt `intuition.befehls_reize` die Kommandozeile in Teilbefehle (an `; & | ( )`, Backticks,
 `$(` und Anführungszeichen), überspringt Variablenzuweisungen und `sudo`/`env` samt Optionen und nimmt das erste Wort. Bekannte Befehle werden zu `thema:<befehl>` und
 `skill:<bereich>` (`BEFEHL_SKILL`: Proxmox, Ansible, Docker, PostgreSQL), `ssh [user@]host` zu `host:<host>`. Damit erscheint Wissen zu `vzdump` vor `ssh pve1 'vzdump 101'`.
-Seit 0.19.4 wird **jeder** fachliche Befehl zu `thema:<befehl>` (`ipa-client-install`, `llama-server`, `pip3` …); Shell-Alltag (`SHELL_ALLTAG`: cd, grep, sed …) nicht.
+Seit 0.19.4 wird **jeder** fachliche Befehl zu `thema:<befehl>` (`ipa-client-install`, `llama-server`, `pip3` …); Shell-Alltag (`SHELL_ALLTAG`: cd, ls, echo, cat, head, sleep, Interpreter wie sh und python3 …) nicht. Seit 0.20.2 sind grep, sed, find, pkill, chmod & Co. bewusst Reize, weil es zu ihnen echte Fallstricke gibt; Vorsätze wie `sudo`, `timeout 300`, `setsid`, `nohup`, `nice -n 10`, `env X=1` werden übersprungen.
 Text in Anführungszeichen gilt nur als Befehl, wenn er ausgeführt wird (`ssh host '…'`, `sh -c '…'`, `su -c '…'`); `psql -c "select 1"` erzeugt kein `thema:select`.
 Hostnamen hinter `ansible -l/--limit` (mit Punkt, ohne `!`) werden zu `host:`. `thema:ssh` zählt bei der Passung wie `tool:Bash` als allgemein.
 ## Gespräche — die Zeitscheiben

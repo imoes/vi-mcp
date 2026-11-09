@@ -56,6 +56,7 @@ BEFEHL_SKILL = {**dict.fromkeys(("vzdump", "qm", "pct", "pvecm", "pvesm", "pvece
                 **dict.fromkeys(("psql", "pg_dump", "pg_dumpall", "pg_basebackup", "pg_restore", "pg_ctl", "pg_upgrade", "pg_ctlcluster", "pg_lsclusters", "vacuumdb", "pg_isready"), "postgres")}
 SHELL_WERKZEUGE = ("Bash", "bash", "shell", "terminal", "exec", "run_command", "windows_run_powershell")
 _TRENNUNG = re.compile(r"[;&|()`\n]|\$\(|['\"]")
+_VORSAETZE = frozenset(("sudo", "exec", "nohup", "time", "env", "timeout", "setsid", "nice", "ionice", "stdbuf", "chronic"))  # seit 0.20.2: auch timeout, setsid, nice …
 _SUDO_MIT_WERT = {"-u", "-g", "-C", "-D", "-h", "-p", "-R", "-r", "-T"}
 _SSH_ZIEL = re.compile(r"\bssh\s+(?:-\S+(?:\s+\S+)?\s+)*(?:[\w.-]+@)?([a-z][\w.-]*[a-z0-9])", re.I)
 
@@ -92,19 +93,25 @@ def _befehle(kommando: str):
         i = 0
         while i < len(w) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w[i]):
             i += 1
-        if i < len(w) and w[i] in ("sudo", "exec", "nohup", "time", "env"):
+        while i < len(w) and w[i] in _VORSAETZE:  # Vorsätze ohne eigene Aussage: der eigentliche Befehl steht dahinter
+            vorsatz = w[i]
             i += 1
             while i < len(w) and w[i].startswith("-"):
-                i += 2 if w[i] in _SUDO_MIT_WERT else 1
+                i += 2 if w[i] in _SUDO_MIT_WERT or (vorsatz != "sudo" and w[i] in ("-n", "-s", "-k", "-c")) else 1
+            if vorsatz == "timeout" and i < len(w):
+                i += 1  # Dauer
+            while vorsatz == "env" and i < len(w) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w[i]):
+                i += 1
         if i < len(w):
             yield w[i]
 
 
 #: Shell-Handwerkszeug ohne fachliche Aussage: wird kein thema:-Reiz (sonst passte jede Notiz über grep zu jedem zweiten Befehl).
-SHELL_ALLTAG = frozenset("""cd ls ll echo printf cat less more head tail grep egrep fgrep rg sed awk cut tr sort uniq wc tee xargs find true false test
-    [ sleep export set unset source . env nohup setsid timeout time watch date pwd which type command exec eval read wait kill pkill pgrep ps
-    mkdir rmdir touch cp mv ln chmod chown stat file basename dirname realpath readlink diff jq yes column printenv exit return bash sh zsh
-    python python3 perl""".split())
+SHELL_ALLTAG = frozenset("""cd ls ll echo printf cat less more head tail sort uniq wc tee true false test [ sleep export set unset source . pwd date
+    which type command exec eval read wait yes column printenv exit return mkdir rmdir touch basename dirname realpath readlink
+    bash sh zsh dash python python3 perl""".split())
+#: Bewusst NICHT im Alltag (seit 0.20.2): grep, sed, awk, find, xargs, kill/pkill/pgrep, chmod/chown, cp/mv/ln, timeout, nohup, env, python …
+#: Zu ihnen gibt es echte Fallstricke (pkill -f trifft die eigene Shell, sed -i, find -exec, chmod -R); eine Notiz mit thema:pkill muss erscheinen.
 _ANSIBLE_LIMIT = re.compile(r"(?:^|\s)(?:-l|--limit)(?:\s+|=)(\S+)")
 
 

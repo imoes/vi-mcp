@@ -3,6 +3,17 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.2 — 2026-11-09 — Fallstricke von Alltagswerkzeugen werden erkannt
+
+### Was wurde behoben
+
+- **`pkill`, `grep`, `sed`, `find`, `chmod`, `kill` usw. sind wieder Reize.** Die Liste „Shell-Alltag“ aus 0.19.4 war zu breit: Eine gelernte Warnung zu
+  `pkill -f` (trifft die eigene Shell, Exit 144) erschien vor `pkill -f …` nur zufällig, die Reize waren bloß `tool:Bash`. Gefunden auf dem Produktivsystem
+  am 09.11. Ohne Reiz bleiben nur Befehle ohne fachliche Aussage (cd, ls, echo, cat, head, sleep …) und Interpreter (sh, bash, python3).
+- **Vorsätze werden übersprungen wie `sudo`:** `timeout 300`, `setsid`, `nohup`, `nice -n 10`, `ionice`, `stdbuf`, `env X=1`. Vorher wurde aus
+  `timeout 300 ssh host 'vzdump 101'` nur `thema:timeout`; Host und vzdump fehlten.
+- *Nachweis:* vier neue Fälle in `test_befehle_werden_reize`; mit 0.20.1 schlagen 6 Fälle fehl.
+
 ## 0.20.1 — 2026-11-09 — Verschachtelte Anführungszeichen
 
 ### Was wurde behoben

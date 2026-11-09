@@ -222,11 +222,16 @@ def test_skill_anleitung_bleibt_vollstaendig(gd):
     ("sudo ipa-client-install --domain example.org", {"thema:ipa-client-install"}),
     ("ssh gpu1.example 'llama-server -m m.gguf --load-mode mlock'", {"thema:ssh", "thema:llama-server", "host:gpu1.example"}),
     ('sudo -u postgres psql -c "select 1"', {"skill:postgres", "thema:psql"}),
-    ("grep 'vzdump' job.log && qm list", {"skill:proxmox", "thema:qm"}),
+    ("grep 'vzdump' job.log && qm list", {"thema:grep", "skill:proxmox", "thema:qm"}),
     ("sudo sh -c 'apt-get update; pip3 install ansible'", {"thema:apt-get", "thema:pip3"}),
     ("ansible-playbook site.yml -l web1.example,web2.example", {"skill:ansible", "thema:ansible-playbook", "host:web1.example", "host:web2.example"}),
     ("ansible-playbook site.yml --limit 'sites_a:!zeit1.example'", {"skill:ansible", "thema:ansible-playbook"}),
     ('echo "a; qm b" | tee x', set()),
+    # 0.20.2: Werkzeuge mit Fallstricken sind Reize, reiner Alltag nicht
+    ('cd /tmp/x && pkill -f "python3 worker.py"; sleep 2', {"thema:pkill"}),
+    ("find . -name '*.tmp' -exec rm {} +", {"thema:find"}),
+    ("timeout 300 ssh web1.example 'vzdump 101'", {"thema:ssh", "host:web1.example", "skill:proxmox", "thema:vzdump"}),
+    ("setsid nohup nice -n 10 pg_dump app", {"skill:postgres", "thema:pg_dump"}),
     # 0.20.1: Code in Anführungszeichen innerhalb eines ssh-Befehls ist kein Befehl
     ("""ssh web1.example 'curl -s http://x/slots | python3 -c "import json,sys; d=json.load(sys.stdin); print([s for s in d])"; top -bn1'""",
      {"thema:ssh", "thema:curl", "thema:top", "host:web1.example"}),
@@ -234,7 +239,7 @@ def test_skill_anleitung_bleibt_vollstaendig(gd):
     ("sudo -u postgres pg_dump app > /tmp/a.sql", {"skill:postgres", "thema:pg_dump"}),
     ("cd x; ansible-playbook -i hosts site.yml", {"skill:ansible", "thema:ansible-playbook"}),
     ("docker compose up -d", {"skill:docker", "thema:docker"}),
-    ("echo qm ist kein Befehl hier | grep x", set()),
+    ("echo qm ist kein Befehl hier | grep x", {"thema:grep"}),
     ("ls -la /var/log/qm", set()),
 ])
 def test_befehle_werden_reize(kommando, erwartet):
