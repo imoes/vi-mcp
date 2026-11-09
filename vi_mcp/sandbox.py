@@ -26,12 +26,12 @@ import sys
 import time
 
 CPU_S = 10
-WANDUHR_S = 12
-SPEICHER_MB = 256
-AUSGABE_MAX = 1024 * 1024
+WALLCLOCK_S = 12
+MEMORY_MB = 256
+OUTPUT_MAX = 1024 * 1024
 
 # Der Kindprozess. Reihenfolge: Eingabe lesen → Grenzen setzen → erst dann fremden Code übersetzen.
-LAEUFER = r'''
+RUNNER = r'''
 import ctypes, json, os, platform, resource, struct, sys
 
 CPU_S, SPEICHER_MB = %d, %d
@@ -124,57 +124,57 @@ try:
 except BaseException as exc:
     aus = {"fehler": f"{type(exc).__name__}: {exc}"[:500]}
 melde({**aus, "isolation": stufe})
-''' % (CPU_S, SPEICHER_MB)
+''' % (CPU_S, MEMORY_MB)
 
 
-def lauf(code: str, args: list, nur_schema: bool = False, wanduhr_s: float = WANDUHR_S, nur_pruefen: bool = False) -> dict:
+def run(code: str, args: list, schema_only: bool = False, wallclock_s: float = WALLCLOCK_S, check_only: bool = False) -> dict:
     """Reflex-Code ausführen. Liefert {"wert"|"schema"|"fehler", "isolation", "dauer_ms"}; `isolation: "keine"` heißt:
     der Code lief nicht, weil die Sandbox nicht herstellbar war."""
     t0 = time.monotonic()
-    eingabe = json.dumps({"code": code, "args": args, "nur_schema": nur_schema, "nur_pruefen": nur_pruefen}, ensure_ascii=False, default=str).encode()
+    user_input = json.dumps({"code": code, "args": args, "nur_schema": schema_only, "nur_pruefen": check_only}, ensure_ascii=False, default=str).encode()
     # Kein preexec_fn: der Server hat Threads, dort wäre das unsicher. Das Kind begrenzt sich selbst.
-    p = subprocess.Popen([sys.executable, "-I", "-S", "-c", LAEUFER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+    p = subprocess.Popen([sys.executable, "-I", "-S", "-c", RUNNER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.DEVNULL, cwd="/", env={"PATH": "/usr/bin:/bin"}, start_new_session=True)
-    ende = time.monotonic() + wanduhr_s
-    daten, zu_viel, abgelaufen = bytearray(), False, False
+    end = time.monotonic() + wallclock_s
+    data, too_many, expired = bytearray(), False, False
     try:
-        p.stdin.write(eingabe)
+        p.stdin.write(user_input)
         p.stdin.close()
         fd = p.stdout.fileno()
         while True:
-            rest = ende - time.monotonic()
+            rest = end - time.monotonic()
             if rest <= 0:
-                abgelaufen = True
+                expired = True
                 break
-            lesbar, _, _ = select.select([fd], [], [], rest)
-            if not lesbar:
+            readable, _, _ = select.select([fd], [], [], rest)
+            if not readable:
                 continue
-            stueck = os.read(fd, 65536)
-            if not stueck:
+            piece = os.read(fd, 65536)
+            if not piece:
                 break
-            daten += stueck
-            if len(daten) > AUSGABE_MAX:
-                zu_viel = True
+            data += piece
+            if len(data) > OUTPUT_MAX:
+                too_many = True
                 break
     except BrokenPipeError:
         pass
     finally:
-        if abgelaufen or zu_viel:
+        if expired or too_many:
             p.kill()
         p.stdout.close()
         rc = p.wait()
-    dauer = int((time.monotonic() - t0) * 1000)
-    if abgelaufen:
-        return {"fehler": f"Zeitlimit {wanduhr_s:g} s — Prozess beendet", "isolation": "landlock+seccomp", "dauer_ms": dauer}
-    if zu_viel:
-        return {"fehler": f"Ausgabe über {AUSGABE_MAX} Bytes — Prozess beendet", "isolation": "landlock+seccomp", "dauer_ms": dauer}
+    duration = int((time.monotonic() - t0) * 1000)
+    if expired:
+        return {"fehler": f"Zeitlimit {wallclock_s:g} s — Prozess beendet", "isolation": "landlock+seccomp", "dauer_ms": duration}
+    if too_many:
+        return {"fehler": f"Ausgabe über {OUTPUT_MAX} Bytes — Prozess beendet", "isolation": "landlock+seccomp", "dauer_ms": duration}
     try:
-        return {**json.loads(daten or b"{}" if daten else b'{"fehler": "keine Antwort"}'), "dauer_ms": dauer, **({"exit": rc} if rc else {})} \
-            if rc == 0 else {"fehler": f"Prozess beendet mit Exit {rc}", "isolation": "landlock+seccomp", "dauer_ms": dauer}
+        return {**json.loads(data or b"{}" if data else b'{"fehler": "keine Antwort"}'), "dauer_ms": duration, **({"exit": rc} if rc else {})} \
+            if rc == 0 else {"fehler": f"Prozess beendet mit Exit {rc}", "isolation": "landlock+seccomp", "dauer_ms": duration}
     except json.JSONDecodeError:
-        return {"fehler": f"keine JSON-Antwort: {bytes(daten[:200])!r}", "isolation": "landlock+seccomp", "dauer_ms": dauer}
+        return {"fehler": f"keine JSON-Antwort: {bytes(data[:200])!r}", "isolation": "landlock+seccomp", "dauer_ms": duration}
 
 
-def beschreibung() -> str:
-    return (f"eigener Prozess (python3 -I -S), Landlock + seccomp, CPU {CPU_S} s, Speicher {SPEICHER_MB} MB, Wanduhr {WANDUHR_S} s, "
+def description() -> str:
+    return (f"eigener Prozess (python3 -I -S), Landlock + seccomp, CPU {CPU_S} s, Speicher {MEMORY_MB} MB, Wanduhr {WALLCLOCK_S} s, "
             "kein Netz, keine Dateien außer Lesezugriff auf die Standardbibliothek, keine Kindprozesse; ohne Landlock läuft nichts")

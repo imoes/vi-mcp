@@ -170,7 +170,7 @@ def schema(tool: dict) -> dict:
             if k in PARAM_DESC_EN and (v.get("description") or k in ("quelle", "filter")):
                 v["description"] = PARAM_DESC_EN[k]
         props[PARAM_EN.get(k, k)] = v
-    neu = {**s, "properties": props}
+    new = {**s, "properties": props}
     if s.get("required"):
-        neu["required"] = [PARAM_EN.get(k, k) for k in s["required"]]
-    return {**tool, "name": TOOL_EN.get(de, de), "description": DESC_EN.get(de, tool["description"]), "inputSchema": neu}
+        new["required"] = [PARAM_EN.get(k, k) for k in s["required"]]
+    return {**tool, "name": TOOL_EN.get(de, de), "description": DESC_EN.get(de, tool["description"]), "inputSchema": new}

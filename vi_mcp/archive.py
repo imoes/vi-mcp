@@ -27,36 +27,36 @@ import zlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import gedaechtnis as g
-from .protokoll import log
+from . import memory as g
+from .log_output import log
 
-TAGE = {"erfahrung": 30, "schlaf": 90, "erkenntnis": 180, "regel": 180, "suche": 180, "skill": 180}
-TAGE_ROH = 30
-WISSEN = ("erkenntnis", "regel", "suche", "skill")
-STUMMEL_ZEICHEN = 200
+DAYS = {"erfahrung": 30, "schlaf": 90, "erkenntnis": 180, "regel": 180, "suche": 180, "skill": 180}
+DAYS_RAW = 30
+KNOWLEDGE = ("erkenntnis", "regel", "suche", "skill")
+STUB_CHARS = 200
 #: Freier Anteil der Hauptdatei, ab dem sie neu geschrieben wird
-VACUUM_AB = 0.25
+VACUUM_FROM = 0.25
 #: Kanten dieser Ziele schützen eine Erfahrung, wenn sie Beleg sind
-BELEG_ZIELE = ("erkenntnis:", "regel:", "suche:", "skill:", "selbst:")
+EVIDENCE_TARGETS = ("erkenntnis:", "regel:", "suche:", "skill:", "selbst:")
 
 _con: sqlite3.Connection | None = None
-_pfad: Path | None = None
+_fpath: Path | None = None
 
 
 def db() -> sqlite3.Connection:
-    global _con, _pfad
-    if g.lager_pfad is None:
+    global _con, _fpath
+    if g.archive_path is None:
         raise RuntimeError("Gedächtnis nicht geöffnet")
-    if _con is None or _pfad != g.lager_pfad:
+    if _con is None or _fpath != g.archive_path:
         if _con is not None:
             _con.close()
-        alte = os.umask(0o077)
+        old_umask_value = os.umask(0o077)
         try:
-            _con = sqlite3.connect(str(g.lager_pfad), check_same_thread=False, timeout=30)
+            _con = sqlite3.connect(str(g.archive_path), check_same_thread=False, timeout=30)
         finally:
-            os.umask(alte)
-        os.chmod(g.lager_pfad, 0o600)
-        _pfad = g.lager_pfad
+            os.umask(old_umask_value)
+        os.chmod(g.archive_path, 0o600)
+        _fpath = g.archive_path
         _con.executescript("""
             CREATE TABLE IF NOT EXISTS objekt (id TEXT PRIMARY KEY, art TEXT NOT NULL, instanz TEXT NOT NULL, sicht TEXT NOT NULL,
                 eingelagert TEXT NOT NULL, modus_vorher TEXT NOT NULL, grund TEXT NOT NULL, roh BLOB NOT NULL);
@@ -66,35 +66,35 @@ def db() -> sqlite3.Connection:
     return _con
 
 
-def schliesse() -> None:
-    global _con, _pfad
-    with g.sperre:
+def close_db() -> None:
+    global _con, _fpath
+    with g.lock:
         if _con is not None:
             _con.close()
-        _con, _pfad = None, None
+        _con, _fpath = None, None
 
 
-def einlagern(o: g.Objekt, grund: str) -> None:
+def store_in_archive(o: g.MemoryObject, reason: str) -> None:
     """Inhalt ins Lager, Stummel im Gedächtnis."""
-    if o.modus == "archiviert":
+    if o.mode == "archiviert":
         return
-    from . import vektor
-    roh = zlib.compress(json.dumps({"text": o.text, "daten": o.daten, "hashtags": o.hashtags}, ensure_ascii=False).encode())
-    with g.sperre:
+    from . import vector
+    raw = zlib.compress(json.dumps({"text": o.text, "daten": o.data, "hashtags": o.hashtags}, ensure_ascii=False).encode())
+    with g.lock:
         db().execute("INSERT OR REPLACE INTO objekt (id, art, instanz, sicht, eingelagert, modus_vorher, grund, roh) VALUES (?,?,?,?,?,?,?,?)",
-                     (o.id, o.art, o.instanz, o.sicht, g.jetzt(), o.modus, grund[:300], roh))
+                     (o.id, o.kind, o.instance, o.visibility, g.now(), o.mode, reason[:300], raw))
         db().commit()
-    o.daten = {"lager": True, "eingelagert": g.jetzt(), "grund": grund[:300], "bytes": len(roh)}
-    o.text = o.text[:STUMMEL_ZEICHEN]
-    o.modus = "archiviert"
+    o.data = {"lager": True, "eingelagert": g.now(), "grund": reason[:300], "bytes": len(raw)}
+    o.text = o.text[:STUB_CHARS]
+    o.mode = "archiviert"
     o.hashtags = [t for t in o.hashtags if not t.startswith("modus:")] + ["modus:archiviert"]
-    o.aendere("vi", "ins Langzeitlager", grund)
-    g.speichere(o)
-    vektor.entferne(o.id)
+    o.change("vi", "ins Langzeitlager", reason)
+    g.save(o)
+    vector.remove_entry(o.id)
 
 
-def inhalt(oid: str) -> dict | None:
-    with g.sperre:
+def content(oid: str) -> dict | None:
+    with g.lock:
         row = db().execute("SELECT art, instanz, sicht, eingelagert, modus_vorher, grund, roh FROM objekt WHERE id = ?", (oid,)).fetchone()
     if not row:
         return None
@@ -102,80 +102,80 @@ def inhalt(oid: str) -> dict | None:
             **json.loads(zlib.decompress(row[6]))}
 
 
-def zurueckholen(oid: str, wer: str, grund: str) -> g.Objekt:
+def retrieve(oid: str, who: str, reason: str) -> g.MemoryObject:
     """Vollständigen Inhalt und alten Modus wiederherstellen. Der Eintrag zählt danach als gerade verwendet."""
-    if not (grund or "").strip():
+    if not (reason or "").strip():
         raise ValueError("Grund ist Pflicht")
-    d = inhalt(oid)
-    o = g.lade(oid)
-    if not d or not o or o.modus != "archiviert":
+    d = content(oid)
+    o = g.load(oid)
+    if not d or not o or o.mode != "archiviert":
         raise ValueError(f"{oid} liegt nicht im Langzeitlager")
-    o.text, o.daten, o.hashtags, o.modus = d["text"], d["daten"], d["hashtags"], d["modus_vorher"]
-    o.aendere(wer, "aus dem Langzeitlager geholt", grund)
-    g.speichere(o)
-    with g.sperre:
+    o.text, o.data, o.hashtags, o.mode = d["text"], d["daten"], d["hashtags"], d["modus_vorher"]
+    o.change(who, "aus dem Langzeitlager geholt", reason)
+    g.save(o)
+    with g.lock:
         db().execute("DELETE FROM objekt WHERE id = ?", (oid,))
         db().commit()
     return o
 
 
-def loesche(oids: list[str]) -> None:
+def delete(oids: list[str]) -> None:
     """Gehört zum Löschen im Gedächtnis: was gelöscht wird, darf nicht im Lager überleben."""
-    if g.lager_pfad is None or not oids:
+    if g.archive_path is None or not oids:
         return
-    with g.sperre:
+    with g.lock:
         db().executemany("DELETE FROM objekt WHERE id = ?", [(o,) for o in oids])
         db().commit()
 
 
-def loesche_roh(serial: str) -> None:
-    with g.sperre:
+def delete_raw(serial: str) -> None:
+    with g.lock:
         db().execute("DELETE FROM gespraech_roh WHERE serial = ?", (serial,))
         db().commit()
 
 
-def roh(serial: str) -> bytes | None:
-    with g.sperre:
+def raw(serial: str) -> bytes | None:
+    with g.lock:
         row = db().execute("SELECT roh FROM gespraech_roh WHERE serial = ?", (serial,)).fetchone()
     return row[0] if row else None
 
 
-def _grenze(tage: int) -> str:
-    return (datetime.now(timezone.utc) - timedelta(days=tage)).isoformat(timespec="milliseconds")
+def _bound(days: int) -> str:
+    return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="milliseconds")
 
 
-def _ungenutzt() -> list[tuple[str, str]]:
-    aus: list[tuple[str, str]] = []
-    beleg = " OR ".join(f"k.b LIKE '{p}%'" for p in BELEG_ZIELE)
-    with g.sperre:
-        for art in ("erfahrung", "schlaf"):
-            grenze = _grenze(TAGE[art])
+def _unused() -> list[tuple[str, str]]:
+    outputs: list[tuple[str, str]] = []
+    evidence = " OR ".join(f"k.b LIKE '{p}%'" for p in EVIDENCE_TARGETS)
+    with g.lock:
+        for kind in ("erfahrung", "schlaf"):
+            bound = _bound(DAYS[kind])
             sql = "SELECT id FROM objekt o WHERE art = ? AND modus <> 'archiviert' AND zeit < ?"
-            if art == "erfahrung":
-                sql += f" AND zugriffe = 0 AND NOT EXISTS (SELECT 1 FROM kante k WHERE k.a = o.id AND k.grund LIKE 'Beleg%' AND ({beleg}))"
-            aus += [(r[0], f"Housekeeping: {art}, älter als {TAGE[art]} Tage, nicht verwendet") for r in g.db().execute(sql, (art, grenze))]
-        for art in WISSEN:
-            grenze = _grenze(TAGE[art])
-            aus += [(r[0], f"Housekeeping: {art}, {TAGE[art]} Tage weder abgerufen, geändert noch gezeigt") for r in g.db().execute(
+            if kind == "erfahrung":
+                sql += f" AND zugriffe = 0 AND NOT EXISTS (SELECT 1 FROM kante k WHERE k.a = o.id AND k.grund LIKE 'Beleg%' AND ({evidence}))"
+            outputs += [(r[0], f"Housekeeping: {kind}, älter als {DAYS[kind]} Tage, nicht verwendet") for r in g.db().execute(sql, (kind, bound))]
+        for kind in KNOWLEDGE:
+            bound = _bound(DAYS[kind])
+            outputs += [(r[0], f"Housekeeping: {kind}, {DAYS[kind]} Tage weder abgerufen, geändert noch gezeigt") for r in g.db().execute(
                 "SELECT id FROM objekt o WHERE art = ? AND modus NOT IN ('archiviert', 'quarantaene') AND zuletzt < ? "
                 "AND COALESCE(json_extract(daten, '$.zuletzt_gezeigt'), '') < ? "
-                "AND NOT EXISTS (SELECT 1 FROM kante k WHERE k.a = o.id AND k.b LIKE 'selbst:%')", (art, grenze, grenze))]
-    return aus
+                "AND NOT EXISTS (SELECT 1 FROM kante k WHERE k.a = o.id AND k.b LIKE 'selbst:%')", (kind, bound, bound))]
+    return outputs
 
 
-def _rohverlaeufe() -> int:
-    from . import sitzung
-    offen = {s.serial for s in sitzung.offene()}
-    grenze = _grenze(TAGE_ROH)
-    with g.sperre:
-        zeilen = g.db().execute("SELECT r.serial, r.roh, r.laenge FROM gespraech_roh r JOIN objekt o ON o.id = 'gespraech:' || r.serial "
-                                "WHERE o.zuletzt < ?", (grenze,)).fetchall()
+def _raw_histories() -> int:
+    from . import session
+    open_ = {s.serial for s in session.open_items()}
+    bound = _bound(DAYS_RAW)
+    with g.lock:
+        lines = g.db().execute("SELECT r.serial, r.roh, r.laenge FROM gespraech_roh r JOIN objekt o ON o.id = 'gespraech:' || r.serial "
+                                "WHERE o.zuletzt < ?", (bound,)).fetchall()
     n = 0
-    for serial, inhalt_roh, laenge in zeilen:
-        if serial in offen:
+    for serial, content_raw, length in lines:
+        if serial in open_:
             continue
-        with g.sperre:
-            db().execute("INSERT OR REPLACE INTO gespraech_roh (serial, eingelagert, roh, laenge) VALUES (?,?,?,?)", (serial, g.jetzt(), inhalt_roh, laenge))
+        with g.lock:
+            db().execute("INSERT OR REPLACE INTO gespraech_roh (serial, eingelagert, roh, laenge) VALUES (?,?,?,?)", (serial, g.now(), content_raw, length))
             db().commit()
             g.db().execute("DELETE FROM gespraech_roh WHERE serial = ?", (serial,))
             g.db().commit()
@@ -183,51 +183,51 @@ def _rohverlaeufe() -> int:
     return n
 
 
-def _verdichten() -> bool:
-    with g.sperre:
-        seiten = g.db().execute("PRAGMA page_count").fetchone()[0]
-        frei = g.db().execute("PRAGMA freelist_count").fetchone()[0]
-        if not seiten or frei / seiten < VACUUM_AB:
+def _condense() -> bool:
+    with g.lock:
+        pages = g.db().execute("PRAGMA page_count").fetchone()[0]
+        free = g.db().execute("PRAGMA freelist_count").fetchone()[0]
+        if not pages or free / pages < VACUUM_FROM:
             return False
         g.db().commit()
         g.db().execute("VACUUM")
     return True
 
 
-def aufraeumen() -> dict:
+def cleanup() -> dict:
     """Schlaf-Schritt 5."""
-    zaehler: dict[str, int] = {}
-    for oid, grund in _ungenutzt():
-        o = g.lade(oid)
+    counter: dict[str, int] = {}
+    for oid, reason in _unused():
+        o = g.load(oid)
         if o:
-            einlagern(o, grund)
-            zaehler[o.art] = zaehler.get(o.art, 0) + 1
-    r = _rohverlaeufe()
-    v = _verdichten()
-    n = sum(zaehler.values())
+            store_in_archive(o, reason)
+            counter[o.kind] = counter.get(o.kind, 0) + 1
+    r = _raw_histories()
+    v = _condense()
+    n = sum(counter.values())
     if n or r or v:
         log(f"Housekeeping: {n} Einträge und {r} Rohverläufe ins Langzeitlager{', Hauptdatei verdichtet' if v else ''}")
-    return {"eingelagert": n, "je_art": zaehler, "rohverlaeufe": r, "verdichtet": v}
+    return {"eingelagert": n, "je_art": counter, "rohverlaeufe": r, "verdichtet": v}
 
 
-def hinweis(reize: list[str]) -> list[str]:
+def hint(triggers: list[str]) -> list[str]:
     """Eine Zeile für `vi_vorher`, wenn gelagertes Wissen zur Handlung passt."""
-    if not reize:
+    if not triggers:
         return []
-    treffer = [o for _, o, _g in g.erinnere("(" + " OR ".join(reize) + ") modus:archiviert", limit=3, arten=WISSEN)]
-    if not treffer:
+    hits = [o for _, o, _g in g.recall("(" + " OR ".join(triggers) + ") modus:archiviert", limit=3, kinds=KNOWLEDGE)]
+    if not hits:
         return []
-    return ["Im Langzeitlager passen: " + "; ".join(f"[{o.id}] {o.text[:80]}" for o in treffer) + " — vi_lager_hole(id, grund) holt einen Eintrag zurück"]
+    return ["Im Langzeitlager passen: " + "; ".join(f"[{o.id}] {o.text[:80]}" for o in hits) + " — vi_lager_hole(id, grund) holt einen Eintrag zurück"]
 
 
-def stand() -> dict:
-    with g.sperre:
+def progress() -> dict:
+    with g.lock:
         n = db().execute("SELECT COUNT(*) FROM objekt").fetchone()[0]
         r = db().execute("SELECT COUNT(*) FROM gespraech_roh").fetchone()[0]
-    groesse = lambda p: os.path.getsize(p) if p and os.path.exists(p) else 0
-    return {"objekte": n, "rohverlaeufe": r, "lager_bytes": groesse(g.lager_pfad), "aktiv_bytes": groesse(g.pfad_aktiv) + groesse(f"{g.pfad_aktiv}-wal")}
+    size = lambda p: os.path.getsize(p) if p and os.path.exists(p) else 0
+    return {"objekte": n, "rohverlaeufe": r, "lager_bytes": size(g.archive_path), "aktiv_bytes": size(g.fpath_active) + size(f"{g.fpath_active}-wal")}
 
 
-def zeile() -> str:
-    s = stand()
+def line() -> str:
+    s = progress()
     return f"{s['objekte']} Einträge, {s['rohverlaeufe']} Rohverläufe, {s['lager_bytes'] // 1024} KB (aktiver Speicher {s['aktiv_bytes'] // 1024} KB)"

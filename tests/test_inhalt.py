@@ -6,112 +6,112 @@ import time
 import numpy as np
 import pytest
 
-from vi_mcp import inhalt, intuition, lernen, schlaf, vektor, werkzeuge
-from vi_mcp import gedaechtnis as g
+from vi_mcp import content, intuition, learning, sleep_cycle, vector, tools
+from vi_mcp import memory as g
 
 pytest.importorskip("sklearn")
 
 
-def _vec(richtung: int, rausch: float = 0.05, dim: int = 16, rng=random.Random(3)):
-    v = np.array([rng.gauss(0, rausch) for _ in range(dim)])
-    v[richtung] += 1.0
+def _vec(direction: int, noise: float = 0.05, dim: int = 16, rng=random.Random(3)):
+    v = np.array([rng.gauss(0, noise) for _ in range(dim)])
+    v[direction] += 1.0
     return v.tolist()
 
 
 @pytest.fixture()
-def wissen(gd, monkeypatch):
-    monkeypatch.setattr(vektor, "konfig", {"modell": "fake"})
+def knowledge(gd, monkeypatch):
+    monkeypatch.setattr(vector, "config", {"modell": "fake"})
     ids = {}
-    for thema, richtung in (("tls", 0), ("disk", 1), ("netz", 2)):
+    for topic, direction in (("tls", 0), ("disk", 1), ("netz", 2)):
         for i in range(8):
-            o = g.neues_objekt("erkenntnis", f"Wissen {thema} Nummer {i} ausführlich", [f"thema:{thema}", "tool:Bash"], {"quelle": "Test 2.11."}, grund="T", instanz="a")
-            vektor.speichere(o.id, _vec(richtung), "m")
-            ids.setdefault(thema, []).append(o.id)
-    inhalt.vergiss_cache()
+            o = g.new_object("erkenntnis", f"Wissen {topic} Nummer {i} ausführlich", [f"thema:{topic}", "tool:Bash"], {"quelle": "Test 2.11."}, reason="T", instance="a")
+            vector.save(o.id, _vec(direction), "m")
+            ids.setdefault(topic, []).append(o.id)
+    content.forget_cache()
     return ids
 
 
-def test_berechne_und_naehe(wissen):
-    r = inhalt.berechne()
+def test_compute_and_proximity(knowledge):
+    r = content.compute()
     assert r["zustand"] == "fertig" and r["zentren"] == 4 and r["gruppen"] >= 2
-    tls, disk = wissen["tls"][0], wissen["disk"][0]
-    assert inhalt.naehe(tls, ["thema:tls"]) > 0.9  # passt zum Inhalt der Situation, auch ohne sich selbst
-    assert inhalt.naehe(disk, ["thema:tls"]) < 0.2
-    assert inhalt.naehe(tls, ["thema:unbekannt"]) is None and inhalt.naehe("erkenntnis:gibtsnicht", ["thema:tls"]) is None
-    assert len({inhalt.gruppe(i) for i in wissen["tls"]}) == 1 and inhalt.gruppe(tls) != inhalt.gruppe(disk)
-    assert "thema:tls" in inhalt.gruppen_name(inhalt.gruppe(tls)) and "Bedeutungsgruppen" in inhalt.zeile()
+    tls, disk = knowledge["tls"][0], knowledge["disk"][0]
+    assert content.proximity(tls, ["thema:tls"]) > 0.9  # passt zum Inhalt der Situation, auch ohne sich selbst
+    assert content.proximity(disk, ["thema:tls"]) < 0.2
+    assert content.proximity(tls, ["thema:unbekannt"]) is None and content.proximity("erkenntnis:gibtsnicht", ["thema:tls"]) is None
+    assert len({content.group(i) for i in knowledge["tls"]}) == 1 and content.group(tls) != content.group(disk)
+    assert "thema:tls" in content.group_name(content.group(tls)) and "Bedeutungsgruppen" in content.line()
 
 
-def test_sich_selbst_herausgerechnet(gd, monkeypatch):
-    monkeypatch.setattr(vektor, "konfig", {"modell": "fake"})
-    a = g.neues_objekt("erkenntnis", "Einziger Hinweis zum Thema A hier", ["thema:a"], {"quelle": "x"}, grund="T")
-    vektor.speichere(a.id, _vec(0), "m")
+def test_self_excluded_from_count(gd, monkeypatch):
+    monkeypatch.setattr(vector, "config", {"modell": "fake"})
+    a = g.new_object("erkenntnis", "Einziger Hinweis zum Thema A hier", ["thema:a"], {"quelle": "x"}, reason="T")
+    vector.save(a.id, _vec(0), "m")
     for i in range(3):
-        o = g.neues_objekt("erkenntnis", f"Anderer Inhalt {i} zum Thema A", ["thema:a"], {"quelle": "x"}, grund="T")
-        vektor.speichere(o.id, _vec(5), "m")
-    inhalt.vergiss_cache()
-    inhalt.berechne()
-    assert inhalt.naehe(a.id, ["thema:a"]) < 0.3  # ohne Herausrechnen wäre er durch sich selbst ähnlich
+        o = g.new_object("erkenntnis", f"Anderer Inhalt {i} zum Thema A", ["thema:a"], {"quelle": "x"}, reason="T")
+        vector.save(o.id, _vec(5), "m")
+    content.forget_cache()
+    content.compute()
+    assert content.proximity(a.id, ["thema:a"]) < 0.3  # ohne Herausrechnen wäre er durch sich selbst ähnlich
 
 
-def test_merkmale_und_schalter(wissen, monkeypatch):
-    inhalt.berechne()
-    m = lernen.merkmale_hinweis(wissen["tls"][0], ["thema:tls", "stunde:3"])
+def test_features_and_switches(knowledge, monkeypatch):
+    content.compute()
+    m = learning.hint_features(knowledge["tls"][0], ["thema:tls", "stunde:3"])
     assert "naehe" in m and any(k.startswith("inhalt:") for k in m)
-    monkeypatch.setattr(lernen, "INHALT", False)
-    assert set(lernen.merkmale_hinweis(wissen["tls"][0], ["thema:tls"])) == {f"hinweis:{wissen['tls'][0]}", "hinweisart:erkenntnis"}
+    monkeypatch.setattr(learning, "CONTENT", False)
+    assert set(learning.hint_features(knowledge["tls"][0], ["thema:tls"])) == {f"hinweis:{knowledge['tls'][0]}", "hinweisart:erkenntnis"}
 
 
-def test_modell_lernt_den_inhalt(wissen, monkeypatch):
+def test_model_learns_the_content(knowledge, monkeypatch):
     """Hinweise zu TLS helfen, zu Disk nicht, und kein einzelner Hinweis ist oft genug für ein eigenes Gewicht: Nur der Inhalt kann es erklären."""
-    inhalt.berechne()
+    content.compute()
     rng = random.Random(9)
-    monkeypatch.setattr(lernen, "MIN_EREIGNISSE", 20)
+    monkeypatch.setattr(learning, "MIN_EVENTS", 20)
     for n in range(400):
-        thema = rng.choice(["tls", "disk"])
-        hid = rng.choice(wissen[thema])
-        ok = rng.random() < (0.9 if thema == "tls" else 0.2)
-        g.neues_objekt("erfahrung", "Bash", ["tool:Bash", f"thema:{thema}", "ok:ja" if ok else "ok:nein"],
-                       {"vorher": {"reize": ["tool:Bash", f"thema:{thema}"], "gezeigt": [hid]}, "args": {"n": n}}, grund="T", instanz="a")
-    b = lernen.trainiere("Test")
-    w = lernen.modell().daten["gewichte"]
+        topic = rng.choice(["tls", "disk"])
+        hid = rng.choice(knowledge[topic])
+        ok = rng.random() < (0.9 if topic == "tls" else 0.2)
+        g.new_object("erfahrung", "Bash", ["tool:Bash", f"thema:{topic}", "ok:ja" if ok else "ok:nein"],
+                       {"vorher": {"reize": ["tool:Bash", f"thema:{topic}"], "gezeigt": [hid]}, "args": {"n": n}}, reason="T", instance="a")
+    b = learning.train("Test")
+    w = learning.model().data["gewichte"]
     assert b["zustand"] == "aktiv", b
-    gt, gd_ = inhalt.gruppe(wissen["tls"][0]), inhalt.gruppe(wissen["disk"][0])
+    gt, gd_ = content.group(knowledge["tls"][0]), content.group(knowledge["disk"][0])
     assert w.get(f"inhalt:{gt}", 0) > w.get(f"inhalt:{gd_}", 0)
-    neu = g.neues_objekt("erkenntnis", "Ganz neuer Hinweis zu Zertifikaten", ["thema:tls", "tool:Bash"], {"quelle": "x"}, grund="T")
-    vektor.speichere(neu.id, _vec(0), "m")
-    alt_disk = wissen["disk"][0]
-    inhalt.berechne()
-    lernen.trainiere("Test 2")
-    rang = [h for h, _ in lernen.rangfolge(lernen.modell(), ["tool:Bash"], [alt_disk, neu.id])]
-    assert rang[0] == neu.id  # ein neuer Hinweis erbt das Gewicht seines Inhalts
-    assert "Bedeutungs" in lernen.erklaerung() or "inhalt:" in lernen.erklaerung()
+    new = g.new_object("erkenntnis", "Ganz neuer Hinweis zu Zertifikaten", ["thema:tls", "tool:Bash"], {"quelle": "x"}, reason="T")
+    vector.save(new.id, _vec(0), "m")
+    old_disk = knowledge["disk"][0]
+    content.compute()
+    learning.train("Test 2")
+    rank_pos = [h for h, _ in learning.ranking(learning.model(), ["tool:Bash"], [old_disk, new.id])]
+    assert rank_pos[0] == new.id  # ein neuer Hinweis erbt das Gewicht seines Inhalts
+    assert "Bedeutungs" in learning.explanation() or "inhalt:" in learning.explanation()
 
 
-def test_schlaf_nie_doppelt_und_ohne_proxy_abbruch(gd, monkeypatch):
+def test_sleep_never_twice_and_no_proxy_abort(gd, monkeypatch):
     halt = threading.Event()
-    original = schlaf._lauf
+    original = sleep_cycle._run
 
-    def langsam(grund):
+    def slow(reason):
         halt.wait(5)
-        return original(grund)
-    monkeypatch.setattr(schlaf, "_lauf", langsam)
-    monkeypatch.setattr(schlaf, "WARTE_S", 0.3)
+        return original(reason)
+    monkeypatch.setattr(sleep_cycle, "_run", slow)
+    monkeypatch.setattr(sleep_cycle, "WAIT_S", 0.3)
     t0 = time.monotonic()
     try:
-        _schlaf_pruefen(halt, t0)
+        _check_sleep(halt, t0)
     finally:
         halt.set()
         for _ in range(80):
-            if not schlaf._laeuft.locked():
+            if not sleep_cycle._running.locked():
                 break
             time.sleep(0.1)
-    assert schlaf.letzter() is not None and "7c_inhalt" in schlaf.letzter().daten["schritte"]
+    assert sleep_cycle.last() is not None and "7c_inhalt" in sleep_cycle.last().data["schritte"]
 
 
-def _schlaf_pruefen(halt, t0):
-    a = werkzeuge.rufe("vi_schlaf", {"jetzt": True}, "a", True)
+def _check_sleep(halt, t0):
+    a = tools.call_tool("vi_schlaf", {"jetzt": True}, "a", True)
     assert "läuft noch" in a and time.monotonic() - t0 < 2
-    assert "läuft bereits" in werkzeuge.rufe("vi_schlaf", {"jetzt": True}, "a", True)
-    with pytest.raises(schlaf.LaeuftBereits):
-        schlaf.lauf("Loop")
+    assert "läuft bereits" in tools.call_tool("vi_schlaf", {"jetzt": True}, "a", True)
+    with pytest.raises(sleep_cycle.AlreadyRunning):
+        sleep_cycle.run("Loop")

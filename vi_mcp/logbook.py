@@ -1,0 +1,454 @@
+"""Logbuch — je Server eine signierte, verkettete Folge von Einträgen; Grundlage des Netzes. Kennt weder Transport noch Gedächtnis.
+
+Kopf: Nummer, Hash des Vorgängers, Typ, Hash des Inhalts, Signatur. Inhalt getrennt: Wird ein Objekt vergessen, verschwindet der Inhalt,
+die Kette bleibt gültig. Wer ein Logbuch weiterträgt, kann es nicht fälschen, umordnen oder in der Mitte kürzen (zurückhalten kann er es).
+Zwei verschiedene Einträge mit derselben Nummer sind eine Gabelung: Dieser Herausgeber wird nicht mehr angenommen.
+
+Mitglied ist, wer von einem Gründer aus über eine Kette von Einladungen erreichbar ist. Ausschließen dürfen Gründer und der Einladende;
+wer nur über einen Ausgeschlossenen eingeladen wurde, fällt mit heraus. Weitertragen setzt Signatur und feste Regeln voraus (pruefung.py),
+Glauben entscheidet erst das Gedächtnis.
+"""
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import json
+import os
+import random
+import re
+import sqlite3
+import threading
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+from . import checks
+
+VERSION = 1
+TYPE_NAMES = ("objekt", "widerruf", "einladung", "ausschluss", "adresse")
+HEADER_REQUIRED = {"v", "pub", "seq", "vor", "typ", "sha", "zeit", "sig"}
+HEADER_OPTIONAL = {"netz_id", "loesch_hash"}
+MAX_CONTENT = 128 * 1024
+MAX_PER_DAY = 5000
+_HEX64 = re.compile(r"^[0-9a-f]{64}$")
+_HEX32 = re.compile(r"^[0-9a-f]{32}$")
+_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+#: hinter einem Reverse-Proxy liegt der Dienst unter einem Pfad, z. B. https://host/vi-p2p
+_ADDRESS = re.compile(r"^https?://[^/\s?#]+(?:/[A-Za-z0-9._~-]+)*$")
+
+
+def canonical(value) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+def sha256(value) -> str:
+    return hashlib.sha256(canonical(value)).hexdigest()
+
+
+def _crypto():
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+    return Ed25519PrivateKey, Ed25519PublicKey, InvalidSignature
+
+
+def generate_keys(fpath: Path) -> str:
+    """Seed anlegen (0600, wird nie überschrieben). Liefert den öffentlichen Schlüssel als Hex."""
+    priv, _pub, _inv = _crypto()
+    if fpath.exists():
+        raise ValueError(f"{fpath} existiert bereits")
+    k = priv.generate()
+    with os.fdopen(os.open(fpath, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as f:
+        f.write(k.private_bytes_raw())
+    return k.public_key().public_bytes_raw().hex()
+
+
+def private(fpath: Path):
+    return _crypto()[0].from_private_bytes(Path(fpath).read_bytes())
+
+
+def public_hex(k) -> str:
+    return k.public_key().public_bytes_raw().hex()
+
+
+def valid(pubkey_hex: str, sig_hex: str, data: bytes) -> bool:
+    _priv, pub, inv = _crypto()
+    try:
+        pub.from_public_bytes(bytes.fromhex(pubkey_hex)).verify(bytes.fromhex(sig_hex), data)
+        return True
+    except (inv, ValueError, TypeError):
+        return False
+
+
+def pseudonym(pubkey_hex: str) -> str:
+    """Das Netz kennt keinen Hostnamen, nur diesen Abdruck des Schlüssels."""
+    return "vi-" + hashlib.sha256(bytes.fromhex(pubkey_hex)).hexdigest()[:12]
+
+
+def entry_hash(header: dict) -> str:
+    return sha256(header)
+
+
+def signature_valid(header: dict) -> bool:
+    return isinstance(header.get("sig"), str) and valid(header["pub"], header["sig"], canonical({k: v for k, v in header.items() if k != "sig"}))
+
+
+def header_form(header) -> str | None:
+    """Rein. Grund, warum ein Kopf nicht in Ordnung ist, sonst None."""
+    if not isinstance(header, dict) or not HEADER_REQUIRED <= set(header) or not set(header) <= HEADER_REQUIRED | HEADER_OPTIONAL:
+        return "Kopf hat falsche Felder"
+    if header["v"] != VERSION or header["typ"] not in TYPE_NAMES or not isinstance(header["pub"], str) or not _HEX64.match(header["pub"]):
+        return "Kopf: Version, Typ oder Schlüssel unbrauchbar"
+    if isinstance(header["seq"], bool) or not isinstance(header["seq"], int) or header["seq"] < 1 or not (header["vor"] is None or (isinstance(header["vor"], str) and _HEX64.match(header["vor"]))):
+        return "Kopf: Nummer oder Vorgänger unbrauchbar"
+    if not isinstance(header["zeit"], str) or not _DATE.match(header["zeit"]) or not isinstance(header["sha"], str) or not _HEX64.match(header["sha"]):
+        return "Kopf: Datum oder Prüfsumme unbrauchbar"
+    if header["typ"] in ("objekt", "widerruf") and not (isinstance(header.get("netz_id"), str) and _HEX32.match(header["netz_id"])):
+        return "Kopf: netz_id fehlt"
+    if header["typ"] == "objekt" and not (isinstance(header.get("loesch_hash"), str) and _HEX64.match(header["loesch_hash"])):
+        return "Kopf: loesch_hash fehlt"
+    return None
+
+
+def valid_control_form(type_: str, content) -> bool:
+    if not isinstance(content, dict):
+        return False
+    if type_ == "widerruf":
+        return set(content) == {"ziel", "token"} and isinstance(content["ziel"], str) and isinstance(content["token"], str) and len(content["token"]) <= 128
+    if type_ in ("einladung", "ausschluss"):
+        return set(content) == {"pub"} and isinstance(content["pub"], str) and bool(_HEX64.match(content["pub"]))
+    if type_ == "adresse":
+        # pin: SHA-256 des TLS-Zertifikats, für peerhosts ohne öffentliche CA (seit 0.15.0; ältere Peers lehnen das Feld ab)
+        return set(content) in ({"adresse"}, {"adresse", "pin"}) and isinstance(content["adresse"], str) and bool(_ADDRESS.match(content["adresse"])) \
+            and ("pin" not in content or (isinstance(content["pin"], str) and bool(_HEX64.match(content["pin"]))))
+    return False
+
+
+class Logbook:
+    def __init__(self, fpath: Path, seed: Path, founders: list[str]):
+        Path(fpath).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.lock = threading.RLock()
+        old_umask_value = os.umask(0o077)
+        try:
+            self.db = sqlite3.connect(str(fpath), check_same_thread=False, timeout=30, isolation_level=None)
+        finally:
+            os.umask(old_umask_value)
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA busy_timeout=30000")
+        self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS eintrag (pub TEXT NOT NULL, seq INTEGER NOT NULL, hash TEXT NOT NULL, typ TEXT NOT NULL, sha TEXT NOT NULL, netz_id TEXT, loesch_hash TEXT, zeit TEXT NOT NULL, kopf TEXT NOT NULL, PRIMARY KEY (pub, seq));
+            CREATE INDEX IF NOT EXISTS eintrag_netz ON eintrag (netz_id);
+            CREATE INDEX IF NOT EXISTS eintrag_typ ON eintrag (typ);
+            CREATE TABLE IF NOT EXISTS inhalt (sha TEXT PRIMARY KEY, daten TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS grab (netz_id TEXT PRIMARY KEY, token_sha TEXT NOT NULL, zeit TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS gabelung (pub TEXT PRIMARY KEY, seq INTEGER NOT NULL, zeit TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS verstoss (pub TEXT PRIMARY KEY, n INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS stand (pub TEXT PRIMARY KEY, seq INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS peer (adresse TEXT PRIMARY KEY, quelle TEXT NOT NULL, zuletzt REAL, fehler INTEGER NOT NULL DEFAULT 0, naechster REAL NOT NULL DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS beitritt (nonce_sha TEXT PRIMARY KEY, ablauf REAL NOT NULL, benutzt TEXT);
+            CREATE TABLE IF NOT EXISTS segment (sha256 TEXT PRIMARY KEY, pub TEXT NOT NULL, von INTEGER NOT NULL, bis INTEGER NOT NULL, torrent TEXT NOT NULL, port INTEGER NOT NULL, datei TEXT NOT NULL);
+        """)
+        if "pin" not in [r[1] for r in self.db.execute("PRAGMA table_info(peer)")]:
+            self.db.execute("ALTER TABLE peer ADD COLUMN pin TEXT")
+        self.k = private(seed)
+        self.pub = public_hex(self.k)
+        self.founders = list(founders)
+        self._members: set[str] | None = None
+
+    # ---- eigene Einträge ----
+
+    def _header_of(self, pub: str) -> tuple[int, str | None]:
+        z = self.db.execute("SELECT seq, hash FROM eintrag WHERE pub = ? ORDER BY seq DESC LIMIT 1", (pub,)).fetchone()
+        return (z[0], z[1]) if z else (0, None)
+
+    def attach(self, type_: str, content: dict, net_id: str | None = None, delete_hash: str | None = None) -> dict:
+        if type_ != "objekt" and not valid_control_form(type_, content):
+            raise ValueError(f"Inhalt passt nicht zu Typ {type_}")
+        with self.lock:
+            self.db.execute("BEGIN IMMEDIATE")
+            try:
+                seq, prev_hash = self._header_of(self.pub)
+                header = {"v": VERSION, "pub": self.pub, "seq": seq + 1, "vor": prev_hash, "typ": type_, "sha": sha256(content), "zeit": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                        **({"netz_id": net_id} if net_id else {}), **({"loesch_hash": delete_hash} if delete_hash else {})}
+                header["sig"] = self.k.sign(canonical(header)).hex()
+                self._insert(header, content)
+                self.db.execute("COMMIT")
+            except BaseException:
+                self.db.execute("ROLLBACK")
+                raise
+        self._apply_effects(header, content)
+        return header
+
+    def _insert(self, header: dict, content) -> None:
+        self.db.execute("INSERT INTO eintrag (pub, seq, hash, typ, sha, netz_id, loesch_hash, zeit, kopf) VALUES (?,?,?,?,?,?,?,?,?)",
+                        (header["pub"], header["seq"], entry_hash(header), header["typ"], header["sha"], header.get("netz_id"), header.get("loesch_hash"), header["zeit"], json.dumps(header, sort_keys=True)))
+        if content is not None:
+            self.db.execute("INSERT OR IGNORE INTO inhalt (sha, daten) VALUES (?,?)", (header["sha"], json.dumps(content, ensure_ascii=False, sort_keys=True)))
+
+    def _apply_effects(self, header: dict, content) -> None:
+        """Was ein Eintrag bewirkt, egal woher er kam."""
+        if header["typ"] in ("einladung", "ausschluss"):
+            self._members = None
+        elif header["typ"] == "adresse" and header["pub"] != self.pub:
+            self.peer_remember(content["adresse"], "logbuch", content.get("pin"))
+        elif header["typ"] == "widerruf":
+            self.forget(content["ziel"], content["token"])
+
+    # ---- Vergessen ----
+
+    def forget(self, net_id: str, token: str) -> list[tuple[str, int]]:
+        """Inhalt löschen, wenn der Nachweis passt; Grabstein merken. Liefert (pub, seq) der gelöschten Einträge."""
+        evidence = hashlib.sha256(token.encode()).hexdigest()
+        with self.lock:
+            lines = self.db.execute("SELECT pub, seq, sha, loesch_hash FROM eintrag WHERE netz_id = ? AND typ = 'objekt'", (net_id,)).fetchall()
+            if lines and not any(hmac.compare_digest(z[3], evidence) for z in lines):
+                return []  # falscher Nachweis
+            remove = []
+            for pub, seq, sha, l in lines:
+                if hmac.compare_digest(l, evidence):
+                    self.db.execute("DELETE FROM inhalt WHERE sha = ?", (sha,))
+                    remove.append((pub, seq))
+            self.db.execute("INSERT OR IGNORE INTO grab (netz_id, token_sha, zeit) VALUES (?,?,?)", (net_id, evidence, time.strftime("%Y-%m-%d", time.gmtime())))
+            for pub, seq in remove:
+                self.discard_segments(pub, seq)
+        return remove
+
+    # ---- Mitgliedschaft ----
+
+    def members(self) -> set[str]:
+        with self.lock:
+            if self._members is not None:
+                return set(self._members)
+            edges: dict[str, set[str]] = {}
+            outputs = []
+            for pub, type_, data in self.db.execute("SELECT e.pub, e.typ, i.daten FROM eintrag e JOIN inhalt i ON i.sha = e.sha WHERE e.typ IN ('einladung', 'ausschluss') ORDER BY e.pub, e.seq"):
+                target = json.loads(data)["pub"]
+                if type_ == "einladung":
+                    edges.setdefault(pub, set()).add(target)
+                else:
+                    outputs.append((pub, target))
+            excluded = {target for who, target in outputs if (who in self.founders or target in edges.get(who, set())) and target not in self.founders}
+            seen = set(self.founders)
+            open_ = list(self.founders)
+            while open_:
+                for n in edges.get(open_.pop(), set()):
+                    if n not in seen and n not in excluded:
+                        seen.add(n)
+                        open_.append(n)
+            self._members = seen
+            return set(seen)
+
+    def is_member(self, pub: str) -> bool:
+        return pub in self.members()
+
+    # ---- Austausch ----
+
+    def headers(self) -> dict[str, int]:
+        with self.lock:
+            return dict(self.db.execute("SELECT pub, MAX(seq) FROM eintrag GROUP BY pub").fetchall())
+
+    def read(self, pub: str, from_seq: int, count: int = 500) -> list[dict]:
+        with self.lock:
+            lines = self.db.execute("SELECT e.kopf, i.daten FROM eintrag e LEFT JOIN inhalt i ON i.sha = e.sha WHERE e.pub = ? AND e.seq > ? ORDER BY e.seq LIMIT ?", (pub, from_seq, min(count, 2000))).fetchall()
+        return [{"kopf": json.loads(k), "inhalt": json.loads(d) if d else None} for k, d in lines]
+
+    def _violation(self, pub: str) -> None:
+        self.db.execute("INSERT INTO verstoss (pub, n) VALUES (?, 1) ON CONFLICT(pub) DO UPDATE SET n = n + 1", (pub,))
+
+    def _object_content(self, header: dict, content):
+        """Der zu speichernde Inhalt eines Objekts oder None (vergessen, fehlt, oder verstößt gegen die Regeln)."""
+        tombstone = self.db.execute("SELECT token_sha FROM grab WHERE netz_id = ?", (header["netz_id"],)).fetchone()
+        if tombstone and hmac.compare_digest(tombstone[0], header["loesch_hash"]):
+            return None
+        if content is None:
+            return None
+        if sha256(content) != header["sha"] or len(canonical(content)) > MAX_CONTENT or not isinstance(content, dict) or content.get("netz_id") != header["netz_id"] or content.get("loesch_hash") != header["loesch_hash"]:
+            self._violation(header["pub"])
+            return None
+        if checks.check(content, may_reflex=True).verdict == "ablehnen":
+            self._violation(header["pub"])
+            return None
+        return content
+
+    def ingest(self, entries) -> dict:
+        """Fremde Einträge prüfen und speichern. Ein Fehler beendet nur das Logbuch dieses Herausgebers für diesen Durchlauf."""
+        report = {"neu": 0, "bekannt": 0, "abgelehnt": 0, "gruende": []}
+        stopped: set[str] = set()
+
+        def stop(pub, reason):
+            report["abgelehnt"] += 1
+            report["gruende"].append(f"{pseudonym(pub) if isinstance(pub, str) and _HEX64.match(pub) else '?'}: {reason}")
+            stopped.add(pub)
+        for e in entries if isinstance(entries, list) else []:
+            header, content = e.get("kopf") if isinstance(e, dict) else None, e.get("inhalt") if isinstance(e, dict) else None
+            if reason := header_form(header):
+                stop(header.get("pub") if isinstance(header, dict) else None, reason)
+                continue
+            pub = header["pub"]
+            if pub in stopped:
+                continue
+            with self.lock:
+                if self.db.execute("SELECT 1 FROM gabelung WHERE pub = ?", (pub,)).fetchone():
+                    stop(pub, "Gabelung bekannt")
+                    continue
+                if not self.is_member(pub):
+                    stop(pub, "kein Mitglied")
+                    continue
+                if not signature_valid(header):
+                    stop(pub, "Signatur ungültig")
+                    continue
+                present = self.db.execute("SELECT hash FROM eintrag WHERE pub = ? AND seq = ?", (pub, header["seq"])).fetchone()
+                if present:
+                    if present[0] != entry_hash(header):
+                        self.db.execute("INSERT OR REPLACE INTO gabelung (pub, seq, zeit) VALUES (?,?,?)", (pub, header["seq"], header["zeit"]))
+                        stop(pub, f"Gabelung bei Nummer {header['seq']}")
+                        continue
+                    report["bekannt"] += 1
+                    if header["typ"] == "objekt" and content is not None and not self.db.execute("SELECT 1 FROM inhalt WHERE sha = ?", (header["sha"],)).fetchone():
+                        if (good := self._object_content(header, content)) is not None:
+                            self.db.execute("INSERT OR IGNORE INTO inhalt (sha, daten) VALUES (?,?)", (header["sha"], json.dumps(good, ensure_ascii=False, sort_keys=True)))
+                    continue
+                seq, prev_hash = self._header_of(pub)
+                if header["seq"] != seq + 1 or header["vor"] != prev_hash:
+                    stop(pub, f"Kette unterbrochen bei Nummer {header['seq']}")
+                    continue
+                if self.db.execute("SELECT COUNT(*) FROM eintrag WHERE pub = ? AND zeit = ?", (pub, header["zeit"])).fetchone()[0] >= MAX_PER_DAY:
+                    stop(pub, "Tageskontingent erschöpft")
+                    continue
+                if header["typ"] == "objekt":
+                    to_save = self._object_content(header, content)
+                else:
+                    if not valid_control_form(header["typ"], content) or sha256(content) != header["sha"] or (header["typ"] == "widerruf" and content["ziel"] != header["netz_id"]):
+                        self._violation(pub)
+                        stop(pub, f"Inhalt von Typ {header['typ']} unbrauchbar")
+                        continue
+                    to_save = content
+                self._insert(header, to_save)
+                report["neu"] += 1
+                if to_save is not None:
+                    self._apply_effects(header, to_save)
+        report["gruende"] = report["gruende"][:20]
+        return report
+
+    # ---- Weitergabe ans Gedächtnis ----
+
+    def new_since_checkpoint(self, pub: str, count: int = 200) -> list[dict]:
+        with self.lock:
+            z = self.db.execute("SELECT seq FROM stand WHERE pub = ?", (pub,)).fetchone()
+        return self.read(pub, z[0] if z else 0, count)
+
+    def set_checkpoint(self, pub: str, seq: int) -> None:
+        with self.lock:
+            self.db.execute("INSERT INTO stand (pub, seq) VALUES (?,?) ON CONFLICT(pub) DO UPDATE SET seq = excluded.seq", (pub, seq))
+
+    def own_objects(self) -> set[tuple[str, str]]:
+        with self.lock:
+            return set(self.db.execute("SELECT netz_id, sha FROM eintrag WHERE pub = ? AND typ = 'objekt'", (self.pub,)).fetchall())
+
+    def own_revocations(self) -> set[str]:
+        with self.lock:
+            return {r[0] for r in self.db.execute("SELECT netz_id FROM eintrag WHERE pub = ? AND typ = 'widerruf'", (self.pub,))}
+
+    def last_own_address(self) -> dict | None:
+        with self.lock:
+            z = self.db.execute("SELECT i.daten FROM eintrag e JOIN inhalt i ON i.sha = e.sha WHERE e.pub = ? AND e.typ = 'adresse' ORDER BY e.seq DESC LIMIT 1", (self.pub,)).fetchone()
+        return json.loads(z[0]) if z else None
+
+    # ---- Peers ----
+
+    def peer_remember(self, address: str, source: str, pin: str | None = None) -> None:
+        """Ein Pin kommt nur aus einer signierten Quelle: dem adresse-Eintrag des Peers selbst oder einem Beitrittscode."""
+        with self.lock:
+            self.db.execute("INSERT OR IGNORE INTO peer (adresse, quelle) VALUES (?,?)", (address.rstrip("/"), source))
+            if pin:
+                self.db.execute("UPDATE peer SET pin = ? WHERE adresse = ?", (pin, address.rstrip("/")))
+
+    def pin(self, address: str) -> str | None:
+        with self.lock:
+            z = self.db.execute("SELECT pin FROM peer WHERE adresse = ?", (address.rstrip("/"),)).fetchone()
+        return z[0] if z else None
+
+    def peers(self) -> list[dict]:
+        with self.lock:
+            lines = self.db.execute("SELECT adresse, quelle, pin, zuletzt, fehler, naechster FROM peer ORDER BY adresse").fetchall()
+        return [{"adresse": a, "quelle": q, "pin": p, "zuletzt": z, "fehler": f, "naechster": n} for a, q, p, z, f, n in lines]
+
+    # ---- Beitritt mit Code: einmalig, befristet, nur der Hash liegt hier ----
+
+    def create_join(self, nonce: str, valid_s: float) -> None:
+        with self.lock:
+            self.db.execute("INSERT INTO beitritt (nonce_sha, ablauf) VALUES (?,?)", (hashlib.sha256(nonce.encode()).hexdigest(), time.time() + valid_s))
+
+    def redeem_join(self, nonce: str, pub: str) -> str | None:
+        """Grund der Ablehnung oder None. Bei Erfolg lädt dieser Server den neuen Schlüssel ein."""
+        if not isinstance(nonce, str) or len(nonce) > 200:
+            return "Code unbrauchbar"
+        with self.lock:
+            self.db.execute("BEGIN IMMEDIATE")
+            try:
+                z = self.db.execute("SELECT ablauf, benutzt FROM beitritt WHERE nonce_sha = ?", (hashlib.sha256(nonce.encode()).hexdigest(),)).fetchone()
+                if not z or z[1] or z[0] < time.time():
+                    self.db.execute("ROLLBACK")
+                    return "Beitrittscode ungültig, abgelaufen oder schon benutzt"
+                self.db.execute("UPDATE beitritt SET benutzt = ? WHERE nonce_sha = ?", (pub, hashlib.sha256(nonce.encode()).hexdigest()))
+                self.db.execute("COMMIT")
+            except BaseException:
+                self.db.execute("ROLLBACK")
+                raise
+        if not self.is_member(pub):
+            self.attach("einladung", {"pub": pub})
+        return None
+
+    def choose_peers(self, n: int, excluding: str | None = None) -> list[str]:
+        with self.lock:
+            all_ = [r[0] for r in self.db.execute("SELECT adresse FROM peer WHERE naechster <= ?", (time.time(),)) if r[0] != excluding]
+        random.shuffle(all_)
+        return all_[:n]
+
+    def peer_result(self, address: str, ok: bool) -> None:
+        with self.lock:
+            if ok:
+                self.db.execute("UPDATE peer SET zuletzt = ?, fehler = 0, naechster = 0 WHERE adresse = ?", (time.time(), address))
+            else:
+                self.db.execute("UPDATE peer SET fehler = fehler + 1, naechster = ? + min(3600, 30 * (1 << min(fehler, 7))) WHERE adresse = ?", (time.time(), address))
+
+    # ---- Segmente: Transport-Zwischenablage für Torrent, ohne eigene Beweiskraft ----
+
+    def remember_segment(self, sha: str, pub: str, from_: int, until: int, torrent: bytes, port: int, file: str) -> None:
+        with self.lock:
+            self.db.execute("INSERT OR REPLACE INTO segment (sha256, pub, von, bis, torrent, port, datei) VALUES (?,?,?,?,?,?,?)", (sha, pub, from_, until, base64.b64encode(torrent).decode(), port, file))
+
+    def segments(self, pub: str) -> list[dict]:
+        with self.lock:
+            z = self.db.execute("SELECT sha256, von, bis, torrent, port FROM segment WHERE pub = ? ORDER BY von", (pub,)).fetchall()
+        return [{"sha256": a, "von": b, "bis": c, "torrent": d, "port": e} for a, b, c, d, e in z]
+
+    def segments_local(self) -> list[tuple[str, str, str]]:
+        with self.lock:
+            return self.db.execute("SELECT sha256, torrent, datei FROM segment").fetchall()
+
+    def last_segment_until(self, pub: str) -> int:
+        with self.lock:
+            return self.db.execute("SELECT COALESCE(MAX(bis), 0) FROM segment WHERE pub = ?", (pub,)).fetchone()[0]
+
+    def discard_segments(self, pub: str, seq: int) -> None:
+        """Ein Segment mit vergessenem Inhalt darf nicht weiter verteilt werden. Die Datei fällt beim nächsten Abgleich der Schwarm-Liste weg."""
+        with self.lock:
+            for (d,) in self.db.execute("SELECT datei FROM segment WHERE pub = ? AND von <= ? AND bis >= ?", (pub, seq, seq)).fetchall():
+                try:
+                    Path(d).unlink(missing_ok=True)
+                except OSError:
+                    pass
+            self.db.execute("DELETE FROM segment WHERE pub = ? AND von <= ? AND bis >= ?", (pub, seq, seq))
+
+    def status(self) -> dict:
+        with self.lock:
+            d = {"eintraege": self.db.execute("SELECT COUNT(*) FROM eintrag").fetchone()[0], "inhalte": self.db.execute("SELECT COUNT(*) FROM inhalt").fetchone()[0],
+                 "grabsteine": self.db.execute("SELECT COUNT(*) FROM grab").fetchone()[0], "gabelungen": self.db.execute("SELECT COUNT(*) FROM gabelung").fetchone()[0],
+                 "verstoesse": self.db.execute("SELECT COALESCE(SUM(n), 0) FROM verstoss").fetchone()[0], "segmente": self.db.execute("SELECT COUNT(*) FROM segment").fetchone()[0],
+                 "peers": self.db.execute("SELECT COUNT(*) FROM peer").fetchone()[0], "peers_erreichbar": self.db.execute("SELECT COUNT(*) FROM peer WHERE fehler = 0 AND zuletzt IS NOT NULL").fetchone()[0]}
+        return {**d, "mitglieder": len(self.members())}
+
+    def close(self) -> None:
+        with self.lock:
+            self.db.close()

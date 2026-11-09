@@ -21,17 +21,17 @@ import re
 import urllib.error
 import urllib.request
 
-from . import gedaechtnis as g
-from . import pruefung
-from .protokoll import log
+from . import memory as g
+from . import checks
+from .log_output import log
 
-konfig: dict | None = None
+config: dict | None = None
 #: Austauschbare Modellfunktion (Tests): (system, user) → Antworttext
-frage_fn = None
+ask_fn = None
 TIMEOUT_S = 180
-BELEGE_MIN = 3
-CLUSTER_MAX_JE_SCHLAF = 10
-ERFAHRUNGEN_MAX = 20
+EVIDENCE_MIN = 3
+CLUSTER_MAX_PER_SLEEP = 10
+EXPERIENCES_MAX = 20
 
 SYSTEM = """Du bist das Gedächtnis einer IT-Betriebsumgebung und wertest nachts Erfahrungen aus.
 Du bekommst eine nummerierte Liste von Erfahrungen (Werkzeugaufrufe mit Ausgang) zu einem Host und einem Werkzeugbereich.
@@ -45,105 +45,105 @@ Regeln:
 Antworte NUR mit JSON: {"erkenntnis": {"satz": "...", "hashtags": ["..."], "belege": [1, 2, 3]}} oder {"erkenntnis": null, "grund": "..."}"""
 
 
-def verfuegbar() -> bool:
-    return frage_fn is not None or bool(konfig and konfig.get("url"))
+def available() -> bool:
+    return ask_fn is not None or bool(config and config.get("url"))
 
 
-def frage(system: str, user: str, **extra) -> str:
-    if frage_fn is not None:
-        return frage_fn(system, user)
-    kopf = {"Content-Type": "application/json"}
-    if konfig.get("token"):
-        kopf["Authorization"] = f"Bearer {konfig['token']}"
+def question(system: str, user: str, **extra) -> str:
+    if ask_fn is not None:
+        return ask_fn(system, user)
+    header = {"Content-Type": "application/json"}
+    if config.get("token"):
+        header["Authorization"] = f"Bearer {config['token']}"
     body = {"messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.2, "chat_template_kwargs": {"enable_thinking": False}}  # kein max_tokens (CLAUDE.md)
     body.update(extra)
-    if konfig.get("modell"):
-        body["model"] = konfig["modell"]
-    req = urllib.request.Request(konfig["url"], data=json.dumps(body).encode(), headers=kopf)
+    if config.get("modell"):
+        body["model"] = config["modell"]
+    req = urllib.request.Request(config["url"], data=json.dumps(body).encode(), headers=header)
     op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with op.open(req, timeout=TIMEOUT_S) as a:
         d = json.load(a)
-    wahl = d["choices"][0]
-    if wahl.get("finish_reason") == "length":
+    choice = d["choices"][0]
+    if choice.get("finish_reason") == "length":
         raise ValueError("Antwort abgeschnitten (finish_reason=length) — Thinking ist aus; Kontext des Modells prüfen")
-    return wahl["message"]["content"]
+    return choice["message"]["content"]
 
 
-def _json_aus(text: str) -> dict:
+def _json_from(text: str) -> dict:
     text = text.strip()
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.S)
-    anfang, ende = text.find("{"), text.rfind("}")
-    if anfang < 0 or ende < 0:
+    begin_pos, end = text.find("{"), text.rfind("}")
+    if begin_pos < 0 or end < 0:
         raise ValueError("kein JSON in der Antwort")
-    return json.loads(text[anfang:ende + 1])
+    return json.loads(text[begin_pos:end + 1])
 
 
-def pruefe(antwort: dict, n_erfahrungen: int) -> tuple[dict | None, str]:
+def check(answer: dict, n_experiences: int) -> tuple[dict | None, str]:
     """(Erkenntnis | None, Grund). Rein; alles, was nicht passt, wird mit Grund verworfen."""
-    e = antwort.get("erkenntnis")
+    e = answer.get("erkenntnis")
     if e is None:
-        return None, f"Modell: {str(antwort.get('grund', 'keine Erkenntnis'))[:200]}"
+        return None, f"Modell: {str(answer.get('grund', 'keine Erkenntnis'))[:200]}"
     if not isinstance(e, dict):
         return None, "erkenntnis ist kein Objekt"
-    satz = str(e.get("satz") or "").strip()
-    if not 20 <= len(satz) <= 300:
-        return None, f"Satzlänge {len(satz)} außerhalb 20–300"
-    treffer = pruefung.anweisungen(satz)
-    if treffer:
-        return None, f"Anweisungsmuster im Satz verworfen: {treffer[0]!r}"
+    sentence = str(e.get("satz") or "").strip()
+    if not 20 <= len(sentence) <= 300:
+        return None, f"Satzlänge {len(sentence)} außerhalb 20–300"
+    hits = checks.directives(sentence)
+    if hits:
+        return None, f"Anweisungsmuster im Satz verworfen: {hits[0]!r}"
     tags = [str(t).strip().lower() for t in (e.get("hashtags") or []) if str(t).strip()]
-    tags = [t for t in tags if g.TAG.match(t) and not t.startswith(g.VERWALTUNG)][:5]
-    belege = e.get("belege") or []
+    tags = [t for t in tags if g.TAG.match(t) and not t.startswith(g.ADMIN_PREFIXES)][:5]
+    evidence_list = e.get("belege") or []
     try:
-        belege = sorted({int(b) for b in belege if 1 <= int(b) <= n_erfahrungen})
+        evidence_list = sorted({int(b) for b in evidence_list if 1 <= int(b) <= n_experiences})
     except (TypeError, ValueError):
         return None, "belege sind keine Nummern"
-    if len(belege) < BELEGE_MIN:
-        return None, f"nur {len(belege)} gültige Belege (mindestens {BELEGE_MIN})"
-    return {"satz": satz, "hashtags": tags, "belege": belege}, "ok"
+    if len(evidence_list) < EVIDENCE_MIN:
+        return None, f"nur {len(evidence_list)} gültige Belege (mindestens {EVIDENCE_MIN})"
+    return {"satz": sentence, "hashtags": tags, "belege": evidence_list}, "ok"
 
 
-def _beschreibe(o: g.Objekt) -> str:
+def _describe(o: g.MemoryObject) -> str:
     ok = "ok" if "ok:ja" in o.hashtags else "FEHLER" if "ok:nein" in o.hashtags else "unbekannt"
     tool = next((t[5:] for t in o.hashtags if t.startswith("tool:")), "?")
-    fehler = o.daten.get("fehler")
-    return f"{o.zeit[:16]} {tool} → {ok}" + (f": {str(fehler)[:120]}" if fehler else f", {o.daten.get('dauer_ms', 0)} ms")
+    error = o.data.get("fehler")
+    return f"{o.ts[:16]} {tool} → {ok}" + (f": {str(error)[:120]}" if error else f", {o.data.get('dauer_ms', 0)} ms")
 
 
-def reflektiere(cluster: list[dict]) -> dict:
+def reflect(cluster: list[dict]) -> dict:
     """Schlaf-Schritt 4b: je Cluster ohne Schema eine Erkenntnis vom Modell erbitten, prüfen, als test speichern."""
-    if not verfuegbar():
+    if not available():
         return {"zustand": "uebersprungen", "grund": "kein Sprachmodell konfiguriert (konfig.llm)"}
-    neu, verworfen, fehler = 0, [], []
-    for c in [c for c in cluster if not c.get("schema")][:CLUSTER_MAX_JE_SCHLAF]:
-        erf = c["erfahrungen"][:ERFAHRUNGEN_MAX]
-        if len(erf) < BELEGE_MIN:
+    new, discarded, error = 0, [], []
+    for c in [c for c in cluster if not c.get("schema")][:CLUSTER_MAX_PER_SLEEP]:
+        exps = c["erfahrungen"][:EXPERIENCES_MAX]
+        if len(exps) < EVIDENCE_MIN:
             continue
         host, skill = c["key"]
-        rid = f"erkenntnis:llm-{g.hashwert(host, skill, erf[0].zeit[:10])}"
-        if g.lade(rid):
+        rid = f"erkenntnis:llm-{g.hash_value(host, skill, exps[0].ts[:10])}"
+        if g.load(rid):
             continue
-        user = f"Host {host[5:]}, Bereich {skill[6:]}. Erfahrungen:\n" + "\n".join(f"{i + 1}. {_beschreibe(o)}" for i, o in enumerate(erf))
+        user = f"Host {host[5:]}, Bereich {skill[6:]}. Erfahrungen:\n" + "\n".join(f"{i + 1}. {_describe(o)}" for i, o in enumerate(exps))
         try:
-            roh = frage(SYSTEM, user)
-            antwort = _json_aus(roh)
+            raw = question(SYSTEM, user)
+            answer = _json_from(raw)
         except (urllib.error.URLError, OSError, ValueError, KeyError, json.JSONDecodeError) as e:
-            fehler.append(f"{host} {skill}: {type(e).__name__}: {str(e)[:120]}")
+            error.append(f"{host} {skill}: {type(e).__name__}: {str(e)[:120]}")
             log(f"Reflexion scheiterte für {host} {skill}: {e}")
             continue
-        erk, grund = pruefe(antwort, len(erf))
-        if erk is None:
-            verworfen.append(f"{host} {skill}: {grund}")
+        ins, reason = check(answer, len(exps))
+        if ins is None:
+            discarded.append(f"{host} {skill}: {reason}")
             continue
-        belege = [erf[i - 1] for i in erk["belege"]]
-        o = g.neues_objekt("erkenntnis", erk["satz"], sorted(set(erk["hashtags"]) | {host, skill, "modus:test", "herkunft:schlaf-llm"}),
-                           {"quelle": f"Schlaf-Reflexion (Sprachmodell) aus {len(belege)} Erfahrungen — Belegkanten", "belege_n": len(belege),
-                            "ausgang": c.get("ausgang"), "modell": (konfig or {}).get("modell") or "llm"},
-                           wichtigkeit=1, wer="vi", oid=rid, modus="test", grund="Schlaf: Reflexion durch das Sprachmodell, geprüft",
-                           instanz=g.SERVER_INSTANZ)
-        for b in belege:
-            o.verknuepfe(b.id, "Beleg (Schlaf: Reflexion)")
-        neu += 1
-    return {"zustand": "fertig" if not fehler else "teilweise", "neu": neu, "verworfen": verworfen[:10], "fehler": fehler[:10]}
+        evidence_list = [exps[i - 1] for i in ins["belege"]]
+        o = g.new_object("erkenntnis", ins["satz"], sorted(set(ins["hashtags"]) | {host, skill, "modus:test", "herkunft:schlaf-llm"}),
+                           {"quelle": f"Schlaf-Reflexion (Sprachmodell) aus {len(evidence_list)} Erfahrungen — Belegkanten", "belege_n": len(evidence_list),
+                            "ausgang": c.get("ausgang"), "modell": (config or {}).get("modell") or "llm"},
+                           importance=1, who="vi", oid=rid, mode="test", reason="Schlaf: Reflexion durch das Sprachmodell, geprüft",
+                           instance=g.SERVER_INSTANCE)
+        for b in evidence_list:
+            o.link(b.id, "Beleg (Schlaf: Reflexion)")
+        new += 1
+    return {"zustand": "fertig" if not error else "teilweise", "neu": new, "verworfen": discarded[:10], "fehler": error[:10]}

@@ -20,13 +20,13 @@ from __future__ import annotations
 
 import re
 
-from . import gedaechtnis as g
+from . import memory as g
 
-SCHLECHT_AB = 3
-SCHLECHT_QUOTE = 0.3
+BAD_FROM = 3
+BAD_RATIO = 0.3
 
 #: Werkzeuge, die in fast jedem Gespräch vorkommen. Ein Lösungsweg nur aus ihnen sagt nichts darüber, was das Problem gelöst hat.
-ALLGEMEINE_WERKZEUGE = {"Bash", "Read", "Write", "Edit", "MultiEdit", "Glob", "Grep", "AskUserQuestion", "ToolSearch", "TodoWrite", "WebSearch", "WebFetch",
+GENERAL_TOOLS = {"Bash", "Read", "Write", "Edit", "MultiEdit", "Glob", "Grep", "AskUserQuestion", "ToolSearch", "TodoWrite", "WebSearch", "WebFetch",
                         "Agent", "Task", "Skill", "SendMessage", "NotebookEdit", "BashOutput", "KillShell", "Monitor", "ScheduleWakeup", "ListAgents"}
 
 
@@ -34,224 +34,224 @@ def _slug(name: str) -> str:
     return re.sub(r"[^a-z0-9_-]+", "-", name.lower()).strip("-")[:40]
 
 
-def _reize_ok(reize: list[str]) -> list[str]:
-    return sorted({t.strip() for t in reize if isinstance(t, str) and g.TAG.match(t.strip()) and not t.startswith(g.VERWALTUNG)})
+def _triggers_ok(triggers: list[str]) -> list[str]:
+    return sorted({t.strip() for t in triggers if isinstance(t, str) and g.TAG.match(t.strip()) and not t.startswith(g.ADMIN_PREFIXES)})
 
 
-def _schritte_ok(schritte) -> list[dict]:
-    aus = []
-    for s in schritte or []:
+def _steps_ok(steps) -> list[dict]:
+    outputs = []
+    for s in steps or []:
         if isinstance(s, str) and s.strip():
-            aus.append({"tool": s.strip()[:80]})
+            outputs.append({"tool": s.strip()[:80]})
         elif isinstance(s, dict) and str(s.get("tool", "")).strip():
-            aus.append({"tool": str(s["tool"]).strip()[:80], **({"hinweis": str(s["hinweis"])[:200]} if s.get("hinweis") else {})})
-    return aus[:20]
+            outputs.append({"tool": str(s["tool"]).strip()[:80], **({"hinweis": str(s["hinweis"])[:200]} if s.get("hinweis") else {})})
+    return outputs[:20]
 
 
-def _inhalt(anleitung: str) -> dict:
+def _content(instructions: str) -> dict:
     """Eine ausführliche Anleitung (Befehle, Code) bleibt vollständig erhalten, der Hinweis zeigt nur den Anfang."""
-    a = (anleitung or "").strip()
-    if len(a) > g.INHALT_MAX:
-        raise ValueError(f"anleitung hat {len(a)} Zeichen, erlaubt sind {g.INHALT_MAX}")
+    a = (instructions or "").strip()
+    if len(a) > g.CONTENT_MAX:
+        raise ValueError(f"anleitung hat {len(a)} Zeichen, erlaubt sind {g.CONTENT_MAX}")
     return {"inhalt": a} if len(a) > 600 else {}
 
 
-def neu(name: str, reize: list[str], schritte, anleitung: str, grund: str, belege: list[str], instanz: str,
-        quelle: str = "", oid: str | None = None, wer: str | None = None) -> g.Objekt:
+def new(name: str, triggers: list[str], steps, instructions: str, reason: str, evidence_list: list[str], instance: str,
+        source: str = "", oid: str | None = None, who: str | None = None) -> g.MemoryObject:
     n = _slug(name)
     if len(n) < 2:
         raise ValueError("name: mindestens 2 Zeichen a-z, 0-9, -")
-    rz = _reize_ok(reize)
+    rz = _triggers_ok(triggers)
     if not rz:
         raise ValueError("mindestens ein Reiz (Hashtag art:wert), an dem der Skill erscheint")
-    st = _schritte_ok(schritte)
+    st = _steps_ok(steps)
     if not st:
         raise ValueError("mindestens ein Schritt (Werkzeugname)")
-    if len((anleitung or "").strip()) < 10 or len((grund or "").strip()) < 5:
+    if len((instructions or "").strip()) < 10 or len((reason or "").strip()) < 5:
         raise ValueError("anleitung (der Lösungsweg, mindestens 10 Zeichen) und grund sind Pflicht")
     oid = oid or f"skill:{n}"
-    alt = g.lade(oid)
-    if alt and alt.art == "skill":
-        return weiterentwickeln(alt, st, anleitung, grund, belege, instanz, wer, reize=rz)
-    o = g.neues_objekt("skill", anleitung.strip()[:600], rz + [f"skill:{n}", "modus:test"],
-                       {"name": n, "problem": {"reize": rz}, "loesung": {"schritte": st, "text": anleitung.strip()[:600]}, **_inhalt(anleitung),
-                        "version": 1, "versionen": [{"version": 1, "zeit": g.jetzt(), "wer": wer or f"ki@{instanz}", "grund": grund.strip()[:300],
-                                                     "belege": list(belege or [])[:50]}],
-                        "belege": list(belege or [])[:200], "quelle": (quelle or grund).strip()[:300]},
-                       wichtigkeit=2, wer=wer or f"ki@{instanz}", oid=oid, modus="test", grund=grund, instanz=instanz)
-    for b in belege or []:
-        o.verknuepfe(b, "Beleg (Lösung)")
+    old = g.load(oid)
+    if old and old.kind == "skill":
+        return evolve(old, st, instructions, reason, evidence_list, instance, who, triggers=rz)
+    o = g.new_object("skill", instructions.strip()[:600], rz + [f"skill:{n}", "modus:test"],
+                       {"name": n, "problem": {"reize": rz}, "loesung": {"schritte": st, "text": instructions.strip()[:600]}, **_content(instructions),
+                        "version": 1, "versionen": [{"version": 1, "zeit": g.now(), "wer": who or f"ki@{instance}", "grund": reason.strip()[:300],
+                                                     "belege": list(evidence_list or [])[:50]}],
+                        "belege": list(evidence_list or [])[:200], "quelle": (source or reason).strip()[:300]},
+                       importance=2, who=who or f"ki@{instance}", oid=oid, mode="test", reason=reason, instance=instance)
+    for b in evidence_list or []:
+        o.link(b, "Beleg (Lösung)")
     return o
 
 
-def weiterentwickeln(o: g.Objekt, schritte, anleitung: str, grund: str, belege: list[str], instanz: str, wer: str | None = None,
-                     reize: list[str] | None = None) -> g.Objekt:
+def evolve(o: g.MemoryObject, steps, instructions: str, reason: str, evidence_list: list[str], instance: str, who: str | None = None,
+                     triggers: list[str] | None = None) -> g.MemoryObject:
     """Neue Version: Schritte, die noch fehlen, kommen hinten dazu; Anleitung wird ersetzt, alte steht in der Version.
     0.20.11: Neue Reize ersetzen die alten (vorher blieben sie stehen — ein zu allgemeiner Reiz wie tool:Bash ließ sich nie mehr entfernen);
     die alten stehen in der Version."""
-    st = _schritte_ok(schritte)
-    reize_vorher = list(o.daten["problem"]["reize"])
-    if reize and sorted(reize) != sorted(reize_vorher):
-        basis = [t for t in o.hashtags if t not in reize_vorher]
-        o.hashtags = basis + [t for t in reize if t not in basis]  # gegen die bereinigte Liste prüfen, sonst fallen bleibende Reize weg (0.20.12)
-        o.daten["problem"]["reize"] = list(reize)
-    vorhanden = {s["tool"] for s in o.daten["loesung"]["schritte"]}
-    o.daten["loesung"]["schritte"] += [s for s in st if s["tool"] not in vorhanden]
-    o.daten["versionen"].append({"version": o.daten["version"] + 1, "zeit": g.jetzt(), "wer": wer or f"ki@{instanz}", "grund": grund.strip()[:300],
-                                 "belege": list(belege or [])[:50], "vorher_text": o.daten["loesung"]["text"],
-                                 **({"reize_vorher": reize_vorher} if o.daten["problem"]["reize"] != reize_vorher else {})})
-    o.daten["version"] += 1
-    if (anleitung or "").strip():
-        o.daten["loesung"]["text"] = anleitung.strip()[:600]
-        o.text = o.daten["loesung"]["text"]
-        o.daten.pop("inhalt", None)
-        o.daten.update(_inhalt(anleitung))
-    o.daten["belege"] = (o.daten.get("belege", []) + [b for b in belege or [] if b not in o.daten.get("belege", [])])[:200]
-    o.aendere(wer or f"ki@{instanz}", f"Version {o.daten['version']}", grund)
-    g.speichere(o)
-    for b in belege or []:
-        o.verknuepfe(b, "Beleg (Lösung)")
+    st = _steps_ok(steps)
+    triggers_before = list(o.data["problem"]["reize"])
+    if triggers and sorted(triggers) != sorted(triggers_before):
+        base = [t for t in o.hashtags if t not in triggers_before]
+        o.hashtags = base + [t for t in triggers if t not in base]  # gegen die bereinigte Liste prüfen, sonst fallen bleibende Reize weg (0.20.12)
+        o.data["problem"]["reize"] = list(triggers)
+    present = {s["tool"] for s in o.data["loesung"]["schritte"]}
+    o.data["loesung"]["schritte"] += [s for s in st if s["tool"] not in present]
+    o.data["versionen"].append({"version": o.data["version"] + 1, "zeit": g.now(), "wer": who or f"ki@{instance}", "grund": reason.strip()[:300],
+                                 "belege": list(evidence_list or [])[:50], "vorher_text": o.data["loesung"]["text"],
+                                 **({"reize_vorher": triggers_before} if o.data["problem"]["reize"] != triggers_before else {})})
+    o.data["version"] += 1
+    if (instructions or "").strip():
+        o.data["loesung"]["text"] = instructions.strip()[:600]
+        o.text = o.data["loesung"]["text"]
+        o.data.pop("inhalt", None)
+        o.data.update(_content(instructions))
+    o.data["belege"] = (o.data.get("belege", []) + [b for b in evidence_list or [] if b not in o.data.get("belege", [])])[:200]
+    o.change(who or f"ki@{instance}", f"Version {o.data['version']}", reason)
+    g.save(o)
+    for b in evidence_list or []:
+        o.link(b, "Beleg (Lösung)")
     return o
 
 
-def fusion(a_id: str, b_id: str, name: str, grund: str, instanz: str) -> g.Objekt:
-    a, b = g.lade(a_id), g.lade(b_id)
+def fusion(a_id: str, b_id: str, name: str, reason: str, instance: str) -> g.MemoryObject:
+    a, b = g.load(a_id), g.load(b_id)
     for x, xid in ((a, a_id), (b, b_id)):
-        if not x or x.art != "skill":
+        if not x or x.kind != "skill":
             raise ValueError(f"{xid} ist kein Skill")
-        if x.modus == "aufgegangen":
-            raise ValueError(f"{xid} ist bereits aufgegangen in {x.daten.get('aufgegangen_in')}")
-        if x.modus == "quarantaene":
+        if x.mode == "aufgegangen":
+            raise ValueError(f"{xid} ist bereits aufgegangen in {x.data.get('aufgegangen_in')}")
+        if x.mode == "quarantaene":
             raise ValueError(f"{xid} liegt in der Quarantäne")
     if a.id == b.id:
         raise ValueError("ein Skill kann nicht mit sich selbst zusammengeführt werden")
-    reize = sorted(set(a.daten["problem"]["reize"]) | set(b.daten["problem"]["reize"]))
-    schritte = list(a.daten["loesung"]["schritte"]) + [s for s in b.daten["loesung"]["schritte"] if s["tool"] not in {x["tool"] for x in a.daten["loesung"]["schritte"]}]
-    anleitung = f"{a.daten['loesung']['text']} — {b.daten['loesung']['text']}"[:600]
-    belege = sorted(set(a.daten.get("belege", [])) | set(b.daten.get("belege", [])))
-    neu_o = neu(name, reize, schritte, anleitung, f"Fusion aus {a.id} und {b.id}: {grund}", belege, instanz,
-                quelle=f"Fusion {a.id} + {b.id}")
-    neu_o.daten["fusion_aus"] = [a.id, b.id]
+    triggers = sorted(set(a.data["problem"]["reize"]) | set(b.data["problem"]["reize"]))
+    steps = list(a.data["loesung"]["schritte"]) + [s for s in b.data["loesung"]["schritte"] if s["tool"] not in {x["tool"] for x in a.data["loesung"]["schritte"]}]
+    instructions = f"{a.data['loesung']['text']} — {b.data['loesung']['text']}"[:600]
+    evidence_list = sorted(set(a.data.get("belege", [])) | set(b.data.get("belege", [])))
+    new_o = new(name, triggers, steps, instructions, f"Fusion aus {a.id} und {b.id}: {reason}", evidence_list, instance,
+                source=f"Fusion {a.id} + {b.id}")
+    new_o.data["fusion_aus"] = [a.id, b.id]
     if "herkunft:p2p" in a.hashtags or "herkunft:p2p" in b.hashtags:  # die Herkunft überlebt die Fusion
-        neu_o.hashtags = sorted(set(neu_o.hashtags) | {"herkunft:p2p"})
-    g.speichere(neu_o)
+        new_o.hashtags = sorted(set(new_o.hashtags) | {"herkunft:p2p"})
+    g.save(new_o)
     for x in (a, b):
-        x.modus = "aufgegangen"
-        x.daten["aufgegangen_in"] = neu_o.id
+        x.mode = "aufgegangen"
+        x.data["aufgegangen_in"] = new_o.id
         x.hashtags = [t for t in x.hashtags if not t.startswith(("modus:", "fusion:"))] + ["modus:aufgegangen"]
-        x.aendere(f"ki@{instanz}", f"aufgegangen in {neu_o.id}", grund)
-        g.speichere(x)
-        neu_o.verknuepfe(x.id, "hervorgegangen aus")
-    return neu_o
+        x.change(f"ki@{instance}", f"aufgegangen in {new_o.id}", reason)
+        g.save(x)
+        new_o.link(x.id, "hervorgegangen aus")
+    return new_o
 
 
-def zeile(o: g.Objekt) -> str:
+def line(o: g.MemoryObject) -> str:
     from . import bandit
-    schritte = " → ".join(s["tool"] for s in o.daten["loesung"]["schritte"][:6])
-    return (f"Skill „{o.daten['name']}“ v{o.daten['version']} ({o.modus}, von {o.instanz}, {bandit.zeile(o)}): {o.text[:200]}"
-            f" — Schritte: {schritte}")
+    steps = " → ".join(s["tool"] for s in o.data["loesung"]["schritte"][:6])
+    return (f"Skill „{o.data['name']}“ v{o.data['version']} ({o.mode}, von {o.instance}, {bandit.line(o)}): {o.text[:200]}"
+            f" — Schritte: {steps}")
 
 
 # ── Schlaf-Schritte ───────────────────────────────────────────────────────────
 
-def aus_erholung(seit: str) -> dict:
+def from_recovery(since: str) -> dict:
     """4c: Erfolg nach Fehlern desselben Werkzeugs im selben Gespräch → Skill (test) oder neue Version."""
-    neu_n = weiter_n = 0
-    with g.sperre:
-        erholt = g.db().execute(
+    new_n = evolved_n = 0
+    with g.lock:
+        recovered = g.db().execute(
             "SELECT o.id FROM objekt o JOIN tag t ON t.objekt_id = o.id AND t.tag = 'ueberraschung:erholt' "
-            "WHERE o.art = 'erfahrung' AND o.zeit > ? AND o.gespraech IS NOT NULL ORDER BY o.zeit", (seit,)).fetchall()
-    for (eid,) in erholt:
-        e = g.lade(eid)
+            "WHERE o.art = 'erfahrung' AND o.zeit > ? AND o.gespraech IS NOT NULL ORDER BY o.zeit", (since,)).fetchall()
+    for (eid,) in recovered:
+        e = g.load(eid)
         tool = next((t[5:] for t in e.hashtags if t.startswith("tool:")), None)
-        if not tool or not e.gespraech:
+        if not tool or not e.conversation:
             continue
-        with g.sperre:
-            rows = g.db().execute("SELECT id FROM objekt WHERE art = 'erfahrung' AND gespraech = ? AND zeit < ? ORDER BY zeit", (e.gespraech, e.zeit)).fetchall()
-        episode = [g.lade(r[0]) for r in rows]
-        fehler_idx = [i for i, x in enumerate(episode) if x and f"tool:{tool}" in x.hashtags and "ok:nein" in x.hashtags]
-        if not fehler_idx:
+        with g.lock:
+            rows = g.db().execute("SELECT id FROM objekt WHERE art = 'erfahrung' AND gespraech = ? AND zeit < ? ORDER BY zeit", (e.conversation, e.ts)).fetchall()
+        episode = [g.load(r[0]) for r in rows]
+        error_idx = [i for i, x in enumerate(episode) if x and f"tool:{tool}" in x.hashtags and "ok:nein" in x.hashtags]
+        if not error_idx:
             continue
-        weg = [x for x in episode[fehler_idx[0]:] if x] + [e]
-        schritte = []
-        for x in weg:
+        remove = [x for x in episode[error_idx[0]:] if x] + [e]
+        steps = []
+        for x in remove:
             t = next((tg[5:] for tg in x.hashtags if tg.startswith("tool:")), None)
-            if t and (not schritte or schritte[-1] != t):
-                schritte.append(t)
-        sig = next((tg for tg in episode[fehler_idx[0]].hashtags if tg.startswith("fehler:")), None)
-        reize = sorted({tg for x in weg for tg in x.hashtags if tg.startswith(("host:", "thema:"))} | {f"tool:{tool}", f"skill:{tool.split('_')[0]}"} | ({sig} if sig else set()))
-        if not _hat_inhalt(tool, schritte):
+            if t and (not steps or steps[-1] != t):
+                steps.append(t)
+        sig = next((tg for tg in episode[error_idx[0]].hashtags if tg.startswith("fehler:")), None)
+        triggers = sorted({tg for x in remove for tg in x.hashtags if tg.startswith(("host:", "thema:"))} | {f"tool:{tool}", f"skill:{tool.split('_')[0]}"} | ({sig} if sig else set()))
+        if not _has_content(tool, steps):
             continue  # „Bash scheiterte und gelang danach“ ohne weiteren Schritt ist kein Wissen, nur der Normalfall
-        name = f"auto-{g.hashwert(tool, sig or '', 'erholung')[:12]}"
-        anleitung = (f"{tool} scheiterte ({sig[7:] if sig else 'Fehler'}) und gelang danach im selben Gespräch — Lösungsweg: "
-                     + " → ".join(schritte))
-        vorher = g.lade(f"skill:{name}")
-        o = neu(name, reize, schritte, anleitung, f"Schlaf: Erholung in Gespräch {e.gespraech}", [x.id for x in weg], g.SERVER_INSTANZ,
-                quelle=f"Schlaf: Erfahrungen {weg[0].id} … {e.id}", wer="vi")
-        if vorher is None:
-            neu_n += 1
+        name = f"auto-{g.hash_value(tool, sig or '', 'erholung')[:12]}"
+        instructions = (f"{tool} scheiterte ({sig[7:] if sig else 'Fehler'}) und gelang danach im selben Gespräch — Lösungsweg: "
+                     + " → ".join(steps))
+        before = g.load(f"skill:{name}")
+        o = new(name, triggers, steps, instructions, f"Schlaf: Erholung in Gespräch {e.conversation}", [x.id for x in remove], g.SERVER_INSTANCE,
+                source=f"Schlaf: Erfahrungen {remove[0].id} … {e.id}", who="vi")
+        if before is None:
+            new_n += 1
         else:
-            weiter_n += 1
-        o.verknuepfe(e.id, "Erholung (Schlaf)")
-    return {"neu": neu_n, "weiterentwickelt": weiter_n}
+            evolved_n += 1
+        o.link(e.id, "Erholung (Schlaf)")
+    return {"neu": new_n, "weiterentwickelt": evolved_n}
 
 
-def _hat_inhalt(tool: str, schritte) -> bool:
+def _has_content(tool: str, steps) -> bool:
     """Ein Erholungsweg sagt etwas, wenn zwischen Fehler und Erfolg ein anderer Schritt lag. Bash zählt dabei nur, wenn nicht Bash selbst gescheitert ist
     (dann wurde am System etwas getan); Lesen, Schreiben, Rückfragen kommen in fast jedem Gespräch vor."""
-    allgemein = ALLGEMEINE_WERKZEUGE - ({"Bash"} if tool != "Bash" else set())
-    return bool(set(schritte) - allgemein - {tool})
+    general = GENERAL_TOOLS - ({"Bash"} if tool != "Bash" else set())
+    return bool(set(steps) - general - {tool})
 
 
-def inhaltsleer(o: g.Objekt) -> bool:
+def content_empty(o: g.MemoryObject) -> bool:
     """Ein automatischer Erholungs-Skill ohne aussagekräftigen Schritt."""
-    if not o.daten.get("name", "").startswith("auto-"):
+    if not o.data.get("name", "").startswith("auto-"):
         return False
-    tool = next((r[5:] for r in (o.daten.get("problem") or {}).get("reize", []) if r.startswith("tool:")), "")
-    return not _hat_inhalt(tool, [s.get("tool") for s in (o.daten.get("loesung") or {}).get("schritte", [])])
+    tool = next((r[5:] for r in (o.data.get("problem") or {}).get("reize", []) if r.startswith("tool:")), "")
+    return not _has_content(tool, [s.get("tool") for s in (o.data.get("loesung") or {}).get("schritte", [])])
 
 
-def bewerte() -> dict:
+def rate() -> dict:
     """Skills, die wiederholt scheitern und nie nützen → strittig (benannt), nicht gelöscht. Inhaltsleere automatische Skills → widerlegt."""
     from . import bandit
-    strittig = 0
-    for _, o, _g in g.erinnere("art:skill (modus:test OR modus:aktiv OR modus:strittig)", limit=500, betrachter=None):
-        if inhaltsleer(o):
-            o.modus = "widerlegt"
+    disputed = 0
+    for _, o, _g in g.recall("art:skill (modus:test OR modus:aktiv OR modus:strittig)", limit=500, viewer=None):
+        if content_empty(o):
+            o.mode = "widerlegt"
             o.hashtags = [t for t in o.hashtags if not t.startswith("modus:")] + ["modus:widerlegt"]
-            o.aendere("vi", "widerlegt", "Schlaf: Lösungsweg besteht nur aus allgemeinen Werkzeugen; „genützt“ zählte nur, dass das Werkzeug ohnehin meist gelingt")
-            g.speichere(o)
-    for _, o, _g in g.erinnere("art:skill (modus:test OR modus:aktiv)", limit=500, betrachter=None):
-        ja, nein = bandit.zaehler(o)
-        if bandit.gezeigt(o) >= SCHLECHT_AB and bandit.erwartung(o) < SCHLECHT_QUOTE and o.modus != "strittig":
-            o.modus = "strittig"
+            o.change("vi", "widerlegt", "Schlaf: Lösungsweg besteht nur aus allgemeinen Werkzeugen; „genützt“ zählte nur, dass das Werkzeug ohnehin meist gelingt")
+            g.save(o)
+    for _, o, _g in g.recall("art:skill (modus:test OR modus:aktiv)", limit=500, viewer=None):
+        yes, no = bandit.counter(o)
+        if bandit.shown(o) >= BAD_FROM and bandit.expectation(o) < BAD_RATIO and o.mode != "strittig":
+            o.mode = "strittig"
             o.hashtags = [t for t in o.hashtags if not t.startswith("modus:")] + ["modus:strittig"]
-            o.aendere("vi", "strittig", f"Schlaf: genützt {ja}, nicht genützt {nein} — Lösungsweg prüfen oder widerlegen")
-            g.speichere(o)
-            strittig += 1
-    return {"strittig": strittig}
+            o.change("vi", "strittig", f"Schlaf: genützt {yes}, nicht genützt {no} — Lösungsweg prüfen oder widerlegen")
+            g.save(o)
+            disputed += 1
+    return {"strittig": disputed}
 
 
-def fusions_vorschlaege() -> dict:
+def fusion_proposals() -> dict:
     """Gleicher Problem-Schlüssel (tool + Fehlersignatur) bei zwei Skills → fusion:vorschlag + Kante. Entscheidet eine Instanz."""
-    skills = [o for _, o, _g in g.erinnere("art:skill !modus:aufgegangen", limit=500, betrachter=None)]
-    nach_schluessel: dict[tuple, list[g.Objekt]] = {}
+    skills = [o for _, o, _g in g.recall("art:skill !modus:aufgegangen", limit=500, viewer=None)]
+    by_key: dict[tuple, list[g.MemoryObject]] = {}
     for o in skills:
-        tools = tuple(sorted(t for t in o.daten["problem"]["reize"] if t.startswith("tool:")))
-        fehler = tuple(sorted(t for t in o.daten["problem"]["reize"] if t.startswith("fehler:")))
+        tools = tuple(sorted(t for t in o.data["problem"]["reize"] if t.startswith("tool:")))
+        error = tuple(sorted(t for t in o.data["problem"]["reize"] if t.startswith("fehler:")))
         if tools:
-            nach_schluessel.setdefault((tools, fehler), []).append(o)
+            by_key.setdefault((tools, error), []).append(o)
     n = 0
-    for gruppe in nach_schluessel.values():
-        if len(gruppe) < 2:
+    for group in by_key.values():
+        if len(group) < 2:
             continue
-        for o in gruppe:
-            andere = [x.id for x in gruppe if x.id != o.id]
+        for o in group:
+            others = [x.id for x in group if x.id != o.id]
             if "fusion:vorschlag" not in o.hashtags:
                 o.hashtags = o.hashtags + ["fusion:vorschlag"]
-                o.aendere("vi", "fusion:vorschlag", f"Schlaf: gleiches Problem wie {', '.join(andere)} — vi_skill_fusion entscheidet eine Instanz")
-                g.speichere(o)
+                o.change("vi", "fusion:vorschlag", f"Schlaf: gleiches Problem wie {', '.join(others)} — vi_skill_fusion entscheidet eine Instanz")
+                g.save(o)
                 n += 1
-            for a in andere:
-                o.verknuepfe(a, "gleiches Problem (Fusionsvorschlag)")
+            for a in others:
+                o.link(a, "gleiches Problem (Fusionsvorschlag)")
     return {"vorschlaege": n}

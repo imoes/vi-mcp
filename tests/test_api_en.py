@@ -1,12 +1,12 @@
 """0.22.0: Öffentliche Schnittstelle englisch — deutsche Werkzeug-, Parameter- und Wertnamen bleiben als Aliase gültig."""
-from vi_mcp import api_en, werkzeuge
-from vi_mcp import gedaechtnis as g
+from vi_mcp import api_en, tools
+from vi_mcp import memory as g
 
 
-def test_jedes_werkzeug_hat_eine_vollstaendige_englische_form():
-    namen = [t["name"] for t in werkzeuge.liste()]
-    assert len(namen) == len(set(namen)) and all(n.startswith("vi_") for n in namen)
-    for t in werkzeuge.TOOLS:
+def test_every_tool_has_a_complete_english_form():
+    names = [t["name"] for t in tools.listing()]
+    assert len(names) == len(set(names)) and all(n.startswith("vi_") for n in names)
+    for t in tools.TOOLS:
         assert t["name"] in api_en.TOOL_EN and t["name"] in api_en.DESC_EN, t["name"]
         en = api_en.schema(t)
         assert not any(c in en["description"] for c in "äöüß"), en["name"]  # Beschreibung englisch
@@ -16,13 +16,13 @@ def test_jedes_werkzeug_hat_eine_vollstaendige_englische_form():
         assert set(en["inputSchema"].get("required", [])) <= set(en["inputSchema"]["properties"])
 
 
-def test_englisch_und_deutsch_rufen_dasselbe(gd):
-    aus = werkzeuge.rufe("vi_learn", {"text": "nginx auf web1 nur nach nginx -t neu laden", "hashtags": ["host:web1"],
+def test_english_and_german_call_the_same(gd):
+    outputs = tools.call_tool("vi_learn", {"text": "nginx auf web1 nur nach nginx -t neu laden", "hashtags": ["host:web1"],
                                       "source": "Betriebsregel 09.11.", "visibility": "internal", "outcome": "good"}, "a", True)
-    oid = aus.split()[1]
-    o = g.lade(oid)
-    assert o.sicht == "intern" and o.daten["quelle"] == "Betriebsregel 09.11." and o.daten.get("ausgang") == "gut"
-    alt = werkzeuge.rufe("vi_erinnere", {"filter": "nginx"}, "a", True)
-    neu = werkzeuge.rufe("vi_recall", {"filter": "nginx"}, "a", True)
-    assert oid in alt and oid in neu
-    assert werkzeuge.bekannt("vi_recall") and werkzeuge.bekannt("vi_erinnere") and not werkzeuge.bekannt("vi_gibtsnicht")
+    oid = outputs.split()[1]
+    o = g.load(oid)
+    assert o.visibility == "intern" and o.data["quelle"] == "Betriebsregel 09.11." and o.data.get("ausgang") == "gut"
+    old = tools.call_tool("vi_erinnere", {"filter": "nginx"}, "a", True)
+    new = tools.call_tool("vi_recall", {"filter": "nginx"}, "a", True)
+    assert oid in old and oid in new
+    assert tools.known("vi_recall") and tools.known("vi_erinnere") and not tools.known("vi_gibtsnicht")

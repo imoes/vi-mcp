@@ -10,306 +10,306 @@ import pytest
 
 pytest.importorskip("cryptography")
 
-from vi_mcp import logbuch as lb  # noqa: E402
-from vi_mcp import netzdienst as nd  # noqa: E402
+from vi_mcp import logbook as lb  # noqa: E402
+from vi_mcp import net_service as nd  # noqa: E402
 
 
-def objekt(i, token=None):
+def mem_object(i, token=None):
     return {"art": "erkenntnis", "text": f"Wissen Nummer {'abcdefghijklmnop'[i % 16]}{i} über den Eingang des Dienstes", "hashtags": ["thema:eingang"], "quelle": "Messung vom 2.11.",
             "wichtigkeit": 1, "zeit": "2026-11-08", "netz_id": hashlib.md5(str(i).encode()).hexdigest(), "loesch_hash": hashlib.sha256((token or f"t{i}").encode()).hexdigest()}
 
 
-class Gedaechtnis:
+class FakeMemory:
     def __init__(self):
-        self.objekte, self.widerrufe, self.empfangen, self.ausfall = [], [], [], False
+        self.mem_objects, self.revocations, self.receive, self.outage = [], [], [], False
 
-    def ausgang(self):
-        if self.ausfall:
+    def outbox(self):
+        if self.outage:
             raise OSError("weg")
-        return {"objekte": list(self.objekte), "widerrufe": list(self.widerrufe)}
+        return {"objekte": list(self.mem_objects), "widerrufe": list(self.revocations)}
 
-    def eingang(self, e):
-        if self.ausfall:
+    def inbox(self, e):
+        if self.outage:
             raise OSError("weg")
-        self.empfangen += e
+        self.receive += e
         return {}
 
-    def texte(self):
-        return sorted(x["inhalt"]["text"] for x in self.empfangen if x["kopf"]["typ"] == "objekt")
+    def texts(self):
+        return sorted(x["inhalt"]["text"] for x in self.receive if x["kopf"]["typ"] == "objekt")
 
-    def ziele(self):
-        return [x["inhalt"]["ziel"] for x in self.empfangen if x["kopf"]["typ"] == "widerruf"]
+    def targets(self):
+        return [x["inhalt"]["ziel"] for x in self.receive if x["kopf"]["typ"] == "widerruf"]
 
 
 @pytest.fixture()
-def netz(tmp_path):
-    knoten = []
+def net(tmp_path):
+    nodes = []
 
     class N:
         def __init__(self):
             self.n = 0
 
-        def schluessel(self):
+        def key_(self):
             self.n += 1
             seed = tmp_path / f"seed{self.n}"
-            return seed, lb.schluessel_erzeugen(seed)
+            return seed, lb.generate_keys(seed)
 
-        def baue(self, seed, gruender, modus="peerhost", start=(), **kw):
+        def build(self, seed, founders, mode="peerhost", start=(), **kw):
             db = tmp_path / f"{seed.name}.db"
-            k = nd.NetzKonfig(modus=modus, db=str(db), seed=str(seed), bind="127.0.0.1", port=0, gruender=gruender, startpeers=list(start), min_runde_s=0, **kw)
-            d = nd.Netzdienst(k, Gedaechtnis())
-            if modus == "peerhost":
-                d.starte_server()
-                k.adresse = f"{'https' if k.tls_cert else 'http'}://127.0.0.1:{d.port()}"
-            knoten.append(d)
+            k = nd.NetConfig(mode=mode, db=str(db), seed=str(seed), bind="127.0.0.1", port=0, founders=founders, startpeers=list(start), min_round_s=0, **kw)
+            d = nd.NetService(k, FakeMemory())
+            if mode == "peerhost":
+                d.start_server()
+                k.address = f"{'https' if k.tls_cert else 'http'}://127.0.0.1:{d.port()}"
+            nodes.append(d)
             return d
     yield N()
-    for d in knoten:
-        d.stoppe()
+    for d in nodes:
+        d.stop_service()
 
 
-def _log(tmp_path, name="a", gruender=None):
+def _log(tmp_path, name="a", founders=None):
     seed = tmp_path / f"s{name}"
-    pub = lb.schluessel_erzeugen(seed)
-    return lb.Logbuch(tmp_path / f"{name}.db", seed, gruender if gruender is not None else [pub])
+    pub = lb.generate_keys(seed)
+    return lb.Logbook(tmp_path / f"{name}.db", seed, founders if founders is not None else [pub])
 
 
-def test_kette_wird_geprueft(tmp_path):
+def test_chain_is_checked(tmp_path):
     a = _log(tmp_path, "a")
     b = _log(tmp_path, "b", [a.pub])
     for i in range(3):
-        a.anhaengen("objekt", objekt(i), objekt(i)["netz_id"], objekt(i)["loesch_hash"])
-    assert b.aufnehmen(a.lies(a.pub, 0))["neu"] == 3
-    assert b.aufnehmen(a.lies(a.pub, 0))["bekannt"] == 3
-    assert b.koepfe() == {a.pub: 3}
+        a.attach("objekt", mem_object(i), mem_object(i)["netz_id"], mem_object(i)["loesch_hash"])
+    assert b.ingest(a.read(a.pub, 0))["neu"] == 3
+    assert b.ingest(a.read(a.pub, 0))["bekannt"] == 3
+    assert b.headers() == {a.pub: 3}
     c = _log(tmp_path, "c", [a.pub])
-    r = c.aufnehmen(a.lies(a.pub, 1))
+    r = c.ingest(a.read(a.pub, 1))
     assert r["neu"] == 0 and "Kette unterbrochen" in r["gruende"][0]  # Lücke am Anfang
     d = _log(tmp_path, "d", [a.pub])
-    gefaelscht = a.lies(a.pub, 0)
-    gefaelscht[1]["kopf"]["zeit"] = "2020-01-01"
-    r = d.aufnehmen(gefaelscht)
+    forged = a.read(a.pub, 0)
+    forged[1]["kopf"]["zeit"] = "2020-01-01"
+    r = d.ingest(forged)
     assert r["neu"] == 1 and "Signatur" in r["gruende"][0]
 
 
-def test_gabelung_sperrt_den_herausgeber(tmp_path):
+def test_fork_blocks_the_publisher(tmp_path):
     a = _log(tmp_path, "a")
     b = _log(tmp_path, "b", [a.pub])
-    a.anhaengen("adresse", {"adresse": "https://eins.example"})
-    eins = a.lies(a.pub, 0)
-    b.aufnehmen(eins)
-    kopf = {**eins[0]["kopf"], "sha": lb.sha256({"adresse": "https://zwei.example"})}
-    kopf.pop("sig")
-    kopf["sig"] = a.k.sign(lb.kanonisch(kopf)).hex()
-    r = b.aufnehmen([{"kopf": kopf, "inhalt": {"adresse": "https://zwei.example"}}])
+    a.attach("adresse", {"adresse": "https://eins.example"})
+    one = a.read(a.pub, 0)
+    b.ingest(one)
+    header = {**one[0]["kopf"], "sha": lb.sha256({"adresse": "https://zwei.example"})}
+    header.pop("sig")
+    header["sig"] = a.k.sign(lb.canonical(header)).hex()
+    r = b.ingest([{"kopf": header, "inhalt": {"adresse": "https://zwei.example"}}])
     assert "Gabelung bei Nummer 1" in r["gruende"][0]
-    a.anhaengen("adresse", {"adresse": "https://drei.example"})
-    assert "Gabelung bekannt" in b.aufnehmen(a.lies(a.pub, 1))["gruende"][0] and b.status()["gabelungen"] == 1
+    a.attach("adresse", {"adresse": "https://drei.example"})
+    assert "Gabelung bekannt" in b.ingest(a.read(a.pub, 1))["gruende"][0] and b.status()["gabelungen"] == 1
 
 
-def test_mitgliedschaft_folgt_den_einladungen(tmp_path):
+def test_membership_follows_invitations(tmp_path):
     a = _log(tmp_path, "a")
     b, c = _log(tmp_path, "b", [a.pub]), _log(tmp_path, "c", [a.pub])
-    b.anhaengen("adresse", {"adresse": "https://b.example"})
+    b.attach("adresse", {"adresse": "https://b.example"})
     z = _log(tmp_path, "z", [a.pub])
-    assert "kein Mitglied" in z.aufnehmen(b.lies(b.pub, 0))["gruende"][0]
-    a.anhaengen("einladung", {"pub": b.pub})
-    z.aufnehmen(a.lies(a.pub, 0))
-    assert z.aufnehmen(b.lies(b.pub, 0))["neu"] == 1
-    b.anhaengen("einladung", {"pub": c.pub})
-    z.aufnehmen(b.lies(b.pub, 1))
-    assert z.mitglieder() == {a.pub, b.pub, c.pub}
-    a.anhaengen("ausschluss", {"pub": b.pub})
-    z.aufnehmen(a.lies(a.pub, 1))
-    assert z.mitglieder() == {a.pub}  # wer nur über b kam, fällt mit heraus
+    assert "kein Mitglied" in z.ingest(b.read(b.pub, 0))["gruende"][0]
+    a.attach("einladung", {"pub": b.pub})
+    z.ingest(a.read(a.pub, 0))
+    assert z.ingest(b.read(b.pub, 0))["neu"] == 1
+    b.attach("einladung", {"pub": c.pub})
+    z.ingest(b.read(b.pub, 1))
+    assert z.members() == {a.pub, b.pub, c.pub}
+    a.attach("ausschluss", {"pub": b.pub})
+    z.ingest(a.read(a.pub, 1))
+    assert z.members() == {a.pub}  # wer nur über b kam, fällt mit heraus
 
 
-def test_ausschliessen_duerfen_nur_einladende_und_gruender(tmp_path):
+def test_only_inviters_and_founders_may_exclude(tmp_path):
     a = _log(tmp_path, "a")
     b, c = _log(tmp_path, "b", [a.pub]), _log(tmp_path, "c", [a.pub])
-    a.anhaengen("einladung", {"pub": b.pub})
-    a.anhaengen("einladung", {"pub": c.pub})
-    b.anhaengen("ausschluss", {"pub": c.pub})
-    b.anhaengen("ausschluss", {"pub": a.pub})
+    a.attach("einladung", {"pub": b.pub})
+    a.attach("einladung", {"pub": c.pub})
+    b.attach("ausschluss", {"pub": c.pub})
+    b.attach("ausschluss", {"pub": a.pub})
     z = _log(tmp_path, "z", [a.pub])
-    z.aufnehmen(a.lies(a.pub, 0))
-    z.aufnehmen(b.lies(b.pub, 0))
-    assert z.mitglieder() == {a.pub, b.pub, c.pub}
+    z.ingest(a.read(a.pub, 0))
+    z.ingest(b.read(b.pub, 0))
+    assert z.members() == {a.pub, b.pub, c.pub}
 
 
-def test_interna_werden_nicht_weitergetragen(tmp_path):
+def test_internals_are_not_forwarded(tmp_path):
     a = _log(tmp_path, "a")
     b = _log(tmp_path, "b", [a.pub])
-    o = {**objekt(1), "text": "Der Rechner 10.1.2.3 fällt immer wieder aus"}
-    a.anhaengen("objekt", o, o["netz_id"], o["loesch_hash"])
-    a.anhaengen("objekt", objekt(2), objekt(2)["netz_id"], objekt(2)["loesch_hash"])
-    assert b.aufnehmen(a.lies(a.pub, 0))["neu"] == 2  # die Kette bleibt ganz
-    e = b.lies(a.pub, 0)
+    o = {**mem_object(1), "text": "Der Rechner 10.1.2.3 fällt immer wieder aus"}
+    a.attach("objekt", o, o["netz_id"], o["loesch_hash"])
+    a.attach("objekt", mem_object(2), mem_object(2)["netz_id"], mem_object(2)["loesch_hash"])
+    assert b.ingest(a.read(a.pub, 0))["neu"] == 2  # die Kette bleibt ganz
+    e = b.read(a.pub, 0)
     assert e[0]["inhalt"] is None and e[1]["inhalt"] and b.status()["verstoesse"] == 1
 
 
-def test_vergessen_im_logbuch(tmp_path):
+def test_forget_in_logbook(tmp_path):
     a = _log(tmp_path, "a")
     b = _log(tmp_path, "b", [a.pub])
-    o = objekt(1, "geheim")
-    a.anhaengen("objekt", o, o["netz_id"], o["loesch_hash"])
-    b.aufnehmen(a.lies(a.pub, 0))
+    o = mem_object(1, "geheim")
+    a.attach("objekt", o, o["netz_id"], o["loesch_hash"])
+    b.ingest(a.read(a.pub, 0))
     x = _log(tmp_path, "x", [a.pub])
-    a.anhaengen("widerruf", {"ziel": o["netz_id"], "token": "falsch"}, o["netz_id"])
-    b.aufnehmen(a.lies(a.pub, 1))
-    assert b.lies(a.pub, 0)[0]["inhalt"]  # falscher Nachweis ändert nichts
-    a2 = len(a.lies(a.pub, 0))
-    a.anhaengen("widerruf", {"ziel": o["netz_id"], "token": "geheim"}, o["netz_id"])
-    b.aufnehmen(a.lies(a.pub, a2))
-    assert b.lies(a.pub, 0)[0]["inhalt"] is None and b.status()["grabsteine"] == 1
+    a.attach("widerruf", {"ziel": o["netz_id"], "token": "falsch"}, o["netz_id"])
+    b.ingest(a.read(a.pub, 1))
+    assert b.read(a.pub, 0)[0]["inhalt"]  # falscher Nachweis ändert nichts
+    a2 = len(a.read(a.pub, 0))
+    a.attach("widerruf", {"ziel": o["netz_id"], "token": "geheim"}, o["netz_id"])
+    b.ingest(a.read(a.pub, a2))
+    assert b.read(a.pub, 0)[0]["inhalt"] is None and b.status()["grabsteine"] == 1
     # die Kette bleibt prüfbar, auch für jemanden, der erst danach dazukommt
-    assert x.aufnehmen(b.lies(a.pub, 0))["neu"] == 3
-    assert x.lies(a.pub, 0)[0]["inhalt"] is None
+    assert x.ingest(b.read(a.pub, 0))["neu"] == 3
+    assert x.read(a.pub, 0)[0]["inhalt"] is None
     # kommt der Inhalt von einem Peer mit altem Stand, bleibt er weg
-    x.aufnehmen([{"kopf": a.lies(a.pub, 0)[0]["kopf"], "inhalt": o}])
-    assert x.lies(a.pub, 0)[0]["inhalt"] is None
+    x.ingest([{"kopf": a.read(a.pub, 0)[0]["kopf"], "inhalt": o}])
+    assert x.read(a.pub, 0)[0]["inhalt"] is None
 
 
-def test_kontingent(tmp_path, monkeypatch):
-    monkeypatch.setattr(lb, "MAX_JE_TAG", 2)
+def test_quota(tmp_path, monkeypatch):
+    monkeypatch.setattr(lb, "MAX_PER_DAY", 2)
     a = _log(tmp_path, "a")
     b = _log(tmp_path, "b", [a.pub])
     for i in range(3):
-        a.anhaengen("adresse", {"adresse": f"https://x{i}.example"})
-    r = b.aufnehmen(a.lies(a.pub, 0))
+        a.attach("adresse", {"adresse": f"https://x{i}.example"})
+    r = b.ingest(a.read(a.pub, 0))
     assert r["neu"] == 2 and "Tageskontingent" in r["gruende"][0]
 
 
-def _drei(netz):
-    (sa, a_pub), (sb, b_pub), (sc, c_pub) = netz.schluessel(), netz.schluessel(), netz.schluessel()
+def _three(net):
+    (sa, a_pub), (sb, b_pub), (sc, c_pub) = net.key_(), net.key_(), net.key_()
     g = [a_pub]
-    a = netz.baue(sa, g)
-    a.log.anhaengen("einladung", {"pub": b_pub})
-    a.log.anhaengen("einladung", {"pub": c_pub})
-    b = netz.baue(sb, g, start=[a.k.adresse])
-    c = netz.baue(sc, g, modus="peer", start=[b.k.adresse])
+    a = net.build(sa, g)
+    a.log.attach("einladung", {"pub": b_pub})
+    a.log.attach("einladung", {"pub": c_pub})
+    b = net.build(sb, g, start=[a.k.address])
+    c = net.build(sc, g, mode="peer", start=[b.k.address])
     return a, b, c
 
 
-def test_wissen_wandert_ueber_mehrere_stationen(netz):
-    a, b, c = _drei(netz)
-    a.mcp.objekte.append(objekt(1))
-    c.mcp.objekte.append(objekt(2))
+def test_knowledge_travels_over_several_stations(net):
+    a, b, c = _three(net)
+    a.mcp.mem_objects.append(mem_object(1))
+    c.mcp.mem_objects.append(mem_object(2))
     for _ in range(3):
-        a.runde(), b.runde(), c.runde()
-    assert c.mcp.texte() == [objekt(1)["text"]]
-    assert a.mcp.texte() == [objekt(2)["text"]]  # vom Peer hinter der Firewall, über b geschoben
-    assert sorted(b.mcp.texte()) == sorted([objekt(1)["text"], objekt(2)["text"]])
+        a.run_round(), b.run_round(), c.run_round()
+    assert c.mcp.texts() == [mem_object(1)["text"]]
+    assert a.mcp.texts() == [mem_object(2)["text"]]  # vom Peer hinter der Firewall, über b geschoben
+    assert sorted(b.mcp.texts()) == sorted([mem_object(1)["text"], mem_object(2)["text"]])
 
 
-def test_vergessen_erreicht_alle_stationen(netz):
-    a, b, c = _drei(netz)
-    a.mcp.objekte.append(objekt(1, "geheim"))
+def test_forget_reaches_all_stations(net):
+    a, b, c = _three(net)
+    a.mcp.mem_objects.append(mem_object(1, "geheim"))
     for _ in range(3):
-        a.runde(), b.runde(), c.runde()
-    nid = objekt(1)["netz_id"]
-    a.mcp.objekte.clear()
-    a.mcp.widerrufe.append({"netz_id": nid, "token": "geheim"})
+        a.run_round(), b.run_round(), c.run_round()
+    nid = mem_object(1)["netz_id"]
+    a.mcp.mem_objects.clear()
+    a.mcp.revocations.append({"netz_id": nid, "token": "geheim"})
     for _ in range(3):
-        a.runde(), b.runde(), c.runde()
+        a.run_round(), b.run_round(), c.run_round()
     for d in (a, b, c):
-        assert d.log.lies(a.log.pub, 0)[2]["inhalt"] is None, d.k.modus
+        assert d.log.read(a.log.pub, 0)[2]["inhalt"] is None, d.k.mode
         assert d.log.status()["grabsteine"] == 1
-    assert c.mcp.ziele() == [nid] and b.mcp.ziele() == [nid]
+    assert c.mcp.targets() == [nid] and b.mcp.targets() == [nid]
 
 
-def test_peers_finden_sich_ueber_das_logbuch(netz):
-    a, b, c = _drei(netz)
+def test_peers_find_each_other_via_logbook(net):
+    a, b, c = _three(net)
     for _ in range(3):
-        b.runde(), a.runde(), c.runde()
-    (sd, d_pub) = netz.schluessel()
-    a.log.anhaengen("einladung", {"pub": d_pub})
-    d = netz.baue(sd, a.k.gruender, modus="peer", start=[a.k.adresse])
-    d.runde()
-    assert b.k.adresse in [r[0] for r in d.log.db.execute("SELECT adresse FROM peer WHERE quelle = 'logbuch'")]
+        b.run_round(), a.run_round(), c.run_round()
+    (sd, d_pub) = net.key_()
+    a.log.attach("einladung", {"pub": d_pub})
+    d = net.build(sd, a.k.founders, mode="peer", start=[a.k.address])
+    d.run_round()
+    assert b.k.address in [r[0] for r in d.log.db.execute("SELECT adresse FROM peer WHERE quelle = 'logbuch'")]
 
 
-def test_anstoss_weckt_die_nachbarn(netz):
-    a, b, c = _drei(netz)
-    b.runde()
-    a.wach.clear()
-    b.mcp.objekte.append(objekt(5))
-    b.runde()
-    assert a.wach.is_set()
+def test_nudge_wakes_the_neighbors(net):
+    a, b, c = _three(net)
+    b.run_round()
+    a.awake.clear()
+    b.mcp.mem_objects.append(mem_object(5))
+    b.run_round()
+    assert a.awake.is_set()
 
 
-def _roh(d, methode, pfad, kopf=None, body=None):
+def _raw(d, method, fpath, header=None, body=None):
     c = http.client.HTTPConnection("127.0.0.1", d.port(), timeout=5)
-    c.request(methode, pfad, body=body, headers=kopf or {})
+    c.request(method, fpath, body=body, headers=header or {})
     r = c.getresponse()
     r.read()
     return r.status
 
 
-def test_nur_mitglieder_bekommen_antwort(netz):
-    (sa, a_pub), (_sz, _z) = netz.schluessel(), netz.schluessel()
-    a = netz.baue(sa, [a_pub])
-    assert _roh(a, "GET", "/netz/gesund") == 200
-    assert _roh(a, "GET", f"/netz/log/{a_pub}?ab=0") == 401
-    fremd = lb.privat(_sz)
-    assert _roh(a, "GET", f"/netz/log/{a_pub}?ab=0", {"Authorization": nd._signiere(fremd, "GET", f"/netz/log/{a_pub}?ab=0", b"")}) == 403
-    eigen = a.log.k
-    assert _roh(a, "GET", f"/netz/log/{a_pub}?ab=0", {"Authorization": nd._signiere(eigen, "GET", f"/netz/log/{a_pub}?ab=0", b"")}) == 200
-    assert _roh(a, "GET", f"/netz/log/{a_pub}?ab=5", {"Authorization": nd._signiere(eigen, "GET", f"/netz/log/{a_pub}?ab=0", b"")}) == 401  # Signatur gilt nur für diesen Pfad
-    wert = nd._signiere(eigen, "GET", "/netz/segmente/x", b"").split()
-    wert[2] = str(int(time.time()) - 900)
-    wert[3] = eigen.sign("\n".join(("GET", "/netz/segmente/x", wert[2], hashlib.sha256(b"").hexdigest())).encode()).hex()
-    assert _roh(a, "GET", "/netz/segmente/x", {"Authorization": " ".join(wert)}) == 401  # veraltet
+def test_only_members_get_an_answer(net):
+    (sa, a_pub), (_sz, _z) = net.key_(), net.key_()
+    a = net.build(sa, [a_pub])
+    assert _raw(a, "GET", "/netz/gesund") == 200
+    assert _raw(a, "GET", f"/netz/log/{a_pub}?ab=0") == 401
+    foreign = lb.private(_sz)
+    assert _raw(a, "GET", f"/netz/log/{a_pub}?ab=0", {"Authorization": nd._sign(foreign, "GET", f"/netz/log/{a_pub}?ab=0", b"")}) == 403
+    own = a.log.k
+    assert _raw(a, "GET", f"/netz/log/{a_pub}?ab=0", {"Authorization": nd._sign(own, "GET", f"/netz/log/{a_pub}?ab=0", b"")}) == 200
+    assert _raw(a, "GET", f"/netz/log/{a_pub}?ab=5", {"Authorization": nd._sign(own, "GET", f"/netz/log/{a_pub}?ab=0", b"")}) == 401  # Signatur gilt nur für diesen Pfad
+    value = nd._sign(own, "GET", "/netz/segmente/x", b"").split()
+    value[2] = str(int(time.time()) - 900)
+    value[3] = own.sign("\n".join(("GET", "/netz/segmente/x", value[2], hashlib.sha256(b"").hexdigest())).encode()).hex()
+    assert _raw(a, "GET", "/netz/segmente/x", {"Authorization": " ".join(value)}) == 401  # veraltet
 
 
-def test_ausfall_des_peers_und_rueckfall(netz):
-    a, b, c = _drei(netz)
-    b.log.peer_merken("http://127.0.0.1:1", "start")
-    b.abgleich("http://127.0.0.1:1")
+def test_peer_outage_and_fallback(net):
+    a, b, c = _three(net)
+    b.log.peer_remember("http://127.0.0.1:1", "start")
+    b.reconcile("http://127.0.0.1:1")
     z = b.log.db.execute("SELECT fehler, naechster FROM peer WHERE adresse = 'http://127.0.0.1:1'").fetchone()
     assert z[0] == 1 and z[1] > time.time()
-    assert "http://127.0.0.1:1" not in b.log.peers_waehlen(10)
+    assert "http://127.0.0.1:1" not in b.log.choose_peers(10)
 
 
-def test_gedaechtnis_weg_haelt_das_netz_nicht_an(netz):
-    a, b, c = _drei(netz)
-    a.mcp.objekte.append(objekt(1))
-    a.runde()
-    b.mcp.ausfall = True
-    b.runde()
-    assert b.log.koepfe()[a.log.pub] >= 3 and not b.mcp.empfangen  # getragen, noch nicht übergeben
-    b.mcp.ausfall = False
-    b.runde()
-    assert b.mcp.texte() == [objekt(1)["text"]]
+def test_memory_gone_does_not_stop_the_net(net):
+    a, b, c = _three(net)
+    a.mcp.mem_objects.append(mem_object(1))
+    a.run_round()
+    b.mcp.outage = True
+    b.run_round()
+    assert b.log.headers()[a.log.pub] >= 3 and not b.mcp.receive  # getragen, noch nicht übergeben
+    b.mcp.outage = False
+    b.run_round()
+    assert b.mcp.texts() == [mem_object(1)["text"]]
 
 
-def test_nur_geglaubte_herausgeber_erreichen_das_gedaechtnis(netz):
-    (sa, a_pub), (sb, _b) = netz.schluessel(), netz.schluessel()
-    a = netz.baue(sa, [a_pub])
-    a.log.anhaengen("einladung", {"pub": _b})
-    b = netz.baue(sb, [a_pub], start=[a.k.adresse], glauben=[])
-    a.mcp.objekte.append(objekt(1))
-    a.mcp.widerrufe.append({"netz_id": "e" * 32, "token": "x"})
-    a.runde()
-    b.runde()
-    assert b.mcp.texte() == [] and b.mcp.ziele() == ["e" * 32]  # getragen, nicht geglaubt; das Vergessen gilt trotzdem
+def test_only_believed_publishers_reach_memory(net):
+    (sa, a_pub), (sb, _b) = net.key_(), net.key_()
+    a = net.build(sa, [a_pub])
+    a.log.attach("einladung", {"pub": _b})
+    b = net.build(sb, [a_pub], start=[a.k.address], believe=[])
+    a.mcp.mem_objects.append(mem_object(1))
+    a.mcp.revocations.append({"netz_id": "e" * 32, "token": "x"})
+    a.run_round()
+    b.run_round()
+    assert b.mcp.texts() == [] and b.mcp.targets() == ["e" * 32]  # getragen, nicht geglaubt; das Vergessen gilt trotzdem
 
 
-def test_http_zu_fremdem_rechner_ist_verboten(netz):
-    (sa, a_pub) = netz.schluessel()
-    a = netz.baue(sa, [a_pub], modus="peer")
+def test_http_to_foreign_host_is_forbidden(net):
+    (sa, a_pub) = net.key_()
+    a = net.build(sa, [a_pub], mode="peer")
     with pytest.raises(ValueError, match="unverschlüsselt"):
-        a._anfrage("http://peer.example", "GET", "/netz/gesund")
+        a._request("http://peer.example", "GET", "/netz/gesund")
 
 
-def _zertifikat(tmp_path):
+def _certificate(tmp_path):
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import ec
     key = ec.generate_private_key(ec.SECP256R1())
     name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "test")])
-    jetzt = datetime.datetime.now(datetime.timezone.utc)
-    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(jetzt).not_valid_after(jetzt + datetime.timedelta(days=1))
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(now).not_valid_after(now + datetime.timedelta(days=1))
             .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]), False).add_extension(x509.BasicConstraints(ca=True, path_length=None), True).sign(key, hashes.SHA256()))
     c, k = tmp_path / "c.pem", tmp_path / "k.pem"
     c.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
@@ -317,92 +317,114 @@ def _zertifikat(tmp_path):
     return str(c), str(k)
 
 
-def test_abgleich_ueber_tls(netz, tmp_path):
-    cert, key = _zertifikat(tmp_path)
-    (sa, a_pub), (sb, b_pub), (sc, c_pub) = netz.schluessel(), netz.schluessel(), netz.schluessel()
-    a = netz.baue(sa, [a_pub], tls_cert=cert, tls_key=key)
-    a.log.anhaengen("einladung", {"pub": b_pub})
-    a.log.anhaengen("einladung", {"pub": c_pub})
-    a.mcp.objekte.append(objekt(1))
-    a.runde()
-    assert a.k.adresse.startswith("https://")
-    b = netz.baue(sb, [a_pub], modus="peer", start=[a.k.adresse], ca_datei=cert)
-    b.runde()
-    assert b.mcp.texte() == [objekt(1)["text"]]
-    c = netz.baue(sc, [a_pub], modus="peer", start=[a.k.adresse])  # ohne vertrauenswürdiges Zertifikat
-    c.runde()
-    assert c.log.koepfe() == {}
+def test_reconcile_via_tls(net, tmp_path):
+    cert, key = _certificate(tmp_path)
+    (sa, a_pub), (sb, b_pub), (sc, c_pub) = net.key_(), net.key_(), net.key_()
+    a = net.build(sa, [a_pub], tls_cert=cert, tls_key=key)
+    a.log.attach("einladung", {"pub": b_pub})
+    a.log.attach("einladung", {"pub": c_pub})
+    a.mcp.mem_objects.append(mem_object(1))
+    a.run_round()
+    assert a.k.address.startswith("https://")
+    b = net.build(sb, [a_pub], mode="peer", start=[a.k.address], ca_file=cert)
+    b.run_round()
+    assert b.mcp.texts() == [mem_object(1)["text"]]
+    c = net.build(sc, [a_pub], mode="peer", start=[a.k.address])  # ohne vertrauenswürdiges Zertifikat
+    c.run_round()
+    assert c.log.headers() == {}
 
 
-def test_torrent_holt_grosse_rueckstaende(netz, tmp_path):
+def test_torrent_fetches_large_backlogs(net, tmp_path):
     pytest.importorskip("libtorrent")
-    (sa, a_pub), (sb, b_pub) = netz.schluessel(), netz.schluessel()
+    (sa, a_pub), (sb, b_pub) = net.key_(), net.key_()
     t = {"aktiv": True, "port": 0, "segment": 10, "ab": 5, "warte_s": 30}
-    a = netz.baue(sa, [a_pub], torrent={**t, "verzeichnis": str(tmp_path / "ta")})
-    a.log.anhaengen("einladung", {"pub": b_pub})
-    a.mcp.objekte.extend(objekt(i) for i in range(25))
-    a.runde()
-    assert a.log.status()["segmente"] >= 1 and a.log.segmente(a.log.pub)[0]["von"] == 1
-    b = netz.baue(sb, [a_pub], modus="peer", start=[a.k.adresse], torrent={**t, "verzeichnis": str(tmp_path / "tb")})
-    b.runde()
-    assert b.statistik["per_torrent"] >= 10 and b.log.koepfe()[a.log.pub] == a.log.koepfe()[a.log.pub]
-    assert len(b.mcp.texte()) == 25
+    a = net.build(sa, [a_pub], torrent={**t, "verzeichnis": str(tmp_path / "ta")})
+    a.log.attach("einladung", {"pub": b_pub})
+    a.mcp.mem_objects.extend(mem_object(i) for i in range(25))
+    a.run_round()
+    assert a.log.status()["segmente"] >= 1 and a.log.segments(a.log.pub)[0]["von"] == 1
+    b = net.build(sb, [a_pub], mode="peer", start=[a.k.address], torrent={**t, "verzeichnis": str(tmp_path / "tb")})
+    b.run_round()
+    assert b.usage_stats["per_torrent"] >= 10 and b.log.headers()[a.log.pub] == a.log.headers()[a.log.pub]
+    assert len(b.mcp.texts()) == 25
     # ein vergessenes Objekt lässt das Segment verschwinden
-    nid = objekt(3)["netz_id"]
-    a.mcp.objekte = [o for o in a.mcp.objekte if o["netz_id"] != nid]
-    a.mcp.widerrufe.append({"netz_id": nid, "token": "t3"})
-    assert a.ausgang() == 1
-    assert all(not (s["von"] <= 5 <= s["bis"]) for s in a.log.segmente(a.log.pub))
+    nid = mem_object(3)["netz_id"]
+    a.mcp.mem_objects = [o for o in a.mcp.mem_objects if o["netz_id"] != nid]
+    a.mcp.revocations.append({"netz_id": nid, "token": "t3"})
+    assert a.outbox() == 1
+    assert all(not (s["von"] <= 5 <= s["bis"]) for s in a.log.segments(a.log.pub))
 
 
-def test_ohne_libtorrent_bleibt_https(netz, tmp_path, monkeypatch):
-    from vi_mcp import netz_torrent
-    monkeypatch.setattr(netz_torrent, "verfuegbar", lambda: False)
-    (sa, a_pub) = netz.schluessel()
-    a = netz.baue(sa, [a_pub], torrent={"aktiv": True})
-    assert a.schwarm is None
+def test_without_libtorrent_stays_https(net, tmp_path, monkeypatch):
+    from vi_mcp import net_torrent
+    monkeypatch.setattr(net_torrent, "available", lambda: False)
+    (sa, a_pub) = net.key_()
+    a = net.build(sa, [a_pub], torrent={"aktiv": True})
+    assert a.swarm is None
 
 
-def test_adresse_hinter_reverse_proxy():
-    assert lb.steuer_form("adresse", {"adresse": "https://wissen.example/vi-p2p"})
-    assert lb.steuer_form("adresse", {"adresse": "https://wissen.example:8443/a/b"})
-    for falsch in ("https://wissen.example/", "https://wissen.example/x?y=1", "ftp://wissen.example", "https://wissen.example/../x y"):
-        assert not lb.steuer_form("adresse", {"adresse": falsch}), falsch
+def test_address_behind_reverse_proxy():
+    assert lb.valid_control_form("adresse", {"adresse": "https://wissen.example/vi-p2p"})
+    assert lb.valid_control_form("adresse", {"adresse": "https://wissen.example:8443/a/b"})
+    for wrong in ("https://wissen.example/", "https://wissen.example/x?y=1", "ftp://wissen.example", "https://wissen.example/../x y"):
+        assert not lb.valid_control_form("adresse", {"adresse": wrong}), wrong
 
 
-def test_abgleich_ueber_pfad_praefix(netz):
+def test_reconcile_via_path_prefix(net):
     """Wie hinter nginx: der Peer erreicht den Dienst unter /vi-p2p, der Dienst sieht /netz/…"""
     import threading
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-    (sa, a_pub), (sb, b_pub) = netz.schluessel(), netz.schluessel()
-    a = netz.baue(sa, [a_pub])
-    a.log.anhaengen("einladung", {"pub": b_pub})
-    a.mcp.objekte.append(objekt(1))
-    a.runde()
-    ziel = a.port()
+    (sa, a_pub), (sb, b_pub) = net.key_(), net.key_()
+    a = net.build(sa, [a_pub])
+    a.log.attach("einladung", {"pub": b_pub})
+    a.mcp.mem_objects.append(mem_object(1))
+    a.run_round()
+    target = a.port()
 
     class Proxy(BaseHTTPRequestHandler):
         def log_message(self, *_):
             pass
 
-        def _weiter(self):
+        def _forward(self):
             assert self.path.startswith("/vi-p2p/")
-            c = http.client.HTTPConnection("127.0.0.1", ziel, timeout=10)
-            koerper = self.rfile.read(int(self.headers.get("Content-Length") or 0))
-            c.request(self.command, self.path[len("/vi-p2p"):], body=koerper or None, headers={k: v for k, v in self.headers.items() if k.lower() in ("authorization", "content-type")})
+            c = http.client.HTTPConnection("127.0.0.1", target, timeout=10)
+            req_body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            c.request(self.command, self.path[len("/vi-p2p"):], body=req_body or None, headers={k: v for k, v in self.headers.items() if k.lower() in ("authorization", "content-type")})
             r = c.getresponse()
             d = r.read()
             self.send_response(r.status)
             self.send_header("Content-Length", str(len(d)))
             self.end_headers()
             self.wfile.write(d)
-        do_GET = do_POST = _weiter
+        do_GET = do_POST = _forward
     p = ThreadingHTTPServer(("127.0.0.1", 0), Proxy)
     threading.Thread(target=p.serve_forever, daemon=True).start()
     try:
-        b = netz.baue(sb, [a_pub], modus="peer", start=[f"http://127.0.0.1:{p.server_address[1]}/vi-p2p"])
-        b.runde()
-        assert b.mcp.texte() == [objekt(1)["text"]]
+        b = net.build(sb, [a_pub], mode="peer", start=[f"http://127.0.0.1:{p.server_address[1]}/vi-p2p"])
+        b.run_round()
+        assert b.mcp.texts() == [mem_object(1)["text"]]
     finally:
         p.shutdown()
         p.server_close()
+
+
+def test_config_file_keeps_german_keys(capsys):
+    """The config file is a stored format: existing installations write German keys, which must all arrive."""
+    import vi_mcp.net_service as ns
+    stored = {"modus": "peer", "adresse": "https://a:1", "ca_datei": "/x/ca.pem", "gruender": ["f"], "takt_s": 60, "min_runde_s": 1,
+              "nachbarn": 3, "http_erlaubt": True, "glauben": ["a"], "mcp_token_datei": "/x/t", "kein_proxy": ["intern"], "proxy": "http://p:1"}
+    k = ns.from_file(stored)
+    assert (k.mode, k.address, k.ca_file, k.founders, k.tick_s, k.min_round_s, k.neighbors, k.http_allowed, k.believe, k.mcp_token_file, k.no_proxy, k.proxy) == \
+        ("peer", "https://a:1", "/x/ca.pem", ["f"], 60, 1, 3, True, ["a"], "/x/t", ["intern"], "http://p:1")
+    assert ns.from_file({"mode": "peer", "address": "https://b:2"}).address == "https://b:2"
+    ns.from_file({"modus": "peer", "tippfehler": 1})
+    assert "unknown keys ignored: tippfehler" in capsys.readouterr().err
+
+
+def test_net_cli_accepts_english_options_and_german_aliases(monkeypatch):
+    from vi_mcp import net_cli
+    seen = []
+    monkeypatch.setattr(net_cli, "setup", lambda o: seen.append((o.command, o.mode, o.address, o.ca_file, o.found, o.founders, o.no_proxy)) or 0)
+    assert net_cli.main(["setup", "--mode", "peer", "--address", "https://a:1", "--ca-file", "c", "--found", "--founder", "k", "--no-proxy", "d"]) == 0
+    assert net_cli.main(["einrichten", "--modus", "peer", "--adresse", "https://a:1", "--ca-datei", "c", "--gruenden", "--gruender", "k", "--kein-proxy", "d"]) == 0
+    assert seen[0] == seen[1] == ("setup", "peer", "https://a:1", "c", True, ["k"], ["d"])
