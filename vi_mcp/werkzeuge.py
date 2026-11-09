@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import gedaechtnis as g
-from . import bandit, konfig, fragen, intuition, lager, lernen, messung, p2p, reflexe, schlaf, scorer, selbst, sitzung, skills, vektor
+from . import api_en, bandit, konfig, fragen, intuition, lager, lernen, messung, p2p, reflexe, schlaf, scorer, selbst, sitzung, skills, vektor
 from .schleife import stand as loop_stand, LOOP_S
 
 _O = {"type": "object"}
@@ -31,24 +31,24 @@ _TAGS = {"type": "array", "items": _S}
 
 TEXT_MAX = 1000
 #: 0.20.7: Wann eine KI die VI befragt und wann sie lernt — geht mit den instructions an jeden Client (server._initialize). Eine Quelle.
-REGELN = """Regeln für die VI — gelten in jeder Sitzung:
-BEFRAGEN (vi_erinnere mit semantisch=true für Freitext oder art:wert; dann vi_objekt für den vollen Inhalt):
-1. Vor Beginn jeder Aufgabe einmal: nach den Hosts, Systemen, Produkten und Fehlermeldungen der Aufgabe suchen — bevor geplant oder etwas geändert wird.
-2. Vor jeder ändernden Handlung an einem System (Deploy, Neustart, Konfiguration, Playbook, Löschen), wenn Schritt 1 sie nicht schon abgedeckt hat.
-3. Bei einem Fehler oder unerwarteten Ergebnis: nach Werkzeug und Fehlertext suchen, bevor du selbst nach der Ursache suchst.
-4. Bei Fragen zu internen Systemen, Abläufen und Zuständigkeiten: zuerst die VI, dann andere Quellen.
-Bleibt eine Frage offen und stammen die Treffer zum Thema überwiegend von einer anderen Instanz („von <instanz>“): frage diese Instanz mit vi_frage (an, text, reize) statt zu raten — sie antwortet aus ihrem eigenen Kontext, die Antwort erscheint vor deiner nächsten Handlung oder über vi_fragen.
-Nicht nötig für allgemeines Programmierwissen oder Dateien, die du gerade selbst vor dir hast. Hinweise „[VI-Gedächtnis …]“ vor einer Handlung sind schon Treffer: lesen und befolgen oder begründet widersprechen.
-LERNEN (vi_lerne: text = eine konkrete Kernaussage; inhalt = vollständig mit Befehlen und Code; hashtags host:/tool:/skill:/thema:/fehler:; quelle = Befehl, Host und Zeit oder URL):
-5. Ein Problem ist gelöst, dessen Lösung nicht offensichtlich war (mehr als ein Versuch, Fehlersuche): Ursache, Lösung, Beleg.
-6. Der Nutzer nennt eine Regel, Vorgabe oder Entscheidung, die über diese Sitzung hinaus gilt.
-7. Ein wiederverwendbarer Fakt zu einem System wurde nachgeschlagen oder gemessen (Pfad, Port, Version, Eigenheit, Zugangsweg ohne Geheimnis).
-8. Etwas erweist sich als falsch: falsches VI-Wissen mit vi_widerlege markieren, die Korrektur lernen.
-Vor dem Lernen suchen: Steht es schon da, vi_bestaetige statt neu anlegen. Hat ein Hinweis geholfen, vi_bestaetige; war er falsch, vi_widerlege.
-Nie lernen: Passwörter, Tokens, Schlüssel; Unbelegtes (höchstens ausdrücklich als Hypothese); Flüchtiges (Fortschritt, momentane Last); was im Repository oder in der Doku gepflegt wird. Firmenwissen mit sicht=intern."""
+REGELN = """Rules for the VI — apply in every session:
+ASK (vi_recall with semantic=true for free text, or kind:value; then vi_object for the full content):
+1. Once before starting any task: search for the hosts, systems, products and error messages of the task — before planning or changing anything.
+2. Before any changing action on a system (deploy, restart, configuration, playbook, delete), unless step 1 already covered it.
+3. On an error or unexpected result: search for the tool and the error text before looking for the cause yourself.
+4. For questions about internal systems, processes and responsibilities: the VI first, then other sources.
+If a question stays open and the hits on the topic come mostly from another instance ("von <instance>"): ask that instance with vi_ask (to, text, triggers) instead of guessing — it answers from its own context; the answer appears before your next action or via vi_questions.
+Not needed for general programming knowledge or files you have in front of you. Hints "[VI-Gedächtnis …]" before an action are already hits: read and follow them, or contradict them with a reason.
+LEARN (vi_learn: text = one concrete key statement; content = complete, with commands and code; hashtags host:/tool:/skill:/thema:/fehler:; source = command, host and time, or URL):
+5. A problem is solved whose solution was not obvious (more than one attempt, troubleshooting): cause, solution, evidence.
+6. The user states a rule, requirement or decision that applies beyond this session.
+7. A reusable fact about a system was looked up or measured (path, port, version, peculiarity, access route without secrets).
+8. Something turns out to be wrong: mark wrong VI knowledge with vi_refute, learn the correction.
+Search before learning: if it is already there, vi_confirm instead of creating it again. If a hint helped, vi_confirm; if it was wrong, vi_refute.
+Never learn: passwords, tokens, keys; unproven claims (only explicitly as a hypothesis); transient state (progress, current load); what is maintained in a repository or documentation. Company knowledge with visibility=internal."""
 #: Ohne Token sind Bestätigen, Widerlegen und sicht=intern nicht erlaubt (OFFEN_ERLAUBT) — die Regeln sagen es, statt es erst abzulehnen
-REGELN_OHNE_TOKEN = ("Ohne eigenes Token: suchen, lesen und mit vi_lerne Wissen vorschlagen (sicht=geteilt) — Bestätigen, Widerlegen, vi_frage und "
-                     "sicht=intern brauchen ein Token; nenne falsches Wissen stattdessen dem Nutzer.")
+REGELN_OHNE_TOKEN = ("Without an own token: search, read and propose knowledge with vi_learn (visibility=shared) — confirming, refuting, vi_ask "
+                     "and visibility=internal need a token; report wrong knowledge to the user instead.")
 
 TOOLS = [
     {"name": "vi_vorher",
@@ -200,8 +200,8 @@ def _pflicht(name: str, args: dict) -> None:
     fehlt = [k for k in schema.get("required", []) if k not in args]
     if fehlt:
         fremd = sorted(set(args) - set(schema.get("properties", {})))
-        raise Abgelehnt(f"{name}: Pflichtfeld fehlt: {', '.join(fehlt)}"
-                        + (f" — übergeben, aber unbekannt: {', '.join(fremd)}" if fremd else ""))
+        raise Abgelehnt(f"{api_en.public_name(name)}: required field missing: {', '.join(api_en.PARAM_EN.get(k, k) for k in fehlt)}"
+                        + (f" — passed but unknown: {', '.join(api_en.PARAM_EN.get(k, k) for k in fremd)}" if fremd else ""))
 REFLEX_RECHT = ("vi_reflex_lerne", "vi_reflex_schalte")  # „vertraute Instanz“; vi_schlaf(jetzt) prüft es selbst
 
 
@@ -216,13 +216,14 @@ OFFEN_ERLAUBT = {"vi_vorher", "vi_nachher", "vi_lerne", "vi_erinnere", "vi_verti
 
 
 def liste(instanz: str | None = None) -> list[dict]:
+    """Public tool list — English names, parameters and descriptions since 0.22.0 (api_en); German names stay accepted as aliases."""
     if instanz == konfig.OFFEN:
-        return [t for t in TOOLS if t["name"] in OFFEN_ERLAUBT]
-    return TOOLS + reflexe.werkzeug_schemas()
+        return [api_en.schema(t) for t in TOOLS if t["name"] in OFFEN_ERLAUBT]
+    return [api_en.schema(t) for t in TOOLS] + reflexe.werkzeug_schemas()
 
 
 def bekannt(name: str) -> bool:
-    return name in _NAMEN or any(t["name"] == name for t in reflexe.werkzeug_schemas())
+    return api_en.internal_name(name) in _NAMEN or any(t["name"] == name for t in reflexe.werkzeug_schemas())
 
 
 def _vorschlag(text: str, tags: list[str], daten: dict, wichtigkeit: int) -> str:
@@ -261,8 +262,10 @@ RRF_K = 60  # Reciprocal Rank Fusion: Dämpfung der Ränge (Cormack, Clarke, Bü
 
 
 def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht: bool = False) -> str:
-    """Ein Werkzeug ausführen. Liefert Text; fachliche Ablehnung als Abgelehnt(grund)."""
-    args = args or {}
+    """Ein Werkzeug ausführen. Liefert Text; fachliche Ablehnung als Abgelehnt(grund).
+    Name und Argumente dürfen englisch (öffentlich seit 0.22.0) oder deutsch (Alias) sein — hier wird auf die interne Form übersetzt."""
+    name = api_en.internal_name(name)
+    args = api_en.internal_args(args or {})
     if instanz == konfig.OFFEN and name not in OFFEN_ERLAUBT:
         raise Abgelehnt(f"{name} braucht eine eigene Instanz mit Token. Ohne Token darf man lesen, Handlungen melden und mit vi_lerne Wissen vorschlagen.")
     if name.startswith("vi_reflex_") and name not in _NAMEN:

@@ -299,10 +299,10 @@ def test_fehlendes_pflichtfeld_wird_abgelehnt_statt_still_beantwortet(gd):
     """0.20.4: vi_erinnere mit „text“ statt „filter“ lieferte die wichtigsten Objekte, als wäre gesucht worden."""
     import pytest
     from vi_mcp import werkzeuge
-    with pytest.raises(werkzeuge.Abgelehnt, match="Pflichtfeld fehlt: filter — übergeben, aber unbekannt: text"):
+    with pytest.raises(werkzeuge.Abgelehnt, match="vi_recall: required field missing: filter — passed but unknown: text"):
         werkzeuge.rufe("vi_erinnere", {"text": "Lizenz Dongle"}, "a", True)
     werkzeuge.rufe("vi_erinnere", {"filter": "Lizenz"}, "a", True)  # richtig benannt: geht
-    with pytest.raises(werkzeuge.Abgelehnt, match="Pflichtfeld fehlt: id$"):
+    with pytest.raises(werkzeuge.Abgelehnt, match="required field missing: id$"):
         werkzeuge.rufe("vi_objekt", {}, "a", True)
 
 

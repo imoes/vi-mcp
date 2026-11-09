@@ -7,9 +7,9 @@
 
 | Claude-Code-Ereignis | Hook ruft | Wirkung im Modell |
 |---|---|---|
-| `PreToolUse` | `vi_vorher` | gemerkte Antwort → Aufruf **verweigert** (`permissionDecision: deny`), die Antwort steht im Grund; sonst Hinweise als `additionalContext` |
-| `PostToolUse` | `vi_nachher` (ok, Ergebnis, Dauer) | Nachher-Reflex-Hinweise als `additionalContext` |
-| `PostToolUseFailure` | `vi_nachher` (ok=false, `error`, `is_interrupt`) | — |
+| `PreToolUse` | `vi_before` | gemerkte Antwort → Aufruf **verweigert** (`permissionDecision: deny`), die Antwort steht im Grund; sonst Hinweise als `additionalContext` |
+| `PostToolUse` | `vi_after` (ok, Ergebnis, Dauer) | Nachher-Reflex-Hinweise als `additionalContext` |
+| `PostToolUseFailure` | `vi_after` (ok=false, `error`, `is_interrupt`) | — |
 | `SessionEnd` | `DELETE /mcp` | Gespräch `beendet` |
 
 - **Eine Claude-Sitzung = ein Gespräch** in vi-mcp (Zustand in `~/.cache/vi-mcp/hook/sitzung/<session_id>.json`, 0600).

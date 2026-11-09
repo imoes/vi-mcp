@@ -24,7 +24,8 @@ from . import gedaechtnis as g
 AUFBEWAHRUNG_TAGE = 90
 #: Eine ändernde Handlung gilt als „mit Suche vorbereitet“, wenn dieselbe Instanz so viele Minuten davor die VI befragt hat
 VORLAUF_MIN = 30
-SUCH_WERKZEUGE = ("vi_erinnere", "vi_vertiefe", "vi_objekt", "vi_gespraech", "vi_skills")
+#: Öffentliche (englische) Werkzeugnamen, wie der Server sie seit 0.22.0 zählt
+SUCH_WERKZEUGE = ("vi_recall", "vi_drilldown", "vi_object", "vi_conversation", "vi_skills")
 
 
 #: Shell-Befehle, die etwas ändern. Bash gilt in intuition.lesend pauschal als lesend; für die Regel-Statistik zählt der Befehl selbst.
@@ -50,7 +51,7 @@ def _tabelle() -> None:
 
 
 def _treffer(werkzeug: str, text: str) -> tuple[int | None, str | None]:
-    if werkzeug not in ("vi_erinnere", "vi_vertiefe"):
+    if werkzeug not in ("vi_recall", "vi_drilldown"):
         return None, None
     m = re.search(r"(\d+) Objekte? zu", text or "")
     n = int(m.group(1)) if m else (0 if re.search(r"\b(keine|0) (Objekte|Treffer)", text or "", re.I) else None)
@@ -147,10 +148,10 @@ def daten(tage: float = 7) -> dict:
         t = datetime.fromisoformat(z)
         if any(timedelta(0) <= t - s <= timedelta(minutes=VORLAUF_MIN) for s in such.get(i, [])):
             vorbereitet += 1
-    gelernt = sum(1 for _z, _i, _c, w, aus, *_r in aufrufe if w in ("vi_lerne", "vi_geloest", "vi_suche_lerne") and aus == "ok")
-    bestaetigt = sum(1 for _z, _i, _c, w, aus, *_r in aufrufe if w in ("vi_bestaetige", "vi_widerlege") and aus == "ok")
+    gelernt = sum(1 for _z, _i, _c, w, aus, *_r in aufrufe if w in ("vi_learn", "vi_solved", "vi_learn_search") and aus == "ok")
+    bestaetigt = sum(1 for _z, _i, _c, w, aus, *_r in aufrufe if w in ("vi_confirm", "vi_refute") and aus == "ok")
     # E Suche
-    suchen = [(t, a, ms) for _z, _i, _c, w, aus, ms, t, a in aufrufe if w in ("vi_erinnere", "vi_vertiefe") and aus == "ok"]
+    suchen = [(t, a, ms) for _z, _i, _c, w, aus, ms, t, a in aufrufe if w in ("vi_recall", "vi_drilldown") and aus == "ok"]
     # F Aufräumen
     sl = [json.loads(x[0]) for x in schlaefe]
     return {

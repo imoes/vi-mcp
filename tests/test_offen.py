@@ -50,7 +50,8 @@ def test_ohne_token_lesen_und_melden(offen):
     assert not fehler and "Timeout" in text
     st, _, liste = anfrage(port, "POST", {"jsonrpc": "2.0", "id": 3, "method": "tools/list"}, None, sid)
     namen = {t["name"] for t in liste["result"]["tools"]}
-    assert namen == werkzeuge.OFFEN_ERLAUBT and "vi_bestaetige" not in namen
+    from vi_mcp import api_en
+    assert namen == {api_en.public_name(n) for n in werkzeuge.OFFEN_ERLAUBT} and "vi_confirm" not in namen
 
 
 @pytest.mark.parametrize("name,args", [("vi_bestaetige", {"id": "x", "grund": "y"}), ("vi_widerlege", {"id": "x", "grund": "y"}), ("vi_frage", {"text": "Wer weiß was?"}),
@@ -165,6 +166,6 @@ def test_ungueltige_sicht_wird_abgelehnt(offen):
 def test_regeln_ohne_token_verlangen_nichts_unmoegliches(gd):
     """0.20.7: Die Regeln nennen vi_bestaetige/vi_widerlege/sicht=intern — ohne Token ist das gesperrt, also steht es dort dabei."""
     from vi_mcp import werkzeuge
-    assert "vi_bestaetige" in werkzeuge.REGELN and "vi_bestaetige" not in werkzeuge.OFFEN_ERLAUBT
-    assert "Bestätigen, Widerlegen, vi_frage und sicht=intern" in werkzeuge.REGELN_OHNE_TOKEN
-    assert "vi_frage" in werkzeuge.REGELN and "vi_frage" not in werkzeuge.OFFEN_ERLAUBT
+    assert "vi_confirm" in werkzeuge.REGELN and "vi_bestaetige" not in werkzeuge.OFFEN_ERLAUBT
+    assert "confirming, refuting, vi_ask and visibility=internal" in werkzeuge.REGELN_OHNE_TOKEN
+    assert "vi_ask" in werkzeuge.REGELN and "vi_frage" not in werkzeuge.OFFEN_ERLAUBT

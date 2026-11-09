@@ -15,6 +15,51 @@ No central model and no central owner: a server can run on its own or join the n
 This is "training" without changing weights. Knowledge becomes readable objects with sources, scores and a right to be forgotten, and the router that picks them learns from the measured outcome.
 Code, API tables and commands are stored in full, because what is missing from memory is a gap.
 
+
+## Tool names
+
+Since 0.22.0 the tools, their parameters and enum values are English. The German names used before remain valid as aliases, so existing clients keep working.
+
+| English | Alias (German) |
+|---|---|
+| `vi_after` | `vi_nachher` |
+| `vi_answer` | `vi_antwort` |
+| `vi_archive` | `vi_lager` |
+| `vi_archive_restore` | `vi_lager_hole` |
+| `vi_ask` | `vi_frage` |
+| `vi_before` | `vi_vorher` |
+| `vi_confirm` | `vi_bestaetige` |
+| `vi_conversation` | `vi_gespraech` |
+| `vi_delete_conversation` | `vi_loesche_gespraech` |
+| `vi_drilldown` | `vi_vertiefe` |
+| `vi_experience` | `vi_erfahrung` |
+| `vi_forget` | `vi_vergiss` |
+| `vi_learn` | `vi_lerne` |
+| `vi_learn_search` | `vi_suche_lerne` |
+| `vi_model` | `vi_modell` |
+| `vi_net_forget` | `vi_netz_vergiss` |
+| `vi_net_inbox` | `vi_netz_eingang` |
+| `vi_net_outbox` | `vi_netz_ausgang` |
+| `vi_net_preview` | `vi_netz_vorschau` |
+| `vi_net_status` | `vi_netz_status` |
+| `vi_net_token` | `vi_netz_token` |
+| `vi_object` | `vi_objekt` |
+| `vi_quarantine` | `vi_quarantaene` |
+| `vi_questions` | `vi_fragen` |
+| `vi_recall` | `vi_erinnere` |
+| `vi_reflex_learn` | `vi_reflex_lerne` |
+| `vi_reflex_list` | `vi_reflex_liste` |
+| `vi_reflex_switch` | `vi_reflex_schalte` |
+| `vi_refute` | `vi_widerlege` |
+| `vi_release` | `vi_freigabe` |
+| `vi_self` | `vi_selbst` |
+| `vi_self_propose` | `vi_selbst_vorschlag` |
+| `vi_skill_merge` | `vi_skill_fusion` |
+| `vi_sleep` | `vi_schlaf` |
+| `vi_solved` | `vi_geloest` |
+| `vi_stats` | `vi_statistik` |
+| `vi_tag` | `vi_markiere` |
+
 ## How it works
 
 ```
@@ -31,7 +76,7 @@ Code, API tables and commands are stored in full, because what is missing from m
 ```
 
 - **Objects, not notes.** Everything is an object with hashtags (`kind:value`), an author and a visibility (private, shared, or internal: token holders only, never the network): experience, insight, rule, skill, score.
-- **Before every action** (`vi_vorher`) a session receives at most four hints. A hint is only reinforced once the action succeeds.
+- **Before every action** (`vi_before`) a session receives at most four hints. A hint is only reinforced once the action succeeds.
 - **Sleep.** Once enough important events pile up (at night only if none ran in the last 24 hours), the server condenses experiences, compares them with what it knows and archives what goes unused.
 - **Scorer.** Code rules, the local language model and you judge whether work succeeded. "The tool did not crash" alone does not say that.
 - **Learning.** From those scores the router (logistic regression, weights kept as readable JSON) learns which hint helps when. Training runs on demand, about a minute after new experiences arrive (one run takes under a second), not only at night.
@@ -69,7 +114,7 @@ sha256sum --ignore-missing -c SHA256SUMS
 | **Token** (default) | every instance has its own token | full use according to its rights |
 | **Open wiki** (`"offen": true` in `/etc/vi-mcp/config.json`) | anyone who can reach the server, no token | read everything shared, get hints before actions, report own actions, **propose** knowledge |
 
-The knowledge is open; writing it is not. In the open wiki mode a proposal from `vi_lerne` goes into quarantine like an import from the network: rules, the review model, then release by an instance with rights.
+The knowledge is open; writing it is not. In the open wiki mode a proposal from `vi_learn` goes into quarantine like an import from the network: rules, the review model, then release by an instance with rights.
 Confirming, refuting, questions to other instances, reflexes, releases and the network need a token, otherwise any machine could plant instructions in everyone else's AI sessions.
 Tokenless clients share one instance (`offen`); they get no cached tool answers, so nobody receives the result of someone else's lookup. A wrong token is still rejected (401) instead of quietly becoming a guest.
 
@@ -155,7 +200,7 @@ Behind a reverse proxy with a public certificate use `--adresse https://host/vi-
 - **Membership by invitation.** A server belongs if a chain of invitations leads to it from a founder. Founders and the inviting member can expel; whoever was only invited by an expelled server leaves with it.
 - **Forwarding is not believing.** A server carries signed entries onward after checking signature and rules, but its memory treats them as foreign: quarantine, the review model, release, then mode `test`.
 - **Proven only.** A server shares shared, active knowledge that another instance confirmed or that measurably helped.
-- **Sources earn trust.** The measured usefulness per publisher is tracked; a publisher whose hints keep failing is no longer shown (`vi_netz_status`).
+- **Sources earn trust.** The measured usefulness per publisher is tracked; a publisher whose hints keep failing is no longer shown (`vi_net_status`).
 - **Separate process.** `vi-p2p` runs as its own user and cannot reach the memory files; it talks to the memory through two tools only.
 - **Transport.** HTTPS by default; signed requests, only members get answers. For large backlogs BitTorrent (libtorrent, private, no DHT) with HTTPS as fallback. Entries prove themselves, the path does not matter.
 - Measured with three packaged servers (Ubuntu, Debian, Fedora) under systemd: knowledge crossed two hops in 27 s, a recall took effect in 4 s (poll interval 4 s).
@@ -165,11 +210,11 @@ Behind a reverse proxy with a public certificate use `--adresse https://host/vi-
 **What the network never sees:** IP and MAC addresses, internal host and domain names, passwords, tokens, user names, e-mail addresses, proxy settings, location tags and instance names.
 A publisher appears only as a pseudonym derived from its key, and times only as dates.
 Export replaces findings with placeholders (`<host>`, `<ip>`, `<nutzer>`, `<geheimnis>`, `<proxy>`) and scans the result again. If anything still looks suspicious, the object stays home.
-Import rejects every object with a finding. `vi_netz_vorschau` shows exactly what would leave and counts what is held back and why.
+Import rejects every object with a finding. `vi_net_preview` shows exactly what would leave and counts what is held back and why.
 
 **Credentials are never stored locally either**, as far as their form gives them away (`password=…`, `Bearer …`, key blocks, URLs with logins). Host names and IPs stay local and private because hints depend on them.
 
-**Right to be forgotten.** Without a network token (`vi_netz_token`, issued once) an instance shares nothing. The token yields a separate deletion proof for each object. `vi_netz_vergiss` recalls your own entries:
+**Right to be forgotten.** Without a network token (`vi_net_token`, issued once) an instance shares nothing. The token yields a separate deletion proof for each object. `vi_net_forget` recalls your own entries:
 receivers delete them along with search index and vector, and keep only a tombstone so they cannot return. The network does not learn which instance it was, and one proof opens no other object.
 
 **Limits:** Patterns do not understand meaning. A free-standing proper name is only caught if it is on the list of known names (`p2p.interne_namen`). Deletion works with receivers that follow the protocol; nobody can force a peer to destroy a copy. Direct neighbours see each other's IP address, and every member knows the announced address of a `peerhost`.
@@ -178,17 +223,17 @@ receivers delete them along with search index and vector, and keep only a tombst
 
 | Tools | Purpose |
 |---|---|
-| `vi_vorher` · `vi_nachher` | report before and after an action |
-| `vi_lerne` · `vi_erinnere` · `vi_vertiefe` · `vi_objekt` | learn (code and API tables in full in `inhalt`), search, drill down, read in full |
-| `vi_markiere` · `vi_bestaetige` · `vi_widerlege` · `vi_vergiss` | change, always with a reason |
-| `vi_frage` · `vi_antwort` · `vi_fragen` | questions between instances |
-| `vi_geloest` · `vi_skills` · `vi_skill` · `vi_skill_fusion` | solutions |
-| `vi_reflex_lerne` · `vi_reflex_liste` · `vi_reflex_schalte` | code in memory |
-| `vi_selbst` · `vi_selbst_vorschlag` · `vi_schlaf` | self-image and consolidation |
-| `vi_scorer` · `vi_modell` · `vi_erfahrung` · `vi_status` | scores, learned model, metrics, state |
-| `vi_gespraech` · `vi_loesche_gespraech` · `vi_lager` · `vi_lager_hole` | conversations and long-term storage |
-| `vi_netz_ausgang` · `vi_netz_eingang` · `vi_quarantaene` · `vi_freigabe` · `vi_netz_status` | network service interface, review, usefulness per publisher |
-| `vi_netz_token` · `vi_netz_vergiss` · `vi_netz_vorschau` | deletion token, right to be forgotten, preview |
+| `vi_before` · `vi_after` | report before and after an action |
+| `vi_learn` · `vi_recall` · `vi_drilldown` · `vi_object` | learn (code and API tables in full in `inhalt`), search, drill down, read in full |
+| `vi_tag` · `vi_confirm` · `vi_refute` · `vi_forget` | change, always with a reason |
+| `vi_ask` · `vi_answer` · `vi_questions` | questions between instances |
+| `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | solutions |
+| `vi_reflex_learn` · `vi_reflex_list` · `vi_reflex_switch` | code in memory |
+| `vi_self` · `vi_self_propose` · `vi_sleep` | self-image and consolidation |
+| `vi_scorer` · `vi_model` · `vi_experience` · `vi_status` | scores, learned model, metrics, state |
+| `vi_conversation` · `vi_delete_conversation` · `vi_archive` · `vi_archive_restore` | conversations and long-term storage |
+| `vi_net_outbox` · `vi_net_inbox` · `vi_quarantine` · `vi_release` · `vi_net_status` | network service interface, review, usefulness per publisher |
+| `vi_net_token` · `vi_net_forget` · `vi_net_preview` | deletion token, right to be forgotten, preview |
 
 ## Development
 

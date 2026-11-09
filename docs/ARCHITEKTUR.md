@@ -7,13 +7,13 @@ Eine **VI** ist eine KI, die loopt — mit zwei Schichten:
 | Schicht | Was sie tut | Im Code |
 |---|---|---|
 | **Intuition** (Unterbewusstsein) | sieht jede gemeldete Handlung, urteilt ohne Modell, automatisch *vor* der Handlung: gemerkte Antworten, Reflexe, gelernte Suchen | `intuition.vorher`, `reflexe.vorher` |
-| **Bewusstsein** | was ein Mensch oder LLM bewusst nachliest: Erkenntnisse, Regeln, Vertiefen | `gedaechtnis.erinnere`, `gedaechtnis.vertiefe`, Werkzeuge `vi_erinnere`/`vi_vertiefe` |
+| **Bewusstsein** | was ein Mensch oder LLM bewusst nachliest: Erkenntnisse, Regeln, Vertiefen | `gedaechtnis.erinnere`, `gedaechtnis.vertiefe`, Werkzeuge `vi_recall`/`vi_drilldown` |
 
 Drei Grundsätze des Auftraggebers:
 
 1. *„Man gibt der KI eine Intuition, die automatisch analysiert; nur Vorgefiltertes analysiert das Bewusstsein.“*
 2. *„Man merkt sich in erster Instanz die **Suche** (die Hashtag-Kombination, die Eselsbrücke), nicht das Faktum.“*
-   → gelernte Suchen laufen vor passenden Handlungen automatisch; `vi_vertiefe` geht den Trichter weiter.
+   → gelernte Suchen laufen vor passenden Handlungen automatisch; `vi_drilldown` geht den Trichter weiter.
 3. *„Vor einer Handlung greift man automatisch auf Gedächtnis, Bewusstsein und Unterbewusstsein zu — und das muss
    in der Datenbank liegen.“* → jede Erfahrung trägt in `daten.vorher` die Reize und alles, was vorher gefunden
    wurde, und ist mit diesen Objekten verknüpft.
@@ -51,20 +51,20 @@ Zugriffe durch einen Prozess gehen, ist ein späterer Wechsel eine Änderung in 
 **Alles ist ein Objekt** (`gedaechtnis.Objekt`, Tabelle `objekt`; Mapping ohne ORM): feste Felder `id`, `art`,
 `zeit`; änderbar nur über Methoden — `markiere`, `bestaetige`, `widerlege`, `verknuepfe`, `zugriff` —, jede mit
 Eintrag in `aenderungen` (wer, wann, **Grund — Pflicht**, vor der Änderung geprüft). Die Geschichte hält 50
-Einträge; ältere werden **gezählt** gekürzt (`daten.aenderungen_gekuerzt`, in `vi_objekt` genannt).
+Einträge; ältere werden **gezählt** gekürzt (`daten.aenderungen_gekuerzt`, in `vi_object` genannt).
 
 | Art | Wozu | Entsteht durch |
 |---|---|---|
-| `erfahrung` | jede gemeldete Handlung: Werkzeug, Argumente, Dauer, `ok:ja`/`ok:nein`/`ok:unbekannt`; `daten.vorher` = Gedächtniszugriff davor; **Wichtigkeit aus Überraschung** (`ueberraschung:neu` 3 · `wiederholt`/`erholt` 2 · `chronisch` 1 · `keine` 0 — Vorhersagefehler als Lernsignal, docs/FORSCHUNG.md A7) | `vi_nachher`; `vi_vorher` mit gemerkter Antwort; vorher ohne nachher (Sitzungsende/1 h) |
-| `antwort` | gemerktes Ergebnis eines **lesenden** Aufrufs (`frage:<hash>`), gilt 120 s (je Werkzeug konfigurierbar, max 1 h) | `vi_nachher` |
-| `erkenntnis` | Gelerntes mit Quelle und Wichtigkeit 0–3 | `vi_lerne` |
+| `erfahrung` | jede gemeldete Handlung: Werkzeug, Argumente, Dauer, `ok:ja`/`ok:nein`/`ok:unbekannt`; `daten.vorher` = Gedächtniszugriff davor; **Wichtigkeit aus Überraschung** (`ueberraschung:neu` 3 · `wiederholt`/`erholt` 2 · `chronisch` 1 · `keine` 0 — Vorhersagefehler als Lernsignal, docs/FORSCHUNG.md A7) | `vi_after`; `vi_before` mit gemerkter Antwort; vorher ohne nachher (Sitzungsende/1 h) |
+| `antwort` | gemerktes Ergebnis eines **lesenden** Aufrufs (`frage:<hash>`), gilt 120 s (je Werkzeug konfigurierbar, max 1 h) | `vi_after` |
+| `erkenntnis` | Gelerntes mit Quelle und Wichtigkeit 0–3 | `vi_learn` |
 | `regel` | verdichtet: gleicher Fehler ≥ 3× in 24 h, Modus `test` | Loop |
-| `reflex` | Python-Code: `werkzeug`, `vorher`, `nachher` | `vi_reflex_lerne` |
-| `suche` | Eselsbrücke: Name, Filter, **Reize**, Geschichte | `vi_suche_lerne` |
+| `reflex` | Python-Code: `werkzeug`, `vorher`, `nachher` | `vi_reflex_learn` |
+| `suche` | Eselsbrücke: Name, Filter, **Reize**, Geschichte | `vi_learn_search` |
 | `gespraech` | eine Sitzung, Seriennummer `YYYYMMDDNNN`, Zusammenfassung + Hashtags; Verlauf zlib in `gespraech_roh` | `initialize` |
-| `frage` | Rückfrage einer Instanz an eine andere oder an alle; Zustände `offen`/`zugestellt`/`beantwortet`/`abgelaufen` | `vi_frage` |
-| `skill` | Lösungsweg: Problem (Reize), Schritte, Anleitung, Versionen, Belege; Modi `test`/`aktiv`/`strittig`/`aufgegangen` | `vi_geloest`; Schlaf (Erfolg nach Fehlern) |
-| `selbst` | `selbst:kern` = das Selbst (Soll/Ist/Erzählung, versioniert); sonst Vorschläge fürs Soll (Modus `test`) | Start / `vi_selbst_vorschlag` |
+| `frage` | Rückfrage einer Instanz an eine andere oder an alle; Zustände `offen`/`zugestellt`/`beantwortet`/`abgelaufen` | `vi_ask` |
+| `skill` | Lösungsweg: Problem (Reize), Schritte, Anleitung, Versionen, Belege; Modi `test`/`aktiv`/`strittig`/`aufgegangen` | `vi_solved`; Schlaf (Erfolg nach Fehlern) |
+| `selbst` | `selbst:kern` = das Selbst (Soll/Ist/Erzählung, versioniert); sonst Vorschläge fürs Soll (Modus `test`) | Start / `vi_self_propose` |
 | `schlaf` | Bericht eines Konsolidierungslaufs: Zähler je Schritt, Dauer, Fehler, neue/geänderte IDs | Loop (ab Wichtigkeitssumme; nachts nur nach 24 h ohne Schlaf) |
 
 **Hashtags** `art:wert` (Tabelle `tag`); `art:<art>` immer gesetzt. Verwaltungs-Hashtags (`art:`, `frage:`, `ok:`,
@@ -87,7 +87,7 @@ Eine **Instanz** ist ein Agentensystem mit eigenem Token (z. B. `claude-code`, e
 benannt nach System, nicht nach Person. Alle Instanzen teilen ein Gedächtnis; was sie voneinander lernen, läuft über
 fünf Wege:
 
-1. **Vor der Handlung** liefert `vi_vorher` Erkenntnisse, Regeln und gelernte Suchen *aller* Instanzen, jeweils mit
+1. **Vor der Handlung** liefert `vi_before` Erkenntnisse, Regeln und gelernte Suchen *aller* Instanzen, jeweils mit
    Urheber („von b, bestätigt von 2 weiteren Instanzen“). Mit `kontext_hashtags` meldet ein Client, woran er gerade
    arbeitet — mehr Reize, bessere Treffer.
 2. **Bestätigen über Instanzen:** `bestaetigt_von` zählt je Instanz. Nur *fremde* Bestätigungen geben Gewicht
@@ -95,9 +95,9 @@ fünf Wege:
 3. **Widersprechen über Instanzen:** Eine fremde Instanz allein macht ein Objekt `strittig` (bleibt sichtbar, mit
    Vermerk) — sie kann nicht das Wissen einer anderen löschen. `widerlegt` wird es durch den Urheber selbst oder
    durch zwei verschiedene Instanzen; eine fremde Bestätigung hebt `strittig` wieder auf.
-4. **Rückfragen:** `vi_frage(an, text)` → die Zielinstanz sieht die Frage bei ihrer nächsten Handlung (einmal je
-   Instanz), antwortet mit `vi_antwort(id, text, belege)` (Belege Pflicht); der Fragesteller sieht die Antwort bei
-   seiner nächsten Handlung oder über `vi_fragen`. Nach 7 Tagen ohne Antwort: `abgelaufen`.
+4. **Rückfragen:** `vi_ask(an, text)` → die Zielinstanz sieht die Frage bei ihrer nächsten Handlung (einmal je
+   Instanz), antwortet mit `vi_answer(id, text, belege)` (Belege Pflicht); der Fragesteller sieht die Antwort bei
+   seiner nächsten Handlung oder über `vi_questions`. Nach 7 Tagen ohne Antwort: `abgelaufen`.
 5. **Der Loop verdichtet über Instanzen:** gleicher Fehler ≥ 3× in 24 h → Regel; trat er bei ≥ 2 Instanzen auf,
    trägt sie `kollektiv:ja` und nennt die Instanzen. Die Regel enthält nur Werkzeug und Fehlersignatur, nie Ergebnisse.
 
@@ -113,18 +113,18 @@ Flüchtiges. Ohne Token kommt `REGELN_OHNE_TOKEN` dazu. Ob die Regeln befolgt we
 ## Nutzungsstatistik
 
 Seit 0.21.0 zählt der Server jeden Aufruf eines VI-Werkzeugs (`statistik.zeichne`, Tabelle `nutzung`, 90 Tage, ohne Argumente und Text).
-`vi_statistik(tage)` wertet Nutzung, Einhaltung der Regeln, Hinweise und Warnungen, Wissen, Suche sowie Schlaf und Training aus
+`vi_stats(tage)` wertet Nutzung, Einhaltung der Regeln, Hinweise und Warnungen, Wissen, Suche sowie Schlaf und Training aus
 (`statistik.bericht`). Eine ändernde Handlung gilt als vorbereitet, wenn dieselbe Instanz in den 30 min davor die VI befragt hat.
 
 ## Was ungefragt gezeigt wird
 
 Seit 0.21.1 erscheinen strittiges Wissen und Sprachmodell-Hypothesen aus dem Schlaf (`herkunft:schlaf-llm`) ohne Bestätigung durch eine
-andere Instanz nicht mehr als Hinweis vor Handlungen. Sie bleiben über `vi_erinnere` auffindbar; `vi_vorher` nennt ihre Zahl
+andere Instanz nicht mehr als Hinweis vor Handlungen. Sie bleiben über `vi_recall` auffindbar; `vi_before` nennt ihre Zahl
 („nur auf Nachfrage“). Anlass: Eine strittige Hypothese war mit 719 Verstärkungen der meistgezeigte Hinweis.
 
 ## Warnung vor riskanten Handlungen
 
-Seit 0.20.8 warnt `vi_vorher`, wenn das Router-Modell die Lage einer Handlung als riskant einstuft (`lernen.warnung`). Die Schwelle
+Seit 0.20.8 warnt `vi_before`, wenn das Router-Modell die Lage einer Handlung als riskant einstuft (`lernen.warnung`). Die Schwelle
 bestimmt das Training im Holdout (≥ 50 % gescheitert bei ≥ 10 Fällen, sonst aus); die Begründung sind gezählte Quoten je Merkmal
 (`quoten` im Objekt `modell:router`), weil die Wahrscheinlichkeiten des balancierten Modells nicht kalibriert sind.
 
@@ -157,24 +157,24 @@ Gedächtnis handelt sie (Loop: Regeln verdichten, Fragen ablaufen lassen), jede 
 Ein Client meldet jede Handlung:
 
 ```
-vi_vorher(tool, args, lesend?)  → {antwort, antwort_alter_s, antwort_ttl_s, args, hinweise, vorher_id, zugriff}
+vi_before(tool, args, lesend?)  → {antwort, antwort_alter_s, antwort_ttl_s, args, hinweise, vorher_id, zugriff}
    1. Vorher-Reflexe (aktiv: dürfen args ändern; test: nur Hinweis)
    2. Reize: tool:, skill: (Präfix bis zum ersten _), host: (aus host/hostname/node/device), instanz:
    3. Erkenntnisse + Regeln zu den Reizen → Hinweise
    4. gelernte Suchen zu den Reizen → laufen, Treffer als Hinweis
       Höchstens **4 Hinweise** aus dem Gedächtnis (Arbeitsgedächtnis, Cowan 2001 — docs/FORSCHUNG.md A2); der Rest
-      wird gezählt genannt und ist über `vi_vertiefe` abrufbar (Progressive Disclosure).
+      wird gezählt genannt und ist über `vi_drilldown` abrufbar (Progressive Disclosure).
    5. lesend? → frische gemerkte Antwort → Client führt NICHT aus; Erfahrung wird sofort gespeichert
-vi_nachher(tool, args, ok, dauer_ms, fehler?, ergebnis?, vorher_id) → {erfahrung, hinweise, vorher_gefunden, verstaerkt}
+vi_after(tool, args, ok, dauer_ms, fehler?, ergebnis?, vorher_id) → {erfahrung, hinweise, vorher_gefunden, verstaerkt}
 ```
 
 **Verstärkt wird erst beim Erfolg, nicht beim Zeigen.** Bis 0.2.0 zählte jeder angezeigte Hinweis als Zugriff —
 Gezeigtes wurde allein durchs Zeigen wichtiger und deshalb wieder gezeigt (Selbstbestätigung, Matthäus-Effekt;
-CLAUDE.md Regel 5). Seit 0.2.1 verstärkt `vi_nachher` mit `ok=true` die vorher gefundenen Objekte. Das ist eine
+CLAUDE.md Regel 5). Seit 0.2.1 verstärkt `vi_after` mit `ok=true` die vorher gefundenen Objekte. Das ist eine
 **Annahme** („der Hinweis hat genützt“, Testing-Effekt: nur erfolgreiches Abrufen stärkt, docs/FORSCHUNG.md A10).
-*Beobachtungspunkt:* **Hinweis-Lift** (`messung.py`, in `vi_erfahrung` je Werkzeug und in `vi_status` gesamt):
+*Beobachtungspunkt:* **Hinweis-Lift** (`messung.py`, in `vi_experience` je Werkzeug und in `vi_status` gesamt):
 Erfolgsquote der Handlungen mit Hinweis gegen ohne; unter 10 Fällen je Seite „zu wenig Daten“; Lift < −5 Punkte heißt
-„Hinweise schaden — Annahme widerlegt“. Bewusstes Nachlesen (`vi_erinnere`, `vi_objekt`, `vi_vertiefe`) verstärkt weiterhin sofort.
+„Hinweise schaden — Annahme widerlegt“. Bewusstes Nachlesen (`vi_recall`, `vi_object`, `vi_drilldown`) verstärkt weiterhin sofort.
 
 **Lesend oder schreibend?** Gibt der Client `lesend` an, gilt seine Angabe; sonst das Namensmuster
 `intuition.SCHREIBEND` (create, update, delete, send, …). Schreibende Werkzeuge werden **nie** aus dem Gedächtnis
@@ -201,7 +201,7 @@ Zustände (erschöpfend): `offen` · `beendet` (DELETE) · `abgelaufen` (4 h ohn
 
 ## Löschen — nichts verschwindet still
 
-`vi_loesche_gespraech(serial, grund)`: nur die Urheber-Instanz, nur beendete Gespräche. Entfernt Erfahrungen,
+`vi_delete_conversation(serial, grund)`: nur die Urheber-Instanz, nur beendete Gespräche. Entfernt Erfahrungen,
 gemerkte Antworten, Rohverlauf und deren Kanten; das Gesprächsobjekt bleibt als **Grabstein** (`zustand:geloescht`,
 Zeit, Urheber, Grund, Anzahl). Geteiltes Wissen aus dem Gespräch bleibt — es ist Wissen, kein Verlauf.
 Instanzweit (Person): `vi-mcp loesche-instanz <name> "<grund>"` auf dem Host (Admin, nicht per Token).
@@ -209,13 +209,13 @@ Instanzweit (Person): `vi-mcp loesche-instanz <name> "<grund>"` auf dem Host (Ad
 ## Skills — Lösungswege, die sich entwickeln
 
 `skills.py` (prozedurales Gedächtnis). Ein Skill entsteht, wenn etwas als gelöst gilt: eine Instanz meldet es mit
-`vi_geloest`, oder der Schlaf erkennt, dass eine Handlung nach Fehlern desselben Werkzeugs im selben Gespräch gelang
+`vi_solved`, oder der Schlaf erkennt, dass eine Handlung nach Fehlern desselben Werkzeugs im selben Gespräch gelang
 (`ueberraschung:erholt`; die Werkzeugfolge vom ersten Fehler bis zum Erfolg ist der Lösungsweg). Er erscheint als
 Hinweis vor passenden Handlungen und ist **Text**: ausführbar wird Wissen nur über Reflexe in der Sandbox.
 
 **Weiterentwicklung:** Gleicher Name bzw. gleiches Problem ergibt eine neue Version mit Grund und Belegen; fehlende
 Schritte kommen hinzu, alte Fassungen bleiben in `daten.versionen`. Nützt ein Skill wiederholt nicht (≥ 3 Fehlschläge,
-Erfolgsquote < 30 %), setzt der Schlaf ihn auf `strittig`. **Zusammenführen:** `vi_skill_fusion(a, b, name, grund)` erzeugt
+Erfolgsquote < 30 %), setzt der Schlaf ihn auf `strittig`. **Zusammenführen:** `vi_skill_merge(a, b, name, grund)` erzeugt
 einen neuen Skill aus beiden (Reize und Belege vereinigt, Schritte hintereinander); a und b werden `aufgegangen` mit
 Verweis, erscheinen nicht mehr in Suchen, bleiben aber abrufbar. Der Schlaf schlägt Fusionen nur vor (`fusion:vorschlag`
 bei gleichem Werkzeug + Fehlersignatur); entscheiden muss eine Instanz.
@@ -228,14 +228,14 @@ Extension getrennt:** `soll` (Werte, Ziele, Stil, Grenzen — jeder Satz mit Her
 Die `erzaehlung` (≤ 150 Wörter, aus Vorlage, nie Quelle eigener Fakten) steht in `initialize.instructions` jeder
 Sitzung und wird alle 25 Handlungen als Hinweis wiederholt (Persona-Drift nach wenigen Runden, Li et al. 2024).
 
-**Änderung des Soll** nur über `vi_selbst_vorschlag` (≥ 3 Belege als Objekt-IDs aus ≥ 2 Tagen — Spacing statt
-Burst) und Bestätigung durch eine **andere, vertraute** Instanz (`vi_bestaetige` auf den Vorschlag). „Vertraut“ ist
+**Änderung des Soll** nur über `vi_self_propose` (≥ 3 Belege als Objekt-IDs aus ≥ 2 Tagen — Spacing statt
+Burst) und Bestätigung durch eine **andere, vertraute** Instanz (`vi_confirm` auf den Vorschlag). „Vertraut“ ist
 heute das Reflex-Recht — **Annahme:** hinter einer vertrauten Instanz steht ein Mensch, der freigibt. Jede Version
 steht vollständig in `selbst_version` (nicht gekürzt). Version 1 stammt aus den Projektregeln (CLAUDE.md).
 
 ## Training bei Bedarf (seit 0.20.0)
 
-`bedarf.py`: Ein Hintergrund-Thread lernt, sobald neue Daten da sind — `vi_nachher` mit Ergebnis und `vi_lerne` stoßen ihn an, frühestens
+`bedarf.py`: Ein Hintergrund-Thread lernt, sobald neue Daten da sind — `vi_after` mit Ergebnis und `vi_learn` stoßen ihn an, frühestens
 60 s nach dem letzten Lauf (mehrere Ereignisse ergeben einen Lauf). Schritte: fehlende Vektoren einbetten (höchstens 120 s je Lauf; ein Rest
 löst sofort den nächsten Lauf aus) → Nähe-Kanten nur für neue Vektoren (Spalte `vektor.verglichen`) → KMeans-Inhaltsgruppen, sobald 200 neue
 Vektoren dazukamen → Bandit-Zähler → Router (LogisticRegression). Gemessen auf einer Kopie der Produktivdaten (09.11.2026, 5.118 Objekte):
@@ -247,7 +247,7 @@ Der Schlaf bleibt für das, was ein Sprachmodell braucht oder Erfahrungen verdic
 
 `privat` (nur die Urheber-Instanz), `geteilt` (alle, auch die tokenlose Instanz `offen`, und das P2P-Netz), `intern` (seit 0.20.0: alle
 Instanzen mit Token, nie `offen`, nie das Netz — `p2p._sammle` nimmt nur `geteilt`). Für Firmenwissen wie Confluence: Im Open-Wiki-Modus wäre
-es sonst ohne Anmeldung lesbar, auch was in Confluence Leseschutz hat. Gesetzt über `vi_lerne(sicht="intern")`; geprüft in
+es sonst ohne Anmeldung lesbar, auch was in Confluence Leseschutz hat. Gesetzt über `vi_learn(sicht="intern")`; geprüft in
 `gedaechtnis.sichtbar_fuer` und `_filter_sql` (eine Stelle für Suche, Hinweise, Bedeutungssuche).
 
 ## Schlaf — Konsolidierung
@@ -271,7 +271,7 @@ welchem Kontext zum Erfolg führte — docs/TRAINING.md 4a/4b.
   `stunde:`) × gezeigte Hinweise (`hinweis:<id>`, `hinweisart:<art>`, `hinweis_n`). Liegt in `objekt`/`tag`/`daten`;
   die View `beobachtung` zeigt sie flach (keine Kopie — eine Quelle der Wahrheit).
 - **Matrix**: beim Training aus der DB gebaut (`DictVectorizer`, dünn besetzt 0/1); sklearn hat kein DB-Format.
-- **Modell** `modell:router`: Gewicht je Merkmal + Achsenabschnitt als **lesbares JSON** (kein Pickle); `vi_modell`
+- **Modell** `modell:router`: Gewicht je Merkmal + Achsenabschnitt als **lesbares JSON** (kein Pickle); `vi_model`
   zeigt die stärksten Gewichte. Vorhersage = Sigmoid-Summe in reiner Standardbibliothek.
 - **Router-Score** = Lift = P(ok | Reize + Hinweis) − P(ok | Reize). Nur wenn das Modell `aktiv` ist; sonst Heuristik.
   Jede Beobachtung nennt `router` (`heuristik`|`modell`), `kandidaten`, `gezeigt`, `exploration`.
@@ -280,16 +280,16 @@ welchem Kontext zum Erfolg führte — docs/TRAINING.md 4a/4b.
 - **ε-Erkundung 10 %**: ein Platz des Budgets geht an einen zufälligen Kandidaten von weiter hinten, markiert
   „(Erkundung)“ — sonst lernt das Modell nur über das, was die Heuristik ohnehin zeigt (Off-Policy, Li et al. 2011).
 - **Nachschlagewerk höchstens einmal (seit 0.19.3)**: importierte Herstellerdoku (`art_wissen:doku-extern`) belegt vor einer Handlung höchstens
-  einen Platz; weitere Absätze kommen nur über die Erkundung. In `vi_erinnere` bleibt alles auffindbar. Grund: Handbuch-Absätze passen über
+  einen Platz; weitere Absätze kommen nur über die Erkundung. In `vi_recall` bleibt alles auffindbar. Grund: Handbuch-Absätze passen über
   `skill:` zu fast jedem Befehl und drängten Erfahrungswissen (Warnungen, Fallstricke) aus dem Budget.
-- *Beobachtungspunkt:* Hinweis-Lift (`vi_erfahrung`) vor/nach `router: modell`. Steigt er nicht, ist das Modell nicht
+- *Beobachtungspunkt:* Hinweis-Lift (`vi_experience`) vor/nach `router: modell`. Steigt er nicht, ist das Modell nicht
   besser als die Heuristik → zurück auf `test`.
 
 **Stufe 2 — Thompson Sampling (`bandit.py`)**, wirksam ab der ersten Handlung, ohne sklearn: jeder Hinweis führt
 `daten.nuetzlich = {ja, nein}` (Handlungen nach dem Zeigen gelungen / gescheitert; atomar per `json_set`). Ist kein
 Modell aktiv, aber mindestens ein Kandidat bewertet, zieht der Router je Kandidat eine Stichprobe aus Beta(1+ja, 1+nein)
 und ordnet danach (`router: bandit`) — selten Gezeigtes bleibt im Spiel, oft Gescheitertes rückt nach hinten.
-`vi_objekt` zeigt die Zähler („genützt 20 / nicht 1, Erwartung 91 %“). Rangordnung erschöpfend: `modell` > `bandit`
+`vi_object` zeigt die Zähler („genützt 20 / nicht 1, Erwartung 91 %“). Rangordnung erschöpfend: `modell` > `bandit`
 > `heuristik`. Quellen: Russo et al. 2017 (arXiv 1707.02038), Agrawal & Goyal 2012 (arXiv 1209.3352).
 
 ## Scorer — ob Arbeit gelungen ist
@@ -314,9 +314,9 @@ Tabelle `vektor` (TRAINING.md 4c). Eingebettet wird nur `text` (die Kernaussage)
 beim Training bei Bedarf (höchstens 120 s je Lauf) und im Schlaf (Schritt 7, höchstens 300 s), in Batches zu 16. Der Dienst ist auf dem
 Produktivhost geteilt; seit 0.20.5 kann die VI nach jedem Batch eine Pause im Verhältnis zur Batchdauer einlegen (`embed.pause_anteil`,
 Standard 0 = ungedrosselt; 1.0 = höchstens halbe Auslastung). Anlass: Eine einzelne Frage anderer Nutzer brauchte dort 23–27 s (gemessen
-09.11.2026 07:00 UTC; ob die VI die Ursache war, ist nicht belegt). Für `vi_vorher` bleibt der Dienst zu langsam. Schritt 7b: Kosinus ≥ 0,85
+09.11.2026 07:00 UTC; ob die VI die Ursache war, ist nicht belegt). Für `vi_before` bleibt der Dienst zu langsam. Schritt 7b: Kosinus ≥ 0,85
 → Kante „semantisch ähnlich“, seit 0.20.6 nur zu den 10 nächsten und nur gegenseitig (mutual kNN, `vektor.kappen`); ≥ 0,95 zwischen **verschiedenen** Instanzen → `dublette:moeglich` (zusammenlegen
-entscheidet eine Instanz, nicht der Server). `vi_erinnere(filter, semantisch=true)` bettet den Freitext ausdrücklich
+entscheidet eine Instanz, nicht der Server). `vi_recall(filter, semantisch=true)` bettet den Freitext ausdrücklich
 jetzt ein und ordnet **alle** sichtbaren Kandidaten nach Nähe (seit 0.19.2 ohne Obergrenze); seit 0.19.5 hybrid: Bedeutungs- und
 Volltext-Rangliste werden per Reciprocal Rank Fusion (k = 60) zusammengeführt, damit frisch Gelerntes ohne Vektor und genaue Begriffe
 (Fehlermeldungen, Optionen) gefunden werden. Die Dauer und die Zahl der Treffer nur über Volltext stehen im Ergebnis. Ohne Konfiguration: Schritte benannt
@@ -324,7 +324,7 @@ Volltext-Rangliste werden per Reciprocal Rank Fusion (k = 60) zusammengeführt, 
 
 
 **Inhalt als Merkmal des Routers (seit 0.16.0, `inhalt.py`).** Live wird nichts eingebettet. Der Schlaf (Schritt `7c_inhalt`) rechnet je Reiz-Hashtag mit mindestens 3 Wissensobjekten
-den Mittelpunkt ihrer Vektoren und gruppiert alle Wissensobjekte mit K-Means (k = √(n/2), höchstens 40; Name einer Gruppe = ihre häufigsten Hashtags). `vi_vorher` gibt dem Modell je Kandidat
+den Mittelpunkt ihrer Vektoren und gruppiert alle Wissensobjekte mit K-Means (k = √(n/2), höchstens 40; Name einer Gruppe = ihre häufigsten Hashtags). `vi_before` gibt dem Modell je Kandidat
 `naehe` = Kosinus zwischen Hinweis und dem Mittel der Mittelpunkte der aktuellen Reize (der Hinweis selbst herausgerechnet) und `inhalt:<gruppe>`. So gewichtet das Modell auch nach Inhalt,
 und ein neuer Hinweis erbt das Gewicht seiner Gruppe. `lernen.INHALT = False` schaltet es zum Vergleich ab.
 ## P2P-Import — fremdes Wissen kommt nur geprüft herein
@@ -357,7 +357,7 @@ Grenzen: Muster und Modell erkennen nicht jeden Angriff. Wer root auf dem Server
 Einträge tragen weder Hostnamen noch Instanz. Der Herausgeber ist `vi-` + die ersten 12 Hexziffern des SHA-256 seines öffentlichen Schlüssels.
 
 **Recht auf Vergessen.** Eine Instanz ohne Netz-Token verteilt nichts. Je Objekt gilt `netz_id = HMAC(Token, "id|"+oid)[:32]`, `objekt_token = HMAC(Token, "vergessen|"+oid)`, `loesch_hash = SHA-256(objekt_token)`.
-Das Netz sieht `netz_id` und `loesch_hash`; beide sind untereinander nicht verknüpfbar. `vi_netz_vergiss` prüft das Instanz-Token und erlaubt nur eigene Objekte. Widerrufe sind eigene Logbuch-Einträge und beweisen sich selbst: Gelöscht wird nur, wenn `SHA-256(token)` zum `loesch_hash` passt. Der Empfänger löscht Objekt, Tags, Volltext, Kanten, Lager und Vektor und behält einen Grabstein ohne Inhalt. Trifft ein Widerruf vor dem Objekt ein, bleibt das Objekt weg.
+Das Netz sieht `netz_id` und `loesch_hash`; beide sind untereinander nicht verknüpfbar. `vi_net_forget` prüft das Instanz-Token und erlaubt nur eigene Objekte. Widerrufe sind eigene Logbuch-Einträge und beweisen sich selbst: Gelöscht wird nur, wenn `SHA-256(token)` zum `loesch_hash` passt. Der Empfänger löscht Objekt, Tags, Volltext, Kanten, Lager und Vektor und behält einen Grabstein ohne Inhalt. Trifft ein Widerruf vor dem Objekt ein, bleibt das Objekt weg.
 Aus einem gelöschten Objekt abgeleitete Abstraktionen des Schlafs bleiben bestehen.
 
 ## Netz — Logbücher statt Bundles
@@ -366,8 +366,8 @@ Je Server ein Logbuch (`logbuch.py`): Einträge mit `seq`, Hash des Vorgängers,
 Kopf und Inhalt liegen getrennt: Ein Widerruf löscht den Inhalt, die Kette bleibt prüfbar. Zwei verschiedene Einträge mit gleicher Nummer sind eine Gabelung, der Herausgeber wird danach nicht mehr angenommen.
 Fremde Einträge werden nur angenommen, wenn Kette, Signatur, Mitgliedschaft, Tageskontingent (5.000) und für Objekte die festen Regeln samt `anonym.py` passen. Ein Objekt, das die Regeln verletzt, wird ohne Inhalt in die Kette übernommen und als Verstoß gezählt.
 
-Der Netzdienst (`netzdienst.py`, systemd `vi-p2p`, eigener Nutzer, `InaccessiblePaths=/var/lib/vi-mcp`) macht je Runde: Ausgang des Gedächtnisses ins eigene Logbuch (`vi_netz_ausgang`), Abgleich mit bis zu 6 zufälligen Peers
-(Köpfe tauschen, Fehlendes holen, Eigenes schieben), Neues ans Gedächtnis (`vi_netz_eingang`, Instanz `p2p`), Nachbarn anstoßen. Takt 300 s, ein Anstoß weckt sofort. Peers kommen aus der Startliste und aus `adresse`-Einträgen.
+Der Netzdienst (`netzdienst.py`, systemd `vi-p2p`, eigener Nutzer, `InaccessiblePaths=/var/lib/vi-mcp`) macht je Runde: Ausgang des Gedächtnisses ins eigene Logbuch (`vi_net_outbox`), Abgleich mit bis zu 6 zufälligen Peers
+(Köpfe tauschen, Fehlendes holen, Eigenes schieben), Neues ans Gedächtnis (`vi_net_inbox`, Instanz `p2p`), Nachbarn anstoßen. Takt 300 s, ein Anstoß weckt sofort. Peers kommen aus der Startliste und aus `adresse`-Einträgen.
 Jede Anfrage trägt `Authorization: VI-Netz <Schlüssel> <Zeit> <Signatur über Methode, Pfad, Zeit, SHA-256 des Körpers>`, gültig 300 s; nur Mitglieder bekommen Antwort, 240 Anfragen je Minute und Schlüssel.
 Unverschlüsseltes HTTP nur zum eigenen Rechner oder mit `http_erlaubt`. TLS wird über die CA geprüft (`ca_datei`) oder, wenn für die Adresse ein Pin bekannt ist, über den SHA-256 des Zertifikats in DER-Form.
 Ein Pin kommt nur aus signierter Quelle: dem `adresse`-Eintrag des Peers selbst (Feld `pin`, seit 0.15.0) oder einem Beitrittscode. Ein `proxy` wird für fremde Peers per CONNECT genutzt, `kein_proxy` nimmt Domains aus.
@@ -392,10 +392,10 @@ der aktive Speicher klein bleibt. Im Gedächtnis bleibt ein Stummel.
 | Rohverlauf eines Gesprächs | 30 Tage nach der letzten Änderung, Gespräch nicht offen |
 
 Nie automatisch: Selbst, Modell, Fragen, Reflexe (das würde ein Verhalten still abschalten), Gesprächs-Zusammenfassungen.
-Passt gelagertes Wissen zu einer Handlung, nennt `vi_vorher` das in einer Zeile. `vi_lager` zeigt Stand und Inhalt,
-`vi_lager_hole(id, grund)` holt einen Eintrag im alten Modus zurück. Die Löschwege für Gespräche und Instanzen gelten auch
+Passt gelagertes Wissen zu einer Handlung, nennt `vi_before` das in einer Zeile. `vi_archive` zeigt Stand und Inhalt,
+`vi_archive_restore(id, grund)` holt einen Eintrag im alten Modus zurück. Die Löschwege für Gespräche und Instanzen gelten auch
 im Lager. Die Hauptdatei wird neu geschrieben, wenn über 25 % frei sind. Die Fristen sind unkalibriert. *Beobachtungspunkt:*
-wie oft `vi_lager_hole` nötig wird; häufiges Zurückholen heißt, die Frist ist zu kurz.
+wie oft `vi_archive_restore` nötig wird; häufiges Zurückholen heißt, die Frist ist zu kurz.
 
 ## Reflexion — das Sprachmodell denkt im Schlaf nach (Stufe 4)
 
@@ -430,7 +430,7 @@ versagt hat, und schützt auch die `vi.db`, obwohl das Kind unter demselben Nutz
 ## Open-Wiki-Modus
 
 `"offen": true` ordnet Anfragen ohne `Authorization` der festen Instanz `offen` zu (`konfig.OFFEN`, als Name reserviert). Ein falsches Token bleibt 401.
-`offen` sieht nur die Werkzeuge in `werkzeuge.OFFEN_ERLAUBT`: lesen, `vi_vorher`/`vi_nachher`, `vi_lerne`. Ein `vi_lerne` von `offen` wird ein Objekt in der Quarantäne mit
+`offen` sieht nur die Werkzeuge in `werkzeuge.OFFEN_ERLAUBT`: lesen, `vi_before`/`vi_after`, `vi_learn`. Ein `vi_learn` von `offen` wird ein Objekt in der Quarantäne mit
 `herkunft:offen`, Regelbefund (`pruefung.anweisungen`) und ausstehendem Prüfer; es durchläuft denselben Weg wie ein Netz-Import (`p2p.heikel`, `p2p.freigeben`, `p2p.auto_freigeben`).
 `offen` hat keinen Antwortspeicher: Alle Gäste teilen sich eine Instanz, gemerkte Antworten würden das Ergebnis eines Kollegen an alle geben.
 Bleibende Grenze: Handlungen von Gästen fließen in die Hinweis-Zähler und das Router-Training ein. Ein Gast kann so die Reihenfolge geprüfter Hinweise beeinflussen, aber keinen Inhalt einbringen.
@@ -467,6 +467,6 @@ beendet die Sitzung. Antworten als `application/json`, kein SSE. Protokollversio
 
 Der Kern stammt aus dem VI-Teil eines stdio-MCP-Skill-Servers (Version 3.0.0, 08.11.2026), dort in einen
 Skill-Server eingebaut: die VI legte sich um jeden Werkzeugaufruf. Hier ist sie **eigenständig**: sie lädt keine
-fremden Werkzeuge, sondern bekommt Handlungen über `vi_vorher`/`vi_nachher` gemeldet — von jedem Client, der das will.
+fremden Werkzeuge, sondern bekommt Handlungen über `vi_before`/`vi_after` gemeldet — von jedem Client, der das will.
 Übernommene Ideen und Quellen: Generative Agents (Park et al. 2023), A-Mem (Zettelkasten-Verknüpfung),
 Filtersprache `art:wert`. Geändert gegenüber dem Original: siehe [CHANGELOG.md](../CHANGELOG.md).

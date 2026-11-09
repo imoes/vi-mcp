@@ -60,17 +60,18 @@ def verarbeite(msg: dict, s: sitzung.Sitzung | None, inst: konfig.Instanz) -> di
                     return _fehler(mid, -32602, f"Werkzeug unbekannt: {name}")
                 t0 = time.monotonic()
                 client = s.client if s else None
+                oeffentlich = werkzeuge.api_en.public_name(name)  # Statistik einheitlich mit dem öffentlichen (englischen) Namen
                 ms = lambda: int((time.monotonic() - t0) * 1000)  # noqa: E731
                 try:
                     text = werkzeuge.rufe(name, params.get("arguments") or {}, inst.name, inst.reflexe, inst.freigabe)
-                    statistik.zeichne(inst.name, client, name, "ok", ms(), text)
+                    statistik.zeichne(inst.name, client, oeffentlich, "ok", ms(), text)
                     return _antwort(mid, {"content": [{"type": "text", "text": text}], "isError": False})
                 except werkzeuge.Abgelehnt as e:
-                    statistik.zeichne(inst.name, client, name, "abgelehnt", ms())
+                    statistik.zeichne(inst.name, client, oeffentlich, "abgelehnt", ms())
                     return _antwort(mid, {"content": [{"type": "text", "text": f"abgelehnt: {e}"}], "isError": True})
                 except Exception as e:  # noqa: BLE001 — Werkzeugfehler, benannt an den Client
                     log(f"{name} scheiterte nach {ms()} ms: {type(e).__name__}: {e}")
-                    statistik.zeichne(inst.name, client, name, "fehler", ms())
+                    statistik.zeichne(inst.name, client, oeffentlich, "fehler", ms())
                     return _antwort(mid, {"content": [{"type": "text", "text": f"{name}: {type(e).__name__}: {e}"}], "isError": True})
             return _fehler(mid, -32601, f"Methode unbekannt: {methode}")
         except Exception as e:  # noqa: BLE001
@@ -89,8 +90,8 @@ def _initialize(msg: dict, inst: konfig.Instanz) -> tuple[dict, sitzung.Sitzung]
     return _antwort(msg.get("id"), {
         "protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
         "serverInfo": {"name": SERVER_NAME, "version": __version__},
-        "instructions": (f"VI-Gedächtnis, Gespräch {s.serial}, Instanz {inst.name}. Vor einer Handlung vi_vorher, danach vi_nachher "
-                         "melden; vi_erinnere/vi_vertiefe zum Nachlesen, vi_objekt liest ein Objekt vollständig. vi_lerne mit Quelle zum Lernen: Code, API-Tabellen und Befehle gehören unverkürzt ins Feld inhalt, sonst hat das Gedächtnis Lücken.\n"
+        "instructions": (f"VI memory, conversation {s.serial}, instance {inst.name}. Report vi_before before an action and vi_after "
+                         "afterwards; vi_recall/vi_drilldown to look things up, vi_object reads one object completely. vi_learn with a source to learn: code, API tables and commands belong unabridged into the field content, otherwise memory has gaps.\n"
                          + werkzeuge.REGELN + "\n"
                          + (werkzeuge.REGELN_OHNE_TOKEN + "\n" if inst.name == konfig.OFFEN else "") + selbst.hinweis())}), s
 

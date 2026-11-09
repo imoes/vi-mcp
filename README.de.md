@@ -15,6 +15,51 @@ Kein zentrales Modell und kein zentraler Besitzer: Ein Server kann allein laufen
 Das ist Training, ohne Gewichte zu verändern. Wissen wird zu lesbaren Objekten mit Quelle, Note und Recht auf Vergessen, und der Router, der sie auswählt, lernt aus dem gemessenen Ergebnis.
 Code, API-Tabellen und Befehle werden vollständig gespeichert, denn was im Gedächtnis fehlt, ist eine Lücke.
 
+
+## Werkzeugnamen
+
+Seit 0.22.0 sind Werkzeuge, Parameter und feste Werte englisch. Die vorher genutzten deutschen Namen bleiben als Aliase gültig, bestehende Clients laufen weiter.
+
+| English | Alias (German) |
+|---|---|
+| `vi_after` | `vi_nachher` |
+| `vi_answer` | `vi_antwort` |
+| `vi_archive` | `vi_lager` |
+| `vi_archive_restore` | `vi_lager_hole` |
+| `vi_ask` | `vi_frage` |
+| `vi_before` | `vi_vorher` |
+| `vi_confirm` | `vi_bestaetige` |
+| `vi_conversation` | `vi_gespraech` |
+| `vi_delete_conversation` | `vi_loesche_gespraech` |
+| `vi_drilldown` | `vi_vertiefe` |
+| `vi_experience` | `vi_erfahrung` |
+| `vi_forget` | `vi_vergiss` |
+| `vi_learn` | `vi_lerne` |
+| `vi_learn_search` | `vi_suche_lerne` |
+| `vi_model` | `vi_modell` |
+| `vi_net_forget` | `vi_netz_vergiss` |
+| `vi_net_inbox` | `vi_netz_eingang` |
+| `vi_net_outbox` | `vi_netz_ausgang` |
+| `vi_net_preview` | `vi_netz_vorschau` |
+| `vi_net_status` | `vi_netz_status` |
+| `vi_net_token` | `vi_netz_token` |
+| `vi_object` | `vi_objekt` |
+| `vi_quarantine` | `vi_quarantaene` |
+| `vi_questions` | `vi_fragen` |
+| `vi_recall` | `vi_erinnere` |
+| `vi_reflex_learn` | `vi_reflex_lerne` |
+| `vi_reflex_list` | `vi_reflex_liste` |
+| `vi_reflex_switch` | `vi_reflex_schalte` |
+| `vi_refute` | `vi_widerlege` |
+| `vi_release` | `vi_freigabe` |
+| `vi_self` | `vi_selbst` |
+| `vi_self_propose` | `vi_selbst_vorschlag` |
+| `vi_skill_merge` | `vi_skill_fusion` |
+| `vi_sleep` | `vi_schlaf` |
+| `vi_solved` | `vi_geloest` |
+| `vi_stats` | `vi_statistik` |
+| `vi_tag` | `vi_markiere` |
+
 ## So funktioniert es
 
 ```
@@ -31,7 +76,7 @@ Code, API-Tabellen und Befehle werden vollständig gespeichert, denn was im Ged�
 ```
 
 - **Objekte statt Notizen.** Alles ist ein Objekt mit Hashtags (`art:wert`), Urheber und Sicht (privat, geteilt oder intern: nur mit Token, nie im Netz): Erfahrung, Erkenntnis, Regel, Skill, Bewertung.
-- **Vor jeder Handlung** (`vi_vorher`) bekommt die Sitzung höchstens vier Hinweise. Verstärkt wird ein Hinweis erst, wenn die Handlung gelingt.
+- **Vor jeder Handlung** (`vi_before`) bekommt die Sitzung höchstens vier Hinweise. Verstärkt wird ein Hinweis erst, wenn die Handlung gelingt.
 - **Schlaf.** Sobald genug Wichtiges zusammenkommt (nachts nur, wenn seit 24 Stunden keiner lief), verdichtet der Server Erfahrungen, vergleicht sie mit dem Bekannten und lagert Ungenutztes ein.
 - **Scorer.** Code-Regeln, das lokale Sprachmodell und du bewerten, ob Arbeit gelungen ist. „Das Werkzeug ist nicht abgestürzt“ allein sagt das nicht.
 - **Lernen.** Aus den Noten lernt der Router (logistische Regression, Gewichte als lesbares JSON), welcher Hinweis wann hilft. Trainiert wird bei Bedarf, etwa eine Minute nach neuen Erfahrungen (ein Lauf dauert unter einer Sekunde), nicht erst nachts.
@@ -69,7 +114,7 @@ sha256sum --ignore-missing -c SHA256SUMS
 | **Token** (Standard) | jede Instanz hat ihr eigenes Token | volle Nutzung nach ihren Rechten |
 | **Open Wiki** (`"offen": true` in `/etc/vi-mcp/config.json`) | jeder, der den Server erreicht, ohne Token | alles Geteilte lesen, Hinweise vor Handlungen, eigene Handlungen melden, Wissen **vorschlagen** |
 
-Das Wissen ist offen, das Schreiben nicht. Im Open-Wiki-Modus landet ein Vorschlag aus `vi_lerne` in der Quarantäne wie ein Import aus dem Netz: Regeln, Prüfmodell, dann Freigabe durch eine Instanz mit Recht.
+Das Wissen ist offen, das Schreiben nicht. Im Open-Wiki-Modus landet ein Vorschlag aus `vi_learn` in der Quarantäne wie ein Import aus dem Netz: Regeln, Prüfmodell, dann Freigabe durch eine Instanz mit Recht.
 Bestätigen, Widerlegen, Rückfragen an andere, Reflexe, Freigaben und das Netz brauchen ein Token. Sonst könnte jeder Rechner den KI-Sitzungen aller anderen Anweisungen unterschieben.
 Clients ohne Token teilen sich eine Instanz (`offen`); sie bekommen keine gemerkten Werkzeug-Antworten, damit niemand das Ergebnis einer fremden Abfrage erhält. Ein falsches Token wird weiter abgelehnt (401) und nicht still zum Gast.
 
@@ -155,7 +200,7 @@ Hinter einem Reverse-Proxy mit öffentlichem Zertifikat: `--adresse https://host
 - **Mitglied durch Einladung.** Ein Server gehört dazu, wenn von einem Gründer eine Kette von Einladungen zu ihm führt. Gründer und der Einladende können ausschließen; wer nur über einen Ausgeschlossenen kam, fällt mit heraus.
 - **Weitertragen ist nicht glauben.** Ein Server reicht signierte Einträge nach Prüfung von Signatur und Regeln weiter, sein Gedächtnis behandelt sie trotzdem als fremd: Quarantäne, Prüfmodell, Freigabe, dann Modus `test`.
 - **Nur Bewährtes.** Geteilt wird geteiltes, aktives Wissen, das eine andere Instanz bestätigt hat oder das nachweislich geholfen hat.
-- **Quellen müssen sich bewähren.** Der Nutzen je Herausgeber wird gemessen; wessen Hinweise immer wieder scheitern, der wird nicht mehr gezeigt (`vi_netz_status`).
+- **Quellen müssen sich bewähren.** Der Nutzen je Herausgeber wird gemessen; wessen Hinweise immer wieder scheitern, der wird nicht mehr gezeigt (`vi_net_status`).
 - **Eigener Prozess.** `vi-p2p` läuft als eigener Nutzer und kommt nicht an die Gedächtnisdateien; mit dem Gedächtnis spricht er nur über zwei Werkzeuge.
 - **Transport.** Standard ist HTTPS mit signierten Anfragen, Antwort bekommen nur Mitglieder. Große Rückstände gehen über BitTorrent (libtorrent, privat, ohne DHT), HTTPS bleibt der Rückfall. Einträge beweisen sich selbst, der Weg ist egal.
 - Gemessen mit drei paketierten Servern (Ubuntu, Debian, Fedora) unter systemd: Wissen über zwei Stationen in 27 s, ein Widerruf wirkte nach 4 s (Takt 4 s).
@@ -165,11 +210,11 @@ Hinter einem Reverse-Proxy mit öffentlichem Zertifikat: `--adresse https://host
 **Was das Netz nie sieht:** IP- und MAC-Adressen, interne Host- und Domainnamen, Passwörter, Tokens, Nutzernamen, E-Mail-Adressen, Proxy-Einstellungen, Standort-Tags und Instanznamen.
 Der Herausgeber erscheint nur als Pseudonym aus seinem Schlüssel, Zeiten nur als Datum.
 Der Export ersetzt Fundstellen durch Platzhalter (`<host>`, `<ip>`, `<nutzer>`, `<geheimnis>`, `<proxy>`) und prüft das Ergebnis erneut. Bleibt etwas auffällig, geht das Objekt nicht hinaus.
-Der Import lehnt jedes Objekt mit Fundstelle ab. `vi_netz_vorschau` zeigt genau, was hinausginge, und zählt, was warum zurückgehalten wird.
+Der Import lehnt jedes Objekt mit Fundstelle ab. `vi_net_preview` zeigt genau, was hinausginge, und zählt, was warum zurückgehalten wird.
 
 **Zugangsdaten werden auch lokal nie gespeichert**, soweit ihre Form sie verrät (`password=…`, `Bearer …`, Schlüsselblöcke, URLs mit Anmeldung). Hostnamen und IPs bleiben lokal und privat erhalten, weil die Hinweise daran hängen.
 
-**Recht auf Vergessen.** Ohne Netz-Token (`vi_netz_token`, einmalig) verteilt eine Instanz nichts. Aus dem Token entsteht je Objekt ein eigener Löschnachweis. `vi_netz_vergiss` ruft eigene Einträge zurück:
+**Recht auf Vergessen.** Ohne Netz-Token (`vi_net_token`, einmalig) verteilt eine Instanz nichts. Aus dem Token entsteht je Objekt ein eigener Löschnachweis. `vi_net_forget` ruft eigene Einträge zurück:
 Empfänger löschen sie samt Suchindex und Vektor und merken sich nur einen Grabstein, damit sie nicht wiederkommen. Das Netz erfährt dabei nicht, welche Instanz es war, und ein Löschnachweis öffnet kein anderes Objekt.
 
 **Grenzen:** Muster erkennen keine Bedeutung. Ein frei stehender Eigenname fällt nur auf, wenn er in der Liste bekannter Namen steht (`p2p.interne_namen`). Löschen wirkt bei Empfängern, die sich an das Protokoll halten; wer eine Kopie behält, kann nicht gezwungen werden. Direkte Nachbarn sehen die IP-Adresse des anderen, und die angekündigte Adresse eines `peerhost` kennt jedes Mitglied.
@@ -178,17 +223,17 @@ Empfänger löschen sie samt Suchindex und Vektor und merken sich nur einen Grab
 
 | Werkzeuge | Wofür |
 |---|---|
-| `vi_vorher` · `vi_nachher` | vor und nach einer Handlung melden |
-| `vi_lerne` · `vi_erinnere` · `vi_vertiefe` · `vi_objekt` | lernen (Code und API-Tabellen vollständig in `inhalt`), suchen, vertiefen, vollständig lesen |
-| `vi_markiere` · `vi_bestaetige` · `vi_widerlege` · `vi_vergiss` | ändern, nur mit Grund |
-| `vi_frage` · `vi_antwort` · `vi_fragen` | Rückfragen zwischen Instanzen |
-| `vi_geloest` · `vi_skills` · `vi_skill` · `vi_skill_fusion` | Lösungswege |
-| `vi_reflex_lerne` · `vi_reflex_liste` · `vi_reflex_schalte` | Code im Gedächtnis |
-| `vi_selbst` · `vi_selbst_vorschlag` · `vi_schlaf` | Selbstbild und Konsolidierung |
-| `vi_scorer` · `vi_modell` · `vi_erfahrung` · `vi_status` | Noten, gelerntes Modell, Messwerte, Stand |
-| `vi_gespraech` · `vi_loesche_gespraech` · `vi_lager` · `vi_lager_hole` | Gespräche und Langzeitlager |
-| `vi_netz_ausgang` · `vi_netz_eingang` · `vi_quarantaene` · `vi_freigabe` · `vi_netz_status` | Schnittstelle des Netzdienstes, Prüfung, Nutzen je Herausgeber |
-| `vi_netz_token` · `vi_netz_vergiss` · `vi_netz_vorschau` | Löschtoken, Recht auf Vergessen, Vorschau |
+| `vi_before` · `vi_after` | vor und nach einer Handlung melden |
+| `vi_learn` · `vi_recall` · `vi_drilldown` · `vi_object` | lernen (Code und API-Tabellen vollständig in `inhalt`), suchen, vertiefen, vollständig lesen |
+| `vi_tag` · `vi_confirm` · `vi_refute` · `vi_forget` | ändern, nur mit Grund |
+| `vi_ask` · `vi_answer` · `vi_questions` | Rückfragen zwischen Instanzen |
+| `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | Lösungswege |
+| `vi_reflex_learn` · `vi_reflex_list` · `vi_reflex_switch` | Code im Gedächtnis |
+| `vi_self` · `vi_self_propose` · `vi_sleep` | Selbstbild und Konsolidierung |
+| `vi_scorer` · `vi_model` · `vi_experience` · `vi_status` | Noten, gelerntes Modell, Messwerte, Stand |
+| `vi_conversation` · `vi_delete_conversation` · `vi_archive` · `vi_archive_restore` | Gespräche und Langzeitlager |
+| `vi_net_outbox` · `vi_net_inbox` · `vi_quarantine` · `vi_release` · `vi_net_status` | Schnittstelle des Netzdienstes, Prüfung, Nutzen je Herausgeber |
+| `vi_net_token` · `vi_net_forget` · `vi_net_preview` | Löschtoken, Recht auf Vergessen, Vorschau |
 
 ## Entwicklung
 

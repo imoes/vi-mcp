@@ -3,6 +3,24 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.22.0 — 2026-11-09 — English public interface (step 1 of 4)
+
+### What is new / Was ist neu
+
+- **Tools, parameters and enum values are English** — e.g. `vi_recall(filter, semantic)`, `vi_learn(text, content, hashtags, source,
+  visibility=internal)`, `vi_before`/`vi_after`, `vi_stats(days)`. Tool descriptions, the rules and the `instructions` every client receives
+  are English. **The German names used before stay valid as aliases** (tool names, parameter names and enum values such as
+  `sicht=intern`), so the hook, bridges and existing registrations keep working. One translation layer: `vi_mcp/api_en.py`.
+- Usage statistics record the English name regardless of which name a client used.
+- *Proof:* `tests/test_api_en.py` (every tool has a complete English form, enum values translated; English and German calls reach the same
+  object), HTTP test: `tools/list` shows English names only, the German alias is still accepted.
+
+### What is still missing / Was fehlt noch
+
+- Step 2: tool output, hints and messages are still German. Step 3: module, function and variable names in the code. Step 4: user
+  documentation in English (BETRIEB, HOOK, ARCHITEKTUR). Stored data (database columns, JSON fields, hashtag kinds such as `thema:`) and the
+  network format stay unchanged on purpose — changing them would migrate 16,000 production objects and break peers.
+
 ## 0.21.2 — 2026-11-09 — Zustandsabhängige Werkzeuge werden nie aus dem Gedächtnis beantwortet
 
 ### Was wurde behoben

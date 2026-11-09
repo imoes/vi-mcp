@@ -5,7 +5,7 @@ Ein Serverprozess mit einem Gedächtnis für viele KI-Sitzungen über MCP (Strea
 
 ## Wie es funktioniert
 
-Vor jeder Handlung fragt die Sitzung `vi_vorher` und bekommt höchstens vier Hinweise aus dem Gedächtnis; danach meldet sie `vi_nachher`.
+Vor jeder Handlung fragt die Sitzung `vi_before` und bekommt höchstens vier Hinweise aus dem Gedächtnis; danach meldet sie `vi_after`.
 Wann eine KI die VI befragt und wann sie lernt, steht in `werkzeuge.REGELN` und geht mit den `instructions` an jeden Client (seit 0.20.7).
 Der Schlaf (bei genug Wichtigem; nachts nur nach 24 h ohne Schlaf) verdichtet Erfahrungen zu Erkenntnissen und Skills und bewertet die Arbeit (Scorer). Router, Bandit und Vektoren
 lernen bei Bedarf (`bedarf`), etwa eine Minute nach neuen Erfahrungen oder neuem Wissen. Sichten: privat, geteilt, intern (nur mit Token, nie im Netz).
@@ -33,7 +33,7 @@ Bei der Erstinstallation öffnet sich das Menü von selbst, wenn ein Terminal da
 | Release prüfen | `deploy/pruefe-release.sh <verzeichnis>` |
 
 Module: `gedaechtnis` (Objekte, Suche), `intuition` (vorher/nachher), `sitzung`, `schlaf`, `scorer`, `lernen`, `bandit`, `vektor`, `reflexion`, `skills`, `reflexe`, `sandbox`,
-`inhalt` (Bedeutung als Router-Merkmal), `bedarf` (Training bei Bedarf), `statistik` (Nutzungsstatistik, `vi_statistik`), `lager`, `p2p` (Gedächtnis am Netz), `logbuch`, `netzdienst` (eigener Prozess `vi-p2p`), `netz_torrent`, `netz_cli`, `anonym`, `pruefung`, `pruefer`, `einrichten`, `server`, `werkzeuge`.
+`inhalt` (Bedeutung als Router-Merkmal), `bedarf` (Training bei Bedarf), `statistik` (Nutzungsstatistik, `vi_stats`), `lager`, `p2p` (Gedächtnis am Netz), `logbuch`, `netzdienst` (eigener Prozess `vi-p2p`), `netz_torrent`, `netz_cli`, `anonym`, `pruefung`, `pruefer`, `einrichten`, `server`, `werkzeuge`.
 
 ## Regeln
 

@@ -51,7 +51,7 @@ def init(port, token, name="pytest"):
     assert st == 200, a
     assert a["result"]["protocolVersion"] == "2025-03-26"
     # 0.20.7: Jeder Client bekommt die Regeln, wann er die VI befragt und wann er lernt
-    assert "BEFRAGEN" in a["result"]["instructions"] and "LERNEN" in a["result"]["instructions"] and "Nie lernen" in a["result"]["instructions"]
+    assert "ASK" in a["result"]["instructions"] and "LEARN" in a["result"]["instructions"] and "Never learn" in a["result"]["instructions"]
     sid = kopf["Mcp-Session-Id"]
     st, _, _ = anfrage(port, "POST", {"jsonrpc": "2.0", "method": "notifications/initialized"}, token, sid)
     assert st == 202
@@ -81,7 +81,8 @@ def test_zwei_sitzungen_zwei_gespraeche(srv):
     port, tok_a, tok_b = srv
     sa, sb = init(port, tok_a, "claude-code"), init(port, tok_b, "anderer-agent")
     st, _, liste = anfrage(port, "POST", {"jsonrpc": "2.0", "id": 5, "method": "tools/list"}, tok_a, sa)
-    assert {"vi_vorher", "vi_nachher", "vi_erinnere"} <= {t["name"] for t in liste["result"]["tools"]}
+    namen = {t["name"] for t in liste["result"]["tools"]}
+    assert {"vi_before", "vi_after", "vi_recall"} <= namen and "vi_erinnere" not in namen  # 0.22.0: öffentlich englisch, deutsch nur noch Alias
     # Sitzung A meldet eine Handlung zweimal → beim 2. Mal aus dem Gedächtnis
     v = json.loads(rufe(port, tok_a, sa, "vi_vorher", {"tool": "netbox_get_devices", "args": {"host": "web1"}})["content"][0]["text"])
     assert v["antwort"] is None
@@ -170,8 +171,8 @@ def test_aufrufe_ueber_http_landen_in_der_nutzungsstatistik(srv):
     from vi_mcp import statistik
     port, tok_a, _tok_b = srv
     sa = init(port, tok_a, "statistik-client")
-    rufe(port, tok_a, sa, "vi_erinnere", {"filter": "nichtsdergleichen"})
-    assert rufe(port, tok_a, sa, "vi_erinnere", {"text": "falsch benannt"})["isError"]
+    rufe(port, tok_a, sa, "vi_erinnere", {"filter": "nichtsdergleichen"})  # alter deutscher Name (Alias) …
+    assert rufe(port, tok_a, sa, "vi_recall", {"text": "falsch benannt"})["isError"]  # … und der englische zählen unter einem Namen
     d = statistik.daten(1)["nutzung"]
-    assert d["je_werkzeug"]["vi_erinnere"]["n"] == 2 and d["je_werkzeug"]["vi_erinnere"]["abgelehnt"] == 1
+    assert d["je_werkzeug"]["vi_recall"]["n"] == 2 and d["je_werkzeug"]["vi_recall"]["abgelehnt"] == 1
     assert any(c.startswith("statistik-client") for c in d["clients"])
