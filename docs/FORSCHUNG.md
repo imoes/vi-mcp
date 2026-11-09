@@ -412,7 +412,7 @@ werden. Die Teile werden nach **Intension und Extension getrennt**:
 - **oder** sobald die Summe der Wichtigkeit neuer Erfahrungen seit dem letzten Lauf eine Schwelle `S` überschreitet
   (Parks Reflexions-Trigger, auf die Skala 0–3 umgerechnet; `S` ist ein Startwert zum Kalibrieren, z. B. 40).
 
-Er läuft im **einen** vorhandenen Loop-Thread, also ohne zweiten Schreiber (`ARCHITEKTUR.md:34`).
+Er lief zuerst im **einen** vorhandenen Loop-Thread (ohne zweiten Schreiber); seit 0.20.5 in einem eigenen Thread, weil er den Loop sonst minutenlang anhielt.
 
 1. **Triage** (Stickgold & Walker; Wilhelm; Mattar & Daw): Alle Erfahrungen seit dem letzten Lauf bekommen eine
    Priorität `p = Überraschung + Wichtigkeit/3 + Zukunftsrelevanz`.

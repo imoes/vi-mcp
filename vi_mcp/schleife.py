@@ -54,13 +54,19 @@ def schritt() -> int:
                 g.speichere(o)
     abgelaufene_fragen = fragen.lass_ablaufen()
     from . import schlaf
-    grund_schlaf = schlaf.faellig()
+    grund_schlaf = None if schlaf.laeuft() else schlaf.faellig()
     if grund_schlaf:
-        try:
-            b = schlaf.lauf(grund_schlaf)
-            stand["schlaf_zuletzt"] = b.text
-        except schlaf.LaeuftBereits:
-            pass  # ein von Hand gestarteter Schlaf läuft noch; die nächste Runde prüft erneut
+        # 0.20.5: eigener Thread. Synchron hielt ein Schlaf (gemessen 429–530 s, Schritt 7 bis 1.200 s Einbettung) den Loop und über
+        # die Trainingssperre auch das Training bei Bedarf an: nach dem Neustart am 09.11. 06:43 stand der Loop bei 1 Lauf in 20 min.
+        def _schlafe(grund=grund_schlaf):
+            try:
+                stand["schlaf_zuletzt"] = schlaf.lauf(grund).text
+            except schlaf.LaeuftBereits:
+                pass  # ein von Hand gestarteter Schlaf läuft noch; die nächste Runde prüft erneut
+            except Exception as exc:  # noqa: BLE001 — benannt im Stand
+                stand["letzter_fehler"] = f"{g.jetzt()} Schlaf: {type(exc).__name__}: {exc}"[:300]
+                log(f"Schlaf scheiterte: {exc}")
+        threading.Thread(target=_schlafe, name="vi-schlaf", daemon=True).start()
     if abgelaufene_fragen:
         log(f"Rückfragen abgelaufen (ohne Antwort): {abgelaufene_fragen}")
     for s in sitzung.offene():

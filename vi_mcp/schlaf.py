@@ -1,6 +1,6 @@
 """Schlaf — der Konsolidierungslauf (docs/FORSCHUNG.md A4, A5, C2).
 
-Läuft im einen Loop-Thread (kein zweiter Schreiber), einmal pro Nacht (SCHLAF_STUNDE UTC) oder sobald die Summe
+Läuft in einem eigenen Thread, den der Loop startet (seit 0.20.5; Schreiben schützt g.sperre, Modell und Vektoren bedarf.TRAINING), einmal pro Nacht (SCHLAF_STUNDE UTC) oder sobald die Summe
 der Wichtigkeit neuer Erfahrungen seit dem letzten Lauf SCHWELLE übersteigt (Parks Reflexions-Trigger, auf 0–3 skaliert).
 Schritte — jeder zählt, jeder steht im Bericht (Objekt `schlaf:<zeit>`, Zustand `fertig` oder `fehler`):
   1 Triage      Erfahrungen seit dem letzten Lauf, Priorität = Überraschung + Wichtigkeit/3 + Zukunftsrelevanz
@@ -66,6 +66,11 @@ def _inhalt(o: g.Objekt) -> set[str]:
 
 _laeuft = threading.Lock()
 WARTE_S = 90  # so lange wartet vi_schlaf(jetzt) auf das Ergebnis; ein Reverse-Proxy bricht oft nach 120 s ab
+
+
+def laeuft() -> bool:
+    """True, solange ein Schlaf läuft (vom Loop oder von Hand gestartet)."""
+    return _laeuft.locked()
 
 
 class LaeuftBereits(Exception):

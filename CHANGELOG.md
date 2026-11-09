@@ -3,6 +3,25 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.5 — 2026-11-09 — Der Schlaf hält nichts mehr an; Einbettung mit Pausen
+
+### Was wurde behoben
+
+- **Der Schlaf läuft in einem eigenen Thread.** Bisher lief er synchron im Loop und hielt über die Trainingssperre auch das Training bei
+  Bedarf an. Auf dem Produktivsystem dauerte ein Schlaf 429–530 s (09.11.), Schritt 7 durfte bis 1.200 s einbetten. Nach dem Neustart um
+  06:43 UTC stand der Loop 20 Minuten lang bei 1 Lauf, das Training bei 2. Jetzt prüft der Loop weiter im Minutentakt und startet keinen
+  zweiten Schlaf, solange einer läuft. *Nachweis:* `test_schlaf_haelt_den_loop_nicht_an` (schlägt mit 0.20.4 fehl).
+
+### Was hat sich geändert
+
+- **Einbettung mit Pausen:** Nach jedem Batch wartet die VI so lange, wie der Batch gedauert hat (`embed.pause_anteil`, Standard 1.0,
+  0 schaltet ab). Der Embedding-Dienst ist geteilt; eine einzelne kurze Frage brauchte dort am 09.11. um 07:00 UTC 23–27 s, um 06:13 UTC
+  1,9–6,5 s. Ob die VI die Ursache war, ist **nicht belegt** (ein Gegenversuch ergab 56,8 / 4,4 / 0,06 s). Die Pause halbiert höchstens den
+  eigenen Durchsatz (vorher gemessen rund 1.550 Vektoren je Stunde). Der Schlaf bettet höchstens 300 s statt 1.200 s ein, den Rest übernimmt
+  das Training bei Bedarf. Der Bericht nennt `pause_s`. *Nachweis:* `test_einbettung_pausiert_zwischen_batches`.
+- Gemessen (09.11. 07:00 UTC, 6 Fragen): Suche nur im Volltext 0,08–0,16 s; hybrid 20,6–25,4 s, davon Einbettung der Frage 20,3–25,1 s.
+  Die Zeit der Bedeutungssuche liegt fast ganz im Embedding-Dienst, nicht in der VI.
+
 ## 0.20.4 — 2026-11-09 — Fehlende Pflichtfelder werden abgelehnt
 
 ### Was wurde behoben

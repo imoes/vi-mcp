@@ -227,7 +227,7 @@ es sonst ohne Anmeldung lesbar, auch was in Confluence Leseschutz hat. Gesetzt �
 
 ## Schlaf — Konsolidierung
 
-Ein Lauf im Loop-Thread (`schlaf.py`), sobald die Wichtigkeitssumme neuer Erfahrungen ≥ 40 ist; um 03:00 UTC nur noch als Sicherheitsnetz,
+Ein Lauf in einem eigenen Thread, den der Loop startet (`schlaf.py`; seit 0.20.5, vorher synchron im Loop, der dann minutenlang stand), sobald die Wichtigkeitssumme neuer Erfahrungen ≥ 40 ist; um 03:00 UTC nur noch als Sicherheitsnetz,
 wenn seit 24 h kein Schlaf lief (seit 0.20.3) (Parks Reflexions-Trigger auf Skala 0–3). Sieben Schritte, jeder gezählt, alles im Bericht `schlaf:<zeit>`:
 Triage (Überraschung + Wichtigkeit + Zukunftsrelevanz) → Replay nach (host, skill) mit älteren Erfahrungen
 verschränkt (CLS: Neues gegen Altes lesen, nicht überschreiben) → Schema-Abgleich (**neue** Erfahrungen gegen
@@ -285,8 +285,11 @@ für das Lernen zu Misserfolgen. Bewertungen sind privat. Das Protokoll für das
 ## Vektoren — Bedeutung statt Wortgleichheit (Stufe 3)
 
 `vektor.py`: Embeddings (OpenAI-kompatibler Dienst, konfig `embed`) für geteilte Wissensobjekte, als float32-BLOB in
-Tabelle `vektor` (TRAINING.md 4c). **Nur im Schlaf** (Schritt 7, Batch 16, höchstens 256 je Lauf) — der Dienst auf
-dem Produktivhost braucht ≈ 1 s je Text (gemessen 08.11.2026), zu langsam für `vi_vorher`. Schritt 7b: Kosinus ≥ 0,85
+Tabelle `vektor` (TRAINING.md 4c). Eingebettet wird nur `text` (die Kernaussage), nicht `inhalt`. Nachgezogen wird im Hintergrund:
+beim Training bei Bedarf (höchstens 120 s je Lauf) und im Schlaf (Schritt 7, höchstens 300 s), in Batches zu 16. Der Dienst ist auf dem
+Produktivhost geteilt; seit 0.20.5 pausiert die VI nach jedem Batch so lange, wie er gedauert hat (`embed.pause_anteil`, Standard 1.0,
+0 = aus), weil eine einzelne Frage anderer Nutzer dort sonst 23–27 s brauchte (gemessen 09.11.2026 07:00 UTC). Für `vi_vorher` bleibt der
+Dienst zu langsam. Schritt 7b: Kosinus ≥ 0,85
 → Kante „semantisch ähnlich“; ≥ 0,95 zwischen **verschiedenen** Instanzen → `dublette:moeglich` (zusammenlegen
 entscheidet eine Instanz, nicht der Server). `vi_erinnere(filter, semantisch=true)` bettet den Freitext ausdrücklich
 jetzt ein und ordnet **alle** sichtbaren Kandidaten nach Nähe (seit 0.19.2 ohne Obergrenze); seit 0.19.5 hybrid: Bedeutungs- und

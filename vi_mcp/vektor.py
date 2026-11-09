@@ -27,7 +27,11 @@ from .protokoll import log
 
 BATCH = 16
 #: Zeitgrenze statt Stückzahl: Ein Schlaf soll nicht stundenlang einbetten, der Rest kommt im nächsten (gemessen rund 1,5 s je Text)
-NACHZIEH_MAX_S = 1200
+NACHZIEH_MAX_S = 300
+#: 0.20.5: Pause nach jedem Batch, als Anteil seiner Dauer (1.0 = höchstens halbe Auslastung). Der Embedding-Dienst ist geteilt
+#: (AIKB, CentralStation): am 09.11. 07:00 UTC brauchte eine einzelne kurze Frage dort 23–27 s statt sonst 1,9–6,5 s.
+#: Einstellbar über konfig embed.pause_anteil; 0 schaltet die Pause ab.
+PAUSE_ANTEIL = 1.0
 NAEHE_KANTE = 0.85
 NAEHE_DUBLETTE = 0.95
 VEKTOR_ARTEN = ("erkenntnis", "regel", "suche", "skill")
@@ -145,12 +149,13 @@ def nachziehen(max_s: float | None = None) -> dict:
         fehlend = g.db().execute(
             f"SELECT o.id, o.text FROM objekt o LEFT JOIN vektor v ON v.id = o.id WHERE v.id IS NULL AND o.art IN ({','.join('?' * len(VEKTOR_ARTEN))}) "
             "AND o.modus NOT IN ('widerlegt', 'archiviert', 'quarantaene') AND length(o.text) > 0 ORDER BY o.zeit DESC", VEKTOR_ARTEN).fetchall()
-    n, fehler, ende = 0, None, time.monotonic() + (NACHZIEH_MAX_S if max_s is None else max_s)
+    n, fehler, ende, pausiert = 0, None, time.monotonic() + (NACHZIEH_MAX_S if max_s is None else max_s), 0.0
     modell = (konfig or {}).get("modell") or "embed"
     for i in range(0, len(fehlend), BATCH):
         if time.monotonic() > ende:
             break  # der Rest folgt im nächsten Schlaf; „offen“ nennt ihn
         teil = fehlend[i:i + BATCH]
+        t_batch = time.monotonic()
         try:
             vs = einbetten([t for _, t in teil])
         except (urllib.error.URLError, OSError, KeyError, ValueError, RuntimeError) as e:
@@ -160,7 +165,12 @@ def nachziehen(max_s: float | None = None) -> dict:
         for (oid, _), v in zip(teil, vs):
             speichere(oid, v, modell)
             n += 1
-    return {"zustand": "fertig" if fehler is None else "fehler", "neu": n, "offen": len(fehlend) - n, **({"fehler": fehler} if fehler else {})}
+        pause = (time.monotonic() - t_batch) * float((konfig or {}).get("pause_anteil", PAUSE_ANTEIL))
+        if pause > 0 and i + BATCH < len(fehlend):
+            pausiert += pause
+            time.sleep(min(pause, max(0.0, ende - time.monotonic())))
+    return {"zustand": "fertig" if fehler is None else "fehler", "neu": n, "offen": len(fehlend) - n, "pause_s": round(pausiert, 1),
+            **({"fehler": fehler} if fehler else {})}
 
 
 def naehe_kanten() -> dict:

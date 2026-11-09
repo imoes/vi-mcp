@@ -73,7 +73,7 @@ def test_nachziehen_nennt_den_echten_rest(gd, monkeypatch):
     for i in range(5):
         g.neues_objekt("erkenntnis", f"Wissen Nummer {i} zum Einbetten", ["thema:a"], {"quelle": "x"}, grund="T")
     r = vektor.nachziehen(max_s=0)  # Zeit schon um: nichts eingebettet, alles offen
-    assert r == {"zustand": "fertig", "neu": 0, "offen": 5}
+    assert r == {"zustand": "fertig", "neu": 0, "offen": 5, "pause_s": 0.0}
     r = vektor.nachziehen()
     assert r["neu"] == 5 and r["offen"] == 0
 

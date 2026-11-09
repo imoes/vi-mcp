@@ -61,3 +61,44 @@ def test_hintergrund_thread_laeuft_nach_anstoss(fake, monkeypatch):
     finally:
         bedarf.halte()
         th.join(timeout=10)
+
+
+def test_einbettung_pausiert_zwischen_batches(fake, monkeypatch):
+    """0.20.5: Der Embedding-Dienst ist geteilt — nach jedem Batch eine Pause in Länge seiner Dauer (pause_anteil 1.0)."""
+    def langsam(texte):
+        time.sleep(0.05)
+        return fake_einbetten(texte)
+    monkeypatch.setattr(vektor, "einbetten_fn", langsam)
+    monkeypatch.setattr(vektor, "BATCH", 1)
+    for i in range(3):
+        g.neues_objekt("erkenntnis", f"Proxy timeout Nummer {i} auf web{i}", [f"host:web{i}"], {"quelle": "x"}, grund="T")
+    t0 = time.monotonic()
+    r = vektor.nachziehen(max_s=60)
+    assert r["neu"] == 3 and r["pause_s"] >= 0.09  # zwei Pausen (nach dem letzten Batch keine)
+    assert time.monotonic() - t0 >= 0.24
+    monkeypatch.setattr(vektor, "konfig", {"modell": "fake", "pause_anteil": 0})
+    g.neues_objekt("erkenntnis", "Disk voll auf web9", ["host:web9"], {"quelle": "y"}, grund="T")
+    assert vektor.nachziehen(max_s=60)["pause_s"] == 0
+
+
+def test_schlaf_haelt_den_loop_nicht_an(gd, monkeypatch):
+    """0.20.5: Der Schlaf lief synchron im Loop (gemessen 429–530 s) und hielt Loop und Training bei Bedarf an."""
+    from vi_mcp import schlaf, schleife
+    import threading
+    gestartet, frei = threading.Event(), threading.Event()
+
+    def lauf(grund):
+        with schlaf._laeuft:
+            gestartet.set()
+            frei.wait(5)
+        return g.neues_objekt("schlaf", "Testschlaf", ["zustand:fertig"], {}, grund="T")
+    monkeypatch.setattr(schlaf, "faellig", lambda: "Test")
+    monkeypatch.setattr(schlaf, "lauf", lauf)
+    t0 = time.monotonic()
+    schleife.schritt()
+    assert gestartet.wait(2) and time.monotonic() - t0 < 1.5
+    aufrufe = []
+    monkeypatch.setattr(schlaf, "faellig", lambda: aufrufe.append(1) or "Test")
+    schleife.schritt()  # läuft noch: kein zweiter Schlaf, faellig wird gar nicht erst gefragt
+    assert aufrufe == [] and schlaf.laeuft()
+    frei.set()

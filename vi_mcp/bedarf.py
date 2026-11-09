@@ -57,7 +57,7 @@ def lauf(grund: str = "von Hand") -> dict:
             r = {"zustand": "fehler", "grund": f"{type(exc).__name__}: {exc}"[:200]}
             log(f"Training bei Bedarf: {name} scheiterte: {exc}")
         kurz = {k: v for k, v in (r or {}).items() if k in ("zustand", "neu", "offen", "kanten_neu", "neu_verglichen", "gruppen", "hinweise",
-                                                              "n", "merkmale", "auc_holdout", "grund")} if isinstance(r, dict) else {}
+                                                              "n", "merkmale", "auc_holdout", "grund", "pause_s")} if isinstance(r, dict) else {}
         schritte[name] = {**kurz, "ms": int((time.monotonic() - t0) * 1000)}
         return r
 
