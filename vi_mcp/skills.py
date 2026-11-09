@@ -92,7 +92,8 @@ def weiterentwickeln(o: g.Objekt, schritte, anleitung: str, grund: str, belege: 
     st = _schritte_ok(schritte)
     reize_vorher = list(o.daten["problem"]["reize"])
     if reize and sorted(reize) != sorted(reize_vorher):
-        o.hashtags = [t for t in o.hashtags if t not in reize_vorher] + [t for t in reize if t not in o.hashtags]
+        basis = [t for t in o.hashtags if t not in reize_vorher]
+        o.hashtags = basis + [t for t in reize if t not in basis]  # gegen die bereinigte Liste prüfen, sonst fallen bleibende Reize weg (0.20.12)
         o.daten["problem"]["reize"] = list(reize)
     vorhanden = {s["tool"] for s in o.daten["loesung"]["schritte"]}
     o.daten["loesung"]["schritte"] += [s for s in st if s["tool"] not in vorhanden]

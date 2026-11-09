@@ -3,6 +3,15 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.12 — 2026-11-09 — Weiterentwickelte Skills behalten bleibende Reize
+
+### Was wurde behoben
+
+- In 0.20.11 verlor ein Skill beim Weiterentwickeln die Reize, die in alter **und** neuer Version standen (geprüft wurde gegen die alten
+  Hashtags statt gegen die bereinigte Liste). Gesehen am 09.11.: Nach v3 hatten zwei Skills nur noch einen von vier Reizen; von Hand mit
+  `vi_markiere` wiederhergestellt. *Nachweis:* `test_weiterentwickeln_ersetzt_die_reize` prüft jetzt auch den bleibenden Reiz (schlägt mit
+  0.20.11 fehl).
+
 ## 0.20.11 — 2026-11-09 — Firmennamen nur aus echten Hostnamen; Skill-Reize änderbar
 
 ### Was wurde behoben

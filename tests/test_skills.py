@@ -96,6 +96,7 @@ def test_weiterentwickeln_ersetzt_die_reize(gd):
                     "zu allgemeiner Reiz entfernt", [], "a")
     o = g.lade(s2.id)
     assert o.daten["version"] == 2 and "tool:Bash" not in o.hashtags and "thema:yamllint" in o.hashtags
+    assert "thema:ansible-lint" in o.hashtags  # 0.20.12: ein Reiz, der in beiden Versionen steht, darf nicht verschwinden
     assert o.daten["problem"]["reize"] == ["thema:ansible-lint", "thema:yamllint"]
     assert o.daten["versionen"][-1]["reize_vorher"] == ["thema:ansible-lint", "tool:Bash"]
     assert [x.id for _, x, _g in g.erinnere("tool:Bash", arten=("skill",), betrachter=None)] == []
