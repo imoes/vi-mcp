@@ -247,7 +247,8 @@ def zeile() -> str:
     k = kalibrierung()
     q = "—" if k["quote"] is None else f"{k['quote'] * 100:.0f} %"
     return (f"Code {gut or 0}/{n} gelungen · Modell {len(_noten('modell'))} Gespräche ({'geeicht' if k['geeicht'] else 'ungeeicht, zählt nicht fürs Lernen'}) · "
-            f"Mensch {len(_noten('mensch'))} Noten · Übereinstimmung {q} aus {k['paare']} Paaren")
+            f"Mensch {len(_noten('mensch'))} Noten (vergeben mit #gut, #schlecht oder #note 0.8 in einer Nachricht an die KI) · "
+            f"Übereinstimmung {q} aus {k['paare']} Paaren")
 
 
 def bericht() -> str:

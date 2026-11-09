@@ -253,6 +253,27 @@ def vorher(tool: str, args: dict, instanz: str | None = None, ist_lesend: bool |
             "args": args, "hinweise": hinweise, "zugriff": zugriff}
 
 
+#: 0.20.9: Bestätigen/Widerlegen eines gezeigten Hinweises innerhalb dieses Zeitraums zählt als Rückmeldung zu der Handlung
+RUECKMELDUNG_MIN = 60
+
+
+def rueckmeldung(instanz: str, hinweis_id: str, wert: int) -> str | None:
+    """Ordnet ein vi_bestaetige (+1) / vi_widerlege (−1) der jüngsten Handlung dieser Instanz zu, vor der genau dieser Hinweis gezeigt
+    wurde (höchstens RUECKMELDUNG_MIN Minuten zurück). Liefert die Id der Erfahrung oder None (dann bleibt es eine normale Bestätigung)."""
+    seit = (datetime.now(timezone.utc) - timedelta(minutes=RUECKMELDUNG_MIN)).isoformat(timespec="milliseconds")
+    with g.sperre:
+        rows = g.db().execute("SELECT id FROM objekt WHERE art = 'erfahrung' AND instanz = ? AND zeit >= ? ORDER BY zeit DESC LIMIT 200",
+                              (instanz, seit)).fetchall()
+    for (eid,) in rows:
+        e = g.lade(eid)
+        if e and hinweis_id in ((e.daten.get("vorher") or {}).get("gezeigt") or []):
+            e.daten.setdefault("rueckmeldung", {})[hinweis_id] = 1 if wert > 0 else -1
+            e.aendere(f"ki@{instanz}", "Rückmeldung zum Hinweis", f"{hinweis_id}: {'half' if wert > 0 else 'war falsch'}")
+            g.speichere(e)
+            return eid
+    return None
+
+
 def nachher(tool: str, args: dict, ok: bool, dauer_ms: int, fehler: str | None, ergebnis: str | None,
             vorher_id: str | None = None, instanz: str | None = None, ist_lesend: bool | None = None) -> dict:
     with _offen_sperre:

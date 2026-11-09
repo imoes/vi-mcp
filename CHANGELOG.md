@@ -3,6 +3,25 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.9 — 2026-11-09 — Besseres Lernsignal für den Router
+
+### Was ist neu
+
+- **Rückmeldung zu Hinweisen ist ein direktes Lernsignal.** Bestätigt oder widerlegt eine Instanz einen Hinweis, der ihr in der letzten
+  Stunde vor einer Handlung gezeigt wurde, wird das zum Label genau dieses Paares (Lage + Hinweis) — statt „das Werkzeug lief ohne Fehler“.
+  Ein Hinweis, der richtig war, obwohl die Handlung aus anderem Grund scheiterte, zählt damit als hilfreich. Die Antwort von `vi_bestaetige`/
+  `vi_widerlege` sagt, welcher Handlung die Rückmeldung zugeordnet wurde; `vi_modell` zählt die Rückmeldungen. Die Regeln aus 0.20.7
+  verlangen diese Rückmeldung bereits.
+- `vi_status` sagt jetzt, wie man menschliche Noten vergibt (`#gut`, `#schlecht`, `#note 0.8` in einer Nachricht). Die Kette dafür war
+  eingerichtet, es gab nur noch keine Note (Stand 09.11.: 0).
+
+### Was wurde behoben
+
+- **Das Holdout hat jetzt genug Fehlschläge.** Es wächst vom jüngsten Fünftel in 5-%-Schritten bis höchstens zur Hälfte, bis es mindestens
+  30 Fehlschläge enthält. Am 09.11. fiel die Holdout-AUC von 0,92 auf 0,70, als das jüngste Fünftel nur 9 Fehlschläge in 230 Handlungen
+  hatte. `vi_modell` nennt die Zahl der Fehlschläge im Holdout.
+- *Nachweis:* `test_rueckmeldung_zum_hinweis_ist_direktes_lernsignal`, `test_holdout_waechst_bis_genug_fehlschlaege`.
+
 ## 0.20.8 — 2026-11-09 — Warnung vor riskanten Handlungen
 
 ### Was ist neu

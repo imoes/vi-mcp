@@ -181,3 +181,24 @@ def test_warnung_vor_riskanten_handlungen(gd):
     v = intuition.vorher("deploy_run", {"host": "kaputt1", "n": -1}, "a")
     assert any(h.startswith("[VI-Warnung]") for h in v["hinweise"])
     assert "Warnung vor riskanten Handlungen: aktiv" in lernen.erklaerung()
+
+
+def test_rueckmeldung_zum_hinweis_ist_direktes_lernsignal(gd):
+    """0.20.9: vi_bestaetige/vi_widerlege eines gerade gezeigten Hinweises wird zum Label des Paares (Lage + Hinweis)."""
+    h = g.neues_objekt("erkenntnis", "web7 braucht den Proxy", ["host:web7"], {"quelle": "x"}, grund="T", instanz="b")
+    handlung("checkmk_get_host", "web7", False)  # Handlung scheiterte trotzdem — das indirekte Label wäre 0
+    aus = werkzeuge.rufe("vi_bestaetige", {"id": h.id, "grund": "Hinweis war richtig, Fehler hatte andere Ursache"}, "a", True)
+    assert "Rückmeldung zum Hinweis" in aus
+    paar = [y for m, y, _ in lernen.beobachtungen() if f"hinweis:{h.id}" in m]
+    assert paar == [1]
+    # Widerlegen eines Objekts, das nicht gezeigt wurde: normale Widerlegung, keine Rückmeldung
+    andere = g.neues_objekt("erkenntnis", "web8 ist abgeschaltet", ["host:web8"], {"quelle": "y"}, grund="T", instanz="b")
+    assert "Rückmeldung" not in werkzeuge.rufe("vi_widerlege", {"id": andere.id, "grund": "stimmt nicht"}, "a", True)
+
+
+def test_holdout_waechst_bis_genug_fehlschlaege():
+    """0.20.9: Mit 9 Fehlschlägen in den jüngsten 20 % schwankte die AUC stark; das Holdout wächst bis 30 Fehlschläge (höchstens 50 %)."""
+    y = [0] * 100 + [1] * 800 + [0] * 5 + [1] * 95  # jüngste 20 % = 200 Handlungen mit nur 5 Fehlschlägen
+    n = lernen._holdout_groesse(y)
+    assert n == 500 and len(y[-n:]) - sum(y[-n:]) >= 5  # wächst bis HOLDOUT_MAX, weil erst ganz vorn genug Fehlschläge liegen
+    assert lernen._holdout_groesse([1, 0] * 500) == 200  # genug Fehlschläge: bleibt bei 20 %

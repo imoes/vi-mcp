@@ -36,6 +36,10 @@ EPSILON = 0.1
 #: Bedeutungsnähe und Inhaltsgruppe als Merkmale (inhalt.py). Abschaltbar, um den Unterschied zu messen.
 INHALT = True
 HOLDOUT = 0.2
+#: 0.20.9: Das Holdout (zeitlich jüngster Teil) wächst bis HOLDOUT_MAX, bis es mindestens so viele Fehlschläge enthält. Am 09.11. fiel die
+#: Holdout-AUC von 0,92 auf 0,70, als die jüngsten 20 % fast nur aus gelungenen Bash-Aufrufen bestanden (9 Fehlschläge in 230 Handlungen).
+HOLDOUT_MAX = 0.5
+HOLDOUT_MIN_FEHLER = 30
 REIZ_ARTEN = ("tool:", "skill:", "host:", "thema:")
 
 
@@ -83,8 +87,9 @@ def beobachtungen(seit: str | None = None) -> list[tuple[dict, int, str]]:
         basis[f"hinweis_n:{min(4, len(gezeigt))}"] = 1.0
         if not gezeigt:
             aus.append((basis, y, oid))
+        rm = d.get("rueckmeldung") or {}  # 0.20.9: direkte Rückmeldung (vi_bestaetige/vi_widerlege) ersetzt das indirekte Label des Paares
         for h in gezeigt:
-            aus.append(({**basis, **merkmale_hinweis(h, v.get("reize", []))}, y, oid))
+            aus.append(({**basis, **merkmale_hinweis(h, v.get("reize", []))}, (1 if rm[h] > 0 else 0) if h in rm else y, oid))
     return aus
 
 
@@ -143,7 +148,7 @@ def trainiere(grund: str = "Schlaf") -> dict:
         _speichere(bericht, {}, 0.0, "test")
         return bericht
     # zeitliche Teilung: Älteres lernt, Neueres prüft (kein Blick in die Zukunft)
-    n_test = max(1, int(len(beob) * HOLDOUT))
+    n_test = _holdout_groesse([yy for _m, yy, _o in beob])
     vec = DictVectorizer(sparse=True)
     X = vec.fit_transform(X_d)
     Xtr, Xte, ytr, yte = X[:-n_test], X[-n_test:], y[:-n_test], y[-n_test:]
@@ -151,7 +156,8 @@ def trainiere(grund: str = "Schlaf") -> dict:
     clf.fit(Xtr, ytr)
     auc = float(roc_auc_score(yte, clf.predict_proba(Xte)[:, 1])) if len(set(yte.tolist())) == 2 else None
     gewichte = {name: round(float(w), 4) for name, w in zip(vec.get_feature_names_out(), clf.coef_[0]) if abs(w) > 1e-6}
-    bericht.update(auc_holdout=None if auc is None else round(auc, 3), holdout=n_test)
+    bericht.update(auc_holdout=None if auc is None else round(auc, 3), holdout=n_test, holdout_fehler=int(len(yte) - yte.sum()),
+                   rueckmeldungen=sum(len((json.loads(r[0]) or {}).get("rueckmeldung") or {}) for r in _rueckmeldungen()))
     if auc is None or auc <= AUC_MIN:
         bericht.update(zustand="test", urteil=f"Holdout-AUC {auc} ≤ {AUC_MIN} oder nicht bestimmbar — Modell gespeichert, Router bleibt Heuristik")
         modus = "test"
@@ -164,6 +170,20 @@ def trainiere(grund: str = "Schlaf") -> dict:
     log(f"Lernen: {bericht['zustand']} — n {len(beob)}, Merkmale {len(behalten)}, AUC {bericht.get('auc_holdout')}, "
         f"Warnung {bericht['warnung'].get('zustand')}")
     return bericht
+
+
+def _holdout_groesse(y: list[int]) -> int:
+    """Jüngster Teil der Daten als Holdout: HOLDOUT, vergrößert in 5-%-Schritten bis HOLDOUT_MAX, bis er HOLDOUT_MIN_FEHLER Fehlschläge hat."""
+    n = len(y)
+    anteil = HOLDOUT
+    while anteil < HOLDOUT_MAX and (len(y[-max(1, int(n * anteil)):]) - sum(y[-max(1, int(n * anteil)):])) < HOLDOUT_MIN_FEHLER:
+        anteil = round(anteil + 0.05, 2)
+    return max(1, int(n * anteil))
+
+
+def _rueckmeldungen() -> list:
+    with g.sperre:
+        return g.db().execute("SELECT daten FROM objekt WHERE art = 'erfahrung' AND daten LIKE '%\"rueckmeldung\"%'").fetchall()
 
 
 def _basis(m: dict) -> dict:
@@ -249,7 +269,8 @@ def erklaerung(limit: int = 12) -> str:
         return "noch kein Router-Modell — entsteht im Schlaf, sobald genug Beobachtungen vorliegen (Router: Heuristik)"
     d = m.daten
     z = [m.text, f"  trainiert {str(d.get('trainiert', '—'))[:16]} · sklearn {d.get('sklearn', '—')} · ok {d.get('ok', 0)} / nicht ok {d.get('nicht_ok', 0)} "
-                 f"· Merkmale {d.get('merkmale', 0)} (verworfen {d.get('verworfen', 0)}: < {MIN_JE_MERKMAL} Vorkommen) · Holdout {d.get('holdout', 0)}"]
+                 f"· Merkmale {d.get('merkmale', 0)} (verworfen {d.get('verworfen', 0)}: < {MIN_JE_MERKMAL} Vorkommen) · Holdout {d.get('holdout', 0)} "
+                 f"({d.get('holdout_fehler', '—')} Fehlschläge) · direkte Rückmeldungen zu Hinweisen {d.get('rueckmeldungen', 0)}"]
     w = sorted(d.get("gewichte", {}).items(), key=lambda kv: -abs(kv[1]))[:limit]
     if w:
         z.append("  stärkste Gewichte (positiv = erhöht P(ok)):")

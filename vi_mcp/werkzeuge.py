@@ -550,7 +550,11 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
                 o.widerlege(wer, args.get("grund", ""), instanz)
         except ValueError as e:
             raise Abgelehnt(str(e)) from e
-        return _zeile(o)
+        if name == "vi_markiere":
+            return _zeile(o)
+        # 0.20.9: War das Objekt gerade ein Hinweis vor einer Handlung dieser Instanz, ist die Antwort ein direktes Lernsignal
+        e = intuition.rueckmeldung(instanz, o.id, 1 if name == "vi_bestaetige" else -1)
+        return _zeile(o) + (f"\n  zählt als Rückmeldung zum Hinweis vor {e} (Lernsignal für den Router)" if e else "")
     if name == "vi_vergiss":
         with g.sperre:
             ids = [r[0] for r in g.db().execute("SELECT t.objekt_id FROM tag t JOIN objekt o ON o.id = t.objekt_id "
