@@ -23,7 +23,7 @@ from pathlib import Path
 
 from . import __version__
 from . import gedaechtnis as g
-from . import anonym, intuition, konfig, reflexe, schleife, scorer, selbst, sitzung, werkzeuge
+from . import anonym, bedarf, intuition, konfig, reflexe, schleife, scorer, selbst, sitzung, werkzeuge
 from .protokoll import log
 
 PROTOKOLLE = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -252,6 +252,7 @@ def baue(k: konfig.Konfig) -> list[Server]:
 
 def beende(srvs) -> None:
     schleife.halte()
+    bedarf.halte()
     n = sitzung.alle_beenden("unterbrochen")
     g.schliesse()
     log(f"beendet; {n} offene Gespräch(e) als unterbrochen gesichert")
@@ -261,6 +262,7 @@ def main() -> None:
     k = konfig.lade()
     srvs = baue(k)
     schleife.starte()
+    bedarf.starte()
     for s in srvs[1:]:
         threading.Thread(target=s.serve_forever, name=f"http-{s.server_address[0]}", daemon=True).start()
 

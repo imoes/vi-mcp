@@ -108,6 +108,8 @@ TOOLS = [
                     "Lege es vollständig ab und verweise nicht auf Dateien, die nur auf einem Rechner liegen: Was hier fehlt, ist eine Lücke im Gedächtnis. "
                     "Mit vi_objekt wird es wieder gelesen; die Volltextsuche findet es. Objekte mit gemeinsamen Hashtags werden verknüpft.",
      "inputSchema": _schema({"inhalt": {"type": "string", "description": "vollständiges Wissen: Code, API-Tabellen, Befehle, unverkürzt"}, "text": _S, "hashtags": _TAGS, "quelle": _S, "wichtigkeit": {"type": "integer", "description": "0–3 (Standard 1)"},
+                             "sicht": {"type": "string", "enum": ["geteilt", "intern"],
+                                       "description": "geteilt (Standard): alle, auch ohne Token, und das Netz. intern: nur Instanzen mit Token, nie das Netz — für Firmenwissen"},
                              "ausgang": {"type": "string", "enum": ["gut", "schlecht"],
                                          "description": "optional: beschreibt die Erkenntnis einen funktionierenden oder gestörten Zustand? Der Schlaf vergleicht neue Erfahrungen damit."}},
                             ["text", "hashtags", "quelle"])},
@@ -411,6 +413,7 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
                 f"Quarantäne: {len(g.erinnere('modus:quarantaene', limit=1000, betrachter=None))} importierte Objekte\n"
                 f"Reflex-Sandbox: {__import__('vi_mcp.sandbox', fromlist=['x']).beschreibung()}\n"
                 f"Router: {(lernen.modell().text if lernen.modell() else 'kein Modell')[:160]} · Rangordnung ohne Modell: Thompson Sampling (bandit), sobald Hinweise bewertet sind\n"
+                f"{__import__('vi_mcp.bedarf', fromlist=['x']).zeile()}\n"
                 f"Loop: alle {LOOP_S} s, {ls['laeufe']} Läufe, zuletzt {ls['zuletzt'] or '—'}, {ls['regeln_neu']} Regeln daraus, "
                 f"{ls['fehler']} Fehler{(' (zuletzt: ' + ls['letzter_fehler'] + ')') if ls['letzter_fehler'] else ''}")
     if name == "vi_lerne":
@@ -432,11 +435,16 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
             daten = {"quelle": args["quelle"].strip()[:500], **({"ausgang": args["ausgang"]} if args.get("ausgang") else {}), **({"inhalt": inhalt} if inhalt else {})}
             if instanz == konfig.OFFEN:
                 return _vorschlag(text, tags, daten, int(args.get("wichtigkeit") or 1))
+            if args.get("sicht") not in (None, "geteilt", "intern"):
+                raise ValueError("sicht muss geteilt oder intern sein")
             o = g.neues_objekt("erkenntnis", text, tags, daten,
-                               wichtigkeit=int(args.get("wichtigkeit") or 1), wer=f"ki@{instanz}", grund="vi_lerne")
+                               wichtigkeit=int(args.get("wichtigkeit") or 1), wer=f"ki@{instanz}", grund="vi_lerne", sicht=args.get("sicht"))
         except ValueError as e:
             raise Abgelehnt(str(e)) from e
-        return f"gelernt {o.id} mit {', '.join(o.hashtags)} — {len(o.kanten())} Kanten zu Objekten mit gemeinsamen Hashtags"
+        from . import bedarf
+        bedarf.anstossen("Wissen gelernt")
+        return (f"gelernt {o.id} mit {', '.join(o.hashtags)} — {len(o.kanten())} Kanten zu Objekten mit gemeinsamen Hashtags"
+                + (" · Sicht intern (nur Instanzen mit Token, nie das Netz)" if o.sicht == "intern" else ""))
     if name == "vi_erinnere":
         f = args.get("filter") or ""
         treffer = g.erinnere(f, limit=min(int(args.get("limit") or 10), 50), oder_ersatz=True)

@@ -3,6 +3,28 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.20.0 — 2026-11-09 — Lernen bei Bedarf, Sicht „intern“ für Firmenwissen
+
+### Was ist neu
+
+- **Training bei Bedarf statt nur nachts** (`bedarf.py`). Jede gemeldete Handlung mit Ergebnis und jedes gelernte Wissen stoßen einen
+  Hintergrund-Lauf an, frühestens 60 s nach dem letzten. Der Lauf bettet fehlende Vektoren ein (bis 120 s je Lauf, ein Rest läuft gleich weiter),
+  zieht Nähe-Kanten für die neuen Vektoren, berechnet nach 200 neuen Vektoren die Inhaltsgruppen neu und trainiert Bandit und Router.
+  `vi_status` zeigt Läufe, Grund und Dauer je Schritt. Der Schlaf behält Reflexion, Abstraktion, Skills, Scorer und Lager; beide teilen sich
+  eine Sperre. *Gemessen auf einer Kopie der Produktivdaten (5.118 Objekte, 1.310 Beobachtungen):* Router 68–487 ms, Bandit 30 ms,
+  KMeans 2,4 s, ganzer Lauf ohne neue Vektoren 0,5 s. *Nachweis:* `tests/test_bedarf.py` (4 Tests, u. a. der Thread läuft nach einem Anstoß).
+- **Sicht `intern`** (`vi_lerne(sicht="intern")`): sichtbar für jede Instanz mit Token, nie für die tokenlose Instanz im Open-Wiki-Modus und nie
+  im P2P-Netz. Für Firmenwissen wie Confluence, das sonst ohne Anmeldung lesbar wäre. *Nachweis:* `test_internes_sieht_nur_wer_ein_token_hat`
+  (Suche, Bedeutungssuche, Hinweise, `vi_objekt` ohne Token leer; mit Token sichtbar; auch bewährt nicht im Netz-Export),
+  `test_ungueltige_sicht_wird_abgelehnt`; beide schlagen mit 0.19.5 fehl.
+
+### Was hat sich geändert
+
+- **Nähe-Kanten inkrementell:** Nur noch nicht verglichene Vektoren werden gegen alle geprüft (Spalte `vektor.verglichen`, wird beim ersten
+  Start nachgerüstet). Gemessen: voller Vergleich 3.312 Vektoren 9,6 s (0.19.x) → 2,1 s (erster Lauf 0.20.0) → 21 ms ohne neue Vektoren.
+  Vorher wuchs die Dauer mit dem Quadrat der Objektzahl; nach einem großen Import wären es geschätzt eine Viertelstunde und mehr gewesen.
+  *Nachweis:* `test_naehe_kanten_vergleichen_nur_neue`.
+
 ## 0.19.5 — 2026-11-09 — Frisch Gelerntes ist sofort auffindbar
 
 ### Was hat sich geändert

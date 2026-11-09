@@ -43,6 +43,9 @@ def _tabelle() -> None:
     with g.sperre:
         g.db().execute("CREATE TABLE IF NOT EXISTS vektor (id TEXT PRIMARY KEY, dim INTEGER NOT NULL, modell TEXT NOT NULL, "
                        "zeit TEXT NOT NULL, roh BLOB NOT NULL)")
+        # 0.20.0: verglichen = 1, sobald die Nähe-Kanten des Vektors berechnet sind (ein neu eingebetteter Vektor fängt bei 0 an)
+        if "verglichen" not in {r[1] for r in g.db().execute("PRAGMA table_info(vektor)")}:
+            g.db().execute("ALTER TABLE vektor ADD COLUMN verglichen INTEGER NOT NULL DEFAULT 0")
         g.db().commit()
 
 
@@ -161,14 +164,25 @@ def nachziehen(max_s: float | None = None) -> dict:
 
 
 def naehe_kanten() -> dict:
-    """Schlaf-Schritt 7b: Kanten zwischen semantisch nahen Wissensobjekten; sehr nahe fremde Paare → dublette:moeglich."""
+    """Schritt 7b: Kanten zwischen semantisch nahen Wissensobjekten; sehr nahe fremde Paare → dublette:moeglich.
+    Seit 0.20.0 inkrementell: nur noch nicht verglichene Vektoren gegen alle (O(neu × alle) statt O(alle²); gemessen 9,6 s für 3.312 Vektoren
+    beim vollen Vergleich, das wüchse mit dem Confluence-Import quadratisch)."""
+    _tabelle()
     ids, m = _matrix(alle())
+    with g.sperre:
+        neu_ids = {r[0] for r in g.db().execute("SELECT id FROM vektor WHERE verglichen = 0")}
+    pos = {oid: i for i, oid in enumerate(ids)}
+    neu = sorted(pos[o] for o in neu_ids if o in pos)
+    ist_neu = np.zeros(len(ids), dtype=bool)
+    ist_neu[neu] = True
     kanten = dubletten = 0
-    for i in range(len(ids) - 1):  # zeilenweise: der Speicher wächst nicht mit dem Quadrat der Objektzahl
-        naehe = m[i + 1:] @ m[i]
+    for i in neu:  # zeilenweise: der Speicher wächst nicht mit dem Quadrat der Objektzahl
+        naehe = m @ m[i]
+        naehe[i] = -1.0
+        naehe[ist_neu & (np.arange(len(ids)) < i)] = -1.0  # Paare zweier neuer Vektoren nur einmal
         for k in np.nonzero(naehe >= NAEHE_KANTE)[0]:
-            j, c = i + 1 + int(k), float(naehe[k])
-            a, b = g.lade(ids[i]), g.lade(ids[j])
+            j, c = int(k), float(naehe[k])
+            a, b = g.lade(ids[min(i, j)]), g.lade(ids[max(i, j)])
             if not a or not b:
                 continue
             with g.sperre:
@@ -183,7 +197,10 @@ def naehe_kanten() -> dict:
                         o.aendere("vi", "dublette:moeglich", f"cos {c:.2f} zu {(b if o is a else a).id} (andere Instanz) — zusammenlegen entscheidet eine Instanz")
                         g.speichere(o)
                 dubletten += 1
-    return {"kanten_neu": kanten, "dubletten_moeglich": dubletten, "vektoren": len(ids)}
+    with g.sperre:
+        g.db().executemany("UPDATE vektor SET verglichen = 1 WHERE id = ?", [(ids[i],) for i in neu])
+        g.db().commit()
+    return {"kanten_neu": kanten, "dubletten_moeglich": dubletten, "vektoren": len(ids), "neu_verglichen": len(neu)}
 
 
 def aehnlich(text: str, kandidaten: list[str], limit: int = 10) -> list[tuple[str, float]]:

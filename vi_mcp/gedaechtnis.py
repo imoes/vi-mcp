@@ -175,9 +175,17 @@ def _migriere(con: sqlite3.Connection) -> None:
     con.commit()
 
 
+#: Sichten: privat (nur die Urheber-Instanz), geteilt (alle, auch ohne Token im Open-Wiki-Modus, und das Netz),
+#: intern (seit 0.20.0: alle Instanzen mit Token, nie die tokenlose Instanz und nie das Netz — für Firmenwissen wie Confluence).
+SICHTEN = ("privat", "geteilt", "intern")
+#: Name der tokenlosen Instanz im Open-Wiki-Modus (= konfig.OFFEN; hier wiederholt, weil konfig dieses Modul nicht kennt).
+OFFEN_INSTANZ = "offen"
+
+
 def sichtbar_fuer(o: "Objekt", instanz: str | None) -> bool:
     """Darf diese Instanz das Objekt lesen? None = der Server selbst."""
-    return instanz is None or o.sicht == "geteilt" or o.instanz == instanz
+    return (instanz is None or o.sicht == "geteilt" or o.instanz == instanz
+            or (o.sicht == "intern" and instanz != OFFEN_INSTANZ))
 
 
 def schliesse() -> None:
@@ -371,9 +379,11 @@ def loesche(oids: list[str]) -> int:
 
 def neues_objekt(art: str, text: str, hashtags: list[str], daten: dict | None = None, wichtigkeit: int = 1,
                  wer: str = "vi", grund: str = "", oid: str | None = None, modus: str = "aktiv",
-                 gespraech: str | None = None, instanz: str | None = None) -> Objekt:
+                 gespraech: str | None = None, instanz: str | None = None, sicht: str | None = None) -> Objekt:
     if art not in ARTEN:
         raise ValueError(f"art muss {', '.join(ARTEN)} sein")
+    if sicht is not None and sicht not in SICHTEN:
+        raise ValueError(f"sicht muss eine von {', '.join(SICHTEN)} sein")
     for t in hashtags:
         if not TAG.match(t):
             raise ValueError(f"Hashtag {t!r} hat nicht die Form art:wert")
@@ -386,7 +396,7 @@ def neues_objekt(art: str, text: str, hashtags: list[str], daten: dict | None = 
     o = Objekt(id=oid or f"{art}:{hashwert(art, text, zeit, json.dumps(daten or {}, sort_keys=True), secrets.token_hex(8))}", art=art, zeit=zeit,
                zuletzt=zeit, text=text, daten=daten or {}, hashtags=list(hashtags), wichtigkeit=max(0, min(3, wichtigkeit)),
                modus=modus, gespraech=gespraech or aktuelles_gespraech.get(),
-               instanz=instanz or aktuelle_instanz.get() or SERVER_INSTANZ, sicht=SICHT_JE_ART[art],
+               instanz=instanz or aktuelle_instanz.get() or SERVER_INSTANZ, sicht=sicht or SICHT_JE_ART[art],
                aenderungen=[{"zeit": zeit, "wer": wer, "was": "angelegt", "grund": (grund or "angelegt")[:300]}])
     speichere(o)
     if modus != "quarantaene":  # Ungeprüftes bekommt keine Verbindung zum eigenen Wissen
@@ -444,7 +454,7 @@ def _filter_sql(gruppen: list, weg: list, betrachter: str | None) -> tuple[str, 
     if not any("modus:archiviert" in grp for grp in gruppen):
         sql += " AND modus <> 'archiviert'"  # Archiviertes nur auf ausdrückliche Nachfrage
     if betrachter is not None:
-        sql += " AND (sicht = 'geteilt' OR instanz = ?)"
+        sql += " AND (sicht = 'geteilt' OR instanz = ?" + (" OR sicht = 'intern')" if betrachter != OFFEN_INSTANZ else ")")
         par.append(betrachter)
     for g in gruppen:
         teile = [_tag_bedingung(t) for t in g]

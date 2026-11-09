@@ -30,11 +30,11 @@ Code, API-Tabellen und Befehle werden vollständig gespeichert, denn was im Ged�
                            vi.db (SQLite, WAL, FTS5, 0600)
 ```
 
-- **Objekte statt Notizen.** Alles ist ein Objekt mit Hashtags (`art:wert`), Urheber und Sicht (privat oder geteilt): Erfahrung, Erkenntnis, Regel, Skill, Bewertung.
+- **Objekte statt Notizen.** Alles ist ein Objekt mit Hashtags (`art:wert`), Urheber und Sicht (privat, geteilt oder intern: nur mit Token, nie im Netz): Erfahrung, Erkenntnis, Regel, Skill, Bewertung.
 - **Vor jeder Handlung** (`vi_vorher`) bekommt die Sitzung höchstens vier Hinweise. Verstärkt wird ein Hinweis erst, wenn die Handlung gelingt.
 - **Schlaf.** Nachts, oder wenn genug Wichtiges zusammenkommt, verdichtet der Server Erfahrungen, vergleicht sie mit dem Bekannten und lagert Ungenutztes ein.
 - **Scorer.** Code-Regeln, das lokale Sprachmodell und du bewerten, ob Arbeit gelungen ist. „Das Werkzeug ist nicht abgestürzt“ allein sagt das nicht.
-- **Lernen.** Aus den Noten lernt der Router (logistische Regression, Gewichte als lesbares JSON), welcher Hinweis wann hilft.
+- **Lernen.** Aus den Noten lernt der Router (logistische Regression, Gewichte als lesbares JSON), welcher Hinweis wann hilft. Trainiert wird bei Bedarf, etwa eine Minute nach neuen Erfahrungen (ein Lauf dauert unter einer Sekunde), nicht erst nachts.
 - **Reflexe und Skills.** Bewährte Lösungswege werden zu Skills, kleine Prüfungen laufen als Code in einer Sandbox (Landlock, seccomp).
 
 Tiefer: [Architektur](docs/ARCHITEKTUR.md) · [Betrieb](docs/BETRIEB.md) · [Hook](docs/HOOK.md) · [Forschung](docs/FORSCHUNG.md) · [Training](docs/TRAINING.md)

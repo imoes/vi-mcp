@@ -121,11 +121,13 @@ def _lauf(grund: str) -> g.Objekt:
     schritt("5_lager", lambda: lager.aufraeumen())
     schritt("5b_pruefer", lambda: _pruefer())
     schritt("6_selbst_ist", lambda: _selbst_ist())
-    schritt("7_vektoren", lambda: _vektoren())
-    schritt("7b_naehe", lambda: _naehe())
-    schritt("7c_inhalt", lambda: _inhalt_merkmale())
-    schritt("7d_hinweise", lambda: _hinweise_neu())
-    schritt("8_lernen", lambda: _lernen())
+    from . import bedarf
+    with bedarf.TRAINING:  # nie gleichzeitig mit dem Training bei Bedarf (dasselbe Modell, dieselben Vektoren)
+        schritt("7_vektoren", lambda: _vektoren())
+        schritt("7b_naehe", lambda: _naehe())
+        schritt("7c_inhalt", lambda: _inhalt_merkmale())
+        schritt("7d_hinweise", lambda: _hinweise_neu())
+        schritt("8_lernen", lambda: _lernen())
     dauer = int((time.monotonic() - t0) * 1000)
     zustand = "fehler" if bericht["fehler"] else "fertig"
     text = (f"Schlaf {zustand} ({grund}): {len(neue)} neue Erfahrungen, {len(bericht.get('cluster', []))} Cluster, "

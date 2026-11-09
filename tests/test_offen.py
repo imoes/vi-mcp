@@ -131,3 +131,32 @@ def test_hook_ohne_token(offen, monkeypatch, tmp_path):
     monkeypatch.delenv("VI_MCP_TOKEN_FILE", raising=False)
     st, _kopf, a = hook._post({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"clientInfo": {"name": "hook"}}})
     assert st == 200
+
+
+def test_internes_sieht_nur_wer_ein_token_hat(offen):
+    """0.20.0: Firmenwissen (Confluence) mit sicht intern — für jede Instanz mit Token sichtbar, ohne Token nie, und nie im Netz."""
+    port, tok = offen
+    assert g.OFFEN_INSTANZ == konfig.OFFEN
+    _, sa, _ = _init(port, tok)
+    fehler, text = _ruf(port, sa, "vi_lerne", {"text": "Interne Anleitung: VPN-Konzentrator neu starten", "inhalt": "Schritt 1 ...", "hashtags": ["thema:vpn"],
+                                              "quelle": "Confluence 002IT", "sicht": "intern"}, tok)
+    assert not fehler and "Sicht intern" in text
+    oid = text.split()[1]
+    _, sid, _ = _init(port)  # ohne Token
+    assert oid not in _ruf(port, sid, "vi_erinnere", {"filter": "thema:vpn"})[1]
+    assert oid not in _ruf(port, sid, "vi_erinnere", {"filter": "VPN Konzentrator"})[1]
+    assert "neu starten" not in _ruf(port, sid, "vi_vorher", {"tool": "Bash", "args": {"command": "vpn restart"}})[1]
+    fehler, text = _ruf(port, sid, "vi_objekt", {"id": oid})
+    assert fehler and "VPN" not in text
+    assert oid in _ruf(port, sa, "vi_erinnere", {"filter": "thema:vpn"}, tok)[1]  # mit Token sichtbar
+    o = g.lade(oid)
+    o.bestaetigt, o.daten["nuetzlich"] = 9, {"ja": 9, "nein": 0, "n": 9}
+    g.speichere(o)
+    assert oid not in [x.id for x, _ in p2p._sammle()[0]]  # nie ins Netz, auch wenn bewährt
+
+
+def test_ungueltige_sicht_wird_abgelehnt(offen):
+    port, tok = offen
+    _, sa, _ = _init(port, tok)
+    fehler, text = _ruf(port, sa, "vi_lerne", {"text": "eine ausreichend lange Kernaussage", "hashtags": ["thema:x"], "quelle": "Beobachtung 9.11.", "sicht": "privat-oder-so"}, tok)
+    assert fehler and "sicht" in text

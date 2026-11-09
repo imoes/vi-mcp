@@ -208,6 +208,23 @@ Burst) und Bestätigung durch eine **andere, vertraute** Instanz (`vi_bestaetige
 heute das Reflex-Recht — **Annahme:** hinter einer vertrauten Instanz steht ein Mensch, der freigibt. Jede Version
 steht vollständig in `selbst_version` (nicht gekürzt). Version 1 stammt aus den Projektregeln (CLAUDE.md).
 
+## Training bei Bedarf (seit 0.20.0)
+
+`bedarf.py`: Ein Hintergrund-Thread lernt, sobald neue Daten da sind — `vi_nachher` mit Ergebnis und `vi_lerne` stoßen ihn an, frühestens
+60 s nach dem letzten Lauf (mehrere Ereignisse ergeben einen Lauf). Schritte: fehlende Vektoren einbetten (höchstens 120 s je Lauf; ein Rest
+löst sofort den nächsten Lauf aus) → Nähe-Kanten nur für neue Vektoren (Spalte `vektor.verglichen`) → KMeans-Inhaltsgruppen, sobald 200 neue
+Vektoren dazukamen → Bandit-Zähler → Router (LogisticRegression). Gemessen auf einer Kopie der Produktivdaten (09.11.2026, 5.118 Objekte):
+Router 68–487 ms, Bandit 30 ms, Nähe-Kanten 21 ms ohne neue Vektoren (voller Vergleich vorher 9,6 s, wuchs quadratisch). Schlaf und Training
+teilen sich die Sperre `bedarf.TRAINING`. Stand in `vi_status` („Training bei Bedarf: … Läufe, Dauer je Schritt“).
+Der Schlaf bleibt für das, was ein Sprachmodell braucht oder Erfahrungen verdichtet (Reflexion, Abstraktion, Skills, Scorer, Lager).
+
+## Sichten
+
+`privat` (nur die Urheber-Instanz), `geteilt` (alle, auch die tokenlose Instanz `offen`, und das P2P-Netz), `intern` (seit 0.20.0: alle
+Instanzen mit Token, nie `offen`, nie das Netz — `p2p._sammle` nimmt nur `geteilt`). Für Firmenwissen wie Confluence: Im Open-Wiki-Modus wäre
+es sonst ohne Anmeldung lesbar, auch was in Confluence Leseschutz hat. Gesetzt über `vi_lerne(sicht="intern")`; geprüft in
+`gedaechtnis.sichtbar_fuer` und `_filter_sql` (eine Stelle für Suche, Hinweise, Bedeutungssuche).
+
 ## Schlaf — Konsolidierung
 
 Ein Lauf im Loop-Thread (`schlaf.py`), nachts um 03:00 UTC oder sobald die Wichtigkeitssumme neuer Erfahrungen

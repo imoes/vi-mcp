@@ -257,6 +257,9 @@ def nachher(tool: str, args: dict, ok: bool, dauer_ms: int, fehler: str | None, 
                     h.zugriff()
                     verstaerkt += 1
     hinweise = reflexe.nachher(tool, dict(args or {}), ergebnis or "") if ok else []
+    if ok is not None:  # eine bewertete Handlung ist eine neue Beobachtung für Router und Bandit
+        from . import bedarf
+        bedarf.anstossen("Erfahrung")
     return {"erfahrung": o.id, "hinweise": hinweise, "vorher_gefunden": bool(offen), "verstaerkt": verstaerkt, "bewertet": bewertet}
 
 
