@@ -31,7 +31,7 @@ def _approve(oid: str, reason: str) -> int:
         with op.open(urllib.request.Request(url, data=json.dumps(req_body).encode(), headers=header), timeout=30) as a:
             return a.headers.get("Mcp-Session-Id"), json.loads(a.read() or b"{}")
     sid, _ = post({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"clientInfo": {"name": "vi-mcp-freigeben"}}})
-    _, a = post({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "vi_freigabe", "arguments": {"id": oid, "grund": reason}}}, sid)
+    _, a = post({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "vi_release", "arguments": {"id": oid, "grund": reason}}}, sid)
     print(a["result"]["content"][0]["text"])
     return 1 if a["result"]["isError"] else 0
 

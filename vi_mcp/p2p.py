@@ -1,6 +1,6 @@
 """Das Gedächtnis am Netz: anonymer Ausgang, geprüfter Eingang, Quarantäne, Recht auf Vergessen, Wert je Herausgeber.
 
-Transport und Logbücher gehören dem Netzdienst (netzdienst.py, eigener Prozess). Hier kommt nur an, was er über `vi_netz_eingang` liefert, und die Signatur
+Transport und Logbücher gehören dem Netzdienst (netzdienst.py, eigener Prozess). Hier kommt nur an, was er über `vi_net_inbox` liefert, und die Signatur
 wird trotzdem erneut geprüft: Der Netzdienst liest fremde Daten und könnte übernommen sein.
 Anonym: Das Netz kennt den Herausgeber nur als Pseudonym; Objekte tragen keine Instanz, keine Hostnamen, nur das Datum (anonym.py).
 Hinaus geht nur Bewährtes: geteilt, aktiv und von einer fremden Instanz bestätigt oder mit gemessenem Nutzen.

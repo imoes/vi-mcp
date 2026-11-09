@@ -60,7 +60,7 @@ def process(msg: dict, s: session.Session | None, inst: config.Instance) -> dict
                     return _error(mid, -32602, f"Werkzeug unbekannt: {name}")
                 t0 = time.monotonic()
                 client = s.client if s else None
-                public = tools.api_en.public_name(name)  # Statistik einheitlich mit dem öffentlichen (englischen) Namen
+                public = tools.api_en.canonical_name(name)  # Statistik einheitlich mit dem öffentlichen (englischen) Namen
                 ms = lambda: int((time.monotonic() - t0) * 1000)  # noqa: E731
                 try:
                     text = tools.call_tool(name, params.get("arguments") or {}, inst.name, inst.reflexes, inst.release)

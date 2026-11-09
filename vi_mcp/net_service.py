@@ -139,10 +139,10 @@ class McpClient:
         return json.loads(text)
 
     def outbox(self) -> dict:
-        return self._call_tool("vi_netz_ausgang", {})
+        return self._call_tool("vi_net_outbox", {})
 
     def inbox(self, entries: list[dict]) -> dict:
-        return self._call_tool("vi_netz_eingang", {"eintraege": entries})
+        return self._call_tool("vi_net_inbox", {"eintraege": entries})
 
 
 class NetService:

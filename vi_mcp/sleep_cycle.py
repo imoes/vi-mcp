@@ -31,7 +31,7 @@ from .log_output import log
 
 SLEEP_HOUR = 3
 #: 0.21.1: 40 → 80 und höchstens alle MIN_ABSTAND_MIN Minuten. Gemessen 08./09.11.: 45 Schläfe in 24 h (Median 83 s), zusammen nur
-#: 3 neue Erkenntnisse — der Schlaf lief fast im Halbstundentakt und belastete das Sprachmodell, ohne viel zu liefern (vi_statistik, F).
+#: 3 neue Erkenntnisse — der Schlaf lief fast im Halbstundentakt und belastete das Sprachmodell, ohne viel zu liefern (vi_stats, F).
 THRESHOLD = 80
 MIN_GAP_MIN = 120
 TOP_N = 200
@@ -70,7 +70,7 @@ def _content(o: g.MemoryObject) -> set[str]:
 
 
 _running = threading.Lock()
-WAIT_S = 90  # so lange wartet vi_schlaf(jetzt) auf das Ergebnis; ein Reverse-Proxy bricht oft nach 120 s ab
+WAIT_S = 90  # so lange wartet vi_sleep(jetzt) auf das Ergebnis; ein Reverse-Proxy bricht oft nach 120 s ab
 
 
 def running() -> bool:
@@ -93,7 +93,7 @@ def run(reason: str) -> g.MemoryObject:
 
 
 def run_in_background(reason: str, wait_s: float | None = None) -> g.MemoryObject | None:
-    """Startet den Schlaf in einem eigenen Thread und wartet höchstens warte_s. None: läuft noch, der Bericht kommt mit vi_schlaf."""
+    """Startet den Schlaf in einem eigenen Thread und wartet höchstens warte_s. None: läuft noch, der Bericht kommt mit vi_sleep."""
     result: dict = {}
 
     def go():

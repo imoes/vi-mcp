@@ -179,12 +179,12 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     found, search, from_memory = [], [], []
     # Kein zugriff() beim automatischen Zeigen: Gezeigtes würde sonst allein durchs Zeigen wichtiger (Selbstbestätigung,
     # Matthäus-Effekt). Verstärkt wird in nachher(), wenn die Handlung danach gelang — Annahme „der Hinweis hat genützt“,
-    # benannt in docs/ARCHITEKTUR.md; Beobachtungspunkt: vi_erfahrung (Erfolg mit/ohne Hinweise).
+    # benannt in docs/ARCHITEKTUR.md; Beobachtungspunkt: vi_experience (Erfolg mit/ohne Hinweise).
     # Kandidaten (Heuristik: Aktualität + Wichtigkeit + Bonus), dann ggf. Router-Modell (gelernter Lift), dann Erkundung
     from . import bandit, learning
     import random as _random
     cand = [o for _, o, _g in g.recall("(" + " OR ".join(search_triggers) + ")", limit=HINT_BUDGET + 24, kinds=("erkenntnis", "regel", "skill"))]
-    # 0.21.1: Strittiges und unbestätigte Sprachmodell-Hypothesen nur auf Nachfrage (vi_erinnere), nicht ungefragt vor Handlungen.
+    # 0.21.1: Strittiges und unbestätigte Sprachmodell-Hypothesen nur auf Nachfrage (vi_recall), nicht ungefragt vor Handlungen.
     # Gemessen 09.11.: eine strittige Schlaf-Hypothese war mit 719 Verstärkungen der meistgezeigte Hinweis und verdrängte belegtes Wissen.
     only_on_request = [o for o in cand if o.mode == "strittig" or ("herkunft:schlaf-llm" in o.hashtags and not o.foreign_confirmations())]
     cand = [o for o in cand if o not in only_on_request]
@@ -225,7 +225,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
                                + (", STRITTIG — von einer anderen Instanz widersprochen" if o.mode == "strittig" else "")
                                + f"; {', '.join(t for t in o.hashtags if t.startswith(('modus:', 'skill:', 'kollektiv:')))[:60]}): "
                                f"{o.text[:300]} [Quelle: {str(o.data.get('quelle', '—'))[:120]}]"
-                               + (f" [vollständig mit Code/Tabellen: vi_objekt {o.id}]" if o.data.get("inhalt") else ""))
+                               + (f" [vollständig mit Code/Tabellen: vi_object {o.id}]" if o.data.get("inhalt") else ""))
     candidate_ids = [o.id for o in cand]
     remaining = len(cand) - len(shown_obj)
     # 1. Zugriff auf Gelerntes: Suchen, deren Hinweisreize zur Handlung passen, laufen automatisch
@@ -241,7 +241,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
         from_memory = from_memory[:HINT_BUDGET]
     if remaining > 0 or only_on_request:
         addendum = f" (davon {len(only_on_request)} strittig oder unbestätigte Hypothese, nur auf Nachfrage)" if only_on_request else ""
-        from_memory.append(f"… {remaining + len(only_on_request)} weitere Treffer im Gedächtnis{addendum} — vi_vertiefe(\"{' '.join(search_triggers)}\") zeigt sie")
+        from_memory.append(f"… {remaining + len(only_on_request)} weitere Treffer im Gedächtnis{addendum} — vi_drilldown(\"{' '.join(search_triggers)}\") zeigt sie")
     hints += from_memory
     from . import archive
     hints += archive.hint(search_triggers)
@@ -272,7 +272,7 @@ FEEDBACK_MIN = 60
 
 
 def feedback(instance: str, hint_id: str, value: int) -> str | None:
-    """Ordnet ein vi_bestaetige (+1) / vi_widerlege (−1) der jüngsten Handlung dieser Instanz zu, vor der genau dieser Hinweis gezeigt
+    """Ordnet ein vi_confirm (+1) / vi_refute (−1) der jüngsten Handlung dieser Instanz zu, vor der genau dieser Hinweis gezeigt
     wurde (höchstens RUECKMELDUNG_MIN Minuten zurück). Liefert die Id der Erfahrung oder None (dann bleibt es eine normale Bestätigung)."""
     since = (datetime.now(timezone.utc) - timedelta(minutes=FEEDBACK_MIN)).isoformat(timespec="milliseconds")
     with g.lock:
@@ -374,7 +374,7 @@ def experience(tool: str, args: dict, ok: bool | None, duration_ms: int, error: 
     level, reason_u = surprise(tool, ok, sig)  # VOR dem Speichern zählen, sonst zählt sich die Erfahrung selbst mit
     tags.append(f"ueberraschung:{level}")
     tags = [t for t in tags if g.TAG.match(t)]
-    text = f"{tool}({json.dumps(args, ensure_ascii=False)[:300]}) → " + (f"Fehler: {error[:300]}" if error else "kein Ergebnis gemeldet (vi_nachher fehlt)" if ok is None
+    text = f"{tool}({json.dumps(args, ensure_ascii=False)[:300]}) → " + (f"Fehler: {error[:300]}" if error else "kein Ergebnis gemeldet (vi_after fehlt)" if ok is None
                                                                        else f"ok, {len(result or '')} Zeichen, {duration_ms} ms")
     o = g.new_object("erfahrung", text, tags, {"args": args, "dauer_ms": duration_ms, "fehler": error, "vorher": access,
                                                   "ueberraschung": {"stufe": level, "grund": reason_u}},

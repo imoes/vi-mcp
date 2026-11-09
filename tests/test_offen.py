@@ -51,7 +51,7 @@ def test_without_token_read_and_report(open_):
     st, _, listing = request(port, "POST", {"jsonrpc": "2.0", "id": 3, "method": "tools/list"}, None, sid)
     names = {t["name"] for t in listing["result"]["tools"]}
     from vi_mcp import api_en
-    assert names == {api_en.public_name(n) for n in tools.OPEN_ALLOWED} and "vi_confirm" not in names
+    assert names == set(tools.OPEN_ALLOWED) and "vi_confirm" not in names
 
 
 @pytest.mark.parametrize("name,args", [("vi_bestaetige", {"id": "x", "grund": "y"}), ("vi_widerlege", {"id": "x", "grund": "y"}), ("vi_frage", {"text": "Wer weiß was?"}),

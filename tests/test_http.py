@@ -109,7 +109,7 @@ def test_two_sessions_two_conversations(srv):
     gs = g.load(f"gespraech:{serial_a}")
     # 2 Handlungen: eine mit nachher, eine nur mit vorher → ok:unbekannt, nicht verschwunden
     assert gs.data["zustand"] == "beendet" and gs.data["aufrufe"] == 2 and gs.data["ohne_ergebnis"] == 1
-    assert [o.text for _, o, _g in g.recall("tool:checkmk_get_host ok:unbekannt")][0].endswith("(vi_nachher fehlt)")
+    assert [o.text for _, o, _g in g.recall("tool:checkmk_get_host ok:unbekannt")][0].endswith("(vi_after fehlt)")
     assert "instanz:laptop" in gs.hashtags and "host:web1" in gs.hashtags
 
 

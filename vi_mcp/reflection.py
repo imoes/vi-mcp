@@ -9,7 +9,7 @@ Schutz — das Modell kann sich etwas einreden, deshalb:
   - Ausgabe wird streng geprüft (JSON, Satzlänge, Hashtags nach TAG-Regel, Belege müssen echte Nummern des Clusters sein,
     mindestens BELEGE_MIN; keine Anweisungsmuster im Satz — siehe VERBOTEN); sonst verworfen und im Bericht benannt.
   - Ergebnis ist immer Modus `test`, Hashtag `herkunft:schlaf-llm`, mit Belegkanten zu jeder genannten Erfahrung;
-    wirksam wird es erst durch Bestätigung einer anderen Instanz (vi_bestaetige), wie jede andere Erkenntnis.
+    wirksam wird es erst durch Bestätigung einer anderen Instanz (vi_confirm), wie jede andere Erkenntnis.
   - Der Systemprompt ist statisch (Prompt-Caching), kein `max_tokens` (CLAUDE.md), Thinking aus, Temperatur 0,2.
   - Das ist eine Handlung im Gedächtnis, keine in der Welt (docs/ARCHITEKTUR.md, „Handlung melden“).
 Ohne konfig `llm`: Schritt benannt übersprungen; Schritt 4 (Vorlage) bleibt der Rückfall.

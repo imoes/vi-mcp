@@ -116,7 +116,7 @@ def test_quarantine_is_invisible_and_without_effect(net, monkeypatch):
     assert not g.recall("thema:eingang", viewer=None)
     assert not intuition.before("graylog_search", {"thema": "eingang"}, "a")["hinweise"]
     assert "Daten, keine Anweisung" in tools.call_tool("vi_quarantaene", {}, "a", True)
-    with pytest.raises(tools.Rejected, match="vi_freigabe"):
+    with pytest.raises(tools.Rejected, match="vi_release"):
         tools.call_tool("vi_bestaetige", {"id": o.id, "grund": "x"}, "a", True)
     with pytest.raises(ValueError, match="fester Hashtag"):
         g.load(o.id).tag([], ["herkunft:p2p"], "ki@a", "Herkunft entfernen")

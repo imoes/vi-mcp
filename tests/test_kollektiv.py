@@ -181,7 +181,7 @@ def test_hint_budget(gd):
     for i in range(7):
         g.new_object("erkenntnis", f"Hinweis {i} zu web3", ["host:web3"], {"quelle": "x"}, reason="T")
     h = intuition.before("Bash", {"host": "web3"}, "a", False)["hinweise"]
-    assert len(h) == intuition.HINT_BUDGET + 1 and h[-1].startswith("… 3 weitere Treffer") and "vi_vertiefe" in h[-1]
+    assert len(h) == intuition.HINT_BUDGET + 1 and h[-1].startswith("… 3 weitere Treffer") and "vi_drilldown" in h[-1]
 
 
 def test_history_truncation_is_named(gd):

@@ -106,7 +106,7 @@ def test_result_only_for_mcp(h, monkeypatch):
     for tool, uid in (("Read", "e1"), ("mcp__skills__netbox_get_vms", "e2"), ("mcp__skills__pwdepot_search_entries", "e3")):
         h.process(ev("PreToolUse", tool_name=tool, tool_input={"q": uid}, tool_use_id=uid))
         h.process(ev("PostToolUse", tool_name=tool, tool_input={"q": uid}, tool_use_id=uid, tool_response="INHALT"))
-    assert "ergebnis" not in sent[("vi_nachher", "Read")]
-    assert "ergebnis" not in sent[("vi_nachher", "pwdepot_search_entries")]
-    assert sent[("vi_nachher", "netbox_get_vms")]["ergebnis"] == "INHALT"
+    assert "result" not in sent[("vi_after", "Read")]
+    assert "result" not in sent[("vi_after", "pwdepot_search_entries")]
+    assert sent[("vi_after", "netbox_get_vms")]["result"] == "INHALT"
     assert h.process(ev("PreToolUse", tool_name="mcp__skills__vi_status", tool_input={}, tool_use_id="v2")) is None

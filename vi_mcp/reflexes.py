@@ -2,8 +2,8 @@
 
 Drei Arten (erschöpfend):
   werkzeug  `TOOL = {description, inputSchema}` + `def run(args) -> str`      → MCP-Werkzeug `vi_reflex_<name>`
-  vorher    `def run(tool, args) -> None | {"hinweis": str} | {"args": dict}` → läuft in `vi_vorher` (Hook)
-  nachher   `def run(tool, args, ergebnis) -> None | str`                     → läuft in `vi_nachher` (Hook)
+  vorher    `def run(tool, args) -> None | {"hinweis": str} | {"args": dict}` → läuft in `vi_before` (Hook)
+  nachher   `def run(tool, args, ergebnis) -> None | str`                     → läuft in `vi_after` (Hook)
 
 Modi: `test` (nur Hinweis, Start), `aktiv` (wirkt), `aus`, `defekt` (nach REFLEX_FEHLER_AB Fehlern, benannt).
 Schutz: AST-Prüfung (Import-Whitelist, kein exec/eval/open/…) als erste Schranke; seit 0.9.0 läuft jeder Lauf in
@@ -119,7 +119,7 @@ def as_tool(name: str, args: dict) -> str:
     res = run(r, args)
     if "fehler" in res:
         raise RuntimeError(f"Reflex {r['name']}: {res['fehler']}")
-    header = "" if r["modus"] == "aktiv" else f"[Reflex {r['name']} im Testmodus — vi_reflex_schalte(name, 'aktiv') schaltet scharf]\n"
+    header = "" if r["modus"] == "aktiv" else f"[Reflex {r['name']} im Testmodus — vi_reflex_switch(name, 'aktiv') schaltet scharf]\n"
     return header + (res["wert"] if isinstance(res["wert"], str) else json.dumps(res["wert"], ensure_ascii=False, indent=2))
 
 

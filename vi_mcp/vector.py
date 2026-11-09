@@ -4,12 +4,12 @@
 Heute findet `erinnere` nur, was dieselben Hashtags oder Wörter trägt. Ein Embedding-Dienst (OpenAI-kompatibel,
 `/v1/embeddings`) macht aus dem Text jedes geteilten Wissensobjekts einen Vektor; gespeichert als float32-BLOB in der
 Tabelle `vektor` (4 Byte je Dimension, ohne Erweiterung — TRAINING.md 4c, Weg 1). Weil der Dienst auf dem Host
-mehrere Sekunden je Anfrage braucht (gemessen 08.11.2026), passiert das **im Schlaf**, im Batch, nie in `vi_vorher`:
+mehrere Sekunden je Anfrage braucht (gemessen 08.11.2026), passiert das **im Schlaf**, im Batch, nie in `vi_before`:
   Schritt 7_vektoren  fehlende Vektoren für erkenntnis/regel/suche/skill nachziehen (höchstens NACHZIEH_MAX_S Sekunden je Schlaf)
   Schritt 7b_naehe    Paare mit Kosinus ≥ NAEHE_KANTE bekommen eine Kante „semantisch ähnlich (cos 0,91)“;
                       Paare ≥ NAEHE_DUBLETTE ohne gemeinsame Instanz werden als `dublette:moeglich` markiert (nicht
                       zusammengelegt — das entscheidet ein Mensch oder eine zweite Instanz)
-Dazu `vi_erinnere(filter, semantisch=true)`: bettet den Freitext **jetzt** ein (dauert, wird im Ergebnis genannt) und
+Dazu `vi_recall(filter, semantisch=true)`: bettet den Freitext **jetzt** ein (dauert, wird im Ergebnis genannt) und
 ordnet die Kandidaten nach Kosinus, zusammengeführt mit dem Volltext (Rangfusion, werkzeuge.RRF_K) — ausdrücklich, nie automatisch.
 Ohne Konfiguration `embed` passiert nichts; der Schlaf meldet den Schritt als übersprungen (benannt).
 """

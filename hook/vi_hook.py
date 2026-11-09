@@ -2,11 +2,11 @@
 """vi_hook — meldet jede Handlung einer Claude-Code-Sitzung an vi-mcp. Nur Standardbibliothek, eine Datei.
 
 Claude Code ruft das Skript als Hook auf (Ereignis aus stdin: `hook_event_name`):
-  PreToolUse          → vi_vorher. Gemerkte Antwort (nur MCP-Werkzeuge, nur lesend) → Aufruf verweigert, die Antwort
+  PreToolUse          → vi_before. Gemerkte Antwort (nur MCP-Werkzeuge, nur lesend) → Aufruf verweigert, die Antwort
                         ist der Grund (Hooks können einen Aufruf erlauben/verweigern, nicht ersetzen). Hinweise der VI
                         gehen als Kontext an das Modell.
-  PostToolUse         → vi_nachher mit ok=true, Ergebnis, Dauer.
-  PostToolUseFailure  → vi_nachher mit ok=false, Fehler.
+  PostToolUse         → vi_after mit ok=true, Ergebnis, Dauer.
+  PostToolUseFailure  → vi_after mit ok=false, Fehler.
   SessionEnd          → Gespräch in vi-mcp beenden (DELETE).
   UserPromptSubmit    → erkennt lokal eine Korrektur („nein, …“) oder eine Note (#gut, #schlecht, #note 0.8). Gesendet wird
                         nur dieses Ergebnis, nie der Text.
@@ -256,14 +256,14 @@ def before_tool(e: dict) -> dict | None:
     notify = {"tool": name, "args": args}
     read_only = read_only_hint(tool_name)
     if read_only is not None:
-        notify["lesend"] = read_only
-    v = call_tool(e["session_id"], e.get("cwd"), "vi_vorher", notify)
+        notify["read_only"] = read_only
+    v = call_tool(e["session_id"], e.get("cwd"), "vi_before", notify)
     if e.get("tool_use_id"):
         write("vorher", e["tool_use_id"], {"vorher_id": v.get("vorher_id"), "t0": time.time(), "tool": name, "args": v.get("args", args)})
     if v.get("antwort") is not None:
         reason = (f"[VI-Gedächtnis] Dieselbe Anfrage wurde vor {v.get('antwort_alter_s')} s beantwortet (gilt "
                  f"{v.get('antwort_ttl_s')} s); hier die gemerkte Antwort statt eines neuen Aufrufs. Frisch erzwingen: "
-                 f"vi_vergiss(tool=\"{name}\").\n\n{v['antwort']}")
+                 f"vi_forget(tool=\"{name}\").\n\n{v['antwort']}")
         return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                        "permissionDecisionReason": reason[:MAX_RESULT]}}
     hints = v.get("hinweise") or []
@@ -281,20 +281,20 @@ def after_tool(e: dict, ok: bool) -> dict | None:
     # Dauer: von Claude Code gemessen (duration_ms, ohne Rückfragen und PreToolUse-Hooks), sonst eigene Zeitnahme
     duration = e.get("duration_ms")
     notify = {"tool": name, "args": v.get("args", sanitize(e.get("tool_input") or {}, MAX_ARG_MCP if server else MAX_ARG_BUILTIN)), "ok": ok,
-             "dauer_ms": int(duration) if isinstance(duration, (int, float)) else int((time.time() - v["t0"]) * 1000) if v.get("t0") else 0}
+             "duration_ms": int(duration) if isinstance(duration, (int, float)) else int((time.time() - v["t0"]) * 1000) if v.get("t0") else 0}
     if v.get("vorher_id"):
-        notify["vorher_id"] = v["vorher_id"]
+        notify["before_id"] = v["vorher_id"]
     read_only = read_only_hint(tool_name)
     if read_only is not None:
-        notify["lesend"] = read_only
+        notify["read_only"] = read_only
     if ok:
         if read_only is None:  # nur hier kann eine Antwort gemerkt werden; sonst bleibt das Ergebnis in der Sitzung
-            notify["ergebnis"] = _result_text(e.get("tool_response"))
+            notify["result"] = _result_text(e.get("tool_response"))
     else:
         error = e.get("error") or e.get("tool_response") or "unbekannter Fehler"
         error = mask(error) if isinstance(error, str) else error
-        notify["fehler"] = ("[abgebrochen] " if e.get("is_interrupt") else "") + _result_text(error)[:2000]
-    n = call_tool(e["session_id"], e.get("cwd"), "vi_nachher", notify)
+        notify["error"] = ("[abgebrochen] " if e.get("is_interrupt") else "") + _result_text(error)[:2000]
+    n = call_tool(e["session_id"], e.get("cwd"), "vi_after", notify)
     hints = n.get("hinweise") or []
     if hints:
         return {"hookSpecificOutput": {"hookEventName": e.get("hook_event_name", "PostToolUse"),

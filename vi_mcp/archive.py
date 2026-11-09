@@ -12,8 +12,8 @@ Nie automatisch: selbst, modell, frage (eigener Lebenszyklus), reflex (würde ei
 (die Zusammenfassung bleibt). Was als Beleg dient, bleibt ebenfalls: nur Kanten mit Grund „Beleg…“ zählen.
 
 Im Gedächtnis bleibt ein Stummel: gekürzter Text, Hashtags, Zeit, Grund, `modus:archiviert`. Er erscheint nur, wenn der
-Filter `modus:archiviert` enthält. Passt ein gelagerter Wissenseintrag zu einer Handlung, nennt `vi_vorher` das in einer
-Zeile. Zurück kommt ein Eintrag mit `vi_lager_hole` (mit Grund, in seinem alten Modus). Gelöscht wird im Lager nur
+Filter `modus:archiviert` enthält. Passt ein gelagerter Wissenseintrag zu einer Handlung, nennt `vi_before` das in einer
+Zeile. Zurück kommt ein Eintrag mit `vi_archive_restore` (mit Grund, in seinem alten Modus). Gelöscht wird im Lager nur
 über die Löschwege für Gespräche und Instanzen.
 Reihenfolge über die zwei Dateien: erst das Ziel schreiben, dann die Quelle ändern. Ein Absturz dazwischen hinterlässt
 eine Dublette, die der nächste Lauf überschreibt, aber keinen Verlust.
@@ -211,13 +211,13 @@ def cleanup() -> dict:
 
 
 def hint(triggers: list[str]) -> list[str]:
-    """Eine Zeile für `vi_vorher`, wenn gelagertes Wissen zur Handlung passt."""
+    """Eine Zeile für `vi_before`, wenn gelagertes Wissen zur Handlung passt."""
     if not triggers:
         return []
     hits = [o for _, o, _g in g.recall("(" + " OR ".join(triggers) + ") modus:archiviert", limit=3, kinds=KNOWLEDGE)]
     if not hits:
         return []
-    return ["Im Langzeitlager passen: " + "; ".join(f"[{o.id}] {o.text[:80]}" for o in hits) + " — vi_lager_hole(id, grund) holt einen Eintrag zurück"]
+    return ["Im Langzeitlager passen: " + "; ".join(f"[{o.id}] {o.text[:80]}" for o in hits) + " — vi_archive_restore(id, grund) holt einen Eintrag zurück"]
 
 
 def progress() -> dict:

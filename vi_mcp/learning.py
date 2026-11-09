@@ -87,7 +87,7 @@ def observations(since: str | None = None) -> list[tuple[dict, int, str]]:
         base[f"hinweis_n:{min(4, len(shown))}"] = 1.0
         if not shown:
             outputs.append((base, y, oid))
-        rm = d.get("rueckmeldung") or {}  # 0.20.9: direkte Rückmeldung (vi_bestaetige/vi_widerlege) ersetzt das indirekte Label des Paares
+        rm = d.get("rueckmeldung") or {}  # 0.20.9: direkte Rückmeldung (vi_confirm/vi_refute) ersetzt das indirekte Label des Paares
         for h in shown:
             outputs.append(({**base, **hint_features(h, v.get("reize", []))}, (1 if rm[h] > 0 else 0) if h in rm else y, oid))
     return outputs
@@ -187,7 +187,7 @@ def _feedbacks() -> list:
 
 
 def _base(m: dict) -> dict:
-    """Nur die Lage der Handlung (ohne Hinweise) — so, wie vi_vorher sie vor dem Zeigen kennt."""
+    """Nur die Lage der Handlung (ohne Hinweise) — so, wie vi_before sie vor dem Zeigen kennt."""
     return {**{k: v for k, v in m.items() if k.startswith(TRIGGER_KINDS + ("stunde:",))}, "hinweis_n:0": 1.0}
 
 

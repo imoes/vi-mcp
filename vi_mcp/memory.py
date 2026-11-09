@@ -227,7 +227,7 @@ class MemoryObject:
     def change(self, who: str, what: str, reason: str) -> None:
         self._require_reason(reason)
         all_ = self.changes + [{"zeit": now(), "wer": who, "was": what, "grund": reason.strip()[:300]}]
-        if len(all_) > HISTORY_MAX:  # nichts verschwindet still: die Kürzung wird gezählt und in vi_objekt genannt
+        if len(all_) > HISTORY_MAX:  # nichts verschwindet still: die Kürzung wird gezählt und in vi_object genannt
             self.data["aenderungen_gekuerzt"] = self.data.get("aenderungen_gekuerzt", 0) + len(all_) - HISTORY_MAX
             all_ = all_[-HISTORY_MAX:]
         self.changes = all_
@@ -453,7 +453,7 @@ def _filter_sql(groups: list, remove: list, viewer: str | None) -> tuple[str, li
     """SQL für Modus, Sicht und Hashtag-Bedingungen (ohne Freitext) — eine Quelle für erinnere() und ids_zum_filter()."""
     sql, par = "SELECT id FROM objekt WHERE modus <> 'widerlegt'", []
     if not any("modus:quarantaene" in grp for grp in groups):
-        sql += " AND modus <> 'quarantaene'"  # nur über vi_quarantaene
+        sql += " AND modus <> 'quarantaene'"  # nur über vi_quarantine
     if not any("modus:aufgegangen" in grp for grp in groups):
         sql += " AND modus <> 'aufgegangen'"  # Aufgegangenes nur auf Nachfrage (Verweis steht im Objekt)
     if not any("modus:archiviert" in grp for grp in groups):

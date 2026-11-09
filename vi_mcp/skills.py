@@ -7,11 +7,11 @@ Ein Skill ist ein geteiltes Objekt `skill:<name>`:
   Versionen  jede Weiterentwicklung mit Zeit, Urheber, Grund, Belegen (vollständig in daten.versionen)
   Zähler     genützt/nicht nach dem Zeigen (bandit) — ein Skill, der dreimal scheitert und nie nützt, wird `strittig`
 Entstehung:
-  vi_geloest      eine Instanz meldet: Problem X wurde so gelöst (Schritte, Grund, Belege)
+  vi_solved      eine Instanz meldet: Problem X wurde so gelöst (Schritte, Grund, Belege)
   Schlaf 4c       automatisch: eine Handlung gelang nach Fehlern desselben Werkzeugs im selben Gespräch
                   (`ueberraschung:erholt`) — die Werkzeugfolge vom ersten Fehler bis zum Erfolg ist der Lösungsweg
 Zusammenführen:
-  vi_skill_fusion(a, b, grund)  neuer Skill aus beiden (Reize vereinigt, Schritte hintereinander, Belege vereinigt);
+  vi_skill_merge(a, b, grund)  neuer Skill aus beiden (Reize vereinigt, Schritte hintereinander, Belege vereinigt);
                   a und b bekommen Modus `aufgegangen` mit Verweis — sie verschwinden nicht, sie sind aufgegangen.
   Schlaf          gleicher Problem-Schlüssel (tool + Fehlersignatur) oder Vektornähe ≥ 0,95 → `fusion:vorschlag` + Kante;
                   zusammengeführt wird nur von einer Instanz, nie vom Server.
@@ -249,7 +249,7 @@ def fusion_proposals() -> dict:
             others = [x.id for x in group if x.id != o.id]
             if "fusion:vorschlag" not in o.hashtags:
                 o.hashtags = o.hashtags + ["fusion:vorschlag"]
-                o.change("vi", "fusion:vorschlag", f"Schlaf: gleiches Problem wie {', '.join(others)} — vi_skill_fusion entscheidet eine Instanz")
+                o.change("vi", "fusion:vorschlag", f"Schlaf: gleiches Problem wie {', '.join(others)} — vi_skill_merge entscheidet eine Instanz")
                 g.save(o)
                 n += 1
             for a in others:

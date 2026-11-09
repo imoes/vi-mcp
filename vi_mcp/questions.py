@@ -5,8 +5,8 @@ Eine Frage ist ein Objekt `art:frage` (geteilt) mit `daten`:
   belege, zeit}], gemeldet (Antworten, die der Fragesteller schon gesehen hat).
 Zustände (erschöpfend): `offen` (noch keiner Zielinstanz gezeigt) · `zugestellt` (mindestens einer gezeigt) ·
 `beantwortet` (mindestens eine Antwort) · `abgelaufen` (nach ABLAUF_TAGE ohne Antwort; vom Loop gesetzt).
-Zustellung: beim nächsten `vi_vorher` der Zielinstanz als Hinweis (je Instanz einmal). Antworten erreichen den
-Fragesteller ebenso beim nächsten `vi_vorher` — oder über `vi_fragen`.
+Zustellung: beim nächsten `vi_before` der Zielinstanz als Hinweis (je Instanz einmal). Antworten erreichen den
+Fragesteller ebenso beim nächsten `vi_before` — oder über `vi_questions`.
 """
 from __future__ import annotations
 
@@ -29,17 +29,17 @@ def ask(from_: str, to: str, text: str, triggers: list[str], source: str) -> g.M
     if not to or not all(c.isalnum() or c in "-_." for c in to):
         raise ValueError("an: Name einer Instanz oder 'alle'")
     if to == from_:
-        raise ValueError("eine Frage an sich selbst ist keine Rückfrage — vi_erinnere nutzen")
+        raise ValueError("eine Frage an sich selbst ist keine Rückfrage — vi_recall nutzen")
     tags = [t.strip() for t in triggers or [] if isinstance(t, str) and g.TAG.match(t.strip()) and not t.startswith(g.ADMIN_PREFIXES)]
     o = g.new_object("frage", text.strip()[:1000], tags + [f"an:{to}", f"von:{from_}", "zustand:offen"],
                        {"von": from_, "an": to, "zustand": "offen", "quelle": (source or "").strip()[:500],
                         "zugestellt_an": [], "antworten": [], "gemeldet": 0},
-                       importance=2, who=f"ki@{from_}", reason="vi_frage", instance=from_)
+                       importance=2, who=f"ki@{from_}", reason="vi_ask", instance=from_)
     return o
 
 
 def deliver(instance: str | None) -> list[str]:
-    """Hinweise für `vi_vorher`: neue Fragen an diese Instanz und neue Antworten auf ihre Fragen. Markiert sie."""
+    """Hinweise für `vi_before`: neue Fragen an diese Instanz und neue Antworten auf ihre Fragen. Markiert sie."""
     if not instance:
         return []
     hints = []
@@ -51,11 +51,11 @@ def deliver(instance: str | None) -> list[str]:
             o = g.load(oid)
             d = o.data
             if d["von"] != instance and instance not in d["zugestellt_an"] and d["zustand"] != "abgelaufen":
-                hints.append(f"Rückfrage von {d['von']} [{o.id}]: {o.text[:400]} — antworten mit vi_antwort(id, text, belege)")
+                hints.append(f"Rückfrage von {d['von']} [{o.id}]: {o.text[:400]} — antworten mit vi_answer(id, text, belege)")
                 d["zugestellt_an"] = d["zugestellt_an"] + [instance]
                 if d["zustand"] == "offen":
                     _set_state(o, "zugestellt")
-                o.change("vi", f"zugestellt an {instance}", "nächstes vi_vorher der Zielinstanz")
+                o.change("vi", f"zugestellt an {instance}", "nächstes vi_before der Zielinstanz")
                 g.save(o)
             elif d["von"] == instance and len(d["antworten"]) > d.get("gemeldet", 0):
                 new = d["antworten"][d.get("gemeldet", 0):]
@@ -74,14 +74,14 @@ def answer_question(oid: str, instance: str, text: str, evidence_list: str) -> g
     if d["zustand"] == "abgelaufen":
         raise ValueError(f"Frage {oid} ist abgelaufen ({EXPIRY_DAYS} Tage ohne Antwort)")
     if d["von"] == instance:
-        raise ValueError("die eigene Frage beantwortet man nicht — vi_lerne nutzen, wenn du es selbst herausgefunden hast")
+        raise ValueError("die eigene Frage beantwortet man nicht — vi_learn nutzen, wenn du es selbst herausgefunden hast")
     if d["an"] not in (instance, "alle"):
         raise ValueError(f"die Frage ging an {d['an']}, nicht an {instance}")
     if len((text or "").strip()) < 10 or len((evidence_list or "").strip()) < 8:
         raise ValueError("text (die Antwort) und belege (Befehl/URL/Messung) sind Pflicht")
     d["antworten"] = d["antworten"] + [{"instanz": instance, "text": text.strip()[:2000], "belege": evidence_list.strip()[:500], "zeit": g.now()}]
     _set_state(o, "beantwortet")
-    o.change(f"ki@{instance}", "beantwortet", "vi_antwort")
+    o.change(f"ki@{instance}", "beantwortet", "vi_answer")
     return g.save(o)
 
 
