@@ -134,6 +134,11 @@ TOOLS = [
                              "ausgang": {"type": "string", "enum": ["gut", "schlecht"],
                                          "description": "optional: beschreibt die Erkenntnis einen funktionierenden oder gestörten Zustand? Der Schlaf vergleicht neue Erfahrungen damit."}},
                             ["text", "hashtags", "quelle"])},
+    {"name": "vi_statistik",
+     "description": "VI: Nutzungsstatistik — wird die VI genutzt und funktioniert sie wie gedacht? Aufrufe je Werkzeug und Instanz, Einhaltung der "
+                    "Regeln (Suche vor ändernden Handlungen, Lernen, Rückmeldungen), Hinweise und Warnungen mit Erfolg danach, neues und je abgerufenes "
+                    "Wissen, Suchen ohne Treffer, Schlaf und Training. tage = Zeitraum (Standard 7).",
+     "inputSchema": _schema({"tage": {"type": "number"}})},
     {"name": "vi_erinnere",
      "description": "VI: im Gedächtnis suchen. Wann: vor Beginn jeder Aufgabe, vor ändernden Handlungen an Systemen, bei Fehlern, bei Fragen "
                     "zu internen Systemen (Regeln 1–4 der VI). Syntax: art:wert, !art:wert, (a OR b), Präfix art:wert*, Freitext (Volltext). Gewichtet nach "
@@ -451,6 +456,9 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
                 f"{__import__('vi_mcp.bedarf', fromlist=['x']).zeile()}\n"
                 f"Loop: alle {LOOP_S} s, {ls['laeufe']} Läufe, zuletzt {ls['zuletzt'] or '—'}, {ls['regeln_neu']} Regeln daraus, "
                 f"{ls['fehler']} Fehler{(' (zuletzt: ' + ls['letzter_fehler'] + ')') if ls['letzter_fehler'] else ''}")
+    if name == "vi_statistik":
+        from . import statistik
+        return statistik.bericht(float(args.get("tage") or 7))
     if name == "vi_lerne":
         if len((args.get("quelle") or "").strip()) < 8 or len((args.get("text") or "").strip()) < 10:
             raise Abgelehnt("text (die Kernaussage, mindestens 10 Zeichen) und quelle (Befehl/URL/Beobachtung, ≥ 8 Zeichen) sind Pflicht")

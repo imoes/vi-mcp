@@ -110,6 +110,12 @@ jeder Aufgabe, vor ändernden Handlungen, bei Fehlern und bei Fragen zu internen
 Problemen, bei bleibenden Vorgaben des Nutzers, nach nachgeschlagenen Systemfakten und bei Korrekturen; nie Geheimnisse, Unbelegtes oder
 Flüchtiges. Ohne Token kommt `REGELN_OHNE_TOKEN` dazu. Ob die Regeln befolgt werden, ist noch nicht gemessen.
 
+## Nutzungsstatistik
+
+Seit 0.21.0 zählt der Server jeden Aufruf eines VI-Werkzeugs (`statistik.zeichne`, Tabelle `nutzung`, 90 Tage, ohne Argumente und Text).
+`vi_statistik(tage)` wertet Nutzung, Einhaltung der Regeln, Hinweise und Warnungen, Wissen, Suche sowie Schlaf und Training aus
+(`statistik.bericht`). Eine ändernde Handlung gilt als vorbereitet, wenn dieselbe Instanz in den 30 min davor die VI befragt hat.
+
 ## Warnung vor riskanten Handlungen
 
 Seit 0.20.8 warnt `vi_vorher`, wenn das Router-Modell die Lage einer Handlung als riskant einstuft (`lernen.warnung`). Die Schwelle

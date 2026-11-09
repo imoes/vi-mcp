@@ -33,7 +33,7 @@ Bei der Erstinstallation öffnet sich das Menü von selbst, wenn ein Terminal da
 | Release prüfen | `deploy/pruefe-release.sh <verzeichnis>` |
 
 Module: `gedaechtnis` (Objekte, Suche), `intuition` (vorher/nachher), `sitzung`, `schlaf`, `scorer`, `lernen`, `bandit`, `vektor`, `reflexion`, `skills`, `reflexe`, `sandbox`,
-`inhalt` (Bedeutung als Router-Merkmal), `bedarf` (Training bei Bedarf), `lager`, `p2p` (Gedächtnis am Netz), `logbuch`, `netzdienst` (eigener Prozess `vi-p2p`), `netz_torrent`, `netz_cli`, `anonym`, `pruefung`, `pruefer`, `einrichten`, `server`, `werkzeuge`.
+`inhalt` (Bedeutung als Router-Merkmal), `bedarf` (Training bei Bedarf), `statistik` (Nutzungsstatistik, `vi_statistik`), `lager`, `p2p` (Gedächtnis am Netz), `logbuch`, `netzdienst` (eigener Prozess `vi-p2p`), `netz_torrent`, `netz_cli`, `anonym`, `pruefung`, `pruefer`, `einrichten`, `server`, `werkzeuge`.
 
 ## Regeln
 

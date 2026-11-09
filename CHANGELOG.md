@@ -3,6 +3,31 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.21.0 — 2026-11-09 — Nutzungsstatistik
+
+### Was ist neu
+
+- **`vi_statistik(tage)`** beantwortet, ob die VI genutzt wird und wie gedacht funktioniert — sechs Abschnitte, jede Zahl mit Zeitraum:
+  - *A Nutzung:* Aufrufe je VI-Werkzeug (abgelehnt, Fehler, Median-Dauer), je Instanz, Clients, Gespräche, gemeldete Handlungen.
+  - *B Regeln:* Anteil der ändernden Handlungen, vor denen dieselbe Instanz in den 30 min davor die VI befragt hat (Regeln 1–2);
+    wie oft gelernt wurde (5–8); Rückmeldungen zu gezeigten Hinweisen.
+  - *C Hinweise:* gezeigte Hinweise, Hinweis-Lift, Warnungen und Erfolg danach gegenüber Handlungen ohne Warnung.
+  - *D Wissen:* neues Wissen nach Art, Sicht und Herkunft, davon je abgerufen; Bestand und Anteil, der je abgerufen wurde.
+  - *E Suche:* Suchen ohne Treffer, Suchart (Volltext, ODER, hybrid), Median-Dauer je Art.
+  - *F Aufräumen:* Schläfe, neue Erkenntnisse, Schrittfehler, Training bei Bedarf, Router-AUC, semantische Kanten.
+- **Der Server zählt jeden Aufruf eines VI-Werkzeugs** (Tabelle `nutzung`: Zeit, Instanz, Client, Werkzeug, Ausgang, Dauer, bei Suchen
+  Trefferzahl und Suchart — keine Argumente, kein Text), 90 Tage lang. Bisher wurde das nirgends gezählt: Der Hook meldet `vi_*` absichtlich
+  nicht, deshalb ließ sich nicht sagen, ob vor Änderungen gesucht wird.
+- **Shell-Befehle werden nach Wirkung eingeordnet:** `Bash` galt pauschal als lesend; für die Regel-Statistik zählt jetzt der Befehl
+  (`systemctl restart`, `apt-get install`, `git push`, `ansible-playbook` ohne `--check` … sind ändernd).
+- Erster Befund vor dem Ausrollen (Produktivdatenbank 09.11.): von 16.529 Erkenntnissen wurden 566 (3,4 %) je abgerufen.
+- *Nachweis:* `tests/test_statistik.py` (3 Tests), `test_aufrufe_ueber_http_landen_in_der_nutzungsstatistik`.
+
+### Was fehlt noch
+
+- Hook-Sitzung und MCP-Sitzung derselben KI sind verschiedene Gespräche; „vorbereitet“ wird deshalb über Instanz und 30-min-Fenster
+  zugeordnet, nicht über das Gespräch. Gezählt wird erst ab dieser Version.
+
 ## 0.20.12 — 2026-11-09 — Weiterentwickelte Skills behalten bleibende Reize
 
 ### Was wurde behoben

@@ -23,7 +23,7 @@ from pathlib import Path
 
 from . import __version__
 from . import gedaechtnis as g
-from . import anonym, bedarf, intuition, konfig, reflexe, schleife, scorer, selbst, sitzung, werkzeuge
+from . import anonym, bedarf, intuition, konfig, reflexe, schleife, scorer, selbst, sitzung, statistik, werkzeuge
 from .protokoll import log
 
 PROTOKOLLE = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -59,13 +59,18 @@ def verarbeite(msg: dict, s: sitzung.Sitzung | None, inst: konfig.Instanz) -> di
                 if not werkzeuge.bekannt(name):
                     return _fehler(mid, -32602, f"Werkzeug unbekannt: {name}")
                 t0 = time.monotonic()
+                client = s.client if s else None
+                ms = lambda: int((time.monotonic() - t0) * 1000)  # noqa: E731
                 try:
                     text = werkzeuge.rufe(name, params.get("arguments") or {}, inst.name, inst.reflexe, inst.freigabe)
+                    statistik.zeichne(inst.name, client, name, "ok", ms(), text)
                     return _antwort(mid, {"content": [{"type": "text", "text": text}], "isError": False})
                 except werkzeuge.Abgelehnt as e:
+                    statistik.zeichne(inst.name, client, name, "abgelehnt", ms())
                     return _antwort(mid, {"content": [{"type": "text", "text": f"abgelehnt: {e}"}], "isError": True})
                 except Exception as e:  # noqa: BLE001 — Werkzeugfehler, benannt an den Client
-                    log(f"{name} scheiterte nach {int((time.monotonic() - t0) * 1000)} ms: {type(e).__name__}: {e}")
+                    log(f"{name} scheiterte nach {ms()} ms: {type(e).__name__}: {e}")
+                    statistik.zeichne(inst.name, client, name, "fehler", ms())
                     return _antwort(mid, {"content": [{"type": "text", "text": f"{name}: {type(e).__name__}: {e}"}], "isError": True})
             return _fehler(mid, -32601, f"Methode unbekannt: {methode}")
         except Exception as e:  # noqa: BLE001

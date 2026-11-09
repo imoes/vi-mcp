@@ -53,6 +53,8 @@ def schritt() -> int:
                 o.hashtags = [t for t in o.hashtags if not t.startswith("kollektiv:")] + [f"kollektiv:{'ja' if kollektiv else 'nein'}"]
                 g.speichere(o)
     abgelaufene_fragen = fragen.lass_ablaufen()
+    from . import statistik
+    statistik.aufraeumen()  # Nutzungseinträge älter als AUFBEWAHRUNG_TAGE
     from . import schlaf
     grund_schlaf = None if schlaf.laeuft() else schlaf.faellig()
     if grund_schlaf:

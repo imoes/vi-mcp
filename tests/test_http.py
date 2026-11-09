@@ -163,3 +163,15 @@ def test_mehrere_adressen_ein_gedaechtnis(tmp_path, monkeypatch):
         for s in srvs:
             s.shutdown(); s.server_close()
         server.beende(srvs)
+
+
+def test_aufrufe_ueber_http_landen_in_der_nutzungsstatistik(srv):
+    """0.21.0: Der Server zählt jeden Aufruf eines VI-Werkzeugs mit Instanz und Client — auch abgelehnte."""
+    from vi_mcp import statistik
+    port, tok_a, _tok_b = srv
+    sa = init(port, tok_a, "statistik-client")
+    rufe(port, tok_a, sa, "vi_erinnere", {"filter": "nichtsdergleichen"})
+    assert rufe(port, tok_a, sa, "vi_erinnere", {"text": "falsch benannt"})["isError"]
+    d = statistik.daten(1)["nutzung"]
+    assert d["je_werkzeug"]["vi_erinnere"]["n"] == 2 and d["je_werkzeug"]["vi_erinnere"]["abgelehnt"] == 1
+    assert any(c.startswith("statistik-client") for c in d["clients"])
