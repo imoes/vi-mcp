@@ -3,6 +3,26 @@
 Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
 Verlinkt aus [README.md](README.md).
 
+## 0.19.5 — 2026-11-09 — Frisch Gelerntes ist sofort auffindbar
+
+### Was hat sich geändert
+
+- **`vi_erinnere` mit `semantisch=true` sucht hybrid.** Die Bedeutungs- und die Volltext-Rangliste werden per Reciprocal Rank Fusion
+  (Cormack et al. 2009, k = 60) zusammengeführt. Vorher fehlte frisch Gelerntes bis zum nächsten Schlaf, weil es noch keinen Vektor hat; die Antwort
+  meldete das, durchsuchte den Volltext aber nicht. Treffer, die nur über den Volltext kamen, werden gezählt und als „–(Volltext)“ gekennzeichnet.
+  *Nachweis:* `test_frisch_gelerntes_ohne_vektor_findet_die_hybride_suche` (schlägt mit 0.19.4 fehl).
+
+### Gemessen: Lerntest (09.11.2026, 00:18 UTC)
+
+Eine Instanz (Claude Code) lernte sieben Erfahrungsnotizen. Eine zweite Instanz wurde vorher und sofort danach gemessen (sieben Prüfbefehle über
+`vi_vorher`, acht Fragen mit demselben Richter wie im Vergleich mit der AIKB).
+
+- **Vor dem Befehl:** vorher 0 von 7, danach stand die passende Notiz 7 von 7 Mal auf Platz 1, 0,01–0,02 s je Aufruf, ohne Schlaf dazwischen.
+  (Das Skript zählte zuerst 4, weil es ein Stichwort im Hinweistext suchte. Drei Hinweise zeigten aber nur das Thema der Notiz, die Lösung stand im
+  Inhalt. Der Hinweistext sollte die Kernaussage tragen, nicht nur das Thema.)
+- **Auf Nachfrage:** vorher 1, danach 1 von 8. Grund war der oben behobene Fehler.
+- Die AIKB hat keinen Schreibweg aus einer Sitzung; ihr Stand bleibt bei einem solchen Test unverändert.
+
 ## 0.19.4 — 2026-11-09 — Jeder Befehl ist ein Reiz
 
 ### Was hat sich geändert

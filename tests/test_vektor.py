@@ -61,7 +61,7 @@ def test_semantische_suche(fake):
     g.neues_objekt("erkenntnis", "Disk voll auf web1", ["host:web1"], {"quelle": "z"}, grund="T")
     schlaf.lauf("Test")
     r = werkzeuge.rufe("vi_erinnere", {"filter": "Verbindung haengt", "semantisch": True}, "a", True)
-    assert r.splitlines()[1].strip().startswith(f"[{a.id}]") and "semantisch (Embedding" in r
+    assert r.splitlines()[1].strip().startswith(f"[{a.id}]") and "semantisch hybrid (Embedding" in r
     assert "nichts im Gedächtnis" in werkzeuge.rufe("vi_erinnere", {"filter": "Verbindung haengt"}, "a", True)  # FTS findet es nicht
     with pytest.raises(werkzeuge.Abgelehnt, match="Freitext"):
         werkzeuge.rufe("vi_erinnere", {"filter": "host:cue1", "semantisch": True}, "a", True)
@@ -95,7 +95,18 @@ def test_semantische_suche_nennt_objekte_ohne_vektor(fake):
     vektor.nachziehen(max_s=600)
     g.neues_objekt("erkenntnis", "proxy disk", ["host:b"], {"quelle": "y"}, grund="T")  # noch ohne Vektor
     r = werkzeuge.rufe("vi_erinnere", {"filter": "proxy", "semantisch": True}, "a", True)
-    assert "1 von 2 Kandidaten mit Vektor" in r and "1 ohne Vektor" in r
+    assert "1 von 2 Kandidaten mit Vektor" in r
+
+
+def test_frisch_gelerntes_ohne_vektor_findet_die_hybride_suche(fake):
+    """0.19.5: Neues hat bis zum nächsten Schlaf keinen Vektor. Die Bedeutungssuche allein fand es nicht (Lerntest 09.11.: 1 von 8 vorher und nachher)."""
+    for i in range(30):
+        g.neues_objekt("erkenntnis", f"Disk voll auf web{i}", [f"host:web{i}"], {"quelle": "alt"}, grund="T")
+    vektor.nachziehen(max_s=600)
+    neu = g.neues_objekt("erkenntnis", "ipa-client-install scheitert mit TypeError IPACertificate, Ursache pip-cryptography", ["thema:ipa-client-install"],
+                         {"quelle": "neu"}, grund="T")
+    r = werkzeuge.rufe("vi_erinnere", {"filter": "ipa-client-install TypeError IPACertificate", "semantisch": True, "limit": 3}, "a", True)
+    assert neu.id in r and "nur über Volltext" in r, r
 
 
 def test_volltext_faellt_auf_oder_zurueck_und_sagt_es(gd):

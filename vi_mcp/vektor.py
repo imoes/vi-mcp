@@ -10,7 +10,7 @@ mehrere Sekunden je Anfrage braucht (gemessen 08.11.2026), passiert das **im Sch
                       Paare ≥ NAEHE_DUBLETTE ohne gemeinsame Instanz werden als `dublette:moeglich` markiert (nicht
                       zusammengelegt — das entscheidet ein Mensch oder eine zweite Instanz)
 Dazu `vi_erinnere(filter, semantisch=true)`: bettet den Freitext **jetzt** ein (dauert, wird im Ergebnis genannt) und
-ordnet die Kandidaten nach Kosinus — ausdrücklich, nie automatisch.
+ordnet die Kandidaten nach Kosinus, zusammengeführt mit dem Volltext (Rangfusion, werkzeuge.RRF_K) — ausdrücklich, nie automatisch.
 Ohne Konfiguration `embed` passiert nichts; der Schlaf meldet den Schritt als übersprungen (benannt).
 """
 from __future__ import annotations

@@ -113,8 +113,8 @@ TOOLS = [
                             ["text", "hashtags", "quelle"])},
     {"name": "vi_erinnere",
      "description": "VI: im Gedächtnis suchen — art:wert, !art:wert, (a OR b), Präfix art:wert*, Freitext (Volltext). Gewichtet nach "
-                    "Relevanz, Aktualität und Wichtigkeit; jeder Treffer wird verstärkt. semantisch=true ordnet nach Bedeutungsnähe "
-                    "zum Freitext (Embedding — dauert einige Sekunden, wird genannt).",
+                    "Relevanz, Aktualität und Wichtigkeit; jeder Treffer wird verstärkt. semantisch=true sucht hybrid: Bedeutungsnähe "
+                    "zum Freitext (Embedding — dauert einige Sekunden, wird genannt) plus Volltext, per Rangfusion zusammengeführt.",
      "inputSchema": _schema({"filter": _S, "limit": {"type": "integer"}, "semantisch": {"type": "boolean"}}, ["filter"])},
     {"name": "vi_objekt", "description": "VI: ein Objekt mit Feldern, Hashtags, Kanten und Änderungsgeschichte.",
      "inputSchema": _schema({"id": _S}, ["id"])},
@@ -214,6 +214,9 @@ def _sichtbar(oid: str, instanz: str) -> g.Objekt:
     if not o or not g.sichtbar_fuer(o, instanz):
         raise Abgelehnt(f"Objekt {oid} unbekannt")
     return o
+
+
+RRF_K = 60  # Reciprocal Rank Fusion: Dämpfung der Ränge (Cormack, Clarke, Büttcher 2009)
 
 
 def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht: bool = False) -> str:
@@ -449,13 +452,25 @@ def rufe(name: str, args: dict, instanz: str, reflex_recht: bool, freigabe_recht
             nur_tags = " ".join(["(" + " OR ".join(gr) + ")" if len(gr) > 1 else gr[0] for gr in gruppen] + [f"!{w}" for w in weg])
             # alle sichtbaren Objekte zum Filter, ohne Obergrenze: der Kosinus über ein paar tausend Vektoren kostet Millisekunden
             kand = g.ids_zum_filter(nur_tags, arten=() if gruppen else ("erkenntnis", "regel", "suche"))
+            grenze = min(int(args.get("limit") or 10), 50)
             t0 = time.monotonic()
-            nah = vektor.aehnlich(" ".join(worte), kand, limit=min(int(args.get("limit") or 10), 50))
-            by = g.lade_viele([i for i, _c in nah])
-            treffer = [(c, by[i], {"relevanz": round(c, 2), "aktualitaet": 0, "wichtigkeit": 0}) for i, c in nah if i in by]
+            nah = vektor.aehnlich(" ".join(worte), kand, limit=grenze * 3)
+            ms = int((time.monotonic() - t0) * 1000)
+            # Hybrid: Volltext-Rangliste dazu (Reciprocal Rank Fusion, Cormack et al. 2009, k = 60). Frisch Gelerntes hat bis zum nächsten
+            # Schlaf keinen Vektor und wäre sonst gerade dann unauffindbar; genaue Begriffe (Fehlermeldungen, Optionen) findet der Volltext besser.
+            volltext = [o.id for _, o, _g in g.erinnere(f, limit=grenze * 3, arten=() if gruppen else ("erkenntnis", "regel", "suche"), oder_ersatz=True)]
+            rrf: dict[str, float] = {}
+            for rangliste in ([i for i, _c in nah], volltext):
+                for rang, oid in enumerate(rangliste):
+                    rrf[oid] = rrf.get(oid, 0.0) + 1.0 / (RRF_K + rang + 1)
+            kos = dict(nah)
+            beste = sorted(rrf, key=lambda i: -rrf[i])[:grenze]
+            by = g.lade_viele(beste)
+            treffer = [(rrf[i], by[i], {"relevanz": round(kos[i], 2) if i in kos else "–(Volltext)", "aktualitaet": 0, "wichtigkeit": 0}) for i in beste if i in by]
             mit_vektor = vektor.vorhanden(kand)
-            f += (f" · semantisch (Embedding {int((time.monotonic() - t0) * 1000)} ms, {mit_vektor} von {len(kand)} Kandidaten mit Vektor geprüft"
-                  + (f"; {len(kand) - mit_vektor} ohne Vektor bis zum nächsten Schlaf nur per Volltext" if len(kand) > mit_vektor else "") + ")")
+            nur_text = sum(1 for i in beste if i not in kos)
+            f += (f" · semantisch hybrid (Embedding {ms} ms, {mit_vektor} von {len(kand)} Kandidaten mit Vektor; Bedeutung und Volltext per Rangfusion"
+                  + (f"; {nur_text} Treffer nur über Volltext" if nur_text else "") + ")")
         for _, o, _g in treffer:
             o.zugriff()
         return (f"{len(treffer)} Objekte zu „{f}“ (R Relevanz · A Aktualität · W Wichtigkeit):\n"

@@ -272,7 +272,9 @@ Tabelle `vektor` (TRAINING.md 4c). **Nur im Schlaf** (Schritt 7, Batch 16, höch
 dem Produktivhost braucht ≈ 1 s je Text (gemessen 08.11.2026), zu langsam für `vi_vorher`. Schritt 7b: Kosinus ≥ 0,85
 → Kante „semantisch ähnlich“; ≥ 0,95 zwischen **verschiedenen** Instanzen → `dublette:moeglich` (zusammenlegen
 entscheidet eine Instanz, nicht der Server). `vi_erinnere(filter, semantisch=true)` bettet den Freitext ausdrücklich
-jetzt ein und ordnet Kandidaten nach Nähe — die Dauer steht im Ergebnis. Ohne Konfiguration: Schritte benannt
+jetzt ein und ordnet **alle** sichtbaren Kandidaten nach Nähe (seit 0.19.2 ohne Obergrenze); seit 0.19.5 hybrid: Bedeutungs- und
+Volltext-Rangliste werden per Reciprocal Rank Fusion (k = 60) zusammengeführt, damit frisch Gelerntes ohne Vektor und genaue Begriffe
+(Fehlermeldungen, Optionen) gefunden werden. Die Dauer und die Zahl der Treffer nur über Volltext stehen im Ergebnis. Ohne Konfiguration: Schritte benannt
 übersprungen, Werkzeug lehnt mit Grund ab.
 
 
