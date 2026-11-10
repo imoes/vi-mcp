@@ -1,2 +1,2 @@
-"""vi-mcp — das VI-Gedächtnis als eigenständiger MCP-Server über HTTP."""
-__version__ = "0.22.0"
+"""vi-mcp — the VI memory as a standalone MCP server over HTTP."""
+__version__ = "0.23.0"

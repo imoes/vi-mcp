@@ -1,4 +1,4 @@
-"""0.9.0: Sandbox — Reflexe laufen im eigenen Prozess; Grenzen greifen; Reflex-Vertrag unverändert."""
+"""0.9.0: sandbox — reflexes run in their own process; limits apply; reflex contract unchanged."""
 import time
 
 from vi_mcp import reflexes, sandbox, tools
@@ -15,7 +15,7 @@ def test_run_and_schema():
 def test_endless_loop_is_stopped():
     t0 = time.monotonic()
     res = sandbox.run("def run(a):\n    while True:\n        pass", [{}], wallclock_s=1.5)
-    assert "Zeitlimit" in res["fehler"] and time.monotonic() - t0 < 5
+    assert "time limit" in res["fehler"] and time.monotonic() - t0 < 5
 
 
 def test_errors_and_memory():
@@ -29,7 +29,7 @@ def test_isolation_is_effective_and_named():
 
 
 def _attempt(expression, tmp_path=None):
-    """Der Code umgeht bewusst die AST-Prüfung: die Sandbox muss allein halten."""
+    """The code deliberately bypasses the AST check: the sandbox must hold on its own."""
     return sandbox.run(f"import os, socket\ndef run(a):\n    return {expression}", [{}])
 
 
@@ -38,7 +38,7 @@ def test_file_read_write_truncate_blocked(tmp_path):
     secret.write_text("zugangsdaten")
     p = str(secret)
     assert "PermissionError" in sandbox.run(f"def run(a):\n    return open({p!r}).read()", [{}])["fehler"]
-    assert "PermissionError" in sandbox.run(f"def run(a):\n    return open({p!r}, 'w').close()", [{}])["fehler"]  # kürzen
+    assert "PermissionError" in sandbox.run(f"def run(a):\n    return open({p!r}, 'w').close()", [{}])["fehler"]  # truncate
     assert secret.read_text() == "zugangsdaten"
     assert "PermissionError" in sandbox.run(f"def run(a):\n    return open({str(tmp_path / 'neu')!r}, 'w').close()", [{}])["fehler"]
     assert not (tmp_path / "neu").exists()
@@ -49,22 +49,22 @@ def test_network_and_processes_blocked():
     assert "PermissionError" in _attempt("socket.socket(socket.AF_INET, socket.SOCK_DGRAM)")["fehler"]  # UDP
     assert "PermissionError" in _attempt("socket.socket(socket.AF_UNIX)")["fehler"]
     assert "PermissionError" in _attempt("os.fork()")["fehler"]
-    assert _attempt("os.system('true')")["wert"] != 0  # system() kann nicht forken: Rückgabe -1/Fehler, kein Lauf
+    assert _attempt("os.system('true')")["wert"] != 0  # system() cannot fork: returns -1/error, no run
 
 
 def test_output_flood_is_stopped():
     res = sandbox.run("import os\ndef run(a):\n    while True:\n        os.write(1, b'x' * 65536)", [{}], wallclock_s=8)
-    assert "Ausgabe über" in res["fehler"]
+    assert "output over" in res["fehler"]
 
 
 def test_without_sandbox_nothing_runs(monkeypatch):
     monkeypatch.setattr(sandbox, "RUNNER", sandbox.RUNNER.replace("    abi = landlock()", "    raise RuntimeError('Kernel ohne Landlock')"))
     res = sandbox.run("def run(a):\n    return 'gelaufen'", [{}])
-    assert res["isolation"] == "keine" and "nicht ausgeführt" in res["fehler"] and "wert" not in res
+    assert res["isolation"] == "keine" and "not executed" in res["fehler"] and "wert" not in res
 
 
 def test_no_access_to_server_state():
-    # Der Reflex sieht keine Server-Module: vi_mcp ist nicht importierbar (-I -S, leerer Pfad, anderes cwd)
+    # the reflex sees no server modules: vi_mcp is not importable (-I -S, empty path, other cwd)
     res = sandbox.run("import vi_mcp\ndef run(a):\n    return 'drin'", [{}])
     assert "ModuleNotFoundError" in res["fehler"]
 
@@ -77,9 +77,9 @@ def test_reflex_contract_in_sandbox(gd):
                    {"name": "summe", "art": "werkzeug", "code": "TOOL = {'description': 'summiert', 'inputSchema': {'type': 'object', 'properties': {'zahlen': {'type': 'array'}}}}\ndef run(args):\n    return str(sum(args.get('zahlen', [])))"},
                    oid="reflex:summe", mode="aktiv", reason="T")
     loaded = reflexes.load_all()
-    assert set(loaded) == {"echo", "summe"} and "run" not in loaded["echo"]  # keine Funktion im Serverprozess
+    assert set(loaded) == {"echo", "summe"} and "run" not in loaded["echo"]  # no function in the server process
     assert reflexes.after("x_y", {}, "e") == ["Reflex echo (test): gesehen: x_y"]
     assert reflexes.as_tool("vi_reflex_summe", {"zahlen": [1, 2, 3]}) == "6"
     assert any(t["name"] == "vi_reflex_summe" for t in reflexes.tool_schemas())
     assert g.load("reflex:echo").data["isolation"].startswith("landlock-abi")
-    assert "Reflex-Sandbox: eigener Prozess" in tools.call_tool("vi_status", {}, "a", True)
+    assert "Reflex sandbox: own process" in tools.call_tool("vi_status", {}, "a", True)

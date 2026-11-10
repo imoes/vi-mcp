@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installiert vi-mcp als systemd-User-Dienst. Idempotent. Legt beim ersten Mal eine Instanz an.
-#   deploy/install.sh [instanzname]     (Standard: $USER, mit Reflex-Recht)
+# Installs vi-mcp as a systemd user service. Idempotent. Creates an instance the first time.
+#   deploy/install.sh [instance-name]     (default: $USER, with the reflex right)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 name="${1:-$USER}"
@@ -8,9 +8,9 @@ cfg="${VI_MCP_CONFIG:-$HOME/.config/vi-mcp/config.json}"
 tokdatei="$HOME/.config/vi-mcp/token-$name"
 if ! python3 -c "import json,sys; sys.exit(0 if '$name' in json.load(open('$cfg')).get('instanzen',{}) else 1)" 2>/dev/null; then
   umask 077
-  python3 -m vi_mcp instanz "$name" --reflexe | tail -1 > "$tokdatei"
+  python3 -m vi_mcp instance "$name" --reflexes | tail -1 > "$tokdatei"
   chmod 600 "$tokdatei"
-  echo "Instanz $name angelegt; Token in $tokdatei (0600)"
+  echo "instance $name created; token in $tokdatei (0600)"
 fi
 mkdir -p "$HOME/.config/systemd/user"
 install -m 0644 deploy/vi-mcp.service "$HOME/.config/systemd/user/vi-mcp.service"

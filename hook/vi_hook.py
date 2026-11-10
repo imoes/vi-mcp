@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
-"""vi_hook — meldet jede Handlung einer Claude-Code-Sitzung an vi-mcp. Nur Standardbibliothek, eine Datei.
+"""vi_hook — reports every action of a Claude Code session to vi-mcp. Standard library only, one file.
 
-Claude Code ruft das Skript als Hook auf (Ereignis aus stdin: `hook_event_name`):
-  PreToolUse          → vi_before. Gemerkte Antwort (nur MCP-Werkzeuge, nur lesend) → Aufruf verweigert, die Antwort
-                        ist der Grund (Hooks können einen Aufruf erlauben/verweigern, nicht ersetzen). Hinweise der VI
-                        gehen als Kontext an das Modell.
-  PostToolUse         → vi_after mit ok=true, Ergebnis, Dauer.
-  PostToolUseFailure  → vi_after mit ok=false, Fehler.
-  SessionEnd          → Gespräch in vi-mcp beenden (DELETE).
-  UserPromptSubmit    → erkennt lokal eine Korrektur („nein, …“) oder eine Note (#gut, #schlecht, #note 0.8). Gesendet wird
-                        nur dieses Ergebnis, nie der Text.
-Jede Claude-Sitzung (`session_id`) ist in vi-mcp genau ein Gespräch; die Mcp-Session-Id liegt in einer Zustandsdatei.
+Claude Code calls the script as a hook (event from stdin: `hook_event_name`):
+  PreToolUse          → vi_before. Remembered answer (MCP tools only, read-only) → call denied, the answer
+                        is the reason (hooks can allow/deny a call, not replace it). Hints of the VI
+                        go to the model as context.
+  PostToolUse         → vi_after with ok=true, result, duration.
+  PostToolUseFailure  → vi_after with ok=false, error.
+  SessionEnd          → end the conversation in vi-mcp (DELETE).
+  UserPromptSubmit    → detects locally a correction ("nein, …", "no, …") or a grade (#gut, #schlecht, #note 0.8). Only this
+                        result is sent, never the text.
+Every Claude session (`session_id`) is exactly one conversation in vi-mcp; the Mcp-Session-Id is kept in a state file.
 
-Ausfall: ist vi-mcp nicht erreichbar oder antwortet falsch, läuft der Aufruf durch (Exit 0, keine Ausgabe) — und der
-Grund steht in der Protokolldatei (benannt, nicht still). Werkzeuge des Gedächtnisses selbst (vi_*) werden nicht gemeldet.
+Outage: if vi-mcp is unreachable or answers wrongly, the call goes through (exit 0, no output) — and the
+reason is in the log file (named, not silent). The memory's own tools (vi_*) are not reported.
 
-Datensparsamkeit: Geheimnisse in Argumenten und Fehlern werden vor dem Senden maskiert. Ergebnisse gehen nur bei
-MCP-Werkzeugen an den Server, weil nur dort eine gemerkte Antwort möglich ist; eingebaute Werkzeuge (Bash, Read, …) und
-Werkzeuge für Zugangsdaten melden nur den Ausgang. Lange Argumente eingebauter Werkzeuge werden gekürzt.
+Data minimisation: secrets in arguments and errors are masked before sending. Results go to the server only for
+MCP tools, because only there a remembered answer is possible; built-in tools (Bash, Read, …) and
+tools for credentials report only the outcome. Long arguments of built-in tools are truncated.
 
-Umgebung:
-  VI_MCP_URL         Standard http://127.0.0.1:8765/mcp
-  VI_MCP_TOKEN_FILE  Standard ~/.config/vi-mcp/token-$USER  (Bearer-Token der Instanz, 0600). Fehlt die Standarddatei,
-                     meldet der Hook ohne Token (Server mit `offen`); eine ausdrücklich genannte Datei muss lesbar sein.
-  VI_HOOK_STATE      Standard ~/.cache/vi-mcp/hook        (Zustand je Sitzung und je tool_use_id, 0700)
-  VI_HOOK_TIMEOUT    Sekunden je HTTP-Anfrage, Standard 3
+Environment:
+  VI_MCP_URL         default http://127.0.0.1:8765/mcp
+  VI_MCP_TOKEN_FILE  default ~/.config/vi-mcp/token-$USER  (bearer token of the instance, 0600). If the default file is missing,
+                     the hook reports without a token (server with `offen`); an explicitly named file must be readable.
+  VI_HOOK_STATE      default ~/.cache/vi-mcp/hook        (state per session and per tool_use_id, 0700)
+  VI_HOOK_TIMEOUT    seconds per HTTP request, default 3
 """
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ SECRET_PATTERNS = [
 
 
 class Outage(Exception):
-    """vi-mcp nicht nutzbar — der Aufruf läuft ohne Gedächtnis durch, der Grund wird protokolliert."""
+    """vi-mcp not usable — the call goes through without memory, the reason is logged."""
 
 
 def log_output(text: str) -> None:
@@ -73,10 +73,10 @@ def log_output(text: str) -> None:
         pass
 
 
-# ── Werkzeugname: mcp__<server>__<werkzeug> → <werkzeug>, sonst unverändert ─────
+# ── Tool name: mcp__<server>__<tool> → <tool>, otherwise unchanged ─────────────
 
 def tool_parts(tool_name: str) -> tuple[str, str | None]:
-    """(Werkzeugname für das Gedächtnis, MCP-Server oder None). Rein."""
+    """(tool name for the memory, MCP server or None). Pure."""
     if tool_name.startswith("mcp__"):
         parts = tool_name.split("__", 2)
         if len(parts) == 3 and parts[2]:
@@ -85,8 +85,8 @@ def tool_parts(tool_name: str) -> tuple[str, str | None]:
 
 
 def read_only_hint(tool_name: str) -> bool | None:
-    """Eingebaute Werkzeuge (Bash, Read, Edit, …) werden NIE aus dem Gedächtnis beantwortet — Dateien und
-    Systemzustand ändern sich zwischen zwei Aufrufen. Bei MCP-Werkzeugen entscheidet vi-mcp nach dem Namen."""
+    """Built-in tools (Bash, Read, Edit, …) are NEVER answered from memory — files and
+    system state change between two calls. For MCP tools vi-mcp decides by the name."""
     return None if tool_name.startswith("mcp__") and not SECRET_TOOL.search(tool_name) else False
 
 
@@ -97,7 +97,7 @@ def mask(text: str) -> str:
 
 
 def sanitize(value, max_length: int):
-    """Geheimnisse maskieren und lange Texte kürzen, rekursiv. Rein."""
+    """Mask secrets and truncate long texts, recursively. Pure."""
     if isinstance(value, str):
         return mask(value)[:max_length]
     if isinstance(value, dict):
@@ -107,7 +107,7 @@ def sanitize(value, max_length: int):
     return value
 
 
-# ── Zustand: Gespräch je Sitzung, Vorher je tool_use_id ───────────────────────
+# ── State: conversation per session, before-record per tool_use_id ──────────
 
 def _file(kind: str, key_: str) -> Path:
     safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in key_)[:120]
@@ -140,15 +140,15 @@ def remove_entry(kind: str, key_: str) -> None:
         pass
 
 
-# ── MCP über HTTP ─────────────────────────────────────────────────────────────
+# ── MCP over HTTP ─────────────────────────────────────────────────────────────
 
 def _token() -> str | None:
     if "VI_MCP_TOKEN_FILE" not in os.environ and not TOKEN_FILE.exists():
-        return None  # Zugang ohne Token
+        return None  # access without a token
     try:
         return TOKEN_FILE.read_text().strip()
     except OSError as e:
-        raise Outage(f"Token-Datei {TOKEN_FILE} nicht lesbar: {e}") from e
+        raise Outage(f"token file {TOKEN_FILE} not readable: {e}") from e
 
 
 def _post(req_body: dict | None, sid: str | None = None, method: str = "POST") -> tuple[int, dict, dict | None]:
@@ -183,7 +183,7 @@ def _init_session(claude_session: str, cwd: str | None) -> str:
 
 
 def call_tool(claude_session: str, cwd: str | None, name: str, args: dict) -> dict:
-    """Werkzeug in vi-mcp aufrufen; bei unbekannter Sitzung (Server neu gestartet, abgelaufen) einmal neu anmelden."""
+    """Call a tool in vi-mcp; on an unknown session (server restarted, expired) log in again once."""
     z = read("sitzung", claude_session)
     sid = z["mcp_session_id"] if z else _init_session(claude_session, cwd)
     for attempt in range(2):
@@ -197,11 +197,11 @@ def call_tool(claude_session: str, cwd: str | None, name: str, args: dict) -> di
         if a["result"].get("isError"):
             raise Outage(f"{name}: {text[:200]}")
         return json.loads(text)
-    raise Outage(f"{name}: Sitzung nach Neuanmeldung weiter unbekannt")
+    raise Outage(f"{name}: session still unknown after logging in again")
 
 
 def signal_off(text: str) -> dict | None:
-    """Rein und lokal: {art, note?} oder None. Eine ausdrückliche Note hat Vorrang vor der Korrektur."""
+    """Pure and local: {art, note?} or None. An explicit grade takes precedence over the correction."""
     if not text or text.lstrip().startswith(("/", "<")):
         return None
     if m := GRADE.search(text):
@@ -221,7 +221,7 @@ def notify_signal(claude_session: str, text: str) -> None:
     try:
         token = SIGNAL_TOKEN_FILE.read_text().strip()
     except OSError as e:
-        raise Outage(f"Signal-Token {SIGNAL_TOKEN_FILE} nicht lesbar: {e}") from e
+        raise Outage(f"signal token {SIGNAL_TOKEN_FILE} not readable: {e}") from e
     req = urllib.request.Request(URL.rsplit("/mcp", 1)[0] + "/signal", data=json.dumps({**s, "mcp_session_id": z["mcp_session_id"]}).encode(),
                                  headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, method="POST")
     try:
@@ -231,8 +231,8 @@ def notify_signal(claude_session: str, text: str) -> None:
 
 
 def finish(claude_session: str) -> None:
-    """SessionEnd hat in Claude Code standardmäßig nur 1,5 s — deshalb kurzer Timeout. Kommt das DELETE nicht an,
-    schließt vi-mcp das Gespräch nach 4 h Leerlauf selbst (Zustand `abgelaufen`)."""
+    """SessionEnd has only 1.5 s by default in Claude Code — hence the short timeout. If the DELETE does not arrive,
+    vi-mcp closes the conversation itself after 4 h idle (state `abgelaufen`)."""
     global TIMEOUT
     z = read("sitzung", claude_session)
     if z:
@@ -241,7 +241,7 @@ def finish(claude_session: str) -> None:
         remove_entry("sitzung", claude_session)
 
 
-# ── Ereignisse ────────────────────────────────────────────────────────────────
+# ── Events ────────────────────────────────────────────────────────────────────
 
 def _result_text(answer) -> str:
     text = answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
@@ -249,7 +249,7 @@ def _result_text(answer) -> str:
 
 
 def before_tool(e: dict) -> dict | None:
-    """Liefert die Hook-Ausgabe (JSON für stdout) oder None (nichts zu sagen)."""
+    """Returns the hook output (JSON for stdout) or None (nothing to say)."""
     tool_name = e.get("tool_name") or ""
     name, server = tool_parts(tool_name)
     args = sanitize(e.get("tool_input") or {}, MAX_ARG_MCP if server else MAX_ARG_BUILTIN)
@@ -261,15 +261,15 @@ def before_tool(e: dict) -> dict | None:
     if e.get("tool_use_id"):
         write("vorher", e["tool_use_id"], {"vorher_id": v.get("vorher_id"), "t0": time.time(), "tool": name, "args": v.get("args", args)})
     if v.get("antwort") is not None:
-        reason = (f"[VI-Gedächtnis] Dieselbe Anfrage wurde vor {v.get('antwort_alter_s')} s beantwortet (gilt "
-                 f"{v.get('antwort_ttl_s')} s); hier die gemerkte Antwort statt eines neuen Aufrufs. Frisch erzwingen: "
+        reason = (f"[VI memory] The same request was answered {v.get('antwort_alter_s')} s ago (valid for "
+                 f"{v.get('antwort_ttl_s')} s); here is the remembered answer instead of a new call. Force a fresh call: "
                  f"vi_forget(tool=\"{name}\").\n\n{v['antwort']}")
         return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                        "permissionDecisionReason": reason[:MAX_RESULT]}}
     hints = v.get("hinweise") or []
     if hints:
         return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
-                                       "additionalContext": "[VI-Gedächtnis vor " + name + "]\n" + "\n".join(hints)}}
+                                       "additionalContext": "[VI memory before " + name + "]\n" + "\n".join(hints)}}
     return None
 
 
@@ -278,7 +278,7 @@ def after_tool(e: dict, ok: bool) -> dict | None:
     name, server = tool_parts(tool_name)
     v = read("vorher", e.get("tool_use_id") or "") or {}
     remove_entry("vorher", e.get("tool_use_id") or "")
-    # Dauer: von Claude Code gemessen (duration_ms, ohne Rückfragen und PreToolUse-Hooks), sonst eigene Zeitnahme
+    # duration: measured by Claude Code (duration_ms, without permission prompts and PreToolUse hooks), else own timing
     duration = e.get("duration_ms")
     notify = {"tool": name, "args": v.get("args", sanitize(e.get("tool_input") or {}, MAX_ARG_MCP if server else MAX_ARG_BUILTIN)), "ok": ok,
              "duration_ms": int(duration) if isinstance(duration, (int, float)) else int((time.time() - v["t0"]) * 1000) if v.get("t0") else 0}
@@ -288,7 +288,7 @@ def after_tool(e: dict, ok: bool) -> dict | None:
     if read_only is not None:
         notify["read_only"] = read_only
     if ok:
-        if read_only is None:  # nur hier kann eine Antwort gemerkt werden; sonst bleibt das Ergebnis in der Sitzung
+        if read_only is None:  # only here can an answer be remembered; otherwise the result stays in the session
             notify["result"] = _result_text(e.get("tool_response"))
     else:
         error = e.get("error") or e.get("tool_response") or "unbekannter Fehler"
@@ -298,14 +298,14 @@ def after_tool(e: dict, ok: bool) -> dict | None:
     hints = n.get("hinweise") or []
     if hints:
         return {"hookSpecificOutput": {"hookEventName": e.get("hook_event_name", "PostToolUse"),
-                                       "additionalContext": "[VI-Gedächtnis nach " + name + "]\n" + "\n".join(hints)}}
+                                       "additionalContext": "[VI memory after " + name + "]\n" + "\n".join(hints)}}
     return None
 
 
 def process(e: dict) -> dict | None:
     event = e.get("hook_event_name")
     if not e.get("session_id"):
-        raise Outage("session_id fehlt im Hook-Ereignis")
+        raise Outage("session_id missing in hook event")
     name, server = tool_parts(e.get("tool_name") or "")
     if event in ("PreToolUse", "PostToolUse", "PostToolUseFailure") and server and name.startswith("vi_"):
         return None
@@ -328,15 +328,15 @@ def main() -> int:
     try:
         e = json.load(sys.stdin)
     except json.JSONDecodeError as ex:
-        log_output(f"kein JSON auf stdin: {ex}")
+        log_output(f"no JSON on stdin: {ex}")
         return 0
     try:
         outputs = process(e)
     except Outage as ex:
-        log_output(f"{e.get('hook_event_name')} {e.get('tool_name', '')}: ohne Gedächtnis weiter — {ex}")
+        log_output(f"{e.get('hook_event_name')} {e.get('tool_name', '')}: continuing without memory — {ex}")
         return 0
-    except Exception as ex:  # noqa: BLE001 — ein Hook-Fehler darf die Sitzung nie aufhalten
-        log_output(f"{e.get('hook_event_name')} {e.get('tool_name', '')}: interner Fehler {type(ex).__name__}: {ex}")
+    except Exception as ex:  # noqa: BLE001 — a hook error must never stop the session
+        log_output(f"{e.get('hook_event_name')} {e.get('tool_name', '')}: internal error {type(ex).__name__}: {ex}")
         return 0
     if outputs:
         print(json.dumps(outputs, ensure_ascii=False))

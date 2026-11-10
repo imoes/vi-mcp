@@ -1,4 +1,4 @@
-"""0.7.0: Vektoren — Einbettung im Schlaf, Nähe-Kanten, Dubletten, semantische Suche (ohne Netz: Fake-Einbettung)."""
+"""0.7.0: vectors — embedding during sleep, proximity edges, duplicates, semantic search (no network: fake embedding)."""
 import math
 
 import pytest
@@ -11,7 +11,7 @@ SYNONYMS = {"haengt": "timeout", "verbindung": "timeout"}
 
 
 def fake_embed(texts):
-    """Deterministische Bag-of-Words-Einbettung; 'haengt' und 'verbindung' zählen als 'timeout' (Synonyme)."""
+    """Deterministic bag-of-words embedding; 'haengt' and 'verbindung' count as 'timeout' (synonyms)."""
     outputs = []
     for t in texts:
         t = t.lower()
@@ -36,7 +36,7 @@ def test_without_service_skipped_and_named(gd, monkeypatch):
     monkeypatch.setattr(vector, "config", None)
     b = sleep_cycle.run("Test")
     assert b.data["schritte"]["7_vektoren"]["zustand"] == "uebersprungen" and b.data["schritte"]["7b_naehe"]["zustand"] == "uebersprungen"
-    with pytest.raises(tools.Rejected, match="kein Embedding-Dienst"):
+    with pytest.raises(tools.Rejected, match="no embedding service"):
         tools.call_tool("vi_erinnere", {"filter": "timeout", "semantisch": True}, "a", True)
 
 
@@ -47,7 +47,7 @@ def test_vectors_in_sleep_and_proximity_edges(fake):
     report = sleep_cycle.run("Test")
     s7 = report.data["schritte"]["7_vektoren"]
     assert s7["zustand"] == "fertig" and s7["neu"] == 3 and vector.load(a.id) is not None
-    assert math.isclose(vector.cosine(vector.load(a.id), vector.load(b.id)), 1.0, abs_tol=1e-6)  # Synonyme → identischer Vektor
+    assert math.isclose(vector.cosine(vector.load(a.id), vector.load(b.id)), 1.0, abs_tol=1e-6)  # synonyms → identical vector
     s7b = report.data["schritte"]["7b_naehe"]
     assert s7b["kanten_neu"] == 1 and s7b["dubletten_moeglich"] == 1
     assert any("semantisch ähnlich" in gr for _, gr in g.load(a.id).edges())
@@ -61,9 +61,9 @@ def test_semantic_search(fake):
     g.new_object("erkenntnis", "Disk voll auf web1", ["host:web1"], {"quelle": "z"}, reason="T")
     sleep_cycle.run("Test")
     r = tools.call_tool("vi_erinnere", {"filter": "Verbindung haengt", "semantisch": True}, "a", True)
-    assert r.splitlines()[1].strip().startswith(f"[{a.id}]") and "semantisch hybrid (Embedding" in r
-    assert "nichts im Gedächtnis" in tools.call_tool("vi_erinnere", {"filter": "Verbindung haengt"}, "a", True)  # FTS findet es nicht
-    with pytest.raises(tools.Rejected, match="Freitext"):
+    assert r.splitlines()[1].strip().startswith(f"[{a.id}]") and "semantic hybrid (embedding" in r
+    assert "nothing in memory" in tools.call_tool("vi_erinnere", {"filter": "Verbindung haengt"}, "a", True)  # FTS does not find it
+    with pytest.raises(tools.Rejected, match="free text"):
         tools.call_tool("vi_erinnere", {"filter": "host:cue1", "semantisch": True}, "a", True)
 
 
@@ -72,14 +72,14 @@ def test_catch_up_names_the_real_remainder(gd, monkeypatch):
     monkeypatch.setattr(vector, "BATCH", 2)
     for i in range(5):
         g.new_object("erkenntnis", f"Wissen Nummer {i} zum Einbetten", ["thema:a"], {"quelle": "x"}, reason="T")
-    r = vector.catch_up(max_s=0)  # Zeit schon um: nichts eingebettet, alles offen
+    r = vector.catch_up(max_s=0)  # time already up: nothing embedded, everything pending
     assert r == {"zustand": "fertig", "neu": 0, "offen": 5, "pause_s": 0.0}
     r = vector.catch_up()
     assert r["neu"] == 5 and r["offen"] == 0
 
 
 def test_semantic_search_checks_all_vectors_not_only_newest(fake):
-    """0.19.2: Kandidaten waren die 200 zuletzt benutzten Objekte — ältere Doku wurde nie verglichen (gemessen am Vergleich mit der AIKB)."""
+    """0.19.2: candidates were the 200 most recently used objects — older docs were never compared (measured against the AIKB)."""
     old = g.new_object("erkenntnis", "Proxy-Doku: Verbindung über den Proxy", ["doku:x"], {"quelle": "alt"}, reason="T")
     g.db().execute("UPDATE objekt SET zuletzt = '2020-01-01T00:00:00+00:00', zeit = '2020-01-01T00:00:00+00:00' WHERE id = ?", (old.id,))
     for i in range(260):
@@ -87,42 +87,42 @@ def test_semantic_search_checks_all_vectors_not_only_newest(fake):
     vector.catch_up(max_s=600)
     r = tools.call_tool("vi_erinnere", {"filter": "proxy netz", "semantisch": True, "limit": 3}, "a", True)
     assert r.splitlines()[1].strip().startswith(f"[{old.id}]"), r
-    assert "261 von 261 Kandidaten mit Vektor" in r
+    assert "261 of 261 candidates with a vector" in r
 
 
 def test_semantic_search_names_objects_without_vector(fake):
     g.new_object("erkenntnis", "proxy timeout", ["host:a"], {"quelle": "x"}, reason="T")
     vector.catch_up(max_s=600)
-    g.new_object("erkenntnis", "proxy disk", ["host:b"], {"quelle": "y"}, reason="T")  # noch ohne Vektor
+    g.new_object("erkenntnis", "proxy disk", ["host:b"], {"quelle": "y"}, reason="T")  # no vector yet
     r = tools.call_tool("vi_erinnere", {"filter": "proxy", "semantisch": True}, "a", True)
-    assert "1 von 2 Kandidaten mit Vektor" in r
+    assert "1 of 2 candidates with a vector" in r
 
 
 def test_hybrid_search_finds_fresh_learning_without_vector(fake):
-    """0.19.5: Neues hat bis zum nächsten Schlaf keinen Vektor. Die Bedeutungssuche allein fand es nicht (Lerntest 09.11.: 1 von 8 vorher und nachher)."""
+    """0.19.5: new items have no vector until the next sleep. Meaning search alone did not find them (learning test 09.11.: 1 of 8 before and after)."""
     for i in range(30):
         g.new_object("erkenntnis", f"Disk voll auf web{i}", [f"host:web{i}"], {"quelle": "alt"}, reason="T")
     vector.catch_up(max_s=600)
     new = g.new_object("erkenntnis", "ipa-client-install scheitert mit TypeError IPACertificate, Ursache pip-cryptography", ["thema:ipa-client-install"],
                          {"quelle": "neu"}, reason="T")
     r = tools.call_tool("vi_erinnere", {"filter": "ipa-client-install TypeError IPACertificate", "semantisch": True, "limit": 3}, "a", True)
-    assert new.id in r and "nur über Volltext" in r, r
+    assert new.id in r and "via full text only" in r, r
 
 
 def test_fulltext_falls_back_to_or_and_says_so(gd):
-    """0.19.2: FTS5 verknüpft Wörter mit UND — ein Füllwort der Frage („anzuhalten“) ergab 0 Treffer."""
+    """0.19.2: FTS5 joins words with AND — a filler word of the question ("anzuhalten") gave 0 hits."""
     a = g.new_object("erkenntnis", "vzdump im Modus snapshot sichert laufende VMs", ["skill:proxmox"], {"quelle": "x"}, reason="T")
     b = g.new_object("erkenntnis", "vzdump sichert VMs", ["skill:proxmox"], {"quelle": "y"}, reason="T")
     r = tools.call_tool("vi_erinnere", {"filter": "vzdump snapshot laufende anzuhalten"}, "a", True)
-    assert "ODER-Suche" in r and r.splitlines()[1].strip().startswith(f"[{a.id}]") and b.id in r
-    full = tools.call_tool("vi_erinnere", {"filter": "vzdump snapshot"}, "a", True)  # alle Wörter da, genug Treffer bei limit 1
-    assert "ODER-Suche" not in tools.call_tool("vi_erinnere", {"filter": "vzdump sichert", "limit": 1}, "a", True) and a.id in full
-    # interne Aufrufer behalten UND
+    assert "OR search" in r and r.splitlines()[1].strip().startswith(f"[{a.id}]") and b.id in r
+    full = tools.call_tool("vi_erinnere", {"filter": "vzdump snapshot"}, "a", True)  # all words present, enough hits at limit 1
+    assert "OR search" not in tools.call_tool("vi_erinnere", {"filter": "vzdump sichert", "limit": 1}, "a", True) and a.id in full
+    # internal callers keep AND
     assert g.recall("vzdump snapshot anzuhalten") == [] and g.word_search.get() == "und"
 
 
 def test_fulltext_with_hashtag_filter_searches_only_filtered(gd):
-    """FTS lief vorher global mit LIMIT 500 und wurde erst danach gefiltert: passende Objekte hinter 500 fremden Treffern fehlten."""
+    """FTS used to run globally with LIMIT 500 and was filtered only afterwards: matching objects behind 500 foreign hits were missing."""
     for i in range(520):
         g.new_object("erkenntnis", f"timeout auf web{i}", [f"host:web{i}"], {"quelle": "x"}, reason="T")
     target = g.new_object("erkenntnis", "timeout auf cue1", ["host:cue1"], {"quelle": "x"}, reason="T")

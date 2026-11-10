@@ -1,12 +1,12 @@
-"""Logbuch — je Server eine signierte, verkettete Folge von Einträgen; Grundlage des Netzes. Kennt weder Transport noch Gedächtnis.
+"""Logbook — per server a signed, chained sequence of entries; the basis of the network. Knows neither transport nor memory.
 
-Kopf: Nummer, Hash des Vorgängers, Typ, Hash des Inhalts, Signatur. Inhalt getrennt: Wird ein Objekt vergessen, verschwindet der Inhalt,
-die Kette bleibt gültig. Wer ein Logbuch weiterträgt, kann es nicht fälschen, umordnen oder in der Mitte kürzen (zurückhalten kann er es).
-Zwei verschiedene Einträge mit derselben Nummer sind eine Gabelung: Dieser Herausgeber wird nicht mehr angenommen.
+Header: number, hash of the predecessor, type, hash of the content, signature. Content is separate: if an object is forgotten, the content
+disappears and the chain stays valid. Whoever relays a logbook cannot forge, reorder or cut it in the middle (withholding it is possible).
+Two different entries with the same number are a fork: this publisher is no longer accepted.
 
-Mitglied ist, wer von einem Gründer aus über eine Kette von Einladungen erreichbar ist. Ausschließen dürfen Gründer und der Einladende;
-wer nur über einen Ausgeschlossenen eingeladen wurde, fällt mit heraus. Weitertragen setzt Signatur und feste Regeln voraus (pruefung.py),
-Glauben entscheidet erst das Gedächtnis.
+A member is whoever is reachable from a founder via a chain of invitations. Founders and the inviter may exclude;
+whoever was invited only via an excluded key drops out as well. Relaying requires signature and fixed rules (checks.py),
+believing is decided only by the memory.
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ MAX_PER_DAY = 5000
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _HEX32 = re.compile(r"^[0-9a-f]{32}$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-#: hinter einem Reverse-Proxy liegt der Dienst unter einem Pfad, z. B. https://host/vi-p2p
+#: behind a reverse proxy the service lives under a path, e.g. https://host/vi-p2p
 _ADDRESS = re.compile(r"^https?://[^/\s?#]+(?:/[A-Za-z0-9._~-]+)*$")
 
 
@@ -53,10 +53,10 @@ def _crypto():
 
 
 def generate_keys(fpath: Path) -> str:
-    """Seed anlegen (0600, wird nie überschrieben). Liefert den öffentlichen Schlüssel als Hex."""
+    """Create the seed (0600, never overwritten). Returns the public key as hex."""
     priv, _pub, _inv = _crypto()
     if fpath.exists():
-        raise ValueError(f"{fpath} existiert bereits")
+        raise ValueError(f"{fpath} already exists")
     k = priv.generate()
     with os.fdopen(os.open(fpath, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as f:
         f.write(k.private_bytes_raw())
@@ -81,7 +81,7 @@ def valid(pubkey_hex: str, sig_hex: str, data: bytes) -> bool:
 
 
 def pseudonym(pubkey_hex: str) -> str:
-    """Das Netz kennt keinen Hostnamen, nur diesen Abdruck des Schlüssels."""
+    """The network knows no host name, only this fingerprint of the key."""
     return "vi-" + hashlib.sha256(bytes.fromhex(pubkey_hex)).hexdigest()[:12]
 
 
@@ -94,19 +94,19 @@ def signature_valid(header: dict) -> bool:
 
 
 def header_form(header) -> str | None:
-    """Rein. Grund, warum ein Kopf nicht in Ordnung ist, sonst None."""
+    """Pure. Reason why a header is not in order, otherwise None."""
     if not isinstance(header, dict) or not HEADER_REQUIRED <= set(header) or not set(header) <= HEADER_REQUIRED | HEADER_OPTIONAL:
-        return "Kopf hat falsche Felder"
+        return "header has wrong fields"
     if header["v"] != VERSION or header["typ"] not in TYPE_NAMES or not isinstance(header["pub"], str) or not _HEX64.match(header["pub"]):
-        return "Kopf: Version, Typ oder Schlüssel unbrauchbar"
+        return "header: version, type or key unusable"
     if isinstance(header["seq"], bool) or not isinstance(header["seq"], int) or header["seq"] < 1 or not (header["vor"] is None or (isinstance(header["vor"], str) and _HEX64.match(header["vor"]))):
-        return "Kopf: Nummer oder Vorgänger unbrauchbar"
+        return "header: number or predecessor unusable"
     if not isinstance(header["zeit"], str) or not _DATE.match(header["zeit"]) or not isinstance(header["sha"], str) or not _HEX64.match(header["sha"]):
-        return "Kopf: Datum oder Prüfsumme unbrauchbar"
+        return "header: date or checksum unusable"
     if header["typ"] in ("objekt", "widerruf") and not (isinstance(header.get("netz_id"), str) and _HEX32.match(header["netz_id"])):
-        return "Kopf: netz_id fehlt"
+        return "header: netz_id missing"
     if header["typ"] == "objekt" and not (isinstance(header.get("loesch_hash"), str) and _HEX64.match(header["loesch_hash"])):
-        return "Kopf: loesch_hash fehlt"
+        return "header: loesch_hash missing"
     return None
 
 
@@ -118,7 +118,7 @@ def valid_control_form(type_: str, content) -> bool:
     if type_ in ("einladung", "ausschluss"):
         return set(content) == {"pub"} and isinstance(content["pub"], str) and bool(_HEX64.match(content["pub"]))
     if type_ == "adresse":
-        # pin: SHA-256 des TLS-Zertifikats, für peerhosts ohne öffentliche CA (seit 0.15.0; ältere Peers lehnen das Feld ab)
+        # pin: SHA-256 of the TLS certificate, for peerhosts without a public CA (since 0.15.0; older peers reject the field)
         return set(content) in ({"adresse"}, {"adresse", "pin"}) and isinstance(content["adresse"], str) and bool(_ADDRESS.match(content["adresse"])) \
             and ("pin" not in content or (isinstance(content["pin"], str) and bool(_HEX64.match(content["pin"]))))
     return False
@@ -155,7 +155,7 @@ class Logbook:
         self.founders = list(founders)
         self._members: set[str] | None = None
 
-    # ---- eigene Einträge ----
+    # ---- own entries ----
 
     def _header_of(self, pub: str) -> tuple[int, str | None]:
         z = self.db.execute("SELECT seq, hash FROM eintrag WHERE pub = ? ORDER BY seq DESC LIMIT 1", (pub,)).fetchone()
@@ -163,7 +163,7 @@ class Logbook:
 
     def attach(self, type_: str, content: dict, net_id: str | None = None, delete_hash: str | None = None) -> dict:
         if type_ != "objekt" and not valid_control_form(type_, content):
-            raise ValueError(f"Inhalt passt nicht zu Typ {type_}")
+            raise ValueError(f"content does not fit type {type_}")
         with self.lock:
             self.db.execute("BEGIN IMMEDIATE")
             try:
@@ -186,7 +186,7 @@ class Logbook:
             self.db.execute("INSERT OR IGNORE INTO inhalt (sha, daten) VALUES (?,?)", (header["sha"], json.dumps(content, ensure_ascii=False, sort_keys=True)))
 
     def _apply_effects(self, header: dict, content) -> None:
-        """Was ein Eintrag bewirkt, egal woher er kam."""
+        """What an entry causes, no matter where it came from."""
         if header["typ"] in ("einladung", "ausschluss"):
             self._members = None
         elif header["typ"] == "adresse" and header["pub"] != self.pub:
@@ -194,15 +194,15 @@ class Logbook:
         elif header["typ"] == "widerruf":
             self.forget(content["ziel"], content["token"])
 
-    # ---- Vergessen ----
+    # ---- Forgetting ----
 
     def forget(self, net_id: str, token: str) -> list[tuple[str, int]]:
-        """Inhalt löschen, wenn der Nachweis passt; Grabstein merken. Liefert (pub, seq) der gelöschten Einträge."""
+        """Delete the content if the proof matches; remember a tombstone. Returns (pub, seq) of the deleted entries."""
         evidence = hashlib.sha256(token.encode()).hexdigest()
         with self.lock:
             lines = self.db.execute("SELECT pub, seq, sha, loesch_hash FROM eintrag WHERE netz_id = ? AND typ = 'objekt'", (net_id,)).fetchall()
             if lines and not any(hmac.compare_digest(z[3], evidence) for z in lines):
-                return []  # falscher Nachweis
+                return []  # wrong proof
             remove = []
             for pub, seq, sha, l in lines:
                 if hmac.compare_digest(l, evidence):
@@ -213,7 +213,7 @@ class Logbook:
                 self.discard_segments(pub, seq)
         return remove
 
-    # ---- Mitgliedschaft ----
+    # ---- Membership ----
 
     def members(self) -> set[str]:
         with self.lock:
@@ -241,7 +241,7 @@ class Logbook:
     def is_member(self, pub: str) -> bool:
         return pub in self.members()
 
-    # ---- Austausch ----
+    # ---- Exchange ----
 
     def headers(self) -> dict[str, int]:
         with self.lock:
@@ -256,7 +256,7 @@ class Logbook:
         self.db.execute("INSERT INTO verstoss (pub, n) VALUES (?, 1) ON CONFLICT(pub) DO UPDATE SET n = n + 1", (pub,))
 
     def _object_content(self, header: dict, content):
-        """Der zu speichernde Inhalt eines Objekts oder None (vergessen, fehlt, oder verstößt gegen die Regeln)."""
+        """The content of an object to store, or None (forgotten, missing, or violating the rules)."""
         tombstone = self.db.execute("SELECT token_sha FROM grab WHERE netz_id = ?", (header["netz_id"],)).fetchone()
         if tombstone and hmac.compare_digest(tombstone[0], header["loesch_hash"]):
             return None
@@ -271,7 +271,7 @@ class Logbook:
         return content
 
     def ingest(self, entries) -> dict:
-        """Fremde Einträge prüfen und speichern. Ein Fehler beendet nur das Logbuch dieses Herausgebers für diesen Durchlauf."""
+        """Check and store foreign entries. An error only stops this publisher's logbook for this pass."""
         report = {"neu": 0, "bekannt": 0, "abgelehnt": 0, "gruende": []}
         stopped: set[str] = set()
 
@@ -289,19 +289,19 @@ class Logbook:
                 continue
             with self.lock:
                 if self.db.execute("SELECT 1 FROM gabelung WHERE pub = ?", (pub,)).fetchone():
-                    stop(pub, "Gabelung bekannt")
+                    stop(pub, "fork known")
                     continue
                 if not self.is_member(pub):
-                    stop(pub, "kein Mitglied")
+                    stop(pub, "not a member")
                     continue
                 if not signature_valid(header):
-                    stop(pub, "Signatur ungültig")
+                    stop(pub, "signature invalid")
                     continue
                 present = self.db.execute("SELECT hash FROM eintrag WHERE pub = ? AND seq = ?", (pub, header["seq"])).fetchone()
                 if present:
                     if present[0] != entry_hash(header):
                         self.db.execute("INSERT OR REPLACE INTO gabelung (pub, seq, zeit) VALUES (?,?,?)", (pub, header["seq"], header["zeit"]))
-                        stop(pub, f"Gabelung bei Nummer {header['seq']}")
+                        stop(pub, f"fork at number {header['seq']}")
                         continue
                     report["bekannt"] += 1
                     if header["typ"] == "objekt" and content is not None and not self.db.execute("SELECT 1 FROM inhalt WHERE sha = ?", (header["sha"],)).fetchone():
@@ -310,17 +310,17 @@ class Logbook:
                     continue
                 seq, prev_hash = self._header_of(pub)
                 if header["seq"] != seq + 1 or header["vor"] != prev_hash:
-                    stop(pub, f"Kette unterbrochen bei Nummer {header['seq']}")
+                    stop(pub, f"chain broken at number {header['seq']}")
                     continue
                 if self.db.execute("SELECT COUNT(*) FROM eintrag WHERE pub = ? AND zeit = ?", (pub, header["zeit"])).fetchone()[0] >= MAX_PER_DAY:
-                    stop(pub, "Tageskontingent erschöpft")
+                    stop(pub, "daily quota exhausted")
                     continue
                 if header["typ"] == "objekt":
                     to_save = self._object_content(header, content)
                 else:
                     if not valid_control_form(header["typ"], content) or sha256(content) != header["sha"] or (header["typ"] == "widerruf" and content["ziel"] != header["netz_id"]):
                         self._violation(pub)
-                        stop(pub, f"Inhalt von Typ {header['typ']} unbrauchbar")
+                        stop(pub, f"content of type {header['typ']} unusable")
                         continue
                     to_save = content
                 self._insert(header, to_save)
@@ -330,7 +330,7 @@ class Logbook:
         report["gruende"] = report["gruende"][:20]
         return report
 
-    # ---- Weitergabe ans Gedächtnis ----
+    # ---- Handover to the memory ----
 
     def new_since_checkpoint(self, pub: str, count: int = 200) -> list[dict]:
         with self.lock:
@@ -357,7 +357,7 @@ class Logbook:
     # ---- Peers ----
 
     def peer_remember(self, address: str, source: str, pin: str | None = None) -> None:
-        """Ein Pin kommt nur aus einer signierten Quelle: dem adresse-Eintrag des Peers selbst oder einem Beitrittscode."""
+        """A pin only comes from a signed source: the peer's own adresse entry or a join code."""
         with self.lock:
             self.db.execute("INSERT OR IGNORE INTO peer (adresse, quelle) VALUES (?,?)", (address.rstrip("/"), source))
             if pin:
@@ -373,23 +373,23 @@ class Logbook:
             lines = self.db.execute("SELECT adresse, quelle, pin, zuletzt, fehler, naechster FROM peer ORDER BY adresse").fetchall()
         return [{"adresse": a, "quelle": q, "pin": p, "zuletzt": z, "fehler": f, "naechster": n} for a, q, p, z, f, n in lines]
 
-    # ---- Beitritt mit Code: einmalig, befristet, nur der Hash liegt hier ----
+    # ---- Joining with a code: one-time, time-limited, only the hash is stored here ----
 
     def create_join(self, nonce: str, valid_s: float) -> None:
         with self.lock:
             self.db.execute("INSERT INTO beitritt (nonce_sha, ablauf) VALUES (?,?)", (hashlib.sha256(nonce.encode()).hexdigest(), time.time() + valid_s))
 
     def redeem_join(self, nonce: str, pub: str) -> str | None:
-        """Grund der Ablehnung oder None. Bei Erfolg lädt dieser Server den neuen Schlüssel ein."""
+        """Reason for rejection or None. On success this server invites the new key."""
         if not isinstance(nonce, str) or len(nonce) > 200:
-            return "Code unbrauchbar"
+            return "code unusable"
         with self.lock:
             self.db.execute("BEGIN IMMEDIATE")
             try:
                 z = self.db.execute("SELECT ablauf, benutzt FROM beitritt WHERE nonce_sha = ?", (hashlib.sha256(nonce.encode()).hexdigest(),)).fetchone()
                 if not z or z[1] or z[0] < time.time():
                     self.db.execute("ROLLBACK")
-                    return "Beitrittscode ungültig, abgelaufen oder schon benutzt"
+                    return "join code invalid, expired or already used"
                 self.db.execute("UPDATE beitritt SET benutzt = ? WHERE nonce_sha = ?", (pub, hashlib.sha256(nonce.encode()).hexdigest()))
                 self.db.execute("COMMIT")
             except BaseException:
@@ -412,7 +412,7 @@ class Logbook:
             else:
                 self.db.execute("UPDATE peer SET fehler = fehler + 1, naechster = ? + min(3600, 30 * (1 << min(fehler, 7))) WHERE adresse = ?", (time.time(), address))
 
-    # ---- Segmente: Transport-Zwischenablage für Torrent, ohne eigene Beweiskraft ----
+    # ---- Segments: transport cache for torrent, without evidential value of their own ----
 
     def remember_segment(self, sha: str, pub: str, from_: int, until: int, torrent: bytes, port: int, file: str) -> None:
         with self.lock:
@@ -432,7 +432,7 @@ class Logbook:
             return self.db.execute("SELECT COALESCE(MAX(bis), 0) FROM segment WHERE pub = ?", (pub,)).fetchone()[0]
 
     def discard_segments(self, pub: str, seq: int) -> None:
-        """Ein Segment mit vergessenem Inhalt darf nicht weiter verteilt werden. Die Datei fällt beim nächsten Abgleich der Schwarm-Liste weg."""
+        """A segment with forgotten content must not be distributed further. The file drops out at the next reconciliation of the swarm list."""
         with self.lock:
             for (d,) in self.db.execute("SELECT datei FROM segment WHERE pub = ? AND von <= ? AND bis >= ?", (pub, seq, seq)).fetchall():
                 try:

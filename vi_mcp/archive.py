@@ -1,22 +1,22 @@
-"""Langzeitlager — Housekeeping: nicht mehr verwendete Einträge verlassen den aktiven Speicher, ohne zu verschwinden.
+"""Long-term archive — housekeeping: entries no longer used leave the active store without vanishing.
 
-Eine eigene SQLite-Datei neben dem Gedächtnis (`<db>-lager.db`, 0600). Der aktive Speicher bleibt klein und schnell.
-Läuft im Schlaf (Schritt 5), also im einen Loop-Thread; es gibt weiter nur einen Schreiber.
+A separate SQLite file next to the memory (`<db>-lager.db`, 0600). The active store stays small and fast.
+Runs during sleep (step 5), i.e. in the one loop thread; there is still only one writer.
 
-Was „nicht mehr verwendet“ heißt (Startwerte in TAGE, per Konfiguration `lager_tage` änderbar):
-  erfahrung                         30 Tage alt, nie abgerufen, ist kein Beleg
-  schlaf (Berichte)                 90 Tage alt
-  erkenntnis, regel, suche, skill  180 Tage weder abgerufen, geändert noch als Hinweis gezeigt
-  Gesprächs-Rohverläufe             30 Tage seit der letzten Änderung, Gespräch nicht offen
-Nie automatisch: selbst, modell, frage (eigener Lebenszyklus), reflex (würde ein Verhalten still abschalten), gespraech
-(die Zusammenfassung bleibt). Was als Beleg dient, bleibt ebenfalls: nur Kanten mit Grund „Beleg…“ zählen.
+What "no longer used" means (initial values in DAYS, changeable via the configuration `lager_tage`):
+  erfahrung                         30 days old, never recalled, is not evidence
+  schlaf (reports)                  90 days old
+  erkenntnis, regel, suche, skill  180 days neither recalled, changed nor shown as a hint
+  raw conversation transcripts      30 days since the last change, conversation not open
+Never automatically: selbst, modell, frage (own life cycle), reflex (would silently switch off a behaviour), gespraech
+(the summary stays). What serves as evidence also stays: only edges with reason "Beleg…" count.
 
-Im Gedächtnis bleibt ein Stummel: gekürzter Text, Hashtags, Zeit, Grund, `modus:archiviert`. Er erscheint nur, wenn der
-Filter `modus:archiviert` enthält. Passt ein gelagerter Wissenseintrag zu einer Handlung, nennt `vi_before` das in einer
-Zeile. Zurück kommt ein Eintrag mit `vi_archive_restore` (mit Grund, in seinem alten Modus). Gelöscht wird im Lager nur
-über die Löschwege für Gespräche und Instanzen.
-Reihenfolge über die zwei Dateien: erst das Ziel schreiben, dann die Quelle ändern. Ein Absturz dazwischen hinterlässt
-eine Dublette, die der nächste Lauf überschreibt, aber keinen Verlust.
+A stub stays in memory: shortened text, hashtags, time, reason, `modus:archiviert`. It appears only if the
+filter contains `modus:archiviert`. If an archived knowledge entry fits an action, `vi_before` says so in one
+line. An entry comes back with `vi_archive_restore` (with a reason, in its old mode). Deletion in the archive happens only
+via the deletion paths for conversations and instances.
+Order across the two files: write the target first, then change the source. A crash in between leaves
+a duplicate that the next run overwrites, but no loss.
 """
 from __future__ import annotations
 
@@ -34,9 +34,9 @@ DAYS = {"erfahrung": 30, "schlaf": 90, "erkenntnis": 180, "regel": 180, "suche":
 DAYS_RAW = 30
 KNOWLEDGE = ("erkenntnis", "regel", "suche", "skill")
 STUB_CHARS = 200
-#: Freier Anteil der Hauptdatei, ab dem sie neu geschrieben wird
+#: Free share of the main file from which it is rewritten
 VACUUM_FROM = 0.25
-#: Kanten dieser Ziele schützen eine Erfahrung, wenn sie Beleg sind
+#: Edges to these targets protect an experience if they are evidence
 EVIDENCE_TARGETS = ("erkenntnis:", "regel:", "suche:", "skill:", "selbst:")
 
 _con: sqlite3.Connection | None = None
@@ -46,7 +46,7 @@ _fpath: Path | None = None
 def db() -> sqlite3.Connection:
     global _con, _fpath
     if g.archive_path is None:
-        raise RuntimeError("Gedächtnis nicht geöffnet")
+        raise RuntimeError("memory not opened")
     if _con is None or _fpath != g.archive_path:
         if _con is not None:
             _con.close()
@@ -75,7 +75,7 @@ def close_db() -> None:
 
 
 def store_in_archive(o: g.MemoryObject, reason: str) -> None:
-    """Inhalt ins Lager, Stummel im Gedächtnis."""
+    """Content to the archive, stub in memory."""
     if o.mode == "archiviert":
         return
     from . import vector
@@ -88,7 +88,7 @@ def store_in_archive(o: g.MemoryObject, reason: str) -> None:
     o.text = o.text[:STUB_CHARS]
     o.mode = "archiviert"
     o.hashtags = [t for t in o.hashtags if not t.startswith("modus:")] + ["modus:archiviert"]
-    o.change("vi", "ins Langzeitlager", reason)
+    o.change("vi", "moved to the long-term archive", reason)
     g.save(o)
     vector.remove_entry(o.id)
 
@@ -103,15 +103,15 @@ def content(oid: str) -> dict | None:
 
 
 def retrieve(oid: str, who: str, reason: str) -> g.MemoryObject:
-    """Vollständigen Inhalt und alten Modus wiederherstellen. Der Eintrag zählt danach als gerade verwendet."""
+    """Restore the full content and the old mode. Afterwards the entry counts as just used."""
     if not (reason or "").strip():
-        raise ValueError("Grund ist Pflicht")
+        raise ValueError("a reason is required")
     d = content(oid)
     o = g.load(oid)
     if not d or not o or o.mode != "archiviert":
-        raise ValueError(f"{oid} liegt nicht im Langzeitlager")
+        raise ValueError(f"{oid} is not in the long-term archive")
     o.text, o.data, o.hashtags, o.mode = d["text"], d["daten"], d["hashtags"], d["modus_vorher"]
-    o.change(who, "aus dem Langzeitlager geholt", reason)
+    o.change(who, "restored from the long-term archive", reason)
     g.save(o)
     with g.lock:
         db().execute("DELETE FROM objekt WHERE id = ?", (oid,))
@@ -120,7 +120,7 @@ def retrieve(oid: str, who: str, reason: str) -> g.MemoryObject:
 
 
 def delete(oids: list[str]) -> None:
-    """Gehört zum Löschen im Gedächtnis: was gelöscht wird, darf nicht im Lager überleben."""
+    """Part of deleting in memory: what is deleted must not survive in the archive."""
     if g.archive_path is None or not oids:
         return
     with g.lock:
@@ -153,10 +153,10 @@ def _unused() -> list[tuple[str, str]]:
             sql = "SELECT id FROM objekt o WHERE art = ? AND modus <> 'archiviert' AND zeit < ?"
             if kind == "erfahrung":
                 sql += f" AND zugriffe = 0 AND NOT EXISTS (SELECT 1 FROM kante k WHERE k.a = o.id AND k.grund LIKE 'Beleg%' AND ({evidence}))"
-            outputs += [(r[0], f"Housekeeping: {kind}, älter als {DAYS[kind]} Tage, nicht verwendet") for r in g.db().execute(sql, (kind, bound))]
+            outputs += [(r[0], f"housekeeping: {kind}, older than {DAYS[kind]} days, not used") for r in g.db().execute(sql, (kind, bound))]
         for kind in KNOWLEDGE:
             bound = _bound(DAYS[kind])
-            outputs += [(r[0], f"Housekeeping: {kind}, {DAYS[kind]} Tage weder abgerufen, geändert noch gezeigt") for r in g.db().execute(
+            outputs += [(r[0], f"housekeeping: {kind}, {DAYS[kind]} days neither recalled, changed nor shown") for r in g.db().execute(
                 "SELECT id FROM objekt o WHERE art = ? AND modus NOT IN ('archiviert', 'quarantaene') AND zuletzt < ? "
                 "AND COALESCE(json_extract(daten, '$.zuletzt_gezeigt'), '') < ? "
                 "AND NOT EXISTS (SELECT 1 FROM kante k WHERE k.a = o.id AND k.b LIKE 'selbst:%')", (kind, bound, bound))]
@@ -195,7 +195,7 @@ def _condense() -> bool:
 
 
 def cleanup() -> dict:
-    """Schlaf-Schritt 5."""
+    """Sleep step 5."""
     counter: dict[str, int] = {}
     for oid, reason in _unused():
         o = g.load(oid)
@@ -206,18 +206,18 @@ def cleanup() -> dict:
     v = _condense()
     n = sum(counter.values())
     if n or r or v:
-        log(f"Housekeeping: {n} Einträge und {r} Rohverläufe ins Langzeitlager{', Hauptdatei verdichtet' if v else ''}")
+        log(f"Housekeeping: {n} entries and {r} raw transcripts moved to the long-term archive{', main file compacted' if v else ''}")
     return {"eingelagert": n, "je_art": counter, "rohverlaeufe": r, "verdichtet": v}
 
 
 def hint(triggers: list[str]) -> list[str]:
-    """Eine Zeile für `vi_before`, wenn gelagertes Wissen zur Handlung passt."""
+    """One line for `vi_before` if archived knowledge fits the action."""
     if not triggers:
         return []
     hits = [o for _, o, _g in g.recall("(" + " OR ".join(triggers) + ") modus:archiviert", limit=3, kinds=KNOWLEDGE)]
     if not hits:
         return []
-    return ["Im Langzeitlager passen: " + "; ".join(f"[{o.id}] {o.text[:80]}" for o in hits) + " — vi_archive_restore(id, grund) holt einen Eintrag zurück"]
+    return ["Matching in the long-term archive: " + "; ".join(f"[{o.id}] {o.text[:80]}" for o in hits) + " — vi_archive_restore(id, reason) brings an entry back"]
 
 
 def progress() -> dict:
@@ -230,4 +230,4 @@ def progress() -> dict:
 
 def line() -> str:
     s = progress()
-    return f"{s['objekte']} Einträge, {s['rohverlaeufe']} Rohverläufe, {s['lager_bytes'] // 1024} KB (aktiver Speicher {s['aktiv_bytes'] // 1024} KB)"
+    return f"{s['objekte']} entries, {s['rohverlaeufe']} raw transcripts, {s['lager_bytes'] // 1024} KB (active store {s['aktiv_bytes'] // 1024} KB)"

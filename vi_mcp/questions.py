@@ -1,12 +1,12 @@
-"""Rückfragen zwischen Instanzen — Instanzen lernen voneinander, indem sie einander fragen.
+"""Questions between instances — instances learn from each other by asking each other.
 
-Eine Frage ist ein Objekt `art:frage` (geteilt) mit `daten`:
-  von, an (Instanzname oder "alle"), text, reize, zustand, zugestellt_an [Instanzen], antworten [{instanz, text,
-  belege, zeit}], gemeldet (Antworten, die der Fragesteller schon gesehen hat).
-Zustände (erschöpfend): `offen` (noch keiner Zielinstanz gezeigt) · `zugestellt` (mindestens einer gezeigt) ·
-`beantwortet` (mindestens eine Antwort) · `abgelaufen` (nach ABLAUF_TAGE ohne Antwort; vom Loop gesetzt).
-Zustellung: beim nächsten `vi_before` der Zielinstanz als Hinweis (je Instanz einmal). Antworten erreichen den
-Fragesteller ebenso beim nächsten `vi_before` — oder über `vi_questions`.
+A question is an object `art:frage` (geteilt) with `daten`:
+  von, an (instance name or "alle"), text, reize, zustand, zugestellt_an [instances], antworten [{instanz, text,
+  belege, zeit}], gemeldet (answers the asker has already seen).
+States (exhaustive): `offen` (not yet shown to any target instance) · `zugestellt` (shown to at least one) ·
+`beantwortet` (at least one answer) · `abgelaufen` (after EXPIRY_DAYS without an answer; set by the loop).
+Delivery: at the target instance's next `vi_before` as a hint (once per instance). Answers reach the
+asker likewise at its next `vi_before` — or via `vi_questions`.
 """
 from __future__ import annotations
 
@@ -25,11 +25,11 @@ def _set_state(o: g.MemoryObject, state: str) -> None:
 
 def ask(from_: str, to: str, text: str, triggers: list[str], source: str) -> g.MemoryObject:
     if len((text or "").strip()) < 10:
-        raise ValueError("text (die Frage, ein Satz) ist Pflicht")
+        raise ValueError("text (the question, one sentence) is required")
     if not to or not all(c.isalnum() or c in "-_." for c in to):
-        raise ValueError("an: Name einer Instanz oder 'alle'")
+        raise ValueError("an: name of an instance or 'alle'")
     if to == from_:
-        raise ValueError("eine Frage an sich selbst ist keine Rückfrage — vi_recall nutzen")
+        raise ValueError("a question to yourself is not a question to another instance — use vi_recall")
     tags = [t.strip() for t in triggers or [] if isinstance(t, str) and g.TAG.match(t.strip()) and not t.startswith(g.ADMIN_PREFIXES)]
     o = g.new_object("frage", text.strip()[:1000], tags + [f"an:{to}", f"von:{from_}", "zustand:offen"],
                        {"von": from_, "an": to, "zustand": "offen", "quelle": (source or "").strip()[:500],
@@ -39,7 +39,7 @@ def ask(from_: str, to: str, text: str, triggers: list[str], source: str) -> g.M
 
 
 def deliver(instance: str | None) -> list[str]:
-    """Hinweise für `vi_before`: neue Fragen an diese Instanz und neue Antworten auf ihre Fragen. Markiert sie."""
+    """Hints for `vi_before`: new questions to this instance and new answers to its questions. Marks them."""
     if not instance:
         return []
     hints = []
@@ -51,16 +51,16 @@ def deliver(instance: str | None) -> list[str]:
             o = g.load(oid)
             d = o.data
             if d["von"] != instance and instance not in d["zugestellt_an"] and d["zustand"] != "abgelaufen":
-                hints.append(f"Rückfrage von {d['von']} [{o.id}]: {o.text[:400]} — antworten mit vi_answer(id, text, belege)")
+                hints.append(f"Question from {d['von']} [{o.id}]: {o.text[:400]} — answer with vi_answer(id, text, belege)")
                 d["zugestellt_an"] = d["zugestellt_an"] + [instance]
                 if d["zustand"] == "offen":
                     _set_state(o, "zugestellt")
-                o.change("vi", f"zugestellt an {instance}", "nächstes vi_before der Zielinstanz")
+                o.change("vi", f"delivered to {instance}", "next vi_before of the target instance")
                 g.save(o)
             elif d["von"] == instance and len(d["antworten"]) > d.get("gemeldet", 0):
                 new = d["antworten"][d.get("gemeldet", 0):]
-                hints += [f"Antwort von {a['instanz']} auf deine Frage [{o.id}] „{o.text[:80]}“: {a['text'][:400]}"
-                             + (f" [Belege: {a['belege'][:160]}]" if a.get("belege") else "") for a in new]
+                hints += [f"Answer from {a['instanz']} to your question [{o.id}] \"{o.text[:80]}\": {a['text'][:400]}"
+                             + (f" [Evidence: {a['belege'][:160]}]" if a.get("belege") else "") for a in new]
                 d["gemeldet"] = len(d["antworten"])
                 g.save(o)
     return hints
@@ -69,24 +69,24 @@ def deliver(instance: str | None) -> list[str]:
 def answer_question(oid: str, instance: str, text: str, evidence_list: str) -> g.MemoryObject:
     o = g.load(oid)
     if not o or o.kind != "frage":
-        raise ValueError(f"Frage {oid} unbekannt")
+        raise ValueError(f"question {oid} unknown")
     d = o.data
     if d["zustand"] == "abgelaufen":
-        raise ValueError(f"Frage {oid} ist abgelaufen ({EXPIRY_DAYS} Tage ohne Antwort)")
+        raise ValueError(f"question {oid} has expired ({EXPIRY_DAYS} days without an answer)")
     if d["von"] == instance:
-        raise ValueError("die eigene Frage beantwortet man nicht — vi_learn nutzen, wenn du es selbst herausgefunden hast")
+        raise ValueError("you do not answer your own question — use vi_learn if you found it out yourself")
     if d["an"] not in (instance, "alle"):
-        raise ValueError(f"die Frage ging an {d['an']}, nicht an {instance}")
+        raise ValueError(f"the question went to {d['an']}, not to {instance}")
     if len((text or "").strip()) < 10 or len((evidence_list or "").strip()) < 8:
-        raise ValueError("text (die Antwort) und belege (Befehl/URL/Messung) sind Pflicht")
+        raise ValueError("text (the answer) and belege (command/URL/measurement) are required")
     d["antworten"] = d["antworten"] + [{"instanz": instance, "text": text.strip()[:2000], "belege": evidence_list.strip()[:500], "zeit": g.now()}]
     _set_state(o, "beantwortet")
-    o.change(f"ki@{instance}", "beantwortet", "vi_answer")
+    o.change(f"ki@{instance}", "answered", "vi_answer")
     return g.save(o)
 
 
 def listing(instance: str) -> tuple[list[g.MemoryObject], list[g.MemoryObject]]:
-    """(Fragen an mich, offen/zugestellt), (meine Fragen, alle Zustände)."""
+    """(questions to me, offen/zugestellt), (my questions, all states)."""
     with g.lock:
         to_me = [r[0] for r in g.db().execute(
             "SELECT id FROM objekt WHERE art = 'frage' AND json_extract(daten, '$.zustand') IN ('offen', 'zugestellt') "
@@ -104,6 +104,6 @@ def let_expire() -> int:
         for oid in ids:
             o = g.load(oid)
             _set_state(o, "abgelaufen")
-            o.change("vi", "abgelaufen", f"{EXPIRY_DAYS} Tage ohne Antwort")
+            o.change("vi", "expired", f"{EXPIRY_DAYS} days without an answer")
             g.save(o)
     return len(ids)

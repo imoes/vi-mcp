@@ -1,4 +1,4 @@
-"""vi-mcp netz … — Modus wählen, Einladungen, Stand. Zustand liegt im Logbuch; der Dienst läuft als eigener Nutzer."""
+"""vi-mcp net … — choose a mode, invitations, status. State lives in the logbook; the service runs as its own user."""
 from __future__ import annotations
 
 import argparse
@@ -21,7 +21,7 @@ SERVICE_USER = "vi-p2p"
 
 
 def _as_service_user() -> None:
-    """Datenbank und Begleitdateien müssen dem Dienst gehören."""
+    """Database and companion files must belong to the service."""
     if os.geteuid() != 0:
         return
     try:
@@ -38,10 +38,10 @@ def _logbook(k: nd.NetConfig) -> lb.Logbook:
 
 
 def _as_service(fn) -> int:
-    """fn mit den Rechten des Dienstnutzers ausführen. Als root in einem Kindprozess, sonst direkt."""
+    """Run fn with the rights of the service user. As root in a child process, otherwise directly."""
     if os.geteuid() != 0:
         return fn()
-    sys.stdout.flush()  # sonst erscheint gepufferter Text des Elternprozesses erst nach dem des Kindes
+    sys.stdout.flush()  # otherwise buffered text of the parent appears only after the child's
     sys.stderr.flush()
     child_pid = os.fork()
     if child_pid == 0:
@@ -49,8 +49,8 @@ def _as_service(fn) -> int:
         try:
             _as_service_user()
             code = fn()
-        except Exception as e:  # noqa: BLE001 — der Kindprozess meldet jeden Fehler und endet
-            print(f"Fehler: {type(e).__name__}: {e}", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001 — the child process reports every error and exits
+            print(f"Error: {type(e).__name__}: {e}", file=sys.stderr)
         finally:
             sys.stdout.flush()
             os._exit(code)
@@ -58,7 +58,7 @@ def _as_service(fn) -> int:
 
 
 def _create_certificate(address: str, cert: Path, key: Path) -> None:
-    """Selbstsigniert, zehn Jahre: Gültigkeit beweist hier nichts, das tut der Pin im Logbuch."""
+    """Self-signed, ten years: validity proves nothing here, the pin in the logbook does."""
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import ec
@@ -80,9 +80,9 @@ def _create_certificate(address: str, cert: Path, key: Path) -> None:
 
 def _service(*command: str) -> str | None:
     if os.environ.get("VI_MCP_KEIN_DIENST"):
-        return "Dienststeuerung abgeschaltet (VI_MCP_KEIN_DIENST)"
+        return "service control switched off (VI_MCP_KEIN_DIENST)"
     if not shutil.which("systemctl"):
-        return "systemctl fehlt"
+        return "systemctl missing"
     r = subprocess.run(["systemctl", *command], capture_output=True, text=True)
     return None if r.returncode == 0 else r.stderr.strip()[:200]
 
@@ -121,8 +121,8 @@ def setup(o) -> int:
     if o.mode == "standalone":
         _write(p, raw)
         if reason := _service("disable", "--now", "vi-p2p"):
-            print(f"Hinweis: {reason}")
-        print("Modus standalone: Der Netzdienst läuft nicht. Das Logbuch bleibt erhalten.")
+            print(f"Hint: {reason}")
+        print("Mode standalone: the network service does not run. The logbook is kept.")
         return 0
     seed = Path(raw.get("seed") or k_old.seed)
     if not seed.exists():
@@ -132,21 +132,21 @@ def setup(o) -> int:
             lb.generate_keys(seed)
             os._exit(0)
         os.waitpid(child_pid, 0)
-    # der Seed gehört dem Dienstnutzer und root liest ihn nur, um das Pseudonym zu nennen
+    # the seed belongs to the service user; root reads it only to name the pseudonym
     pub = lb.public_hex(lb.private(seed))
     if o.found:
         raw["gruender"] = sorted(set(raw.get("gruender", [])) | {pub})
     if o.founders:
         raw["gruender"] = sorted(set(raw.get("gruender", [])) | set(o.founders))
     if not raw.get("gruender"):
-        print("Gründer fehlt: --gruenden für ein neues Netz oder --gruender SCHLUESSEL zum Beitreten", file=sys.stderr)
+        print("Founder missing: --found for a new network or --founder KEY to join", file=sys.stderr)
         return 2
     if o.mode == "peerhost" and not raw.get("adresse"):
-        print("peerhost braucht --adresse https://name:port, sonst findet ihn niemand", file=sys.stderr)
+        print("peerhost needs --address https://name:port, otherwise nobody finds it", file=sys.stderr)
         return 2
     if o.tls_self:
         if o.mode != "peerhost":
-            print("--tls-selbst gilt nur für peerhost", file=sys.stderr)
+            print("--tls-self applies to peerhost only", file=sys.stderr)
             return 2
         dir_path = Path(raw.get("db") or k_old.db).parent
         cert, key = dir_path / "tls-cert.pem", dir_path / "tls-key.pem"
@@ -162,15 +162,15 @@ def setup(o) -> int:
         if os.geteuid() == 0:
             shutil.chown(token_file, "root", SERVICE_USER)
         if reason := _service("restart", "vi-mcp"):
-            print(f"Hinweis: vi-mcp nicht neu gestartet: {reason}")
+            print(f"Hint: vi-mcp not restarted: {reason}")
     _write(p, raw)
     if reason := _service("enable", "vi-p2p"):
-        print(f"Hinweis: {reason}")
+        print(f"Hint: {reason}")
     if reason := _service("restart", "vi-p2p"):
-        print(f"Hinweis: {reason}")
-    print(f"Modus {o.mode}. Schlüssel dieses Servers: {pub}\nPseudonym: {lb.pseudonym(pub)}")
+        print(f"Hint: {reason}")
+    print(f"Mode {o.mode}. Key of this server: {pub}\nPseudonym: {lb.pseudonym(pub)}")
     if not o.found and pub not in raw["gruender"] and not getattr(o, "quiet", False):
-        print("Beitreten: Ein Mitglied führt aus:  vi-mcp netz einladen " + pub)
+        print("To join: a member runs:  vi-mcp net invite " + pub)
     return 0
 
 
@@ -191,11 +191,11 @@ def join(o) -> int:
             service.log.peer_remember(d["s"], "beitritt", d["p"])
             r = service._request(d["s"], "POST", "/netz/beitritt", {"code": d["n"]})
         except (ValueError, OSError) as ex:
-            print(f"Beitritt abgelehnt: {ex}", file=sys.stderr)
+            print(f"Join refused: {ex}", file=sys.stderr)
             return 1
         finally:
             service.stop_service()
-        print(f"Aufgenommen als {r['eingeladen']}. Der Abgleich beginnt mit der nächsten Runde.")
+        print(f"Joined as {r['eingeladen']}. Sync starts with the next round.")
         return 0
     code = _as_service(redeem)
     if code == 0:
@@ -255,7 +255,7 @@ def main(argv: list[str]) -> int:
     _as_service_user()
     k = nd.load()
     if not Path(k.seed).exists():
-        print("Noch nicht eingerichtet: vi-mcp netz einrichten --modus …", file=sys.stderr)
+        print("Not set up yet: vi-mcp net setup --mode …", file=sys.stderr)
         return 2
     log = _logbook(k)
     if o.command == "id":
@@ -263,20 +263,20 @@ def main(argv: list[str]) -> int:
         return 0
     if o.command == "invitation":
         if k.mode != "peerhost" or not k.address:
-            print("Beitrittscodes gibt nur ein peerhost mit Adresse aus: Der neue Server löst den Code dort ein.", file=sys.stderr)
+            print("Only a peerhost with an address issues join codes: the new server redeems the code there.", file=sys.stderr)
             return 2
         if not log.is_member(log.pub):
-            print("Dieser Server ist selbst noch kein Mitglied.", file=sys.stderr)
+            print("This server is not a member itself yet.", file=sys.stderr)
             return 2
         nonce = secrets.token_urlsafe(24)
         log.create_join(nonce, o.hours * 3600)
         pin = nd.certificate_pin(Path(k.tls_cert)) if k.tls_cert else None
         print(nd.build_code(sorted(k.founders), k.address.rstrip("/"), pin, nonce, time.time() + o.hours * 3600))
-        print(f"Einmalig, gültig {o.hours:g} h. Wie ein Passwort behandeln: Wer ihn hat, wird Mitglied. Auf dem neuen Server:  sudo vi-mcp netz beitreten <code>", file=sys.stderr)
+        print(f"One-time, valid {o.hours:g} h. Treat it like a password: whoever has it becomes a member. On the new server:  sudo vi-mcp net join <code>", file=sys.stderr)
         return 0
     if o.command == "peers":
         for p in log.peers():
-            progress = "erreichbar" if p["fehler"] == 0 and p["zuletzt"] else "noch nie erreicht" if not p["zuletzt"] else f"{p['fehler']} Fehler in Folge"
+            progress = "reachable" if p["fehler"] == 0 and p["zuletzt"] else "never reached" if not p["zuletzt"] else f"{p['fehler']} errors in a row"
             print(f"{p['adresse']:45} {p['quelle']:9} {'Pin ' + p['pin'][:12] if p['pin'] else 'CA':16} {progress}")
         return 0
     if o.command in ("invite", "exclude"):
@@ -285,9 +285,9 @@ def main(argv: list[str]) -> int:
         except ValueError as ex:
             print(ex, file=sys.stderr)
             return 2
-        print(f"{'Eingeladen' if o.command == 'invite' else 'Ausgeschlossen'}: {lb.pseudonym(o.key_)}. Das Netz erfährt es beim nächsten Abgleich.")
+        print(f"{'Invited' if o.command == 'invite' else 'Excluded'}: {lb.pseudonym(o.key_)}. The network learns of it at the next sync.")
         return 0
     st = log.status()
-    print(f"Modus {k.mode} · Pseudonym {lb.pseudonym(log.pub)} · {'Mitglied' if log.is_member(log.pub) else 'noch nicht Mitglied'}")
+    print(f"Mode {k.mode} · pseudonym {lb.pseudonym(log.pub)} · {'member' if log.is_member(log.pub) else 'not a member yet'}")
     print(" · ".join(f"{a_} {b}" for a_, b in st.items()))
     return 0

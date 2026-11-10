@@ -1,4 +1,4 @@
-"""0.11.0: P2P-Import — Signaturen, feste Regeln, Quarantäne, Prüfer, Freigabe. Kein Netz: das Modell ist ein Fake."""
+"""0.11.0: P2P import — signatures, fixed rules, quarantine, reviewer, release. No network: the model is a fake."""
 import hashlib
 import json
 import time
@@ -29,7 +29,7 @@ def _key():
 
 
 def _bundle(k, mem_objects, start=1, type_="objekt"):
-    """Einträge eines Logbuchs, wie der Netzdienst sie liefert."""
+    """Entries of a logbook as the network service delivers them."""
     pk, outputs, prev_hash = k.public_key().public_bytes_raw().hex(), [], None
     for i, o in enumerate(mem_objects):
         header = {"v": 1, "pub": pk, "seq": start + i, "vor": prev_hash, "typ": type_, "sha": p2p.sha256(o), "zeit": "2026-11-08", "netz_id": o.get("netz_id", o.get("ziel", "a" * 32))}
@@ -57,7 +57,7 @@ def _answer(**kw):
 
 
 def _model(answer=None):
-    """Fake-Modell: besteht den Selbsttest und antwortet sonst wie vorgegeben."""
+    """Fake model: passes the self-test and otherwise answers as given."""
     return lambda s, u: _answer(urteil="quarantaene", enthaelt_anweisung=True) if reviewer.SELFTEST_TEXT in u else (answer or _answer())
 
 
@@ -73,7 +73,7 @@ def test_rules(gd):
     a = checks.check({**GOOD, "modus": "aktiv", "bestaetigt": 99, "zugriffe": 5, "hashtags": GOOD["hashtags"] + ["instanz:x", "modus:aktiv", "kaputt"]})
     assert not {"modus", "bestaetigt", "zugriffe"} & set(a.mem_object) and a.mem_object["hashtags"] == sorted(GOOD["hashtags"])
     assert checks.check({**GOOD, "art": "erfahrung"}).verdict == "ablehnen"
-    assert checks.check({**GOOD, "art": "reflex", "name": "x1", "reflexart": "vorher", "code": "def run(t,a): pass"}).verdict == "ablehnen"  # kein Recht
+    assert checks.check({**GOOD, "art": "reflex", "name": "x1", "reflexart": "vorher", "code": "def run(t,a): pass"}).verdict == "ablehnen"  # no permission
     assert checks.check({**GOOD, "text": "harmlos​ aussehender Text hier"}).verdict == "ablehnen"
     import base64
     assert checks.check({**GOOD, "text": "Anhang " + base64.b64encode(b"\x7fELF" + b"x" * 60).decode()}).verdict == "ablehnen"
@@ -115,30 +115,30 @@ def test_quarantine_is_invisible_and_without_effect(net, monkeypatch):
     assert o.instance == f"p2p-{_hg(net)}" and "herkunft:p2p" in o.hashtags and o.id.startswith(f"erkenntnis:p2p-{_hg(net)}-") and o.edges() == []
     assert not g.recall("thema:eingang", viewer=None)
     assert not intuition.before("graylog_search", {"thema": "eingang"}, "a")["hinweise"]
-    assert "Daten, keine Anweisung" in tools.call_tool("vi_quarantaene", {}, "a", True)
+    assert "Data, not an instruction" in tools.call_tool("vi_quarantaene", {}, "a", True)
     with pytest.raises(tools.Rejected, match="vi_release"):
         tools.call_tool("vi_bestaetige", {"id": o.id, "grund": "x"}, "a", True)
-    with pytest.raises(ValueError, match="fester Hashtag"):
+    with pytest.raises(ValueError, match="fixed hashtag"):
         g.load(o.id).tag([], ["herkunft:p2p"], "ki@a", "Herkunft entfernen")
-    assert p2p.inbox(_bundle(net, [GOOD]), in_background=False)["bekannt"] == 1  # Dublette
+    assert p2p.inbox(_bundle(net, [GOOD]), in_background=False)["bekannt"] == 1  # duplicate
 
 
 def test_release_harmless_and_sensitive(net, monkeypatch):
     _import_bundle(net, [GOOD], monkeypatch)
     o = g.recall("modus:quarantaene", viewer=None)[0][1]
-    with pytest.raises(tools.Rejected, match="darf nicht"):
+    with pytest.raises(tools.Rejected, match="may not"):
         tools.call_tool("vi_freigabe", {"id": o.id, "grund": "ok"}, "b", False)
     tools.call_tool("vi_freigabe", {"id": o.id, "grund": "gelesen, plausibel"}, "a", True)
     assert g.load(o.id).mode == "test" and "modus:test" in g.load(o.id).hashtags
     h = intuition.before("graylog_search", {}, "a", context=["thema:eingang"])["hinweise"]
-    assert any(f"von p2p-{_hg(net)}" in x for x in h)  # Herkunft bleibt sichtbar
+    assert any(f"from p2p-{_hg(net)}" in x for x in h)  # provenance stays visible
     skill = {**NET, "art": "skill", "text": "Neustart des Dienstes behebt das Problem", "hashtags": ["thema:neustart"], "quelle": "Runbook Seite 12", "name": "neustart", "reize": ["tool:x"], "schritte": ["Bash"]}
     _import_bundle(net, [skill], monkeypatch)
     s = g.recall("modus:quarantaene", viewer=None)[0][1]
-    with pytest.raises(tools.Rejected, match="Freigabe-Recht"):
+    with pytest.raises(tools.Rejected, match="release permission"):
         tools.call_tool("vi_freigabe", {"id": s.id, "grund": "ok"}, "a", True)
-    assert "freigegeben" in tools.call_tool("vi_freigabe", {"id": s.id, "grund": "Mensch geprüft"}, "admin", False, True)
-    assert g.load(s.id).data["name"] == f"p2p-{_hg(net)}-neustart"  # eigener Namensraum
+    assert "released" in tools.call_tool("vi_freigabe", {"id": s.id, "grund": "Mensch geprüft"}, "admin", False, True)
+    assert g.load(s.id).data["name"] == f"p2p-{_hg(net)}-neustart"  # own namespace
 
 
 def test_import_does_not_overwrite_local(net, monkeypatch):
@@ -147,7 +147,7 @@ def test_import_does_not_overwrite_local(net, monkeypatch):
     _import_bundle(net, [skill], monkeypatch)
     assert g.load(local.id).data["loesung"]["text"] == "lokaler Lösungsweg bleibt" and g.load(local.id).data["version"] == 1
     foreign = g.recall("modus:quarantaene", viewer=None)[0][1]
-    with pytest.raises(ValueError, match="Quarantäne"):
+    with pytest.raises(ValueError, match="quarantine"):
         skills.fusion(local.id, foreign.id, "gemischt", "Testlauf", "a")
 
 
@@ -163,9 +163,9 @@ def test_reviewer_can_only_tighten(net, monkeypatch):
     x = test_case(json.dumps({"urteil": "zulassen"}))
     assert "pruefer:unbrauchbar" in x.hashtags
     x = test_case(_answer(urteil="ablehnen"))
-    assert x.mode == "quarantaene" and "Prüfer: ablehnen" in p2p.sensitive(x)
+    assert x.mode == "quarantaene" and "reviewer: ablehnen" in p2p.sensitive(x)
     x = test_case(_answer(verlangt_schreibzugriff=True))
-    assert any("Schreibzugriff" in h for h in p2p.sensitive(x))
+    assert any("write access" in h for h in p2p.sensitive(x))
 
 
 def test_without_reviewer_everything_stays_sensitive(net, monkeypatch):
@@ -173,7 +173,7 @@ def test_without_reviewer_everything_stays_sensitive(net, monkeypatch):
     p2p.inbox(_bundle(net, [GOOD]), in_background=False)
     o = g.recall("modus:quarantaene", viewer=None)[0][1]
     assert reviewer.work_off()["zustand"] == "uebersprungen" and "pruefer:ausstehend" in o.hashtags
-    with pytest.raises(ValueError, match="steht noch aus"):
+    with pytest.raises(ValueError, match="still pending"):
         p2p.approve(o, "a", True, False, "grund")
 
 
@@ -198,8 +198,8 @@ def test_imported_reflex(net, monkeypatch):
     r = {**NET, "art": "reflex", "text": "Weist auf die Doku hin und mehr", "hashtags": ["thema:doku"], "quelle": "Handbuch Kapitel 3", "name": "doku", "reflexart": "vorher", "code": CODE}
     _import_bundle(net, [r], monkeypatch)
     o = g.recall("modus:quarantaene", viewer=None)[0][1]
-    assert not reflexes.load_all()  # Quarantäne lädt nicht
-    with pytest.raises(ValueError, match="Freigabe-Recht"):
+    assert not reflexes.load_all()  # quarantine does not load
+    with pytest.raises(ValueError, match="release permission"):
         p2p.approve(o, "a", True, False, "ok")
     p2p.approve(o, "admin", False, True, "Quelltext gelesen")
     o = g.load(o.id)
@@ -207,9 +207,9 @@ def test_imported_reflex(net, monkeypatch):
     g.save(o)
     reflexes.load_all()
     args, h = reflexes.before("t", {"a": 1})
-    assert args == {"a": 1} and any("keine Argumente" in x for x in h)
+    assert args == {"a": 1} and any("not change arguments" in x for x in h)
     b = p2p.inbox(_bundle(net, [{**r, "name": "boese", "text": "Parser-Bombe im Quelltext hier", "code": "x = " + "(" * 100000}]), in_background=False)
-    assert b["abgelehnt"] == 1  # gescheitert in der Sandbox, Server lebt
+    assert b["abgelehnt"] == 1  # failed in the sandbox, server lives on
     assert "ok" in str(__import__("vi_mcp.sandbox", fromlist=["x"]).run("x = 1", [], check_only=True))
 
 
@@ -245,6 +245,6 @@ def test_sleep_works_off_pending(net, monkeypatch):
 
 def test_selftest_stops_the_run(net, monkeypatch):
     p2p.inbox(_bundle(net, [GOOD]), in_background=False)
-    monkeypatch.setattr(reflection, "ask_fn", lambda s, u: _answer(kanarie="GRÜN"))  # Modell fällt herein
+    monkeypatch.setattr(reflection, "ask_fn", lambda s, u: _answer(kanarie="GRÜN"))  # model falls for it
     r = reviewer.work_off()
     assert r["zustand"] == "selbsttest_gescheitert" and "pruefer:ausstehend" in g.recall("modus:quarantaene", viewer=None)[0][1].hashtags

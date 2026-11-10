@@ -1,17 +1,17 @@
-"""Konfiguration — eine Datei, nur für den Eigentümer lesbar.
+"""Configuration — one file, readable by the owner only.
 
-Pfad: $VI_MCP_CONFIG oder ~/.config/vi-mcp/config.json. Inhalt:
+Path: $VI_MCP_CONFIG or ~/.config/vi-mcp/config.json. Content:
   {
     "bind": "127.0.0.1" | ["127.0.0.1", "<docker-gateway>"], "port": 8765,
     "db": "~/.local/share/vi-mcp/vi.db",
     "instanzen": {"<name>": {"token_sha256": "<hex>", "reflexe": false}},
-    "ttl": {"<werkzeug>": <sekunden>},
+    "ttl": {"<tool>": <seconds>},
     "origins": ["http://localhost", "http://127.0.0.1"],
-    "embed": {"url": "https://host/embed/v1/embeddings", "token": "", "modell": ""},      optional (Stufe 3, im Schlaf)
-    "llm":   {"url": "https://host/qwen/v1/chat/completions", "token": "", "modell": ""}  optional (Stufe 4, im Schlaf)
+    "embed": {"url": "https://host/embed/v1/embeddings", "token": "", "modell": ""},      optional (stage 3, during sleep)
+    "llm":   {"url": "https://host/qwen/v1/chat/completions", "token": "", "modell": ""}  optional (stage 4, during sleep)
   }
-Tokens stehen nur als SHA-256 in der Datei; das Token selbst wird beim Anlegen einmal ausgegeben.
-Ohne Instanz startet der Server nicht (kein offener Zugang aus Versehen) — benannt, nicht still.
+Tokens are stored only as SHA-256 in the file; the token itself is printed once on creation.
+Without an instance the server does not start (no open access by accident) — named, not silent.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from pathlib import Path
 DEFAULT_PATH = Path("~/.config/vi-mcp/config.json").expanduser()
 
 
-#: Wer ohne Token kommt, wenn `offen` eingeschaltet ist: lesen, Handlungen melden, Wissen vorschlagen (Quarantäne). Keine Rechte.
+#: Who comes without a token when `offen` is switched on: read, report actions, propose knowledge (quarantine). No rights.
 OPEN = "offen"
 
 
@@ -35,8 +35,8 @@ class Instance:
     name: str
     token_sha256: str
     reflexes: bool = False
-    release: bool = False  # darf heikle importierte Inhalte aus der Quarantäne freigeben
-    human: bool = False  # darf Signale des Nutzers melden (POST /signal)
+    release: bool = False  # may release sensitive imported content from quarantine
+    human: bool = False  # may report user signals (POST /signal)
 
 
 @dataclass
@@ -52,11 +52,11 @@ class Config:
     p2p: dict = field(default_factory=dict)
     reviewer_prompt: str | None = None
     llm: dict | None = None
-    #: Zugang ohne Token. Ein falsches Token bleibt trotzdem 401: Wer eins schickt, will eine bestimmte Instanz sein.
+    #: Access without a token. A wrong token still gets 401: whoever sends one wants to be a specific instance.
     open_: bool = False
 
     def instance_for(self, token: str | None) -> Instance | None:
-        """Instanz zum Bearer-Token oder None. Vergleich in konstanter Zeit, über alle Instanzen."""
+        """Instance for the bearer token, or None. Constant-time comparison across all instances."""
         if not token:
             return Instance(OPEN, "") if self.open_ else None
         h = hashlib.sha256(token.encode()).hexdigest()
@@ -93,11 +93,11 @@ def load(p: Path | None = None) -> Config:
 
 
 def create_instance(name: str, reflexes: bool = False, p: Path | None = None, release: bool = False, human: bool = False) -> str:
-    """Instanz anlegen oder ihr Token erneuern. Liefert das neue Token (nur dieses eine Mal sichtbar)."""
+    """Create an instance or renew its token. Returns the new token (visible only this once)."""
     if not name or not all(c.isalnum() or c in "-_." for c in name):
-        raise ValueError("Instanzname: Buchstaben, Ziffern, - _ .")
+        raise ValueError("instance name: letters, digits, - _ .")
     if name == OPEN:
-        raise ValueError(f"„{OPEN}“ ist für den Zugang ohne Token reserviert")
+        raise ValueError(f"\"{OPEN}\" is reserved for access without a token")
     p = p or fpath()
     raw = json.loads(p.read_text()) if p.exists() else {}
     token = secrets.token_urlsafe(32)
@@ -109,8 +109,8 @@ def create_instance(name: str, reflexes: bool = False, p: Path | None = None, re
         tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n")
     finally:
         os.umask(old_umask_value)
-    # Rechte einer vorhandenen Datei übernehmen (Paket: root:vi-mcp 0640, damit der Dienst sie lesen kann);
-    # eine neue Datei ist 0600 (nur der Eigentümer)
+    # keep the permissions of an existing file (package: root:vi-mcp 0640, so the service can read it);
+    # a new file is 0600 (owner only)
     if p.exists():
         st = os.stat(p)
         os.chmod(tmp, st.st_mode & 0o777)

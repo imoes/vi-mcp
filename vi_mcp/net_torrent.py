@@ -1,8 +1,8 @@
-"""Torrent als zweiter Weg für große Rückstände. Direkte Verbindung zu bekannten Peers, privat markiert: kein DHT, kein LSD, kein PEX, kein UPnP.
+"""Torrent as a second way for large backlogs. Direct connection to known peers, marked private: no DHT, no LSD, no PEX, no UPnP.
 
-Ein Segment ist ein Abschnitt eines Logbuchs als JSON-Zeilen. Der Empfänger prüft es wie jeden anderen Eintrag: Prüfsumme hier, Signatur und Kette im Logbuch.
-Wird ein Eintrag eines Segments vergessen, fällt das ganze Segment weg (Logbuch.segmente_verwerfen), der Rückstand läuft dann über HTTPS.
-libtorrent ist optional: Fehlt es, bleibt es benannt bei HTTPS.
+A segment is a section of a logbook as JSON lines. The receiver checks it like any other entry: checksum here, signature and chain in the logbook.
+If an entry of a segment is forgotten, the whole segment drops out (Logbook.discard_segments) and the backlog then goes via HTTPS.
+libtorrent is optional: without it, HTTPS is used, and that is stated.
 """
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ class Swarm:
         self.parts(base64.b64encode(raw).decode(), file)
 
     def fetch(self, s: dict, host: str, wait_s: float, log, pub: str) -> list[dict] | None:
-        """Ein Segment laden, prüfen, zum Weiterverteilen behalten. None, wenn es nicht klappt: Der Aufrufer fällt auf HTTPS zurück."""
+        """Load a segment, check it, keep it for redistribution. None if it fails: the caller falls back to HTTPS."""
         try:
             raw = base64.b64decode(s["torrent"])
             info = self._info(raw)

@@ -1,17 +1,17 @@
-"""Vektoren — Bedeutung statt Wortgleichheit (Stufe 3, docs/TRAINING.md 4c; Park et al. 2023, Abschnitt 4.1: Relevanz
-= Kosinus-Ähnlichkeit der Embeddings).
+"""Vectors — meaning instead of identical words (stage 3, docs/TRAINING.md 4c; Park et al. 2023, section 4.1: relevance
+= cosine similarity of the embeddings).
 
-Heute findet `erinnere` nur, was dieselben Hashtags oder Wörter trägt. Ein Embedding-Dienst (OpenAI-kompatibel,
-`/v1/embeddings`) macht aus dem Text jedes geteilten Wissensobjekts einen Vektor; gespeichert als float32-BLOB in der
-Tabelle `vektor` (4 Byte je Dimension, ohne Erweiterung — TRAINING.md 4c, Weg 1). Weil der Dienst auf dem Host
-mehrere Sekunden je Anfrage braucht (gemessen 08.11.2026), passiert das **im Schlaf**, im Batch, nie in `vi_before`:
-  Schritt 7_vektoren  fehlende Vektoren für erkenntnis/regel/suche/skill nachziehen (höchstens NACHZIEH_MAX_S Sekunden je Schlaf)
-  Schritt 7b_naehe    Paare mit Kosinus ≥ NAEHE_KANTE bekommen eine Kante „semantisch ähnlich (cos 0,91)“;
-                      Paare ≥ NAEHE_DUBLETTE ohne gemeinsame Instanz werden als `dublette:moeglich` markiert (nicht
-                      zusammengelegt — das entscheidet ein Mensch oder eine zweite Instanz)
-Dazu `vi_recall(filter, semantisch=true)`: bettet den Freitext **jetzt** ein (dauert, wird im Ergebnis genannt) und
-ordnet die Kandidaten nach Kosinus, zusammengeführt mit dem Volltext (Rangfusion, werkzeuge.RRF_K) — ausdrücklich, nie automatisch.
-Ohne Konfiguration `embed` passiert nichts; der Schlaf meldet den Schritt als übersprungen (benannt).
+Otherwise `vi_recall` only finds what carries the same hashtags or words. An embedding service (OpenAI-compatible,
+`/v1/embeddings`) turns the text of every shared knowledge object into a vector; stored as a float32 BLOB in the
+table `vektor` (4 bytes per dimension, no extension — TRAINING.md 4c, way 1). Because the service on the host
+needs several seconds per request (measured 08.11.2026), this happens **during sleep**, in batches, never in `vi_before`:
+  step 7_vektoren  add missing vectors for erkenntnis/regel/suche/skill (at most CATCHUP_MAX_S seconds per sleep)
+  step 7b_naehe    pairs with cosine ≥ PROXIMITY_EDGE get an edge "semantisch ähnlich (cos 0.91)";
+                   pairs ≥ PROXIMITY_DUPLICATE without a common instance are marked `dublette:moeglich` (not
+                   merged — a human or a second instance decides that)
+Plus `vi_recall(filter, semantisch=true)`: embeds the free text **now** (takes time, stated in the result) and
+orders the candidates by cosine, fused with the full-text search (rank fusion, tools.RRF_K) — explicitly, never automatically.
+Without the `embed` configuration nothing happens; sleep reports the step as skipped (named).
 """
 from __future__ import annotations
 
@@ -26,22 +26,22 @@ from . import memory as g
 from .log_output import log
 
 BATCH = 16
-#: Zeitgrenze statt Stückzahl: Ein Schlaf soll nicht stundenlang einbetten, der Rest kommt im nächsten (gemessen rund 1,5 s je Text)
+#: Time limit instead of count: a sleep should not embed for hours, the rest follows in the next one (measured about 1.5 s per text)
 CATCHUP_MAX_S = 300
-#: 0.20.5: Pause nach jedem Batch, als Anteil seiner Dauer (1.0 = höchstens halbe Auslastung), für geteilte Embedding-Dienste.
-#: Standard 0 = ungedrosselt (Entscheidung des Nutzers, 09.11.); einschalten über konfig embed.pause_anteil.
+#: 0.20.5: Pause after each batch, as a share of its duration (1.0 = at most half load), for shared embedding services.
+#: Default 0 = unthrottled (user's decision, 09.11.); switch on via config embed.pause_anteil.
 PAUSE_SHARE = 0.0
 PROXIMITY_EDGE = 0.85
 PROXIMITY_DUPLICATE = 0.95
-#: 0.20.6: höchstens so viele semantische Nachbarn je neuem Vektor. Ohne Grenze verband der Confluence-Import fast gleiche Vorlagenseiten
-#: alle miteinander: 2,24 Mio. Kanten, bis 1.316 je Objekt, 96 s je Nähe-Schritt (gemessen 09.11. 07:41 UTC).
+#: 0.20.6: at most this many semantic neighbours per new vector. Without a limit the Confluence import linked nearly identical template pages
+#: all with each other: 2.24 million edges, up to 1,316 per object, 96 s per proximity step (measured 09.11. 07:41 UTC).
 PROXIMITY_MAX = 10
 VECTOR_KINDS = ("erkenntnis", "regel", "suche", "skill")
 TIMEOUT_S = 120
 
-#: Konfiguration: {"url": "https://host/embed/v1/embeddings", "token": "...", "modell": "..."} oder None
+#: Configuration: {"url": "https://host/embed/v1/embeddings", "token": "...", "modell": "..."} or None
 config: dict | None = None
-#: Austauschbare Einbettungsfunktion (Tests): texte → Liste von Vektoren
+#: Replaceable embedding function (tests): texts → list of vectors
 embed_fn = None
 
 
@@ -49,7 +49,7 @@ def _table() -> None:
     with g.lock:
         g.db().execute("CREATE TABLE IF NOT EXISTS vektor (id TEXT PRIMARY KEY, dim INTEGER NOT NULL, modell TEXT NOT NULL, "
                        "zeit TEXT NOT NULL, roh BLOB NOT NULL)")
-        # 0.20.0: verglichen = 1, sobald die Nähe-Kanten des Vektors berechnet sind (ein neu eingebetteter Vektor fängt bei 0 an)
+        # 0.20.0: verglichen = 1 once the vector's proximity edges are computed (a newly embedded vector starts at 0)
         if "verglichen" not in {r[1] for r in g.db().execute("PRAGMA table_info(vektor)")}:
             g.db().execute("ALTER TABLE vektor ADD COLUMN verglichen INTEGER NOT NULL DEFAULT 0")
         g.db().commit()
@@ -63,7 +63,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     if embed_fn is not None:
         return embed_fn(texts)
     if not config or not config.get("url"):
-        raise RuntimeError("kein Embedding-Dienst konfiguriert (konfig.embed.url)")
+        raise RuntimeError("no embedding service configured (config embed.url)")
     header = {"Content-Type": "application/json"}
     if config.get("token"):
         header["Authorization"] = f"Bearer {config['token']}"
@@ -71,7 +71,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     if config.get("modell"):
         body["model"] = config["modell"]
     req = urllib.request.Request(config["url"], data=json.dumps(body).encode(), headers=header)
-    op = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # Hostdienst, nie über einen Firmen-Proxy
+    op = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # host service, never via a corporate proxy
     with op.open(req, timeout=TIMEOUT_S) as a:
         d = json.load(a)
     data = sorted(d["data"], key=lambda x: x.get("index", 0))
@@ -93,7 +93,7 @@ def cosine(a, b) -> float:
 
 
 def _matrix(vs: dict[str, np.ndarray]) -> tuple[list[str], np.ndarray]:
-    """Normierte Vektoren der häufigsten Dimension (ein Modellwechsel hinterlässt andere Längen)."""
+    """Normalized vectors of the most common dimension (a model change leaves other lengths behind)."""
     if not vs:
         return [], np.zeros((0, 0), dtype=np.float32)
     dims = [len(v) for v in vs.values()]
@@ -113,7 +113,7 @@ def save(oid: str, v, model: str) -> None:
 
 
 def remove_entry(oid: str) -> None:
-    """Eingelagerte Objekte brauchen keinen Vektor; nach dem Zurückholen zieht der Schlaf ihn neu nach."""
+    """Archived objects need no vector; after restoring, sleep adds it again."""
     _table()
     with g.lock:
         g.db().execute("DELETE FROM vektor WHERE id = ?", (oid,))
@@ -135,7 +135,7 @@ def all_() -> dict[str, np.ndarray]:
 
 
 def present(ids: list[str]) -> int:
-    """Wie viele der IDs einen Vektor haben (ohne die Vektoren zu laden)."""
+    """How many of the IDs have a vector (without loading the vectors)."""
     _table()
     with g.lock:
         all_ids = {r[0] for r in g.db().execute("SELECT id FROM vektor")}
@@ -143,9 +143,9 @@ def present(ids: list[str]) -> int:
 
 
 def catch_up(max_s: float | None = None) -> dict:
-    """Schlaf-Schritt 7: fehlende Vektoren geteilter Wissensobjekte berechnen, Neueste zuerst, höchstens NACHZIEH_MAX_S Sekunden je Schlaf."""
+    """Sleep step 7: compute missing vectors of shared knowledge objects, newest first, at most CATCHUP_MAX_S seconds per sleep."""
     if not available():
-        return {"zustand": "uebersprungen", "grund": "kein Embedding-Dienst konfiguriert (konfig.embed)"}
+        return {"zustand": "uebersprungen", "grund": "no embedding service configured (config embed)"}
     _table()
     with g.lock:
         missing = g.db().execute(
@@ -155,14 +155,14 @@ def catch_up(max_s: float | None = None) -> dict:
     model = (config or {}).get("modell") or "embed"
     for i in range(0, len(missing), BATCH):
         if time.monotonic() > end:
-            break  # der Rest folgt im nächsten Schlaf; „offen“ nennt ihn
+            break  # the rest follows in the next sleep; "offen" names it
         part = missing[i:i + BATCH]
         t_batch = time.monotonic()
         try:
             vs = embed_texts([t for _, t in part])
         except (urllib.error.URLError, OSError, KeyError, ValueError, RuntimeError) as e:
             error = f"{type(e).__name__}: {e}"
-            log(f"Vektoren: Batch scheiterte — {error}")
+            log(f"Vectors: batch failed — {error}")
             break
         for (oid, _), v in zip(part, vs):
             save(oid, v, model)
@@ -176,9 +176,9 @@ def catch_up(max_s: float | None = None) -> dict:
 
 
 def proximity_edges() -> dict:
-    """Schritt 7b: Kanten zwischen semantisch nahen Wissensobjekten; sehr nahe fremde Paare → dublette:moeglich.
-    Seit 0.20.0 inkrementell: nur noch nicht verglichene Vektoren gegen alle (O(neu × alle) statt O(alle²); gemessen 9,6 s für 3.312 Vektoren
-    beim vollen Vergleich, das wüchse mit dem Confluence-Import quadratisch)."""
+    """Step 7b: edges between semantically close knowledge objects; very close pairs of different instances → dublette:moeglich.
+    Incremental since 0.20.0: only not yet compared vectors against all (O(new × all) instead of O(all²); measured 9.6 s for 3,312 vectors
+    with the full comparison, which would grow quadratically with the Confluence import)."""
     _table()
     ids, m = _matrix(all_())
     with g.lock:
@@ -188,10 +188,10 @@ def proximity_edges() -> dict:
     is_new = np.zeros(len(ids), dtype=bool)
     is_new[new] = True
     edges = duplicates = 0
-    for i in new:  # zeilenweise: der Speicher wächst nicht mit dem Quadrat der Objektzahl
+    for i in new:  # row by row: memory does not grow with the square of the object count
         proximity = m @ m[i]
         proximity[i] = -1.0
-        proximity[is_new & (np.arange(len(ids)) < i)] = -1.0  # Paare zweier neuer Vektoren nur einmal
+        proximity[is_new & (np.arange(len(ids)) < i)] = -1.0  # pairs of two new vectors only once
         nearby = np.nonzero(proximity >= PROXIMITY_EDGE)[0]
         if len(nearby) > PROXIMITY_MAX:
             nearby = nearby[np.argsort(-proximity[nearby])[:PROXIMITY_MAX]]
@@ -203,13 +203,13 @@ def proximity_edges() -> dict:
             with g.lock:
                 already = g.db().execute("SELECT 1 FROM kante WHERE a = ? AND b = ?", (a.id, b.id)).fetchone()
             if not already:
-                a.link(b.id, f"semantisch ähnlich (cos {c:.2f})")
+                a.link(b.id, f"semantisch ähnlich (cos {c:.2f})")  # label parsed: LIKE 'semantisch%', ORDER BY grund
                 edges += 1
             if c >= PROXIMITY_DUPLICATE and a.instance != b.instance:
                 for o in (a, b):
                     if "dublette:moeglich" not in o.hashtags:
                         o.hashtags = o.hashtags + ["dublette:moeglich"]
-                        o.change("vi", "dublette:moeglich", f"cos {c:.2f} zu {(b if o is a else a).id} (andere Instanz) — zusammenlegen entscheidet eine Instanz")
+                        o.change("vi", "dublette:moeglich", f"cos {c:.2f} to {(b if o is a else a).id} (other instance) — an instance decides whether to merge")
                         g.save(o)
                 duplicates += 1
     with g.lock:
@@ -219,15 +219,15 @@ def proximity_edges() -> dict:
 
 
 def cap(per_object: int | None = None) -> int:
-    """Semantische Kanten auf gegenseitige nächste Nachbarn begrenzen (mutual kNN): Ein Paar bleibt nur, wenn jede Seite die andere unter
-    ihren `je_objekt` ähnlichsten hat — so hat kein Objekt mehr als `je_objekt` semantische Kanten (bei Gleichstand entscheidet die Id).
-    Belege und Hashtag-Kanten bleiben unberührt; semantische Kanten sind abgeleitet und jederzeit neu berechenbar.
-    Liefert die Zahl gelöschter Zeilen (beide Richtungen gezählt) — nichts verschwindet still."""
+    """Limit semantic edges to mutual nearest neighbours (mutual kNN): a pair stays only if each side has the other among
+    its `per_object` most similar — so no object has more than `per_object` semantic edges (on a tie the id decides).
+    Evidence and hashtag edges stay untouched; semantic edges are derived and can be recomputed at any time.
+    Returns the number of deleted rows (both directions counted) — nothing vanishes silently."""
     n = per_object or PROXIMITY_MAX
     with g.lock:
         db = g.db()
         if not db.execute("SELECT 1 FROM kante WHERE grund LIKE 'semantisch%' GROUP BY a HAVING COUNT(*) > ? LIMIT 1", (n,)).fetchone():
-            return 0  # schon begrenzt
+            return 0  # already limited
         db.execute("DROP TABLE IF EXISTS temp.behalte")
         db.execute("CREATE TEMP TABLE behalte AS SELECT a, b FROM (SELECT a, b, ROW_NUMBER() OVER (PARTITION BY a ORDER BY grund DESC, b) r "
                    "FROM kante WHERE grund LIKE 'semantisch%') WHERE r <= ?", (n,))
@@ -238,12 +238,12 @@ def cap(per_object: int | None = None) -> int:
         db.execute("DROP TABLE temp.behalte")
         db.commit()
     if deleted:
-        log(f"Vektoren: {deleted} semantische Kanten gekappt (höchstens {n} nächste Nachbarn je Objekt)")
+        log(f"Vectors: {deleted} semantic edges capped (at most {n} nearest neighbours per object)")
     return deleted
 
 
 def similar(text: str, candidates: list[str], limit: int = 10) -> list[tuple[str, float]]:
-    """Freitext jetzt einbetten und Kandidaten nach Kosinus ordnen (dauert — nur auf ausdrücklichen Wunsch)."""
+    """Embed free text now and order candidates by cosine (takes time — only on explicit request)."""
     q = np.asarray(embed_texts([text])[0], dtype=np.float32)
     n = float(np.linalg.norm(q)) or 1.0
     vs = all_()

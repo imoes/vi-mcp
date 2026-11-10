@@ -1,5 +1,5 @@
 [Unit]
-Description=vi-p2p — Netzdienst von vi-mcp (Logbücher abgleichen, Wissen verteilen)
+Description=vi-p2p — network service of vi-mcp (syncs logbooks, distributes knowledge)
 Documentation=https://github.com/imoes/vi-mcp
 After=network-online.target vi-mcp.service
 Wants=network-online.target
@@ -16,7 +16,7 @@ RestartSec=10
 UMask=0077
 StateDirectory=vi-p2p
 StateDirectoryMode=0700
-# Dieser Prozess liest fremde Daten aus dem Netz: nur sein Verzeichnis ist beschreibbar, das Gedächtnis ist nicht erreichbar
+# This process reads foreign data from the network: only its own directory is writable, the memory is out of reach
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes

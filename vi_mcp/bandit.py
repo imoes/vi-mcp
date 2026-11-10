@@ -1,16 +1,16 @@
-"""Bandit — Thompson Sampling je Hinweis (Stufe 2, docs/TRAINING.md 4b), gemessen am Vorteil gegenüber dem Werkzeug ohne Hinweis.
+"""Bandit — Thompson sampling per hint (stage 2, docs/TRAINING.md 4b), measured by the advantage over the tool without a hint.
 
-Jeder Hinweis führt `daten.nuetzlich = {"ja": a, "nein": b, "n": gezeigt}`. Gutgeschrieben wird nicht jeder Erfolg nach dem Zeigen, sondern nur, was über
-das Erwartbare hinausgeht: p = Erfolgsquote des Werkzeugs ohne Hinweis (grundrate); Erfolg → a += 1 − p, Misserfolg → b += p.
-Ein wirkungsloser Hinweis bleibt so im Erwartungswert bei a ≈ b, also bei 50 %; früher stieg er mit der Erfolgsquote des Werkzeugs (Nachbarschaft ist keine
-Ursache: gemessen 08.11.2026, ein inhaltsleerer Skill vor Bash „226-mal genützt“). Beim Ordnen zieht der Router je Hinweis eine Stichprobe aus
-Beta(1 + a, 1 + b) — selten gezeigte Hinweise haben breite Verteilungen und kommen von selbst wieder dran (Russo et al. 2017, arXiv 1707.02038).
-Die Zähler sind abgeleitet: Der Schlaf berechnet sie aus den gespeicherten Erfahrungen neu (`neu_berechnen`), live wird nur fortgeschrieben.
+Every hint keeps `daten.nuetzlich = {"ja": a, "nein": b, "n": shown}`. Not every success after showing is credited, only what goes beyond
+the expected: p = success rate of the tool without a hint (base rate); success → a += 1 − p, failure → b += p.
+An ineffective hint thus stays at a ≈ b in expectation, i.e. at 50 %; before, it rose with the tool's success rate (proximity is not
+causation: measured 08.11.2026, a skill without content shown before Bash "helped 226 times"). When ordering, the router draws one sample per hint from
+Beta(1 + a, 1 + b) — rarely shown hints have wide distributions and come up again by themselves (Russo et al. 2017, arXiv 1707.02038).
+The counters are derived: sleep recomputes them from the stored experiences (`recompute`), live they are only updated incrementally.
 
-Rangordnung des Routers (erschöpfend, in `zugriff.router` benannt):
-  modell     — das gelernte Modell ist aktiv (Stufe 1, Lift)
-  bandit     — kein aktives Modell, aber mindestens ein Kandidat hat schon Zähler
-  heuristik  — weder noch: Aktualität + Wichtigkeit + Bonus
+Router ranking (exhaustive, named in `zugriff.router`):
+  modell     — the learned model is active (stage 1, lift)
+  bandit     — no active model, but at least one candidate already has counters
+  heuristik  — neither: recency + importance + bonus
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def shown(o: g.MemoryObject) -> int:
 
 
 def _observations(since: str | None = None):
-    """(tool, ok, gezeigt) je bewerteter Handlung; das Urteil des Scorers schlägt „Werkzeug ohne Fehler“, aus dem Gedächtnis Beantwortetes zählt nicht."""
+    """(tool, ok, shown) per rated action; the scorer's verdict beats "tool without error", actions answered from memory do not count."""
     from .scorer import GOOD_FROM
     with g.lock:
         lines = g.db().execute("SELECT o.daten, (SELECT group_concat(tag, ' ') FROM tag t WHERE t.objekt_id = o.id AND (t.tag LIKE 'tool:%' OR t.tag LIKE 'ok:%')) "
@@ -60,7 +60,7 @@ def _observations(since: str | None = None):
 
 
 def _base_rates() -> tuple[dict[str, float], float]:
-    """Erfolgsquote je Werkzeug aus Handlungen ohne gezeigten Hinweis; zu wenige → alle Handlungen des Werkzeugs; nichts → über alles. Laplace-geglättet."""
+    """Success rate per tool from actions without a shown hint; too few → all actions of the tool; none → over everything. Laplace-smoothed."""
     since = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - BASE_DAYS * 86400))
     without, all_ = defaultdict(lambda: [0, 0]), defaultdict(lambda: [0, 0])
     for tool, ok, shown_flag in _observations(since):
@@ -81,10 +81,10 @@ def base_rate(tool: str) -> float:
 
 
 def recompute() -> dict:
-    """Schlaf: alle Hinweis-Zähler aus den Erfahrungen. Hinweise ohne bewertete Handlung verlieren alte Zähler."""
+    """Sleep: all hint counters from the experiences. Hints without a rated action lose old counters."""
     per_tool_rate, all_ = _base_rates()
     _reason.update(zeit=time.time(), je=per_tool_rate, alle=all_)
-    sum_total: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0, 0, 0.0])  # ja, nein, gezeigt, gelungen, erwartet
+    sum_total: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0, 0, 0.0])  # yes, no, shown, succeeded, expected
     for tool, ok, shown_flag in _observations():
         p = per_tool_rate.get(tool, all_)
         for h in shown_flag:
@@ -120,13 +120,13 @@ def has_counter(candidates: list[g.MemoryObject]) -> bool:
 
 
 def arrange(candidates: list[g.MemoryObject], rnd: random.Random | None = None) -> list[g.MemoryObject]:
-    """Thompson Sampling: eine Stichprobe je Kandidat, absteigend. Stabil bei Gleichstand (Heuristik-Reihenfolge)."""
+    """Thompson sampling: one sample per candidate, descending. Stable on ties (heuristic order)."""
     samples = {o.id: random_sample(o, rnd) for o in candidates}
     return sorted(candidates, key=lambda o: -samples[o.id])
 
 
 def book_entry(shown: list[str], ok: bool | None, tool: str | None = None) -> int:
-    """Nach der Handlung: Vorteil gegenüber der Grundrate je gezeigtem Hinweis. ok None (kein Ergebnis gemeldet) zählt nicht. Atomar in der DB."""
+    """After the action: advantage over the base rate per shown hint. ok None (no result reported) does not count. Atomic in the DB."""
     if ok is None:
         return 0
     p = base_rate(tool) if tool else _reason["alle"]
@@ -137,8 +137,8 @@ def book_entry(shown: list[str], ok: bool | None, tool: str | None = None) -> in
         for oid in shown:
             if not oid.startswith(HINT_KINDS):
                 continue
-            # JSON-Zähler in daten relativ erhöhen — kein Lesen-Ändern-Schreiben über die Objekt-Klasse (kein verlorener Zähler)
-            # zuletzt_gezeigt zählt fürs Housekeeping als Verwendung, verändert aber die Aktualität nicht (kein Matthäus-Effekt)
+            # increase the JSON counters in daten relatively — no read-modify-write via the object class (no lost counter)
+            # zuletzt_gezeigt counts as use for housekeeping but does not change recency (no Matthew effect)
             cur = g.db().execute("UPDATE objekt SET daten = json_set(daten, '$.nuetzlich.' || ?, "
                                  "COALESCE(json_extract(daten, '$.nuetzlich.' || ?), 0) + ?, '$.nuetzlich.n', COALESCE(json_extract(daten, '$.nuetzlich.n'), 0) + 1, "
                                  "'$.nuetzlich.ok', COALESCE(json_extract(daten, '$.nuetzlich.ok'), 0) + ?, '$.nuetzlich.erwartet', COALESCE(json_extract(daten, '$.nuetzlich.erwartet'), 0) + ?, "
@@ -149,7 +149,7 @@ def book_entry(shown: list[str], ok: bool | None, tool: str | None = None) -> in
 
 
 def rebook(shown: list[str], tool: str | None = None) -> int:
-    """Der Scorer stellt nachträglich fest, dass eine als gelungen gezählte Handlung misslungen ist: die Gutschrift (1 − p) geht zurück, p kommt als Nein dazu."""
+    """The scorer finds afterwards that an action counted as successful failed: the credit (1 − p) is reverted, p is added as no."""
     p = base_rate(tool) if tool else _reason["alle"]
     n = 0
     with g.lock:
@@ -162,7 +162,7 @@ def rebook(shown: list[str], tool: str | None = None) -> int:
 
 
 def lift(o: g.MemoryObject) -> float | None:
-    """Erfolgsquote nach dem Zeigen minus erwartete Quote des Werkzeugs, in Anteilen; None ohne Daten."""
+    """Success rate after showing minus the expected rate of the tool, as a fraction; None without data."""
     z = o.data.get("nuetzlich") or {}
     n = int(z.get("n", 0))
     return (z.get("ok", 0) - z.get("erwartet", 0)) / n if n and "erwartet" in z else None
@@ -172,7 +172,7 @@ def line(o: g.MemoryObject) -> str:
     z = o.data.get("nuetzlich") or {}
     n = int(z.get("n", 0))
     if not n:
-        return "noch nie nach dem Zeigen bewertet"
+        return "never rated after being shown"
     if "erwartet" not in z:
-        return f"{n}× gezeigt, Wirkung noch nicht berechnet"
-    return f"{n}× gezeigt, Erfolg danach {z['ok'] / n * 100:.0f} % statt erwartet {z['erwartet'] / n * 100:.0f} % ({lift(o) * 100:+.0f} Punkte)"
+        return f"{n}× shown, effect not computed yet"
+    return f"{n}× shown, success afterwards {z['ok'] / n * 100:.0f} % instead of expected {z['erwartet'] / n * 100:.0f} % ({lift(o) * 100:+.0f} points)"

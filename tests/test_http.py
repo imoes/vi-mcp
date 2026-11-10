@@ -1,4 +1,4 @@
-"""Block 2: MCP über Streamable HTTP — echter Server auf Zufallsport, echte HTTP-Anfragen."""
+"""Block 2: MCP over Streamable HTTP — real server on a random port, real HTTP requests."""
 import http.client
 import json
 import threading
@@ -50,7 +50,7 @@ def init(port, token, name="pytest"):
                                                     "capabilities": {}}}, token)
     assert st == 200, a
     assert a["result"]["protocolVersion"] == "2025-03-26"
-    # 0.20.7: Jeder Client bekommt die Regeln, wann er die VI befragt und wann er lernt
+    # 0.20.7: every client gets the rules for when to consult the VI and when to learn
     assert "ASK" in a["result"]["instructions"] and "LEARN" in a["result"]["instructions"] and "Never learn" in a["result"]["instructions"]
     sid = header["Mcp-Session-Id"]
     st, _, _ = request(port, "POST", {"jsonrpc": "2.0", "method": "notifications/initialized"}, token, sid)
@@ -69,7 +69,7 @@ def test_protection(srv):
     assert request(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"})[0] == 401
     assert request(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, "falsch")[0] == 401
     assert request(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, tok, header={"Origin": "http://evil.example"})[0] == 403
-    assert request(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, tok)[0] == 400  # Sitzung fehlt
+    assert request(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, tok)[0] == 400  # session missing
     assert request(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, tok, "gibtsnicht")[0] == 404
     assert request(port, "GET", None, tok)[0] == 405
     c = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
@@ -82,45 +82,45 @@ def test_two_sessions_two_conversations(srv):
     sa, sb = init(port, tok_a, "claude-code"), init(port, tok_b, "anderer-agent")
     st, _, listing = request(port, "POST", {"jsonrpc": "2.0", "id": 5, "method": "tools/list"}, tok_a, sa)
     names = {t["name"] for t in listing["result"]["tools"]}
-    assert {"vi_before", "vi_after", "vi_recall"} <= names and "vi_erinnere" not in names  # 0.22.0: öffentlich englisch, deutsch nur noch Alias
-    # Sitzung A meldet eine Handlung zweimal → beim 2. Mal aus dem Gedächtnis
+    assert {"vi_before", "vi_after", "vi_recall"} <= names and "vi_erinnere" not in names  # 0.22.0: public names English, German only as alias
+    # session A reports an action twice → the 2nd time from memory
     v = json.loads(call_tool(port, tok_a, sa, "vi_vorher", {"tool": "netbox_get_devices", "args": {"host": "web1"}})["content"][0]["text"])
     assert v["antwort"] is None
     call_tool(port, tok_a, sa, "vi_nachher", {"tool": "netbox_get_devices", "args": {"host": "web1"}, "ok": True, "dauer_ms": 40,
                                          "ergebnis": "web1: aktiv", "vorher_id": v["vorher_id"]})
     v2 = json.loads(call_tool(port, tok_b, sb, "vi_vorher", {"tool": "netbox_get_devices", "args": {"host": "web1"}})["content"][0]["text"])
-    assert v2["antwort"] is None  # gemerkte Antworten sind privat je Instanz (können Zugangsdaten enthalten)
-    sa2 = init(port, tok_a, "claude-code-2")  # neue Sitzung derselben Instanz → bekommt die Antwort
+    assert v2["antwort"] is None  # remembered answers are private per instance (may contain credentials)
+    sa2 = init(port, tok_a, "claude-code-2")  # new session of the same instance → gets the answer
     v2b = json.loads(call_tool(port, tok_a, sa2, "vi_vorher", {"tool": "netbox_get_devices", "args": {"host": "web1"}})["content"][0]["text"])
     assert v2b["antwort"] == "web1: aktiv"
-    # Gelerntes aus B erscheint vor der Handlung in A
+    # knowledge learned in B appears before the action in A
     r = call_tool(port, tok_b, sb, "vi_lerne", {"text": "web1 antwortet nur über den Proxy", "hashtags": ["host:web1"],
                                             "quelle": "curl -v am 08.11."})
     assert not r["isError"], r
     v3 = json.loads(call_tool(port, tok_a, sa, "vi_vorher", {"tool": "checkmk_get_host", "args": {"host": "web1"}})["content"][0]["text"])
     assert any("Proxy" in h for h in v3["hinweise"])
-    # Status nennt beide offenen Gespräche
+    # status names both open conversations
     status = call_tool(port, tok_a, sa, "vi_status", {})["content"][0]["text"]
-    assert "Offene Gespräche: 3" in status
-    # Sitzung A beenden → Gespräch gesichert, Id danach unbekannt
+    assert "Open conversations: 3" in status
+    # end session A → conversation saved, id unknown afterwards
     serial_a = session.find_without_touching(sa).serial
     assert request(port, "DELETE", None, tok_a, sa)[0] == 204
     assert request(port, "POST", {"jsonrpc": "2.0", "id": 9, "method": "ping"}, tok_a, sa)[0] == 404
     gs = g.load(f"gespraech:{serial_a}")
-    # 2 Handlungen: eine mit nachher, eine nur mit vorher → ok:unbekannt, nicht verschwunden
+    # 2 actions: one with after, one only with before → ok:unbekannt, not vanished
     assert gs.data["zustand"] == "beendet" and gs.data["aufrufe"] == 2 and gs.data["ohne_ergebnis"] == 1
-    assert [o.text for _, o, _g in g.recall("tool:checkmk_get_host ok:unbekannt")][0].endswith("(vi_after fehlt)")
+    assert [o.text for _, o, _g in g.recall("tool:checkmk_get_host ok:unbekannt")][0].endswith("(vi_after missing)")
     assert "instanz:laptop" in gs.hashtags and "host:web1" in gs.hashtags
 
 
 def test_foreign_session_and_reflex_permission(srv):
     port, tok_a, tok_b = srv
     sa, sb = init(port, tok_a), init(port, tok_b)
-    assert request(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, tok_b, sa)[0] == 404  # nicht seine Sitzung
+    assert request(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, tok_b, sa)[0] == 404  # not its session
     code = "def run(tool, args, ergebnis):\n    return 'gesehen: ' + tool"
     r = call_tool(port, tok_b, sb, "vi_reflex_lerne", {"name": "echo", "art": "nachher", "code": code,
                                                    "beschreibung": "meldet jedes Werkzeug", "quelle": "Test Reflex-Recht"})
-    assert r["isError"] and "kein Reflex-Recht" in r["content"][0]["text"]
+    assert r["isError"] and "has no reflex right" in r["content"][0]["text"]
     r = call_tool(port, tok_a, sa, "vi_reflex_lerne", {"name": "echo", "art": "nachher", "code": code,
                                                    "beschreibung": "meldet jedes Werkzeug", "quelle": "Test Reflex-Recht"})
     assert not r["isError"], r
@@ -158,7 +158,7 @@ def test_several_addresses_one_memory(tmp_path, monkeypatch):
                       headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"})
             r = c.getresponse(); r.read()
             sids.append(r.getheader("Mcp-Session-Id"))
-        # beide Adressen, ein Prozess: zwei Gespräche im selben Gedächtnis
+        # both addresses, one process: two conversations in the same memory
         assert len([o for _, o, _g in g.recall("art:gespraech instanz:x")]) == 2
     finally:
         for s in srvs:
@@ -167,12 +167,12 @@ def test_several_addresses_one_memory(tmp_path, monkeypatch):
 
 
 def test_http_calls_land_in_usage_stats(srv):
-    """0.21.0: Der Server zählt jeden Aufruf eines VI-Werkzeugs mit Instanz und Client — auch abgelehnte."""
+    """0.21.0: the server counts every call of a VI tool with instance and client — rejected ones too."""
     from vi_mcp import usage_stats
     port, tok_a, _tok_b = srv
     sa = init(port, tok_a, "statistik-client")
-    call_tool(port, tok_a, sa, "vi_erinnere", {"filter": "nichtsdergleichen"})  # alter deutscher Name (Alias) …
-    assert call_tool(port, tok_a, sa, "vi_recall", {"text": "falsch benannt"})["isError"]  # … und der englische zählen unter einem Namen
+    call_tool(port, tok_a, sa, "vi_erinnere", {"filter": "nichtsdergleichen"})  # old German name (alias) …
+    assert call_tool(port, tok_a, sa, "vi_recall", {"text": "falsch benannt"})["isError"]  # … and the English one count under one name
     d = usage_stats.data(1)["nutzung"]
     assert d["je_werkzeug"]["vi_recall"]["n"] == 2 and d["je_werkzeug"]["vi_recall"]["abgelehnt"] == 1
     assert any(c.startswith("statistik-client") for c in d["clients"])

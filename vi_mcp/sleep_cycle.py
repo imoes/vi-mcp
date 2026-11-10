@@ -1,22 +1,22 @@
-"""Schlaf — der Konsolidierungslauf (docs/FORSCHUNG.md A4, A5, C2).
+"""Sleep — the consolidation run (docs/FORSCHUNG.md A4, A5, C2).
 
-Läuft in einem eigenen Thread, den der Loop startet (seit 0.20.5; Schreiben schützt g.sperre, Modell und Vektoren bedarf.TRAINING), einmal pro Nacht (SCHLAF_STUNDE UTC) oder sobald die Summe
-der Wichtigkeit neuer Erfahrungen seit dem letzten Lauf SCHWELLE übersteigt (Parks Reflexions-Trigger, auf 0–3 skaliert).
-Schritte — jeder zählt, jeder steht im Bericht (Objekt `schlaf:<zeit>`, Zustand `fertig` oder `fehler`):
-  1 Triage      Erfahrungen seit dem letzten Lauf, Priorität = Überraschung + Wichtigkeit/3 + Zukunftsrelevanz
-  2 Replay      Cluster nach (host, skill) über die Top-Erfahrungen, je Cluster k ältere derselben Hashtags dazu
-  3 Schema      passt eine Erkenntnis zum Cluster? gleicher Ausgang → Beleg-Kante; anderer → `konflikt:offen`
-  4b Reflexion  Sprachmodell formuliert je Cluster ohne Schema höchstens eine Erkenntnis (test, geprüft, Belegkanten) — reflexion.py
-  4 Abstraktion Rückfall aus Vorlage für Cluster ohne Reflexion: ≥ 3 Erfahrungen an ≥ 2 Tagen → Erkenntnis (test)
-  4c Skills     Erfolg nach Fehlern im selben Gespräch → Skill (Lösungsweg); scheiternde Skills → strittig; gleiche Probleme → fusion:vorschlag
-  4d Scorer     Handlungen nach festen Merkmalen bewerten, beendete Gespräche durch das Sprachmodell (scorer.py)
-  5 Housekeeping nicht mehr verwendete Einträge und alte Rohverläufe ins Langzeitlager (lager.py; Stummel bleibt)
-  6 Selbst-Ist  Kompetenz je Skill, Schwächen, Beziehungen neu berechnen
-  7 Vektoren    fehlende Embeddings geteilter Wissensobjekte nachziehen (Batch), semantische Nähe → Kanten / dublette:moeglich
-  7c Inhalt     Mittelpunkte je Reiz und Bedeutungsgruppen für den Router (inhalt.py)
-  7d Hinweise   Hinweis-Zähler aus den Erfahrungen neu, gemessen am Vorteil gegenüber dem Werkzeug ohne Hinweis (bandit.py)
-  8 Lernen      Router-Modell trainieren (lernen.py)
-  9 Bericht
+Runs in its own thread started by the loop (since 0.20.5; writes are guarded by g.lock, model and vectors by on_demand.TRAINING), once per night (SLEEP_HOUR UTC) or as soon as the sum
+of the importance of new experiences since the last run exceeds THRESHOLD (Park's reflection trigger, scaled to 0–3).
+Steps — each one counts, each one is in the report (object `schlaf:<zeit>`, state `fertig` or `fehler`):
+  1 Triage      experiences since the last run, priority = surprise + importance/3 + future relevance
+  2 Replay      clusters by (host, skill) over the top experiences, plus k older ones with the same hashtags per cluster
+  3 Schema      does an insight fit the cluster? same outcome → evidence edge; different → `konflikt:offen`
+  4b Reflection the language model phrases at most one insight per cluster without schema (test, reviewed, evidence edges) — reflection.py
+  4 Abstraction template fallback for clusters without reflection: ≥ 3 experiences on ≥ 2 days → insight (test)
+  4c Skills     success after errors in the same conversation → skill (solution path); failing skills → disputed; same problems → fusion:vorschlag
+  4d Scorer     rate actions by fixed features, finished conversations by the language model (scorer.py)
+  5 Housekeeping unused entries and old raw transcripts go to the long-term archive (archive.py; a stub stays)
+  6 Self actual recompute competence per skill, weaknesses, relations
+  7 Vectors     add missing embeddings of shared knowledge objects (batch), semantic proximity → edges / dublette:moeglich
+  7c Content    centroids per trigger and meaning groups for the router (content.py)
+  7d Hints      recompute hint counters from the experiences, measured by the advantage over the tool without a hint (bandit.py)
+  8 Learning    train the router model (learning.py)
+  9 Report
 """
 from __future__ import annotations
 
@@ -30,8 +30,8 @@ from . import self_model
 from .log_output import log
 
 SLEEP_HOUR = 3
-#: 0.21.1: 40 → 80 und höchstens alle MIN_ABSTAND_MIN Minuten. Gemessen 08./09.11.: 45 Schläfe in 24 h (Median 83 s), zusammen nur
-#: 3 neue Erkenntnisse — der Schlaf lief fast im Halbstundentakt und belastete das Sprachmodell, ohne viel zu liefern (vi_stats, F).
+#: 0.21.1: 40 → 80 and at most every MIN_GAP_MIN minutes. Measured 08./09.11.: 45 sleeps in 24 h (median 83 s), only 3 new insights
+#: in total — sleep ran almost every half hour and loaded the language model without delivering much (vi_stats, F).
 THRESHOLD = 80
 MIN_GAP_MIN = 120
 TOP_N = 200
@@ -47,21 +47,21 @@ def last() -> g.MemoryObject | None:
 
 
 def due(now: datetime | None = None) -> str | None:
-    """Grund, warum jetzt geschlafen wird — oder None."""
+    """Reason why sleep runs now — or None."""
     now = now or datetime.now(timezone.utc)
     l = last()
     since = l.ts if l else "1970-01-01T00:00:00+00:00"
-    # Seit 0.20.3 nur noch Sicherheitsnetz: Training läuft bei Bedarf (bedarf.py), geschlafen wird ab der Wichtigkeitsschwelle. Nachts nur,
-    # wenn seit 24 h kein Schlaf lief (ruhige Tage). Vorher zählte jeder Schlaf desselben Kalendertags — nach einem Schlaf um 00:28 fiel
-    # der Nachtlauf aus, ohne dass es irgendwo stand (gesehen 09.11.2026).
+    # Since 0.20.3 only a safety net: training runs on demand (on_demand.py), sleep starts at the importance threshold. At night only
+    # if no sleep ran for 24 h (quiet days). Before, any sleep on the same calendar day counted — after a sleep at 00:28 the
+    # nightly run was skipped without this being recorded anywhere (seen 09.11.2026).
     if now.hour == SLEEP_HOUR and (not l or datetime.fromisoformat(l.ts) < now - timedelta(hours=24)):
-        return f"Nachtlauf {SLEEP_HOUR:02d}:00 UTC (kein Schlaf in 24 h)"
+        return f"nightly run {SLEEP_HOUR:02d}:00 UTC (no sleep in 24 h)"
     if l and datetime.fromisoformat(l.ts) > now - timedelta(minutes=MIN_GAP_MIN):
-        return None  # zu kurz nach dem letzten Schlaf; die Wichtigkeit sammelt sich weiter
+        return None  # too soon after the last sleep; importance keeps accumulating
     with g.lock:
         sum_total = g.db().execute("SELECT COALESCE(SUM(wichtigkeit), 0) FROM objekt WHERE art = 'erfahrung' AND zeit > ?", (since,)).fetchone()[0]
     if sum_total >= THRESHOLD:
-        return f"Wichtigkeit neuer Erfahrungen {sum_total} ≥ {THRESHOLD}"
+        return f"importance of new experiences {sum_total} ≥ {THRESHOLD}"
     return None
 
 
@@ -70,11 +70,11 @@ def _content(o: g.MemoryObject) -> set[str]:
 
 
 _running = threading.Lock()
-WAIT_S = 90  # so lange wartet vi_sleep(jetzt) auf das Ergebnis; ein Reverse-Proxy bricht oft nach 120 s ab
+WAIT_S = 90  # how long vi_sleep(now) waits for the result; a reverse proxy often aborts after 120 s
 
 
 def running() -> bool:
-    """True, solange ein Schlaf läuft (vom Loop oder von Hand gestartet)."""
+    """True while a sleep is running (started by the loop or by hand)."""
     return _running.locked()
 
 
@@ -83,9 +83,9 @@ class AlreadyRunning(Exception):
 
 
 def run(reason: str) -> g.MemoryObject:
-    """Ein Schlaf, nie zwei zugleich. Liefert den Bericht; Fehler eines Schritts brechen nicht die anderen ab, sondern stehen im Bericht."""
+    """One sleep, never two at once. Returns the report; an error in one step does not abort the others but is recorded in the report."""
     if not _running.acquire(blocking=False):
-        raise AlreadyRunning("ein Schlaf läuft bereits")
+        raise AlreadyRunning("a sleep is already running")
     try:
         return _run(reason)
     finally:
@@ -93,13 +93,13 @@ def run(reason: str) -> g.MemoryObject:
 
 
 def run_in_background(reason: str, wait_s: float | None = None) -> g.MemoryObject | None:
-    """Startet den Schlaf in einem eigenen Thread und wartet höchstens warte_s. None: läuft noch, der Bericht kommt mit vi_sleep."""
+    """Starts sleep in its own thread and waits at most wait_s. None: still running, the report comes with vi_sleep."""
     result: dict = {}
 
     def go():
         try:
             result["o"] = run(reason)
-        except Exception as e:  # noqa: BLE001 — wird dem Aufrufer gemeldet
+        except Exception as e:  # noqa: BLE001 — reported to the caller
             result["e"] = e
     t = threading.Thread(target=go, name="vi-schlaf", daemon=True)
     t.start()
@@ -119,23 +119,23 @@ def _run(reason: str) -> g.MemoryObject:
     def step(name, fn):
         try:
             report["schritte"][name] = fn()
-        except Exception as exc:  # noqa: BLE001 — benannt im Bericht
+        except Exception as exc:  # noqa: BLE001 — named in the report
             report["fehler"].append(f"{name}: {type(exc).__name__}: {exc}")
-            log(f"Schlaf {name} scheiterte: {exc}")
+            log(f"Sleep {name} failed: {exc}")
 
     new_items = [o for _, o, _g in g.recall("art:erfahrung (ok:ja OR ok:nein)", limit=5000, viewer=None) if o.ts > since]
     step("1_triage", lambda: _triage(new_items, report))
     step("2_replay", lambda: _replay(report))
     step("3_schema", lambda: _schema(report))
-    step("4b_reflexion", lambda: _reflection(report))  # Sprachmodell zuerst (Stufe 4); was es belegt erklärt, gilt als Schema
-    step("4_abstraktion", lambda: _abstraction(report))  # Vorlage als Rückfall für Cluster ohne Reflexion
+    step("4b_reflexion", lambda: _reflection(report))  # language model first (stage 4); what it explains with evidence counts as schema
+    step("4_abstraktion", lambda: _abstraction(report))  # template as fallback for clusters without reflection
     step("4c_skills", lambda: _skills(since))
     step("4d_scorer", lambda: _scorer())
     step("5_lager", lambda: archive.cleanup())
     step("5b_pruefer", lambda: _reviewer())
     step("6_selbst_ist", lambda: _self_actual())
     from . import on_demand
-    with on_demand.TRAINING:  # nie gleichzeitig mit dem Training bei Bedarf (dasselbe Modell, dieselben Vektoren)
+    with on_demand.TRAINING:  # never at the same time as on-demand training (same model, same vectors)
         step("7_vektoren", lambda: _vectors())
         step("7b_naehe", lambda: _proximity())
         step("7c_inhalt", lambda: _content_features())
@@ -143,12 +143,12 @@ def _run(reason: str) -> g.MemoryObject:
         step("8_lernen", lambda: _learning())
     duration = int((time.monotonic() - t0) * 1000)
     state = "fehler" if report["fehler"] else "fertig"
-    text = (f"Schlaf {state} ({reason}): {len(new_items)} neue Erfahrungen, {len(report.get('cluster', []))} Cluster, "
-            f"{report['schritte'].get('3_schema', {}).get('belegt', 0)} Erkenntnisse belegt, "
-            f"{report['schritte'].get('3_schema', {}).get('konflikte', 0)} Konflikte, "
-            f"{report['schritte'].get('4_abstraktion', 0)} neue Erkenntnisse (test), "
-            f"{report['schritte'].get('5_lager', {}).get('eingelagert', 0)} Einträge ins Langzeitlager, {duration} ms"
-            + (f" · Fehler: {'; '.join(report['fehler'])[:300]}" if report["fehler"] else ""))
+    text = (f"Sleep {'finished' if state == 'fertig' else 'finished with errors'} ({reason}): {len(new_items)} new experiences, {len(report.get('cluster', []))} clusters, "
+            f"{report['schritte'].get('3_schema', {}).get('belegt', 0)} insights with evidence, "
+            f"{report['schritte'].get('3_schema', {}).get('konflikte', 0)} conflicts, "
+            f"{report['schritte'].get('4_abstraktion', 0)} new insights (test), "
+            f"{report['schritte'].get('5_lager', {}).get('eingelagert', 0)} entries moved to the long-term archive, {duration} ms"
+            + (f" · errors: {'; '.join(report['fehler'])[:300]}" if report["fehler"] else ""))
     report["top_n"] = len(report.pop("top", []))
     report["cluster_n"] = len(report.pop("cluster", []))
     o = g.new_object("schlaf", text, [f"zustand:{state}"], {**report, "dauer_ms": duration}, importance=1, who="vi",
@@ -185,7 +185,7 @@ def _replay(report: dict) -> int:
     for key, new_items in cluster.items():
         cluster[key] = {"neue": list(new_items), "alle": new_items}
         ids = {o.id for o in new_items}
-        with g.lock:  # verschränkt: ältere Erfahrungen derselben Hashtags dazu, damit Neues gegen Altes gelesen wird
+        with g.lock:  # interleaved: add older experiences with the same hashtags so the new is read against the old
             old_umask_value = [r[0] for r in g.db().execute(
                 "SELECT o.id FROM objekt o JOIN tag t1 ON t1.objekt_id = o.id AND t1.tag = ? JOIN tag t2 ON t2.objekt_id = o.id AND t2.tag = ? "
                 "WHERE o.art = 'erfahrung' AND o.modus = 'aktiv' AND o.zeit <= ? ORDER BY o.zeit DESC LIMIT ?", (*key, report["seit"], REPLAY_OLD))]
@@ -194,7 +194,7 @@ def _replay(report: dict) -> int:
                 o = g.load(a)
                 if o:
                     new_items.append(o)
-    # neue = seit dem letzten Schlaf (Schema-Abgleich: widerspricht das Neue?); alle = neue + ältere (Abstraktion)
+    # neue = since the last sleep (schema check: does the new contradict?); alle = new + older (abstraction)
     report["cluster"] = [{"key": k, "neue": v["neue"], "erfahrungen": v["alle"]} for k, v in cluster.items()]
     return len(cluster)
 
@@ -209,7 +209,7 @@ def _schema(report: dict) -> dict:
     evidenced = conflicts = 0
     for c in report.get("cluster", []):
         host, skill = c["key"]
-        outbox, q = _outcome(c["neue"])  # das Neue gegen das Schema — das Alte hat das Schema ja gebildet
+        outbox, q = _outcome(c["neue"])  # the new against the schema — the old formed the schema in the first place
         c["ausgang_neu"] = outbox
         c["ausgang"] = _outcome(c["erfahrungen"])[0]
         schemata = [o for _, o, _g in g.recall(f"{host} {skill}", limit=5, kinds=("erkenntnis",), viewer=None) if o.data.get("ausgang")]
@@ -219,9 +219,9 @@ def _schema(report: dict) -> dict:
                 continue
             if s.data.get("ausgang") == outbox:
                 for o in c["neue"]:
-                    s.link(o.id, "Beleg (Schlaf: gleicher Ausgang)")
+                    s.link(o.id, "Beleg (sleep: same outcome)")
                 s.data["belege_n"] = s.data.get("belege_n", 0) + len(c["neue"])
-                s.change("vi", f"+{len(c['neue'])} Belege", "Schlaf: neue Erfahrungen mit gleichem Ausgang")
+                s.change("vi", f"+{len(c['neue'])} evidence", "sleep: new experiences with the same outcome")
                 g.save(s)
                 evidenced += 1
             else:
@@ -229,7 +229,7 @@ def _schema(report: dict) -> dict:
                                                              "erfahrungen": [o.id for o in c["neue"]][:20]})
                 if "konflikt:offen" not in s.hashtags:
                     s.hashtags = s.hashtags + ["konflikt:offen"]
-                s.change("vi", "konflikt:offen", f"Schlaf: Cluster mit Ausgang {outbox} ({q * 100:.0f} % ok) widerspricht {s.data.get('ausgang')}")
+                s.change("vi", "konflikt:offen", f"sleep: cluster with outcome {outbox} ({q * 100:.0f} % ok) contradicts {s.data.get('ausgang')}")
                 g.save(s)
                 report["geaendert"].append(s.id)
                 conflicts += 1
@@ -253,7 +253,7 @@ def _reflection(report: dict) -> dict:
     from . import reflection
     r = reflection.reflect(report.get("cluster", []))
     if r.get("neu"):
-        for c in report.get("cluster", []):  # reflektierte Cluster nicht noch einmal per Vorlage abstrahieren
+        for c in report.get("cluster", []):  # do not abstract reflected clusters again via template
             host, skill = c["key"]
             for o in g.recall(f"{host} {skill} herkunft:schlaf-llm", limit=1, kinds=("erkenntnis",), viewer=None):
                 c["schema"] = o[1].id
@@ -272,19 +272,19 @@ def _abstraction(report: dict) -> int:
         tools = sorted({t[5:] for o in c["erfahrungen"] for t in o.hashtags if t.startswith("tool:")})
         error = sorted({t[7:] for o in c["erfahrungen"] for t in o.hashtags if t.startswith("fehler:")})
         q = _outcome(c["erfahrungen"])[1]
-        text = (f"{host[5:]} mit {skill[6:]}: {len(c['erfahrungen'])} Handlungen an {len(days)} Tagen, {q * 100:.0f} % erfolgreich"
-                + (f" — Werkzeuge {', '.join(tools[:4])}" if tools else "")
-                + (f"; typische Fehler: {', '.join(error[:3])}" if error else ""))
+        text = (f"{host[5:]} with {skill[6:]}: {len(c['erfahrungen'])} actions on {len(days)} days, {q * 100:.0f} % successful"
+                + (f" — tools {', '.join(tools[:4])}" if tools else "")
+                + (f"; typical errors: {', '.join(error[:3])}" if error else ""))
         rid = f"erkenntnis:schlaf-{g.hash_value(host, skill)}"
         if g.load(rid):
             continue
         e = g.new_object("erkenntnis", text, [host, skill, "modus:test", "herkunft:schlaf"],
-                           {"quelle": f"Schlaf: {len(c['erfahrungen'])} Erfahrungen, Belegkanten", "ausgang": c["ausgang"],
+                           {"quelle": f"sleep: {len(c['erfahrungen'])} experiences, evidence edges", "ausgang": c["ausgang"],
                             "quote": round(q, 2), "belege_n": len(c["erfahrungen"])},
-                           importance=1, who="vi", oid=rid, mode="test", reason="Schlaf: Abstraktion aus Cluster ohne Schema",
+                           importance=1, who="vi", oid=rid, mode="test", reason="sleep: abstraction from a cluster without schema",
                            instance=g.SERVER_INSTANCE)
         for o in c["erfahrungen"]:
-            e.link(o.id, "Beleg (Schlaf: Abstraktion)")
+            e.link(o.id, "Beleg (sleep: abstraction)")
         report["neu"].append(e.id)
         new += 1
     return new
@@ -298,7 +298,7 @@ def _vectors() -> dict:
 def _proximity() -> dict:
     from . import vector
     if not vector.available():
-        return {"zustand": "uebersprungen", "grund": "kein Embedding-Dienst konfiguriert"}
+        return {"zustand": "uebersprungen", "grund": "no embedding service configured"}
     return vector.proximity_edges()
 
 
@@ -320,7 +320,7 @@ def _content_features() -> dict:
 
 def _learning() -> dict:
     from . import learning
-    b = learning.train("Schlaf")
+    b = learning.train("sleep")
     return {k: b.get(k) for k in ("zustand", "n", "merkmale", "auc_holdout", "grund", "urteil") if k in b}
 
 
@@ -341,5 +341,5 @@ def _self_actual() -> dict:
            "kompetenz": [{"bereich": b, "erfahrungen": n, "erfolgsquote": round(ok / n, 2), "zeitraum": f"{PERIOD_IN_DAYS} d"} for b, n, ok in comp],
            "schwaechen": [{"bereich": t, "fehler": f, "n": n} for t, f, n in weak],
            "beziehungen": [{"instanz": i, "gespraeche": n, "zuletzt": z} for i, n, z in relations]}
-    self_model.set_actual(actual, "Schlaf: Extension aus den Erfahrungen der letzten 30 Tage")
+    self_model.set_actual(actual, "sleep: extension from the experiences of the last 30 days")
     return {"kompetenz": len(comp), "schwaechen": len(weak), "beziehungen": len(relations)}

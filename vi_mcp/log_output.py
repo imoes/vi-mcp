@@ -1,4 +1,4 @@
-"""Protokollausgabe des Servers — eine Zeile je Ereignis auf stderr (systemd → journal)."""
+"""Server log output — one line per event on stderr (systemd → journal)."""
 import sys
 from datetime import datetime, timezone
 

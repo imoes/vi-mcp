@@ -1,12 +1,12 @@
-"""Inhalt als Merkmal — der Router gewichtet Hinweise nicht nur nach Situation, sondern auch nach Bedeutung.
+"""Content as a feature — the router weights hints not only by situation but also by meaning.
 
-Live wird nichts eingebettet (das kostet rund 1 s je Text). Stattdessen rechnet der Schlaf zwei Dinge vor:
-  Mittelpunkte  je Reiz-Hashtag (tool:, skill:, host:, thema:) der Mittelwert der Vektoren aller Wissensobjekte mit diesem Hashtag.
-                Merkmal `naehe` = Kosinus zwischen dem Hinweis und dem Mittel der Mittelpunkte der aktuellen Reize.
-                Der Hinweis selbst wird herausgerechnet, damit er sich nicht selbst bestätigt.
-  Gruppen       K-Means über die Vektoren der Wissensobjekte. Merkmal `inhalt:<n>`: Das Modell lernt Gewichte je Bedeutungsgruppe,
-                ein neuer Hinweis erbt sie, bevor er eigene Erfahrung hat. Jede Gruppe trägt als Namen ihre häufigsten Hashtags.
-Beides wird nachts neu berechnet; das Modell wird in derselben Nacht danach trainiert, die Gruppennummern passen also zu den Gewichten.
+Nothing is embedded live (that costs about 1 s per text). Instead, sleep precomputes two things:
+  Centroids     per trigger hashtag (tool:, skill:, host:, thema:) the mean of the vectors of all knowledge objects with this hashtag.
+                Feature `naehe` = cosine between the hint and the mean of the centroids of the current triggers.
+                The hint itself is subtracted so that it does not confirm itself.
+  Groups        K-means over the vectors of the knowledge objects. Feature `inhalt:<n>`: the model learns weights per meaning group,
+                a new hint inherits them before it has experience of its own. Each group is named after its most frequent hashtags.
+Both are recomputed at night; the model is trained afterwards in the same night, so the group numbers match the weights.
 """
 from __future__ import annotations
 
@@ -55,11 +55,11 @@ def _tags(ids: list[str]) -> dict[str, list[str]]:
 
 
 def compute() -> dict:
-    """Schlaf: Mittelpunkte und Gruppen neu. Ohne Vektoren benannt übersprungen."""
+    """Sleep: recompute centroids and groups. Without vectors skipped with a named reason."""
     _tables()
     ids, m = _normalized()
     if not ids:
-        return {"zustand": "uebersprungen", "grund": "keine Vektoren"}
+        return {"zustand": "uebersprungen", "grund": "no vectors"}
     tags = _tags(ids)
     sums: dict[str, np.ndarray] = {}
     count: Counter = Counter()
@@ -76,7 +76,7 @@ def compute() -> dict:
         try:
             from sklearn.cluster import MiniBatchKMeans
         except ImportError as e:
-            report["gruppen"] = f"uebersprungen: scikit-learn fehlt ({e.name})"
+            report["gruppen"] = f"uebersprungen: scikit-learn missing ({e.name})"
         else:
             k = int(min(GROUPS_MAX, max(2, round((len(ids) / 2) ** 0.5))))
             km = MiniBatchKMeans(n_clusters=k, random_state=7, n_init=3, batch_size=1024).fit(m)
@@ -85,7 +85,7 @@ def compute() -> dict:
             for oid, c in groups:
                 per_tool_rate.setdefault(c, Counter()).update(t for t in tags.get(oid, []) if t.startswith(TRIGGER_KINDS + ("skill:",)) and not t.startswith("host:"))
             size = Counter(c for _, c in groups)
-            names = [(c, ", ".join(t for t, _ in per_tool_rate.get(c, Counter()).most_common(3)) or "ohne Hashtags", size[c]) for c in sorted(size)]
+            names = [(c, ", ".join(t for t, _ in per_tool_rate.get(c, Counter()).most_common(3)) or "no hashtags", size[c]) for c in sorted(size)]
             report["gruppen"] = k
     with g.lock:
         g.db().execute("DELETE FROM zentrum")
@@ -107,7 +107,7 @@ def forget_cache() -> None:
 
 
 def _progress() -> dict:
-    """Vektoren, Mittelpunkte und Gruppen im Speicher (rund 4 MB je 1.000 Objekte), höchstens CACHE_S alt."""
+    """Vectors, centroids and groups in RAM (about 4 MB per 1,000 objects), at most CACHE_S old."""
     with _lock:
         if time.time() - _cache.get("zeit", 0) < CACHE_S:
             return _cache
@@ -123,7 +123,7 @@ def _progress() -> dict:
 
 
 def proximity(hid: str, triggers: list[str]) -> float | None:
-    """Kosinus zwischen Hinweis und Situation. None, wenn der Hinweis keinen Vektor hat oder kein Reiz einen Mittelpunkt."""
+    """Cosine between hint and situation. None if the hint has no vector or no trigger has a centroid."""
     s = _progress()
     i = s.get("index", {}).get(hid)
     if i is None:
@@ -136,7 +136,7 @@ def proximity(hid: str, triggers: list[str]) -> float | None:
         if not z or len(z[1]) != len(v):
             continue
         cnt, vec = z
-        if r in own_items:  # sich selbst herausrechnen
+        if r in own_items:  # subtract the hint itself
             if cnt <= 1:
                 continue
             vec, cnt = vec - v, cnt - 1
@@ -159,8 +159,8 @@ def group_name(c: int) -> str:
 def line() -> str:
     s = _progress()
     if not s.get("zentren") and not s.get("gruppe"):
-        return "noch nicht berechnet (Schlaf)"
-    return f"{len(s['zentren'])} Mittelpunkte, {len(set(s['gruppe'].values()))} Bedeutungsgruppen über {len(s['gruppe'])} Objekte"
+        return "not computed yet (sleep)"
+    return f"{len(s['zentren'])} centroids, {len(set(s['gruppe'].values()))} meaning groups over {len(s['gruppe'])} objects"
 
 
 def groups_json() -> str:

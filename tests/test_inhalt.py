@@ -1,4 +1,4 @@
-"""0.16.0: Bedeutungsnähe und Inhaltsgruppen als Merkmale des Routers; Schlaf läuft nie doppelt und blockiert keinen Proxy."""
+"""0.16.0: meaning proximity and content groups as router features; sleep never runs twice and blocks no proxy."""
 import random
 import threading
 import time
@@ -35,11 +35,11 @@ def test_compute_and_proximity(knowledge):
     r = content.compute()
     assert r["zustand"] == "fertig" and r["zentren"] == 4 and r["gruppen"] >= 2
     tls, disk = knowledge["tls"][0], knowledge["disk"][0]
-    assert content.proximity(tls, ["thema:tls"]) > 0.9  # passt zum Inhalt der Situation, auch ohne sich selbst
+    assert content.proximity(tls, ["thema:tls"]) > 0.9  # matches the content of the situation, even without itself
     assert content.proximity(disk, ["thema:tls"]) < 0.2
     assert content.proximity(tls, ["thema:unbekannt"]) is None and content.proximity("erkenntnis:gibtsnicht", ["thema:tls"]) is None
     assert len({content.group(i) for i in knowledge["tls"]}) == 1 and content.group(tls) != content.group(disk)
-    assert "thema:tls" in content.group_name(content.group(tls)) and "Bedeutungsgruppen" in content.line()
+    assert "thema:tls" in content.group_name(content.group(tls)) and "meaning groups" in content.line()
 
 
 def test_self_excluded_from_count(gd, monkeypatch):
@@ -51,7 +51,7 @@ def test_self_excluded_from_count(gd, monkeypatch):
         vector.save(o.id, _vec(5), "m")
     content.forget_cache()
     content.compute()
-    assert content.proximity(a.id, ["thema:a"]) < 0.3  # ohne Herausrechnen wäre er durch sich selbst ähnlich
+    assert content.proximity(a.id, ["thema:a"]) < 0.3  # without excluding it, it would be similar through itself
 
 
 def test_features_and_switches(knowledge, monkeypatch):
@@ -63,7 +63,7 @@ def test_features_and_switches(knowledge, monkeypatch):
 
 
 def test_model_learns_the_content(knowledge, monkeypatch):
-    """Hinweise zu TLS helfen, zu Disk nicht, und kein einzelner Hinweis ist oft genug für ein eigenes Gewicht: Nur der Inhalt kann es erklären."""
+    """Hints on TLS help, on disk they do not, and no single hint occurs often enough for its own weight: only the content can explain it."""
     content.compute()
     rng = random.Random(9)
     monkeypatch.setattr(learning, "MIN_EVENTS", 20)
@@ -84,7 +84,7 @@ def test_model_learns_the_content(knowledge, monkeypatch):
     content.compute()
     learning.train("Test 2")
     rank_pos = [h for h, _ in learning.ranking(learning.model(), ["tool:Bash"], [old_disk, new.id])]
-    assert rank_pos[0] == new.id  # ein neuer Hinweis erbt das Gewicht seines Inhalts
+    assert rank_pos[0] == new.id  # a new hint inherits the weight of its content
     assert "Bedeutungs" in learning.explanation() or "inhalt:" in learning.explanation()
 
 
@@ -111,7 +111,7 @@ def test_sleep_never_twice_and_no_proxy_abort(gd, monkeypatch):
 
 def _check_sleep(halt, t0):
     a = tools.call_tool("vi_schlaf", {"jetzt": True}, "a", True)
-    assert "läuft noch" in a and time.monotonic() - t0 < 2
-    assert "läuft bereits" in tools.call_tool("vi_schlaf", {"jetzt": True}, "a", True)
+    assert "still running" in a and time.monotonic() - t0 < 2
+    assert "already running" in tools.call_tool("vi_schlaf", {"jetzt": True}, "a", True)
     with pytest.raises(sleep_cycle.AlreadyRunning):
         sleep_cycle.run("Loop")

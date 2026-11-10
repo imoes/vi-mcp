@@ -1,58 +1,58 @@
-# Claude-Code-Hook: jede Handlung an die VI melden
+# Claude Code hook: report every action to the VI
 
-`hook/vi_hook.py` — eine Datei, nur Standardbibliothek. Meldeweg laut Entscheidung des Nutzers (08.11.2026):
-**nur** dieser Hook meldet; kein Werkzeug-Server meldet zusätzlich (sonst doppelt).
+`hook/vi_hook.py` — one file, standard library only. Reporting path as decided by the user (08.11.2026):
+**only** this hook reports; no tool server reports in addition (otherwise twice).
 
-## Was er tut
+## What it does
 
-| Claude-Code-Ereignis | Hook ruft | Wirkung im Modell |
+| Claude Code event | Hook calls | Effect in the model |
 |---|---|---|
-| `PreToolUse` | `vi_before` | gemerkte Antwort → Aufruf **verweigert** (`permissionDecision: deny`), die Antwort steht im Grund; sonst Hinweise als `additionalContext` |
-| `PostToolUse` | `vi_after` (ok, Ergebnis, Dauer) | Nachher-Reflex-Hinweise als `additionalContext` |
+| `PreToolUse` | `vi_before` | remembered answer → call **denied** (`permissionDecision: deny`), the answer is in the reason; otherwise hints as `additionalContext` |
+| `PostToolUse` | `vi_after` (ok, result, duration) | after-reflex hints as `additionalContext` |
 | `PostToolUseFailure` | `vi_after` (ok=false, `error`, `is_interrupt`) | — |
-| `SessionEnd` | `DELETE /mcp` | Gespräch `beendet` |
+| `SessionEnd` | `DELETE /mcp` | conversation `beendet` (ended) |
 
-- **Eine Claude-Sitzung = ein Gespräch** in vi-mcp (Zustand in `~/.cache/vi-mcp/hook/sitzung/<session_id>.json`, 0600).
-  Unbekannte Sitzung (Server neu gestartet) → der Hook meldet sich einmal neu an.
-- **Werkzeugname**: `mcp__<server>__<werkzeug>` → `<werkzeug>` (so heißen die Reize `tool:`/`skill:` wie die Werkzeuge selbst).
-- **Nie aus dem Gedächtnis**: eingebaute Werkzeuge (Bash, Read, Edit, Grep, …) melden `lesend: false` — Dateien und
-  Systemzustand ändern sich. Nur MCP-Werkzeuge können eine gemerkte Antwort bekommen (und nur lesende, nach Namensmuster).
-- **Werkzeuge des Gedächtnisses** (`vi_*` auf einem MCP-Server) werden nicht gemeldet.
-- **Datensparsamkeit**: Passwörter, Tokens und Zugangsdaten in URLs werden vor dem Senden maskiert. Das Ergebnis geht nur bei
-  MCP-Werkzeugen an den Server; eingebaute Werkzeuge und Werkzeuge für Zugangsdaten melden nur den Ausgang. Argumente
-  eingebauter Werkzeuge werden auf 300 Zeichen gekürzt. Die Maskierung arbeitet mit Mustern und kann Geheimnisse übersehen.
-- **Ausfall**: vi-mcp nicht erreichbar, Token fehlt, falsche Antwort → Exit 0 ohne Ausgabe, der Aufruf läuft ohne
-  Gedächtnis; der Grund steht in `~/.cache/vi-mcp/hook/hook.log`. Ein Hook-Fehler hält nie eine Sitzung auf.
+- **One Claude session = one conversation** in vi-mcp (state in `~/.cache/vi-mcp/hook/sitzung/<session_id>.json`, 0600).
+  Unknown session (server restarted) → the hook registers anew once.
+- **Tool name**: `mcp__<server>__<tool>` → `<tool>` (so the triggers `tool:`/`skill:` are named like the tools themselves).
+- **Never from memory**: built-in tools (Bash, Read, Edit, Grep, …) report `read_only: false` — files and
+  system state change. Only MCP tools can get a remembered answer (and only read-only ones, by name pattern).
+- **The memory's own tools** (`vi_*` on an MCP server) are not reported.
+- **Data minimisation**: passwords, tokens and credentials in URLs are masked before sending. The result only goes to the
+  server for MCP tools; built-in tools and tools for credentials only report the outcome. Arguments of
+  built-in tools are truncated to 300 characters. Masking works with patterns and can miss secrets.
+- **Outage**: vi-mcp not reachable, token missing, wrong answer → exit 0 without output, the call runs without
+  memory; the reason is in `~/.cache/vi-mcp/hook/hook.log`. A hook error never holds up a session.
 
-**Grenze (Doku):** Ein Hook kann einen Aufruf erlauben oder verweigern, aber nicht durch ein Ergebnis ersetzen.
-Eine gemerkte Antwort erscheint dem Modell daher als „verweigert, Grund: …“.
+**Limit (docs):** A hook can allow or deny a call, but cannot replace it with a result.
+A remembered answer therefore appears to the model as "denied, reason: …".
 
-## Korrektur und Note des Nutzers (`UserPromptSubmit`)
+## The user's correction and grade (`UserPromptSubmit`)
 
-Der Hook erkennt lokal, ob eine Eingabe eine Korrektur ist (beginnt mit „nein“, „falsch“, „das stimmt nicht“ …) oder eine Note
-enthält (`#gut`, `#schlecht`, `#note 0.8`). An den Server geht **nur dieses Ergebnis, nie der Text** (`POST /signal`).
-Dafür braucht es eine eigene Instanz: `vi-mcp instanz nutzer --mensch`, ihr Token in `~/.config/vi-mcp/token-nutzer`
-(oder `VI_MCP_SIGNAL_TOKEN_FILE`). Das Token der Sitzung genügt nicht (403), und es gibt kein MCP-Werkzeug zum Setzen einer Note.
+The hook recognises locally whether an input is a correction (starts with "nein", "falsch", "das stimmt nicht", "no", "wrong" …) or contains a grade
+(`#gut`, `#schlecht`, `#note 0.8`). **Only this result, never the text,** goes to the server (`POST /signal`).
+This needs its own instance: `vi-mcp instance nutzer --human`, its token in `~/.config/vi-mcp/token-nutzer`
+(or `VI_MCP_SIGNAL_TOKEN_FILE`). The session's token is not enough (403), and there is no MCP tool for setting a grade.
 
-**Grenze:** Das Token liegt beim Nutzer. Ein Modell mit Shell-Zugriff unter demselben Konto könnte die Datei lesen und `/signal`
-selbst aufrufen. Das Fehlen des Werkzeugs verhindert ein versehentliches Selbstbewerten, keinen gezielten Missbrauch.
+**Limit:** The token lies with the user. A model with shell access under the same account could read the file and call `/signal`
+itself. The absence of the tool prevents accidental self-rating, not deliberate misuse.
 
-## Belege zur Schnittstelle
+## Evidence for the interface
 
-Claude Code Hooks, https://code.claude.com/docs/en/hooks.md (gelesen 08.11.2026, installiert: 2.1.319):
-gemeinsame Felder `session_id`, `cwd`, `hook_event_name`; PreToolUse `tool_name`, `tool_input`, `tool_use_id`;
-`permissionDecision: "deny"` → `permissionDecisionReason` wird Claude gezeigt; PostToolUse nur nach Erfolg,
+Claude Code Hooks, https://code.claude.com/docs/en/hooks.md (read 08.11.2026, installed: 2.1.319):
+common fields `session_id`, `cwd`, `hook_event_name`; PreToolUse `tool_name`, `tool_input`, `tool_use_id`;
+`permissionDecision: "deny"` → `permissionDecisionReason` is shown to Claude; PostToolUse only after success,
 `tool_response`, `additionalContext`; PostToolUseFailure `error`, `is_interrupt`, `duration_ms`; SessionEnd `reason`,
-Standard-Budget 1,5 s (deshalb DELETE mit 1 s Timeout); Exit-Codes außer 0 und 2 sind nicht blockierend.
-**Nicht bestätigt:** `additionalContext` bei **PreToolUse** (bestätigt nur für PostToolUse) — wird es ignoriert,
-fehlen nur die Vorher-Hinweise, sonst nichts.
+default budget 1.5 s (hence DELETE with a 1 s timeout); exit codes other than 0 and 2 are non-blocking.
+**Not confirmed:** `additionalContext` for **PreToolUse** (confirmed only for PostToolUse) — if it is ignored,
+only the before-hints are missing, nothing else.
 
-## Eintragen
+## Registering
 
-Voraussetzung: vi-mcp läuft und ist erreichbar. Für einen entfernten Server die Umgebung setzen (z. B. im
-`env`-Block von `~/.claude/settings.json`):
+Prerequisite: vi-mcp is running and reachable. For a remote server set the environment (e.g. in the
+`env` block of `~/.claude/settings.json`):
 `VI_MCP_URL=https://<host>/vi-mcp/mcp`, `VI_MCP_TOKEN_FILE=~/.config/vi-mcp/token-anna-<host>`.
-Ein HTTP-Proxy aus der Umgebung (`http_proxy`) gilt auch für den Hook — die Domain des Servers gehört in `no_proxy`.
+An HTTP proxy from the environment (`http_proxy`) also applies to the hook — the server's domain belongs in `no_proxy`.
 In `~/.claude/settings.json`:
 
 ```json
@@ -66,11 +66,11 @@ In `~/.claude/settings.json`:
 }
 ```
 
-Kosten: je Werkzeugaufruf zwei HTTP-Anfragen an 127.0.0.1 (Timeout 3 s; gemessen werden sollte die Dauer nach
-der Installation, siehe CHANGELOG „Was fehlt noch“).
+Cost: two HTTP requests to 127.0.0.1 per tool call (timeout 3 s; the duration should be measured after
+installation, see CHANGELOG "What is still missing").
 
-## Prüfen
+## Checking
 
-`python3 -m pytest -q tests/test_hook.py` — 7 Tests gegen einen echten vi-mcp-Server: Vorher/Nachher, gemerkte
-Antwort sitzungsübergreifend, eingebaute Werkzeuge nie aus dem Gedächtnis, Fehler, Hinweise, eigene Werkzeuge,
-Sitzungsende, Server-Neustart, Ausfall.
+`python3 -m pytest -q tests/test_hook.py` — 8 tests, most of them against a real vi-mcp server: tool name and read-only hint,
+before/after, remembered answer across sessions, built-in tools never from memory, errors, hints, own tools,
+session end, server restart, outage, masking and truncation, result only for MCP tools.

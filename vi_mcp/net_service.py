@@ -1,9 +1,9 @@
-"""vi-p2p — der Netzdienst. Eigener Prozess, eigene Datenbank, kein Zugriff aufs Gedächtnis außer über das MCP-Werkzeugpaar für Ausgang und Eingang.
+"""vi-p2p — the network service. Own process, own database, no access to the memory except via the MCP tool pair for outbox and inbox.
 
-Modi: standalone (nichts läuft), peer (nur ausgehend), peerhost (nimmt auch Verbindungen an).
-Runde: eigenes Wissen ins Logbuch → mit bis zu `nachbarn` Peers Stände abgleichen und Fehlendes holen → Neues ans Gedächtnis → Nachbarn anstoßen.
-Peers finden sich über die Startliste und über `adresse`-Einträge in den Logbüchern. Jede Anfrage ist mit dem Schlüssel signiert, nur Mitglieder bekommen Antwort.
-Einträge prüfen sich selbst; HTTPS und Torrent sind austauschbare Wege dorthin. Unverschlüsseltes HTTP nur auf dem eigenen Rechner oder mit `http_erlaubt`.
+Modes: standalone (nothing runs), peer (outgoing only), peerhost (also accepts connections).
+Round: own knowledge into the logbook → reconcile states with up to `nachbarn` peers and fetch what is missing → new entries to the memory → nudge neighbours.
+Peers are found via the start list and via `adresse` entries in the logbooks. Every request is signed with the key; only members get an answer.
+Entries verify themselves; HTTPS and torrent are interchangeable ways to get them. Unencrypted HTTP only on the own machine or with `http_erlaubt`.
 """
 from __future__ import annotations
 
@@ -94,7 +94,7 @@ def load(p: Path | None = None) -> NetConfig:
     d = json.loads(p.read_text()) if p.exists() else {}
     k = from_file(d)
     if k.mode not in MODES:
-        raise ValueError(f"modus muss {', '.join(MODES)} sein")
+        raise ValueError(f"modus must be {', '.join(MODES)}")
     return k
 
 
@@ -105,7 +105,7 @@ def _sign(k, method: str, req_path: str, req_body: bytes) -> str:
 
 
 def check_header(value: str | None, method: str, req_path: str, req_body: bytes) -> str | None:
-    """Öffentlicher Schlüssel des Absenders, wenn die Anfrage echt und frisch ist, sonst None."""
+    """Public key of the sender if the request is genuine and fresh, otherwise None."""
     parts = (value or "").split()
     if len(parts) != 4 or parts[0] != "VI-Netz" or not parts[2].isdigit() or abs(time.time() - int(parts[2])) > TIME_WINDOW:
         return None
@@ -115,7 +115,7 @@ def check_header(value: str | None, method: str, req_path: str, req_body: bytes)
 
 
 class McpClient:
-    """Das Gedächtnis aus Sicht des Netzdienstes: genau zwei Werkzeuge."""
+    """The memory as the network service sees it: exactly two tools."""
 
     def __init__(self, url: str, token_file: str):
         self.url, self.token = url, Path(token_file).read_text().strip()
@@ -142,7 +142,7 @@ class McpClient:
         return self._call_tool("vi_net_outbox", {})
 
     def inbox(self, entries: list[dict]) -> dict:
-        return self._call_tool("vi_net_inbox", {"eintraege": entries})
+        return self._call_tool("vi_net_inbox", {"entries": entries})
 
 
 class NetService:
@@ -167,7 +167,7 @@ class NetService:
                 for sha, ti, file in self.log.segments_local():
                     self.swarm.parts(ti, Path(file))
             else:
-                log("Netz: Torrent konfiguriert, aber python3-libtorrent fehlt; es bleibt bei HTTPS")
+                log("network: torrent configured, but python3-libtorrent is missing; staying with HTTPS")
 
     # ---- Client ----
 
@@ -182,9 +182,9 @@ class NetService:
         return u.hostname, u.port or 80
 
     def _request(self, address: str, method: str, req_path: str, data=None):
-        """Signierte Anfrage. HTTPS prüft das Zertifikat über die CA oder, wenn ein Pin bekannt ist, über dessen SHA-256. HTTPS-Proxy per CONNECT."""
+        """Signed request. HTTPS verifies the certificate via the CA or, if a pin is known, via its SHA-256. HTTPS proxy via CONNECT."""
         if not self._allowed(address):
-            raise ValueError("unverschlüsseltes HTTP zu einem fremden Rechner ist nicht erlaubt")
+            raise ValueError("unencrypted HTTP to another machine is not allowed")
         req_body = json.dumps(data).encode() if data is not None else b""
         h = {"Authorization": _sign(self.log.k, method, req_path, req_body), "Content-Type": "application/json"}
         u = urllib.parse.urlsplit(address)
@@ -194,7 +194,7 @@ class NetService:
         pin = self.log.pin(address)
         try:
             if https:
-                if pin:  # selbstsigniert: nicht die CA, sondern genau dieses Zertifikat zählt
+                if pin:  # self-signed: not the CA but exactly this certificate counts
                     ctx = ssl.create_default_context()
                     ctx.check_hostname = False
                     ctx.verify_mode = ssl.CERT_NONE
@@ -206,7 +206,7 @@ class NetService:
                 c.connect()
                 if pin and hashlib.sha256(c.sock.getpeercert(binary_form=True)).hexdigest() != pin:
                     c.close()
-                    raise ValueError("Zertifikat passt nicht zum bekannten Pin")
+                    raise ValueError("certificate does not match the known pin")
             else:
                 c = http.client.HTTPConnection(host, port, timeout=30)
             try:
@@ -216,7 +216,7 @@ class NetService:
             finally:
                 c.close()
         except http.client.HTTPException as e:
-            raise ValueError(f"HTTP-Fehler: {type(e).__name__}") from e
+            raise ValueError(f"HTTP error: {type(e).__name__}") from e
         if r.status >= 400:
             try:
                 reason = json.loads(raw).get("fehler", "")
@@ -226,7 +226,7 @@ class NetService:
         return json.loads(raw) if raw else None
 
     def reconcile(self, address: str) -> int:
-        """Mit einem Peer: Stände tauschen, Fehlendes holen. Neue Einladungen können weitere Herausgeber freischalten, darum mehrere Durchgänge."""
+        """With one peer: exchange states, fetch what is missing. New invitations can unlock further publishers, hence several passes."""
         new = 0
         try:
             for _ in range(4):
@@ -241,14 +241,14 @@ class NetService:
                     new += self._fetch(address, pub, target)
                 if new == before:
                     break
-            # Schieben, nicht nur holen: Ein Peer hinter einer Firewall wäre sonst nie zu lesen
+            # push, not only fetch: a peer behind a firewall could otherwise never be read
             foreign = self._request(address, "POST", "/netz/koepfe", {"koepfe": self.log.headers()})["koepfe"]
             for pub, s in self.log.headers().items():
                 if s > int(foreign.get(pub, 0)) and self.log.is_member(pub):
                     self._push(address, pub, int(foreign.get(pub, 0)))
             self.log.peer_result(address, True)
         except (urllib.error.URLError, OSError, TimeoutError, ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
-            log(f"Netz: Abgleich mit {address}: {type(e).__name__}: {str(e)[:120]}")
+            log(f"network: reconcile with {address}: {type(e).__name__}: {str(e)[:120]}")
             self.log.peer_result(address, False)
         return new
 
@@ -263,7 +263,7 @@ class NetService:
             self.usage_stats["per_https"] += r["neu"]
             if r["neu"] == 0:
                 if r["gruende"]:
-                    log(f"Netz: von {address}: {'; '.join(r['gruende'])[:200]}")
+                    log(f"network: from {address}: {'; '.join(r['gruende'])[:200]}")
                 return new
 
     def _push(self, address: str, pub: str, from_seq: int) -> None:
@@ -310,7 +310,7 @@ class NetService:
             return
         self.swarm.build(self.log, self.log.pub, from_, from_ + size - 1)
 
-    # ---- Runde ----
+    # ---- Round ----
 
     def outbox(self) -> int:
         if not self.mcp:
@@ -318,7 +318,7 @@ class NetService:
         try:
             a = self.mcp.outbox()
         except (urllib.error.URLError, OSError, ValueError, KeyError, TimeoutError) as e:
-            log(f"Netz: Gedächtnis nicht erreichbar: {type(e).__name__}: {str(e)[:120]}")
+            log(f"network: memory not reachable: {type(e).__name__}: {str(e)[:120]}")
             return 0
         known, revoke, new = self.log.own_objects(), self.log.own_revocations(), 0
         for o in a.get("objekte", []):
@@ -345,12 +345,12 @@ class NetService:
                     if to_send:
                         self.mcp.inbox(to_send)
                 except (urllib.error.URLError, OSError, ValueError, KeyError, TimeoutError) as e:
-                    log(f"Netz: Eingang ins Gedächtnis gescheitert: {type(e).__name__}: {str(e)[:120]}")
+                    log(f"network: inbox to memory failed: {type(e).__name__}: {str(e)[:120]}")
                     return
                 self.log.set_checkpoint(pub, entry_batch[-1]["kopf"]["seq"])
 
     def own_pin(self) -> str | None:
-        """Nur ein selbst betriebenes TLS hat einen Pin; hinter einem Reverse-Proxy prüft die CA."""
+        """Only self-operated TLS has a pin; behind a reverse proxy the CA verifies."""
         if not self.k.tls_cert:
             return None
         return certificate_pin(Path(self.k.tls_cert))
@@ -394,8 +394,8 @@ class NetService:
         while not self.halt.is_set():
             try:
                 self.run_round()
-            except Exception as e:  # eine fehlerhafte Runde darf den Dienst nicht beenden
-                log(f"Netz: Runde gescheitert: {type(e).__name__}: {str(e)[:200]}")
+            except Exception as e:  # a failed round must not end the service
+                log(f"network: round failed: {type(e).__name__}: {str(e)[:200]}")
             self.awake.wait(self.k.tick_s)
             self.awake.clear()
             self.halt.wait(self.k.min_round_s)
@@ -427,32 +427,32 @@ class NetService:
                 self.wfile.write(raw)
 
             def _join(self, req_body: bytes):
-                """Ohne Mitgliedschaft, aber mit Beweis des Schlüssels und einem einmaligen Code."""
+                """Without membership, but with proof of the key and a one-time code."""
                 pub = check_header(self.headers.get("Authorization"), self.command, self.path, req_body)
                 if not pub:
-                    return self._send(401, {"fehler": "Anfrage nicht signiert oder veraltet"})
+                    return self._send(401, {"fehler": "request not signed or stale"})
                 if service._limited("beitritt", JOINS_PER_MIN):
-                    return self._send(429, {"fehler": "zu viele Beitrittsversuche"})
+                    return self._send(429, {"fehler": "too many join attempts"})
                 try:
                     nonce = json.loads(req_body).get("code")
                 except (ValueError, AttributeError):
                     nonce = None
                 if reason := service.log.redeem_join(nonce, pub):
                     return self._send(403, {"fehler": reason})
-                log(f"Netz: {lb.pseudonym(pub)} mit Beitrittscode eingeladen")
+                log(f"network: {lb.pseudonym(pub)} invited with join code")
                 service.awake.set()
                 return self._send(200, {"eingeladen": lb.pseudonym(pub)})
 
             def _authenticate(self, req_body: bytes) -> str | None:
                 pub = check_header(self.headers.get("Authorization"), self.command, self.path, req_body)
                 if not pub:
-                    self._send(401, {"fehler": "Anfrage nicht signiert oder veraltet"})
+                    self._send(401, {"fehler": "request not signed or stale"})
                     return None
                 if not service.log.is_member(pub):
-                    self._send(403, {"fehler": "kein Mitglied dieses Netzes"})
+                    self._send(403, {"fehler": "not a member of this network"})
                     return None
                 if service._limited(pub):
-                    self._send(429, {"fehler": "zu viele Anfragen"})
+                    self._send(429, {"fehler": "too many requests"})
                     return None
                 return pub
 
@@ -468,16 +468,16 @@ class NetService:
                     try:
                         from_seq, n = int(q.get("ab", ["0"])[0]), int(q.get("max", [str(PER_FETCH)])[0])
                     except ValueError:
-                        return self._send(400, {"fehler": "ab und max müssen Zahlen sein"})
+                        return self._send(400, {"fehler": "ab and max must be numbers"})
                     return self._send(200, {"eintraege": service.log.read(parts[2], from_seq, min(n, PER_FETCH))})
                 if len(parts) == 3 and parts[:2] == ["netz", "segmente"]:
                     return self._send(200, {"segmente": service.log.segments(parts[2])})
-                return self._send(404, {"fehler": "unbekannt"})
+                return self._send(404, {"fehler": "unknown"})
 
             def do_POST(self):
                 length = int(self.headers.get("Content-Length") or 0)
                 if length > MAX_BODY:
-                    return self._send(413, {"fehler": "zu groß"})
+                    return self._send(413, {"fehler": "too large"})
                 req_body = self.rfile.read(length)
                 if self.path == "/netz/beitritt":
                     return self._join(req_body)
@@ -493,7 +493,7 @@ class NetService:
                 if self.path == "/netz/anstoss":
                     service.awake.set()
                     return self._send(204)
-                return self._send(404, {"fehler": "unbekannt"})
+                return self._send(404, {"fehler": "unknown"})
         return H
 
     def start_server(self) -> None:
@@ -520,7 +520,7 @@ class NetService:
 
 
 def certificate_pin(req_path: Path) -> str:
-    """SHA-256 des Zertifikats in DER-Form, wie es der Peer beim Verbindungsaufbau sieht."""
+    """SHA-256 of the certificate in DER form, as the peer sees it when connecting."""
     pem = req_path.read_text()
     part = pem[pem.index("-----BEGIN CERTIFICATE-----"):pem.index("-----END CERTIFICATE-----")]
     return hashlib.sha256(base64.b64decode("".join(part.splitlines()[1:]))).hexdigest()
@@ -532,39 +532,39 @@ def build_code(founders: list[str], start: str, pin: str | None, nonce: str, exp
 
 
 def read_code(code: str) -> dict:
-    """Rein. ValueError mit Grund, wenn der Code nicht passt."""
+    """Pure. ValueError with reason if the code does not fit."""
     code = (code or "").strip()
     if not code.startswith(CODE_PREFIX):
-        raise ValueError("kein Beitrittscode (beginnt nicht mit vinetz1.)")
+        raise ValueError("not a join code (does not start with vinetz1.)")
     try:
         d = json.loads(base64.urlsafe_b64decode(code[len(CODE_PREFIX):] + "=" * (-len(code) % 4)))
     except (ValueError, TypeError) as e:
-        raise ValueError("Beitrittscode ist beschädigt") from e
+        raise ValueError("join code is corrupted") from e
     if not isinstance(d, dict) or not isinstance(d.get("g"), list) or not all(isinstance(x, str) and lb._HEX64.match(x) for x in d["g"]) or not d["g"]:
-        raise ValueError("Beitrittscode nennt keine gültigen Gründer")
+        raise ValueError("join code names no valid founders")
     if not isinstance(d.get("s"), str) or not lb._ADDRESS.match(d["s"]) or not isinstance(d.get("n"), str):
-        raise ValueError("Beitrittscode nennt keine gültige Adresse")
+        raise ValueError("join code names no valid address")
     if d.get("p") is not None and not (isinstance(d["p"], str) and lb._HEX64.match(d["p"])):
-        raise ValueError("Beitrittscode hat einen unbrauchbaren Pin")
+        raise ValueError("join code has an unusable pin")
     if not isinstance(d.get("a"), int) or d["a"] < time.time():
-        raise ValueError("Beitrittscode ist abgelaufen")
+        raise ValueError("join code has expired")
     return d
 
 
 def main() -> int:
     k = load()
     if k.mode == "standalone":
-        log("Netz: Modus standalone, nichts zu tun")
+        log("network: mode standalone, nothing to do")
         return 0
     if not k.founders:
-        log("Netz: keine Gründer konfiguriert (vi-mcp netz einrichten)")
+        log("network: no founders configured (vi-mcp net setup)")
         return 2
     d = NetService(k, McpClient(k.mcp_url, k.mcp_token_file))
     if k.mode == "peerhost":
         d.start_server()
     import signal
-    signal.signal(signal.SIGUSR1, lambda *_: d.awake.set())  # systemctl kill -s USR1 vi-p2p: Runde sofort
-    log(f"Netz: Modus {k.mode}, Pseudonym {lb.pseudonym(d.log.pub)}, {len(d.log.members())} Mitglieder bekannt")
+    signal.signal(signal.SIGUSR1, lambda *_: d.awake.set())  # systemctl kill -s USR1 vi-p2p: round now
+    log(f"network: mode {k.mode}, pseudonym {lb.pseudonym(d.log.pub)}, {len(d.log.members())} members known")
     try:
         d.main_loop()
     except KeyboardInterrupt:

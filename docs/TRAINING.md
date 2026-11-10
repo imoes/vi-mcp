@@ -1,8 +1,8 @@
 # Forschung: Wie wird eine KI trainiert — und wie legen wir vi-mcp-Daten dafür ab?
 
 Stand 2026-11-08. Quellen inline; **[V]** = Primärquelle heute abgerufen (URL bzw. Datei:Zeile), **Hypothese** = nicht belegt.
-Geprüft wurde gegen `dem Repository` (Stand 13:22 Uhr; `docs/ARCHITEKTUR.md`, `vi_mcp/gedaechtnis.py`,
-`vi_mcp/messung.py`, `vi_mcp/intuition.py`) — nichts verändert. Export-Code wurde gegen eine Wegwerf-Datenbank im
+Geprüft wurde gegen `dem Repository` (Stand 13:22 Uhr; `docs/ARCHITEKTUR.md`, `vi_mcp/memory.py`,
+`vi_mcp/metrics.py`, `vi_mcp/intuition.py`) — nichts verändert. Export-Code wurde gegen eine Wegwerf-Datenbank im
 Scratchpad getestet (Abschnitt 4a).
 
 ---
@@ -372,8 +372,8 @@ Nicht erreichbar heute: nowpublishers INR-016 (Liu 2009, 403), NeurIPS 2011 Chap
 (Burges, PDF nicht lesbar) — ersetzt durch Joachims 2016, Russo 2017, Agrawal & Goyal 2012.
 
 Projekt **[V]**: `docs/ARCHITEKTUR.md` (Z. 58, 102–117, 137–143) ·
-`vi_mcp/gedaechtnis.py` (Z. 38, 51, 99–106, 242–249, 331, 371–423) · `vi_mcp/intuition.py` (Z. 31, 47, 82, 97–99,
-109, 160, 188–206) · `vi_mcp/messung.py` (Z. 14–37) · `docs/FORSCHUNG.md` (Z. 216, 272, 431, 519–522) ·
+`vi_mcp/memory.py` (Z. 38, 51, 99–106, 242–249, 331, 371–423) · `vi_mcp/intuition.py` (Z. 31, 47, 82, 97–99,
+109, 160, 188–206) · `vi_mcp/metrics.py` (Z. 14–37) · `docs/FORSCHUNG.md` (Z. 216, 272, 431, 519–522) ·
 `CHANGELOG.md:96` · `docs/LOKAL.md:8`.
 Test **[V]**: `…/scratchpad/exporttest/{mach_db.py, export_beobachtung.py, vi-test.db, beob.X.npz, beob.meta.npz}`,
 ausgeführt 2026-11-08 13:28 lokal (Python 3.12.3, numpy 1.26.4, scipy 1.11.4; sklearn/torch nicht installiert).

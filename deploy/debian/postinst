@@ -1,5 +1,5 @@
 #!/bin/sh
-# vi-mcp postinst: Systemnutzer, dann das Gemeinsame; bei der Erstinstallation das Menü.
+# vi-mcp postinst: system user, then the shared part; the menu on first installation.
 set -e
 if [ "$1" = "configure" ]; then
     if ! getent passwd vi-mcp >/dev/null; then

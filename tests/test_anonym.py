@@ -1,4 +1,4 @@
-"""0.13.0: Das Netz bekommt keine IPs, internen Namen, Zugangsdaten, Nutzernamen oder Proxy-Angaben; Recht auf Vergessen mit Token."""
+"""0.13.0: The network gets no IPs, internal names, credentials, user names or proxy details; right to be forgotten with a token."""
 import hashlib
 import json
 
@@ -59,7 +59,7 @@ def test_import_rejects_internals_and_names_only_the_category(field_name, value)
 
 
 def test_import_without_deletability_is_rejected():
-    assert "löschbar" in checks.check({k: v for k, v in GOOD.items() if k != "netz_id"}).reasons[0]
+    assert "could never be deleted again" in checks.check({k: v for k, v in GOOD.items() if k != "netz_id"}).reasons[0]
 
 
 @pytest.fixture()
@@ -93,7 +93,7 @@ def test_export_reveals_nothing(publisher):
         assert forbidden not in raw, forbidden
     o = a["objekte"][0]
     assert o["text"] == "Auf <host> ist <ip> der Gateway, gemeldet von <host>" and len(o["zeit"]) == 10
-    assert r["quarantaene"] == 1  # das Exportierte besteht die eigenen Importregeln
+    assert r["quarantaene"] == 1  # the export passes our own import rules
 
 
 def test_withheld_is_named(publisher):
@@ -103,7 +103,7 @@ def test_withheld_is_named(publisher):
     _mk_obj("Nur einmal gesehen und von niemandem bestätigt", proven=False)
     _mk_obj("Wissen einer Instanz ohne Token bleibt hier", instance="b")
     v = p2p.preview("a")
-    assert v["anzahl"] == 0 and v["zurueckgehalten"] == {"spricht von Zugangsdaten": 1, "nach dem Anonymisieren bleibt kein Inhalt": 1, "noch nicht bewährt": 1}
+    assert v["anzahl"] == 0 and v["zurueckgehalten"] == {"mentions credentials": 1, "no content left after anonymising": 1, "not yet proven": 1}
     assert p2p.outbox()["objekte"] == []
 
 
@@ -129,12 +129,12 @@ def test_right_to_be_forgotten_end_to_end(publisher):
     n = p2p.outbox()
     assert len(n["objekte"]) == 1 and len(n["widerrufe"]) == 1 and tok not in json.dumps(n)
     assert _revocations(publisher)["vergessen"] == 1
-    assert g.load(oid) is None and g.load(one.id)  # beim Empfänger weg, beim Urheber bleibt es
+    assert g.load(oid) is None and g.load(one.id)  # gone at the receiver, stays with the author
     with g.lock:
         assert g.db().execute("SELECT 1 FROM p2p_grab WHERE netz_id = ?", (nid,)).fetchone()
         assert not g.db().execute("SELECT 1 FROM objekt_fts WHERE id = ?", (oid,)).fetchone()
     r = p2p.inbox(_bundle(publisher, a["objekte"]), in_background=False)
-    assert r["quarantaene"] == 0 and r["bekannt"] == 2  # die alte Fassung bringt nichts zurück
+    assert r["quarantaene"] == 0 and r["bekannt"] == 2  # the old version brings nothing back
 
 
 def test_revocation_arrives_before_the_object(publisher):
@@ -207,14 +207,14 @@ def test_object_token_opens_no_other_object():
 
 def test_permissions_and_single_use(publisher):
     tok = p2p.generate_token("a")
-    with pytest.raises(ValueError, match="nicht erneuert"):
+    with pytest.raises(ValueError, match="not renewed"):
         p2p.generate_token("a")
     foreign = _mk_obj("Wissen der anderen Instanz bleibt ihres", instance="b")
-    with pytest.raises(ValueError, match="anderen Instanz"):
+    with pytest.raises(ValueError, match="another instance"):
         p2p.net_forget("a", tok, [foreign.id], "x")
-    with pytest.raises(ValueError, match="passt nicht"):
+    with pytest.raises(ValueError, match="does not match"):
         p2p.net_forget("a", "falsch", [foreign.id], "x")
-    with pytest.raises(ValueError, match="Grund"):
+    with pytest.raises(ValueError, match="reason"):
         p2p.net_forget("a", tok, [foreign.id], " ")
     assert p2p.net_forget("a", tok, None, "alles") == {"zurueckgerufen": 0, "unbekannt": []}
 
@@ -227,7 +227,7 @@ def test_tools(publisher):
     assert json.loads(tools.call_tool("vi_netz_vorschau", {}, "a", False))["anzahl"] == 1
     with pytest.raises(tools.Rejected):
         tools.call_tool("vi_netz_vergiss", {"token": t, "grund": "x"}, "a", False)
-    assert "1 Einträge" in tools.call_tool("vi_netz_vergiss", {"token": t, "ids": [o.id], "grund": "x"}, "a", False)
+    assert "1 entries" in tools.call_tool("vi_netz_vergiss", {"token": t, "ids": [o.id], "grund": "x"}, "a", False)
     assert json.loads(tools.call_tool("vi_netz_vorschau", {}, "a", False))["anzahl"] == 0
 
 
@@ -237,7 +237,7 @@ def test_credentials_are_never_stored(gd):
     for v in ("abc123", "abcdefghijkl", "p4ss", "77"):
         assert v not in raw, v
     r = g.new_object("reflex", "Reflex mit Code", ["thema:a"], {"code": "token = lese()  # password=ok"}, reason="T", instance="a")
-    assert r.data["code"] == "token = lese()  # password=ok"  # Quelltext wird nicht verstümmelt
+    assert r.data["code"] == "token = lese()  # password=ok"  # source code is not mangled
 
 
 def test_location_tags_do_not_leave(publisher):
@@ -258,13 +258,13 @@ def test_content_goes_to_net_anonymized(publisher):
 
 def test_import_rejects_internals_in_content():
     b = checks.check({**GOOD, "inhalt": "Der Dienst läuft auf 10.1.2.3 mit Port 80"})
-    assert b.verdict == "ablehnen" and "interna in inhalt" in b.reasons[-1]
+    assert b.verdict == "ablehnen" and "internals in inhalt" in b.reasons[-1]
 
 
 def test_long_content_is_sensitive(publisher):
     o = _publisher_with(publisher, 0, 0)
     o.data["inhalt"] = "Wissen " * 3000
-    assert any("länger" in h for h in p2p.sensitive(o))
+    assert any("longer" in h for h in p2p.sensitive(o))
 
 
 def test_code_examples_stay_locally_readable(gd):
@@ -293,15 +293,15 @@ def test_strip_credentials_leaves_alone(text):
 
 
 def test_company_names_and_internal_paths_are_replaced():
-    """0.20.10: Skills enthielten nach dem Anonymisieren noch einen internen Pfad und einen Firmennamen in einer Zusammensetzung (<firma>-skills)."""
+    """0.20.10: after anonymising, skills still contained an internal path and a company name in a compound (<firma>-skills)."""
     from vi_mcp import anonymize
     known_set = frozenset({"build07.beispiel-firma.media", "build07", "hna09.anderefirma.de"})
     a = anonymize.replace("ssh build07 'cd /intern/ansible/prod' (beispiel-firma-skills, anderefirma_backup)", known_set)
     assert "intern/" not in a and "beispiel-firma" not in a and "anderefirma" not in a and "build07" not in a
     assert "<pfad>" in a and "<firma>" in a
-    # Standardpfade, URL-Pfade und Schrägstriche im Text bleiben Wissen
+    # standard paths, URL paths and slashes in text stay knowledge
     for t in ("Konfig in /etc/nginx/nginx.conf und /var/log/syslog", "https://github.com/imoes/vi-mcp/releases", "und/oder TCP/UDP 1/2"):
         assert anonymize.replace(t, known_set) == t
-    assert anonymize.companies({"x.github.com", "a.b"}) == set()  # öffentliche Domains und zu kurze Namen sind keine Firmen
-    # Nicht-Hosts aus host:-Hashtags (Dateinamen, Pfade) liefern keine Firmennamen (gesehen auf dem Produktivsystem: changelog, felder)
+    assert anonymize.companies({"x.github.com", "a.b"}) == set()  # public domains and too-short names are not companies
+    # non-hosts from host: hashtags (file names, paths) yield no company names (seen in production: changelog, felder)
     assert anonymize.companies({"CHANGELOG.md", "felder.py", "app/services/stibodx", "docs/*", "web1.beispiel-firma.media"}) == {"beispiel-firma"}

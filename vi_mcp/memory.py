@@ -1,15 +1,15 @@
-"""Das Gedächtnis: jeder Eintrag ist ein Objekt (Tabelle objekt → Klasse Objekt, Mapping ohne ORM).
+"""The memory: every entry is an object (table objekt → class MemoryObject, mapping without ORM).
 
-Feste Felder (id, art, zeit); änderbare Felder nur über Methoden (markiere, bestaetige, widerlege, verknuepfe),
-jede Änderung mit Grund und Geschichte. Jedes Objekt trägt Hashtags art:wert; erinnern = Filtersprache
-`art:wert`, `!art:wert`, `(a OR b)`, Präfix `art:wert*`, Freitext (FTS5).
+Fixed fields (id, art, zeit); changeable fields only via methods (tag, confirm, refute, link),
+every change with reason and history. Every object carries hashtags kind:value; recall = filter language
+`kind:value`, `!kind:value`, `(a OR b)`, prefix `kind:value*`, free text (FTS5).
 
-Abruf gewichtet nach Relevanz + Aktualität (exponentieller Verfall) + Wichtigkeit — nach Park et al. 2023
-„Generative Agents“ (arXiv 2304.03442). Objekte mit gemeinsamen Hashtags werden verknüpft (Zettelkasten, A-Mem).
+Retrieval weighted by relevance + recency (decay) + importance — after Park et al. 2023
+"Generative Agents" (arXiv 2304.03442). Objects with shared hashtags are linked (Zettelkasten, A-Mem).
 
-Ein Prozess, eine Verbindung: alle Zugriffe laufen unter `sperre` (threading.RLock). Weil vi-mcp der einzige
-Schreiber ist, reicht diese Sperre — mehrere Prozesse auf derselben Datei sind nicht vorgesehen (siehe
-docs/ARCHITEKTUR.md, „Ein Prozess“).
+One process, one connection: all accesses run under `lock` (threading.RLock). Because vi-mcp is the only
+writer, this lock suffices — several processes on the same file are not intended (see
+docs/ARCHITECTURE.md, "One process").
 """
 from __future__ import annotations
 
@@ -30,31 +30,31 @@ from . import anonymize
 from .log_output import log
 
 KINDS = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell", "skill", "bewertung")
-#: strittig = von genau einer fremden Instanz widerlegt (erscheint weiter, mit Vermerk); widerlegt = vom Urheber
-#: oder von ≥ 2 verschiedenen Instanzen widerlegt (erscheint nicht mehr)
-#: archiviert = Stummel (Text, Hashtags) bleibt, Inhalt komprimiert in Tabelle archiv; nur mit modus:archiviert im Filter sichtbar
-#: aufgegangen = Skill ist in einem anderen aufgegangen (Fusion); bleibt mit Verweis, erscheint nicht mehr in Suchen
-#: quarantaene = importiert und noch nicht freigegeben; erscheint in keiner Suche und keinem Hinweis
+#: strittig = refuted by exactly one foreign instance (still appears, with a note); widerlegt = refuted by the author
+#: or by ≥ 2 different instances (no longer appears)
+#: archiviert = stub (text, hashtags) stays, content compressed in the archive; visible only with modus:archiviert in the filter
+#: aufgegangen = skill was merged into another one (fusion); stays with a reference, no longer appears in searches
+#: quarantaene = imported and not yet released; appears in no search and no hint
 MODES = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt", "archiviert", "aufgegangen", "quarantaene")
-#: Kollektiv: wer darf ein Objekt lesen? privat = nur die Urheber-Instanz (Ergebnisse können Zugangsdaten enthalten),
-#: geteilt = alle Instanzen. Der Loop (Server) sieht alles. Erschöpfend für ARTEN.
+#: Collective: who may read an object? privat = only the author instance (results may contain credentials),
+#: geteilt = all instances. The loop (server) sees everything. Exhaustive for KINDS.
 VISIBILITY_PER_KIND = {"erfahrung": "privat", "antwort": "privat", "erkenntnis": "geteilt", "regel": "geteilt", "reflex": "geteilt",
                 "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt", "skill": "geteilt", "bewertung": "privat"}
-#: Urheber für Objekte, die der Server selbst anlegt (Loop) — eine benannte Instanz, kein NULL
+#: author of objects the server creates itself (loop) — a named instance, not NULL
 SERVER_INSTANCE = "vi"
-#: Gewichtbonus je verschiedener FREMDER Instanz, die bestätigt hat (Selbstbestätigung zählt nicht als Beleg)
+#: weight bonus per different FOREIGN instance that confirmed (self-confirmation does not count as evidence)
 BONUS_PER_INSTANCE = 0.2
 BONUS_MAX = 0.6
-#: Änderungsgeschichte je Objekt; ältere Einträge werden gezählt gekürzt (daten.aenderungen_gekuerzt)
+#: change history per object; older entries are trimmed and counted (daten.aenderungen_gekuerzt)
 HISTORY_MAX = 50
 DATA_MAX = 400_000
-#: Aktualität nach **Potenzgesetz** (Wixted & Ebbesen 1991; ACT-R: Anderson & Schooler 1991 — docs/FORSCHUNG.md A9):
-#: aktualitaet = (1 + h)^(−VERFALL_D), h = Stunden seit dem letzten Zugriff. Schnell am Anfang, langsam danach:
-#: 1 h 0,81 · 1 d 0,38 · 7 d 0,21 · 30 d 0,14 · 1 a 0,07. Bis 0.3.0 exponentiell 0,995^h (Park et al., dort je
-#: Spielstunde) — das ließ Älteres als 2 Wochen praktisch verschwinden (30 d: 0,03). VERFALL_D = 0,3 ist ein Startwert.
+#: Recency by **power law** (Wixted & Ebbesen 1991; ACT-R: Anderson & Schooler 1991 — docs/FORSCHUNG.md A9):
+#: recency = (1 + h)^(−DECAY_D), h = hours since the last access. Fast at first, slow afterwards:
+#: 1 h 0.81 · 1 d 0.38 · 7 d 0.21 · 30 d 0.14 · 1 y 0.07. Up to 0.3.0 exponential 0.995^h (Park et al., there per
+#: game hour) — that made anything older than 2 weeks practically vanish (30 d: 0.03). DECAY_D = 0.3 is a starting value.
 DECAY_D = 0.3
 TAG = re.compile(r"^[a-z][a-z0-9_-]{0,30}:[^\s()]+$")
-#: Hashtags, die Verwaltung sind und nicht Inhalt (für Verknüpfung und Trichter ignoriert)
+#: hashtags that are administration, not content (ignored for linking and drilldown)
 ADMIN_PREFIXES = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:", "an:", "von:", "ueberraschung:",
               "modus:", "herkunft:", "konflikt:", "selbst:", "selbstbereich:", "modell:", "fusion:", "dublette:", "scorer:", "ziel:", "note:")
 
@@ -62,19 +62,19 @@ lock = threading.RLock()
 CONTENT_MAX = 200_000
 _db: sqlite3.Connection | None = None
 fts = False
-#: aktive Datenbank und Langzeitlager (lager.py) — gesetzt von oeffne()
+#: active database and long-term archive (archive.py) — set by open_db()
 fpath_active: Path | None = None
 archive_path: Path | None = None
 
-#: Das Gespräch (Seriennummer), in dessen Auftrag gerade gearbeitet wird — je Anfrage-Thread gesetzt
+#: the conversation (serial number) on whose behalf work is being done — set per request thread
 current_conversation: contextvars.ContextVar[str | None] = contextvars.ContextVar("aktuelles_gespraech", default=None)
-#: Die Instanz, in deren Auftrag gerade gelesen/geschrieben wird. None = der Server selbst (Loop): sieht alles.
+#: the instance on whose behalf reading/writing happens. None = the server itself (loop): sees everything.
 current_instance: contextvars.ContextVar[str | None] = contextvars.ContextVar("aktuelle_instanz", default=None)
 
 
 def now() -> str:
-    """ISO-8601 UTC mit Millisekunden: Vergleiche `zeit > seit` (Schlaf, Loop) trennen sonst nicht, was in derselben
-    Sekunde entstand. Ältere Einträge (Sekunden, 0.1–0.3) sortieren als Text korrekt davor ('+' < '.')."""
+    """ISO-8601 UTC with milliseconds: otherwise comparisons `zeit > since` (sleep, loop) do not separate what arose in the same
+    second. Older entries (seconds, 0.1–0.3) sort correctly before them as text ('+' < '.')."""
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
@@ -84,13 +84,13 @@ def hash_value(*parts: str) -> str:
 
 def db() -> sqlite3.Connection:
     if _db is None:
-        raise RuntimeError("Gedächtnis nicht geöffnet (oeffne() fehlt)")
+        raise RuntimeError("memory not opened (open_db() missing)")
     return _db
 
 
 def open_db(fpath: Path) -> None:
-    """Datenbank öffnen bzw. anlegen. Datei und Begleitdateien nur für den Eigentümer lesbar (0600):
-    das Gedächtnis enthält Gesprächsverläufe und Werkzeugergebnisse, darin können Zugangsdaten stehen."""
+    """Open or create the database. File and companion files readable only by the owner (0600):
+    the memory contains conversation histories and tool results, which may contain credentials."""
     global _db, fts, fpath_active, archive_path
     fpath.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     old_umask = os.umask(0o077)
@@ -123,7 +123,7 @@ def open_db(fpath: Path) -> None:
         fts = True
     except sqlite3.OperationalError as exc:
         fts = False
-        log(f"FTS5 nicht verfügbar ({exc}) — Volltext über LIKE")
+        log(f"FTS5 not available ({exc}) — full text via LIKE")
     con.commit()
     with lock:
         if _db is not None:
@@ -133,30 +133,30 @@ def open_db(fpath: Path) -> None:
 
 
 def _migrate(con: sqlite3.Connection) -> None:
-    """0.1.x → 0.2.0: Spalten instanz/sicht nachrüsten (Urheber aus dem Hashtag instanz:, Sicht aus der Art);
-    Cache-Hashtag frage:<hash> → cache:<hash> (frage ist jetzt eine Art)."""
+    """0.1.x → 0.2.0: add columns instanz/sicht (author from the hashtag instanz:, visibility from the kind);
+    cache hashtag frage:<hash> → cache:<hash> (frage is now a kind)."""
     columns = {r[1] for r in con.execute("PRAGMA table_info(objekt)")}
     if "instanz" not in columns:
         con.execute("ALTER TABLE objekt ADD COLUMN instanz TEXT NOT NULL DEFAULT 'vi'")
         con.execute("UPDATE objekt SET instanz = COALESCE((SELECT substr(tag, 9) FROM tag WHERE objekt_id = objekt.id "
                     "AND tag LIKE 'instanz:%' LIMIT 1), 'vi')")
-        log("Migration: Spalte instanz nachgerüstet")
+        log("migration: column instanz added")
     if "sicht" not in columns:
         con.execute("ALTER TABLE objekt ADD COLUMN sicht TEXT NOT NULL DEFAULT 'geteilt'")
         for kind, visibility in VISIBILITY_PER_KIND.items():
             con.execute("UPDATE objekt SET sicht = ? WHERE art = ?", (visibility, kind))
-        log("Migration: Spalte sicht nachgerüstet")
+        log("migration: column sicht added")
     n = con.execute("UPDATE tag SET tag = 'cache:' || substr(tag, 7) WHERE tag LIKE 'frage:%'").rowcount
     if n:
-        log(f"Migration: {n} Cache-Hashtags frage: → cache:")
+        log(f"migration: {n} cache hashtags frage: → cache:")
     con.execute("CREATE INDEX IF NOT EXISTS objekt_instanz ON objekt(instanz, sicht)")
-    # Die Tabelle archiv (0.4–0.9) ist durch das Langzeitlager ersetzt; sie wird nur entfernt, wenn sie leer ist
+    # the table archiv (0.4–0.9) is replaced by the long-term archive; it is only dropped when empty
     if con.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'archiv'").fetchone():
         if con.execute("SELECT COUNT(*) FROM archiv").fetchone()[0] == 0:
             con.execute("DROP TABLE archiv")
         else:
-            log("Tabelle archiv enthält Einträge und bleibt bestehen — bitte prüfen")
-    # Flache Sicht auf Beobachtungen (docs/TRAINING.md 4a): eine Quelle der Wahrheit (objekt/tag/daten), nur anders gelesen
+            log("table archiv contains entries and is kept — please check")
+    # flat view of observations (docs/TRAINING.md 4a): one source of truth (objekt/tag/daten), only read differently
     con.execute("DROP VIEW IF EXISTS beobachtung")
     con.execute("""CREATE VIEW beobachtung AS
         SELECT o.id AS erfahrung_id, o.zeit, o.instanz,
@@ -175,15 +175,15 @@ def _migrate(con: sqlite3.Connection) -> None:
     con.commit()
 
 
-#: Sichten: privat (nur die Urheber-Instanz), geteilt (alle, auch ohne Token im Open-Wiki-Modus, und das Netz),
-#: intern (seit 0.20.0: alle Instanzen mit Token, nie die tokenlose Instanz und nie das Netz — für Firmenwissen wie Confluence).
+#: Visibilities: privat (only the author instance), geteilt (all, also without a token in open-wiki mode, and the network),
+#: intern (since 0.20.0: all instances with a token, never the tokenless instance and never the network — for company knowledge like Confluence).
 VISIBILITIES = ("privat", "geteilt", "intern")
-#: Name der tokenlosen Instanz im Open-Wiki-Modus (= konfig.OFFEN; hier wiederholt, weil konfig dieses Modul nicht kennt).
+#: name of the tokenless instance in open-wiki mode (= config.OPEN; repeated here because config does not know this module).
 OPEN_INSTANCE = "offen"
 
 
 def visible_to(o: "Objekt", instance: str | None) -> bool:
-    """Darf diese Instanz das Objekt lesen? None = der Server selbst."""
+    """May this instance read the object? None = the server itself."""
     return (instance is None or o.visibility == "geteilt" or o.instance == instance
             or (o.visibility == "intern" and instance != OPEN_INSTANCE))
 
@@ -201,7 +201,7 @@ def close_db() -> None:
 
 @dataclass
 class MemoryObject:
-    """Ein Eintrag des Gedächtnisses. Feste Felder: id, art, zeit. Änderbar nur über Methoden (mit Geschichte)."""
+    """One memory entry. Fixed fields: id, kind, ts. Changeable only via methods (with history)."""
     id: str
     kind: str
     ts: str
@@ -222,12 +222,12 @@ class MemoryObject:
     @staticmethod
     def _require_reason(reason: str) -> None:
         if not (reason or "").strip():
-            raise ValueError("Grund ist Pflicht — jede Änderung braucht einen zureichenden Grund")
+            raise ValueError("reason is required — every change needs a sufficient reason")
 
     def change(self, who: str, what: str, reason: str) -> None:
         self._require_reason(reason)
         all_ = self.changes + [{"zeit": now(), "wer": who, "was": what, "grund": reason.strip()[:300]}]
-        if len(all_) > HISTORY_MAX:  # nichts verschwindet still: die Kürzung wird gezählt und in vi_object genannt
+        if len(all_) > HISTORY_MAX:  # nothing vanishes silently: the trimming is counted and named in vi_object
             self.data["aenderungen_gekuerzt"] = self.data.get("aenderungen_gekuerzt", 0) + len(all_) - HISTORY_MAX
             all_ = all_[-HISTORY_MAX:]
         self.changes = all_
@@ -237,30 +237,30 @@ class MemoryObject:
         self._require_reason(reason)
         for t in list(add) + list(remove):
             if not TAG.match(t):
-                raise ValueError(f"Hashtag {t!r} hat nicht die Form art:wert")
+                raise ValueError(f"hashtag {t!r} does not have the form kind:value")
             if t.startswith(("art:", "tool:", "instanz:", "herkunft:", "herausgeber:", "pruefer:", "modus:")):
-                raise ValueError(f"{t}: fester Hashtag (instanz: ist der Urheber aus dem Token; art:, tool:, herkunft:, herausgeber:, pruefer: und modus: setzt das System)")
+                raise ValueError(f"{t}: fixed hashtag (instanz: is the author from the token; art:, tool:, herkunft:, herausgeber:, pruefer: and modus: are set by the system)")
         self.hashtags = sorted((set(self.hashtags) | set(add)) - set(remove))
         self.change(who, " ".join([f"+{t}" for t in add] + [f"-{t}" for t in remove]), reason)
         return save(self)
 
     def confirm(self, who: str, reason: str, instance: str | None = None) -> "Objekt":
-        """Bestätigen. Zählt je Instanz (daten.bestaetigt_von); Gewichtbonus nur für FREMDE Instanzen."""
-        self._require_reason(reason)  # erst prüfen, dann ändern — eine Ablehnung lässt das Objekt unverändert
+        """Confirm. Counts per instance (daten.bestaetigt_von); weight bonus only for FOREIGN instances."""
+        self._require_reason(reason)  # check first, then change — a rejection leaves the object unchanged
         i = instance or SERVER_INSTANCE
         from_ = dict(self.data.get("bestaetigt_von") or {})
         from_[i] = from_.get(i, 0) + 1
         self.data["bestaetigt_von"] = from_
         self.confirmed += 1
         if self.mode == "strittig" and i != self.instance:
-            self.mode = "aktiv"  # eine fremde Bestätigung hebt den Streit auf — mit Geschichte
-        self.change(who, "bestätigt" + (" (Selbstbestätigung, kein Gewichtbonus)" if i == self.instance else ""), reason)
+            self.mode = "aktiv"  # a foreign confirmation settles the dispute — with history
+        self.change(who, "confirmed" + (" (self-confirmation, no weight bonus)" if i == self.instance else ""), reason)
         return save(self)
 
     def refute(self, who: str, reason: str, instance: str | None = None) -> "Objekt":
-        """Widerlegen. Urheber selbst oder ≥ 2 verschiedene Instanzen → widerlegt (verschwindet aus Suchen);
-        genau eine fremde Instanz → strittig (bleibt sichtbar, mit Vermerk) — eine Instanz allein löscht nicht
-        das Wissen einer anderen."""
+        """Refute. The author itself or ≥ 2 different instances → widerlegt (vanishes from searches);
+        exactly one foreign instance → strittig (stays visible, with a note) — one instance alone does not erase
+        the knowledge of another."""
         self._require_reason(reason)
         i = instance or SERVER_INSTANCE
         from_ = dict(self.data.get("widerlegt_von") or {})
@@ -272,21 +272,21 @@ class MemoryObject:
         return save(self)
 
     def foreign_confirmations(self) -> int:
-        """Verschiedene fremde Instanzen, die bestätigt haben. Der Server (`vi`, Schlaf) zählt nicht als fremd —
-        eine automatische Bestätigung soll das Gewicht nicht heben (keine Selbstbestätigung des Systems)."""
+        """Different foreign instances that confirmed. The server (`vi`, sleep) does not count as foreign —
+        an automatic confirmation must not raise the weight (no self-confirmation of the system)."""
         return len([i for i in (self.data.get("bestaetigt_von") or {}) if i not in (self.instance, SERVER_INSTANCE)])
 
     def link(self, other_id: str, reason: str) -> None:
         with lock:
             for a, b in ((self.id, other_id), (other_id, self.id)):
-                # Ein Beleg wiegt mehr als eine automatische Kante und ersetzt sie; umgekehrt nie
+                # evidence (grund "Beleg…") weighs more than an automatic edge and replaces it; never the other way round
                 db().execute("INSERT INTO kante (a, b, grund, zeit) VALUES (?,?,?,?) ON CONFLICT (a, b) DO UPDATE SET grund = excluded.grund, "
                              "zeit = excluded.zeit WHERE excluded.grund LIKE 'Beleg%' AND kante.grund NOT LIKE 'Beleg%'", (a, b, reason[:200], now()))
             db().commit()
 
     def access(self) -> None:
-        """Erinnert heißt verstärkt: Zugriff zählt, zuletzt rückt vor (Konsolidierung). Relativ hochgezählt —
-        kein verlorener Zähler, auch wenn ein anderer Thread dasselbe Objekt gleichzeitig liest."""
+        """Recalled means reinforced: the access counts, zuletzt moves forward (consolidation). Incremented relatively —
+        no lost counter, even if another thread reads the same object at the same time."""
         self.last_at = now()
         with lock:
             db().execute("UPDATE objekt SET zugriffe = zugriffe + 1, zuletzt = ? WHERE id = ?", (self.last_at, self.id))
@@ -326,16 +326,16 @@ def load(oid: str) -> MemoryObject | None:
 
 
 def _data_json(o: MemoryObject) -> str:
-    """Zu große Daten werden benannt ersetzt. Ein Abschneiden des JSON-Textes machte das Objekt unlesbar."""
+    """Data that is too large is replaced, named. Truncating the JSON text made the object unreadable."""
     js = json.dumps(o.data, ensure_ascii=False)
     if len(js) <= DATA_MAX:
         return js
-    log(f"{o.id}: daten mit {len(js)} Zeichen über Grenze {DATA_MAX} — ersetzt")
-    return json.dumps({"gekuerzt_zeichen": len(js), "grund": f"daten über {DATA_MAX} Zeichen"})
+    log(f"{o.id}: daten with {len(js)} chars over limit {DATA_MAX} — replaced")
+    return json.dumps({"gekuerzt_zeichen": len(js), "grund": f"daten over {DATA_MAX} chars"})
 
 
 def load_many(oids: list[str]) -> dict[str, MemoryObject]:
-    """Mehrere Objekte in zwei Abfragen statt in zwei je Objekt."""
+    """Several objects in two queries instead of two per object."""
     outputs: dict[str, MemoryObject] = {}
     with lock:
         for i in range(0, len(oids), 900):
@@ -368,7 +368,7 @@ def save(o: MemoryObject) -> MemoryObject:
 
 
 def delete(oids: list[str]) -> int:
-    """Objekte samt Hashtags, Volltext, Kanten und Lagerinhalt entfernen — keine hängenden Kanten, keine Reste im Lager."""
+    """Remove objects with hashtags, full text, edges and archive content — no dangling edges, no leftovers in the archive."""
     from . import archive
     archive.delete(oids)
     with lock:
@@ -386,32 +386,32 @@ def new_object(kind: str, text: str, hashtags: list[str], data: dict | None = No
                  who: str = "vi", reason: str = "", oid: str | None = None, mode: str = "aktiv",
                  conversation: str | None = None, instance: str | None = None, visibility: str | None = None) -> MemoryObject:
     if kind not in KINDS:
-        raise ValueError(f"art muss {', '.join(KINDS)} sein")
+        raise ValueError(f"art must be one of {', '.join(KINDS)}")
     if visibility is not None and visibility not in VISIBILITIES:
-        raise ValueError(f"sicht muss eine von {', '.join(VISIBILITIES)} sein")
+        raise ValueError(f"sicht must be one of {', '.join(VISIBILITIES)}")
     for t in hashtags:
         if not TAG.match(t):
-            raise ValueError(f"Hashtag {t!r} hat nicht die Form art:wert")
-    # instanz: ist kein freier Hashtag, sondern der Urheber (Spalte instanz) — ein Ding, ein Ort
+            raise ValueError(f"hashtag {t!r} does not have the form kind:value")
+    # instanz: is not a free hashtag but the author (column instanz) — one thing, one place
     hashtags = [t for t in hashtags if not t.startswith("instanz:")]
-    text, data = anonymize.without_secrets(text), anonymize.without_secrets(data)  # Zugangsdaten werden nie gespeichert
+    text, data = anonymize.without_secrets(text), anonymize.without_secrets(data)  # credentials are never stored
     ts = now()
-    # Zufallsanteil: zwei gleiche Handlungen in derselben Sekunde sind zwei Objekte, nicht eines (sonst überschreibt
-    # INSERT OR REPLACE das erste still — gefunden von test_eingebaute_werkzeuge_nie_aus_gedaechtnis)
+    # random part: two equal actions in the same second are two objects, not one (otherwise INSERT OR REPLACE
+    # silently overwrites the first — found by test_eingebaute_werkzeuge_nie_aus_gedaechtnis)
     o = MemoryObject(id=oid or f"{kind}:{hash_value(kind, text, ts, json.dumps(data or {}, sort_keys=True), secrets.token_hex(8))}", kind=kind, ts=ts,
                last_at=ts, text=text, data=data or {}, hashtags=list(hashtags), importance=max(0, min(3, importance)),
                mode=mode, conversation=conversation or current_conversation.get(),
                instance=instance or current_instance.get() or SERVER_INSTANCE, visibility=visibility or VISIBILITY_PER_KIND[kind],
-               changes=[{"zeit": ts, "wer": who, "was": "angelegt", "grund": (reason or "angelegt")[:300]}])
+               changes=[{"zeit": ts, "wer": who, "was": "created", "grund": (reason or "created")[:300]}])
     save(o)
-    if mode != "quarantaene":  # Ungeprüftes bekommt keine Verbindung zum eigenen Wissen
+    if mode != "quarantaene":  # unreviewed content gets no link to own knowledge
         link_similar(o)
     return o
 
 
 def link_similar(o: MemoryObject, at_least: int = 2, limit: int = 5) -> None:
-    """Zettelkasten: Objekte, die ≥ `mindestens` inhaltliche Hashtags teilen, werden verbunden (A-Mem-Idee)."""
-    content = [t for t in o.hashtags if not t.startswith(ADMIN_PREFIXES)]  # sonst verbände instanz:/art: alles mit allem
+    """Zettelkasten: objects sharing ≥ `at_least` content hashtags are linked (A-Mem idea)."""
+    content = [t for t in o.hashtags if not t.startswith(ADMIN_PREFIXES)]  # otherwise instanz:/art: would link everything with everything
     if len(content) < at_least or o.kind in ("antwort",):
         return
     with lock:
@@ -419,13 +419,13 @@ def link_similar(o: MemoryObject, at_least: int = 2, limit: int = 5) -> None:
             f"SELECT objekt_id, COUNT(*) n FROM tag WHERE tag IN ({','.join('?' * len(content))}) AND objekt_id <> ? "
             f"GROUP BY objekt_id HAVING n >= ? ORDER BY n DESC LIMIT ?", (*content, o.id, at_least, limit)).fetchall()
     for oid, n in rows:
-        o.link(oid, f"{n} gemeinsame Hashtags")
+        o.link(oid, f"{n} shared hashtags")
 
 
-# ── Erinnern: Filtersprache + Gewichtung ─────────────────────────────────────
+# ── Recall: filter language + weighting ──────────────────────────────────────
 
 def parse_filter(text: str) -> tuple[list[list[str]], list[str], list[str]]:
-    """Filtertext → (UND-Gruppen aus ODER-Tags, Ausschluss-Tags, Freiwörter). `(a OR b) c !d wort`. Rein."""
+    """Filter text → (AND groups of OR tags, exclusion tags, free words). `(a OR b) c !d word`. Pure."""
     groups, remove, words = [], [], []
     for m in re.finditer(r"\(([^()]*)\)|(!?\S+)", text or ""):
         if m.group(1) is not None:
@@ -450,14 +450,14 @@ def _tag_condition(tag: str) -> tuple[str, tuple]:
 
 
 def _filter_sql(groups: list, remove: list, viewer: str | None) -> tuple[str, list]:
-    """SQL für Modus, Sicht und Hashtag-Bedingungen (ohne Freitext) — eine Quelle für erinnere() und ids_zum_filter()."""
+    """SQL for mode, visibility and hashtag conditions (without free text) — one source for recall() and ids_for_filter()."""
     sql, par = "SELECT id FROM objekt WHERE modus <> 'widerlegt'", []
     if not any("modus:quarantaene" in grp for grp in groups):
-        sql += " AND modus <> 'quarantaene'"  # nur über vi_quarantine
+        sql += " AND modus <> 'quarantaene'"  # only via vi_quarantine
     if not any("modus:aufgegangen" in grp for grp in groups):
-        sql += " AND modus <> 'aufgegangen'"  # Aufgegangenes nur auf Nachfrage (Verweis steht im Objekt)
+        sql += " AND modus <> 'aufgegangen'"  # merged skills only on request (reference is in the object)
     if not any("modus:archiviert" in grp for grp in groups):
-        sql += " AND modus <> 'archiviert'"  # Archiviertes nur auf ausdrückliche Nachfrage
+        sql += " AND modus <> 'archiviert'"  # archived objects only on explicit request
     if viewer is not None:
         sql += " AND (sicht = 'geteilt' OR instanz = ?" + (" OR sicht = 'intern')" if viewer != OPEN_INSTANCE else ")")
         par.append(viewer)
@@ -474,7 +474,7 @@ def _filter_sql(groups: list, remove: list, viewer: str | None) -> tuple[str, li
 
 
 def ids_for_filter(filter_text: str, kinds: tuple[str, ...] = (), viewer: str | None = "aktuell") -> list[str]:
-    """Alle sichtbaren IDs zu den Hashtag-Bedingungen des Filters, ohne Obergrenze (Kandidaten der semantischen Suche)."""
+    """All visible ids for the filter's hashtag conditions, without an upper limit (candidates of the semantic search)."""
     if viewer == "aktuell":
         viewer = current_instance.get()
     groups, remove, _w = parse_filter(filter_text)
@@ -485,17 +485,17 @@ def ids_for_filter(filter_text: str, kinds: tuple[str, ...] = (), viewer: str | 
         return [r[0] for r in db().execute(sql, par)]
 
 
-#: Wie die letzte Wortsuche in diesem Kontext lief: "und" (alle Wörter), "oder" (Ersatz, weil zu wenig alle Wörter enthielten) oder None.
+#: How the last word search in this context ran: "und" (all words), "oder" (fallback, because too few contained all words) or None.
 word_search: contextvars.ContextVar[str | None] = contextvars.ContextVar("wortsuche", default=None)
 
 
 def recall(filter_text: str, limit: int = 10, kinds: tuple[str, ...] = (), viewer: str | None = "aktuell",
              or_fallback: bool = False) -> list[tuple[float, MemoryObject, dict]]:
-    """Objekte zum Filter, gewichtet: Relevanz (Tag-/Worttreffer) + Aktualität + Wichtigkeit (Park et al. 2023)
-    + Bonus je fremder bestätigender Instanz. Sichtbar ist, was geteilt ist oder dem Betrachter gehört
-    (betrachter "aktuell" = Instanz der laufenden Anfrage; None = Server, sieht alles).
-    Freitext verlangt alle Wörter (UND). oder_ersatz=True: enthalten weniger als `limit` Objekte alle Wörter, wird mit
-    einer ODER-Suche aufgefüllt (BM25 ordnet Objekte mit mehr Wörtern nach vorn); `wortsuche` sagt danach, welche lief."""
+    """Objects for the filter, weighted: relevance (tag/word hits) + recency + importance (Park et al. 2023)
+    + bonus per foreign confirming instance. Visible is what is shared or belongs to the viewer
+    (viewer "aktuell" = instance of the running request; None = server, sees everything).
+    Free text requires all words (AND). or_fallback=True: if fewer than `limit` objects contain all words, the result is
+    filled up with an OR search (BM25 ranks objects with more words first); `word_search` then says which one ran."""
     if viewer == "aktuell":
         viewer = current_instance.get()
     groups, remove, words = parse_filter(filter_text)
@@ -517,7 +517,7 @@ def recall(filter_text: str, limit: int = 10, kinds: tuple[str, ...] = (), viewe
                 if or_fallback and len(terms) > 1 and len(word_hits) < limit:
                     or_hits = _fts(" OR ".join(terms))
                     if len(or_hits) > len(word_hits):
-                        # Objekte mit allen Wörtern bleiben vorn: ihr Rang wird über den höchsten ODER-Rang gehoben
+                        # objects with all words stay in front: their rank is lifted above the highest OR rank
                         upper = max(or_hits.values(), default=0.0)
                         word_hits = {**or_hits, **{k: v + abs(upper) + 1 for k, v in word_hits.items()}}
                         search_kind = "oder"
@@ -549,7 +549,7 @@ def recall(filter_text: str, limit: int = 10, kinds: tuple[str, ...] = (), viewe
 
 
 def most_salient_hashtag(hits: list, filter_text: str) -> str | None:
-    """Der häufigste inhaltliche Hashtag der Treffer, der nicht schon im Filter steht (Trichter-Schritt). Rein."""
+    """The most frequent content hashtag of the hits that is not already in the filter (drilldown step). Pure."""
     in_filter = set(re.findall(r"[a-z][a-z0-9_-]*:[^\s()!]+", filter_text or ""))
     tally: dict[str, int] = {}
     for o in hits:
@@ -564,7 +564,7 @@ def most_salient_hashtag(hits: list, filter_text: str) -> str | None:
 
 
 def drilldown(filter_text: str, levels: int = 3, limit: int = 5) -> list[dict]:
-    """Trichter: suchen, auffälligsten Hashtag ergänzen, erneut suchen — bis nichts Neues mehr kommt."""
+    """Drilldown: search, add the most salient hashtag, search again — until nothing new comes."""
     levels_off, filt = [], (filter_text or "").strip()
     for _ in range(max(1, levels)):
         hits = [o for _, o, _g in recall(filt, limit=limit * 4)]

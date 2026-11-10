@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-# RPM: Der Code liegt außerhalb von site-packages, damit ein Paket für jede Python-Version ≥ 3.11 passt.
+# RPM: the code lives outside site-packages so one package fits every Python version ≥ 3.11.
 import runpy
 import sys
 

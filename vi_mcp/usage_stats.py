@@ -1,16 +1,16 @@
-"""Nutzungsstatistik — wird die VI genutzt, und funktioniert sie so, wie gedacht? (0.21.0)
+"""Usage statistics — is the VI used, and does it work as intended? (0.21.0)
 
-Gezählt wird jeder Aufruf eines VI-Werkzeugs im Server (`zeichne`), unabhängig vom Hook — der Hook meldet vi_* absichtlich nicht.
-Gespeichert werden nur Zeit, Instanz, Client, Werkzeug, Ausgang, Dauer und bei Suchen Trefferzahl und Suchart — keine Argumente,
-kein Text. Aufbewahrung AUFBEWAHRUNG_TAGE, danach löscht der Loop (`aufraeumen`).
+Every call of a VI tool in the server is counted (`record`), independently of the hook — the hook deliberately does not report vi_*.
+Only time, instance, client, tool, outcome, duration and, for searches, hit count and search kind are stored — no arguments,
+no text. Retention RETENTION_DAYS, after that the loop deletes (`cleanup`).
 
-`bericht(tage)` beantwortet sechs Fragen, jede mit Zahl, Zeitraum und Herkunft:
-  A Nutzung       Wer ruft welche VI-Werkzeuge wie oft, mit welchem Ausgang und welcher Dauer?
-  B Regeln        Wird vor ändernden Handlungen gesucht (Regel 1–2)? Wird gelernt (5–8)? Kommen Rückmeldungen zu Hinweisen?
-  C Hinweise      Wie viele Hinweise und Warnungen wurden gezeigt, und gelingen Handlungen danach häufiger?
-  D Wissen        Wie viel Wissen kam dazu (Art, Sicht, Herkunft) — und wie viel davon wird je abgerufen?
-  E Suche         Wie oft findet eine Suche nichts, welche Suchart lief, wie lange dauerte sie?
-  F Aufräumen     Schlaf, Training, Kanten, Langzeitlager.
+`report(days)` answers six questions, each with number, period and origin:
+  A Usage         Who calls which VI tools how often, with which outcome and which duration?
+  B Rules         Is there a search before changing actions (rules 1–2)? Is there learning (5–8)? Is there feedback on hints?
+  C Hints         How many hints and warnings were shown, and do actions succeed more often afterwards?
+  D Knowledge     How much knowledge was added (kind, visibility, origin) — and how much of it is ever recalled?
+  E Search        How often does a search find nothing, which search kind ran, how long did it take?
+  F Cleanup       Sleep, training, edges, long-term archive.
 """
 from __future__ import annotations
 
@@ -22,13 +22,13 @@ from datetime import datetime, timedelta, timezone
 from . import memory as g
 
 RETENTION_DAYS = 90
-#: Eine ändernde Handlung gilt als „mit Suche vorbereitet“, wenn dieselbe Instanz so viele Minuten davor die VI befragt hat
+#: A changing action counts as "prepared with a search" if the same instance consulted the VI this many minutes before
 LEAD_MIN = 30
-#: Öffentliche (englische) Werkzeugnamen, wie der Server sie seit 0.22.0 zählt
+#: Public (English) tool names, as the server counts them since 0.22.0
 SEARCH_TOOLS = ("vi_recall", "vi_drilldown", "vi_object", "vi_conversation", "vi_skills")
 
 
-#: Shell-Befehle, die etwas ändern. Bash gilt in intuition.lesend pauschal als lesend; für die Regel-Statistik zählt der Befehl selbst.
+#: Shell commands that change something. intuition.read_only treats Bash as reading across the board; for the rule statistics the command itself counts.
 _SHELL_MUTATING = re.compile(r"\b(apt(-get)?\s+(install|remove|purge|upgrade|dist-upgrade)|dpkg\s+-i|systemctl\s+(restart|stop|start|enable|disable|reload)|"
                              r"service\s+\S+\s+(restart|stop|start)|docker\s+(restart|stop|rm|run|compose\s+(up|down|restart))|rm\s+-|sed\s+-i|"
                              r"chmod|chown|git\s+(push|commit|reset|checkout|merge|rebase)|p?kill\b|reboot|shutdown|nginx\s+-s|"
@@ -53,14 +53,17 @@ def _table() -> None:
 def _hits(tool_parts: str, text: str) -> tuple[int | None, str | None]:
     if tool_parts not in ("vi_recall", "vi_drilldown"):
         return None, None
-    m = re.search(r"(\d+) Objekte? zu", text or "")
-    n = int(m.group(1)) if m else (0 if re.search(r"\b(keine|0) (Objekte|Treffer)", text or "", re.I) else None)
-    kind = "hybrid" if "semantisch hybrid" in (text or "") else ("oder" if "ODER-Suche" in (text or "") else "volltext")
+    # Parses the vi_recall / vi_drilldown output of this version (English since 0.23.0); the German forms of older versions
+    # stay recognised. The kinds "oder"/"volltext" are stored values.
+    text = text or ""
+    m = re.search(r"(\d+) (?:objects? for|Objekte? zu)", text)
+    n = int(m.group(1)) if m else (0 if re.search(r"\b(?:no|0) (?:objects|hits)\b|\bnothing in memory\b|\b(?:keine|0) (?:Objekte|Treffer)", text, re.I) else None)
+    kind = "hybrid" if ("semantic hybrid" in text or "semantisch hybrid" in text) else ("oder" if ("OR search" in text or "ODER-Suche" in text) else "volltext")
     return n, kind
 
 
 def record(instance: str, client: str | None, tool_parts: str, outbox: str, ms: int, text: str = "") -> None:
-    """Ein Aufruf eines VI-Werkzeugs; ausgang ∈ ok | abgelehnt | fehler. Scheitert nie laut — Statistik darf die Antwort nicht stören."""
+    """One call of a VI tool; outcome ∈ ok | abgelehnt | fehler. Never fails loudly — statistics must not disturb the answer."""
     try:
         _table()
         n, kind = _hits(tool_parts, text) if outbox == "ok" else (None, None)
@@ -89,7 +92,7 @@ def _since(days: float) -> str:
 
 
 def data(days: float = 7) -> dict:
-    """Alle Kennzahlen als Daten (für Tests und Weiterverarbeitung). Rein lesend."""
+    """All metrics as data (for tests and further processing). Read-only."""
     _table()
     since = _since(days)
     db = g.db()
@@ -108,7 +111,7 @@ def data(days: float = 7) -> dict:
         conversations = db.execute("SELECT instanz, COUNT(*) FROM objekt WHERE art = 'gespraech' AND zeit >= ? GROUP BY instanz", (since,)).fetchall()
         sleeps = db.execute("SELECT daten FROM objekt WHERE art = 'schlaf' AND zeit >= ?", (since,)).fetchall()
         sem_edges = db.execute("SELECT COUNT(*) FROM kante WHERE grund LIKE 'semantisch%'").fetchone()[0]
-    # A Nutzung
+    # A Usage
     by_tool: dict[str, dict] = {}
     for _z, _i, _c, w, outputs, ms, _t, _a in calls:
         e = by_tool.setdefault(w, {"n": 0, "abgelehnt": 0, "fehler": 0, "ms": []})
@@ -120,7 +123,7 @@ def data(days: float = 7) -> dict:
     for _z, i, *_r in calls:
         per_instance[i] = per_instance.get(i, 0) + 1
     clients = sorted({c for _z, _i, c, *_r in calls if c})
-    # B Regeln: ändernde Handlungen mit VI-Befragung derselben Instanz in den VORLAUF_MIN Minuten davor
+    # B Rules: changing actions with a VI query by the same instance in the LEAD_MIN minutes before
     search_times = {}
     for z, i, _c, w, outputs, *_r in calls:
         if w in SEARCH_TOOLS and outputs == "ok":
@@ -150,9 +153,9 @@ def data(days: float = 7) -> dict:
             prepared += 1
     learned = sum(1 for _z, _i, _c, w, outputs, *_r in calls if w in ("vi_learn", "vi_solved", "vi_learn_search") and outputs == "ok")
     confirmed = sum(1 for _z, _i, _c, w, outputs, *_r in calls if w in ("vi_confirm", "vi_refute") and outputs == "ok")
-    # E Suche
+    # E Search
     search = [(t, a, ms) for _z, _i, _c, w, outputs, ms, t, a in calls if w in ("vi_recall", "vi_drilldown") and outputs == "ok"]
-    # F Aufräumen
+    # F Cleanup
     sl = [json.loads(x[0]) for x in sleeps]
     return {
         "tage": days, "seit": since,
@@ -187,25 +190,25 @@ def report(days: float = 7) -> str:
     d = data(days)
     from . import on_demand, learning, metrics
     n, r, h, w, s, a = d["nutzung"], d["regeln"], d["hinweise"], d["wissen"], d["suche"], d["aufraeumen"]
-    z = [f"Nutzungsstatistik der letzten {days:g} Tage (seit {d['seit'][:16]} UTC; Quelle: Tabelle nutzung, Erfahrungen, Objekte)"]
-    z.append(f"A Nutzung: {n['aufrufe']} Aufrufe von VI-Werkzeugen, {n['handlungen']} gemeldete Handlungen, Gespräche je Instanz "
+    z = [f"Usage statistics of the last {days:g} days (since {d['seit'][:16]} UTC; source: table nutzung, experiences, objects)"]
+    z.append(f"A Usage: {n['aufrufe']} calls of VI tools, {n['handlungen']} reported actions, conversations per instance "
              + (", ".join(f"{i} {k}" for i, k in n["gespraeche"].items()) or "—"))
-    z += [f"    {wz:22} {e['n']:5}×  abgelehnt {e['abgelehnt']}, Fehler {e['fehler']}, Median {e['ms_median']} ms" for wz, e in list(n["je_werkzeug"].items())[:12]]
-    z.append("    je Instanz: " + (", ".join(f"{i} {k}" for i, k in n["je_instanz"].items()) or "—") + " · Clients: " + (", ".join(n["clients"]) or "—"))
-    z.append(f"B Regeln: vor {_pct(r['vorbereitet'], r['aendernd'])} der ändernden Handlungen ({r['vorbereitet']} von {r['aendernd']}) hat dieselbe "
-             f"Instanz in den {LEAD_MIN} min davor die VI befragt · gelernt {r['gelernt']}× in {r['gespraeche_mit_handlung']} Gesprächen mit Handlungen · "
-             f"Rückmeldungen zu Hinweisen {r['rueckmeldungen']} auf {r['hinweise_gezeigt']} gezeigte ({_pct(r['rueckmeldungen'], r['hinweise_gezeigt'])})")
+    z += [f"    {wz:22} {e['n']:5}×  rejected {e['abgelehnt']}, errors {e['fehler']}, median {e['ms_median']} ms" for wz, e in list(n["je_werkzeug"].items())[:12]]
+    z.append("    per instance: " + (", ".join(f"{i} {k}" for i, k in n["je_instanz"].items()) or "—") + " · clients: " + (", ".join(n["clients"]) or "—"))
+    z.append(f"B Rules: before {_pct(r['vorbereitet'], r['aendernd'])} of the changing actions ({r['vorbereitet']} of {r['aendernd']}) the same "
+             f"instance consulted the VI in the {LEAD_MIN} min before · learned {r['gelernt']}× in {r['gespraeche_mit_handlung']} conversations with actions · "
+             f"feedback on hints {r['rueckmeldungen']} for {r['hinweise_gezeigt']} shown ({_pct(r['rueckmeldungen'], r['hinweise_gezeigt'])})")
     lift = metrics.hint_lift(24 * days, viewer=None)
-    z.append(f"C Hinweise: {h['gezeigt']} gezeigt · {metrics.line(lift)} · Warnungen {h['warnung']['n']} (danach gelungen "
-             f"{_pct(h['warnung']['ok'], h['warnung']['n'])}; ohne Warnung {_pct(h['ohne_warnung']['ok'], h['ohne_warnung']['n'])})")
-    z.append(f"D Wissen: {w['neu']} neu (" + ", ".join(f"{k} {v}" for k, v in w["neu_je_art"].items()) + "; Sicht "
-             + ", ".join(f"{k} {v}" for k, v in w["neu_je_sicht"].items()) + "; Herkunft " + ", ".join(f"{k} {v}" for k, v in list(w["neu_je_quelle"].items())[:5])
-             + f") · davon je abgerufen {_pct(w['neu_abgerufen'], w['neu'])} · Bestand {w['gesamt']}, je abgerufen {w['je_abgerufen']} ({_pct(w['je_abgerufen'], w['gesamt'])})")
-    z += [f"    meist abgerufen: [{oid}] {k}× {t}" for oid, k, t in w["top"][:3]]
-    z.append(f"E Suche: {s['n']} Suchen, ohne Treffer {s['ohne_treffer']} ({_pct(s['ohne_treffer'], s['n'])}) · Suchart "
-             + (", ".join(f"{k} {v}" for k, v in s["je_art"].items()) or "—") + " · Median "
+    z.append(f"C Hints: {h['gezeigt']} shown · {metrics.line(lift)} · warnings {h['warnung']['n']} (succeeded afterwards "
+             f"{_pct(h['warnung']['ok'], h['warnung']['n'])}; without warning {_pct(h['ohne_warnung']['ok'], h['ohne_warnung']['n'])})")
+    z.append(f"D Knowledge: {w['neu']} new (" + ", ".join(f"{k} {v}" for k, v in w["neu_je_art"].items()) + "; visibility "
+             + ", ".join(f"{k} {v}" for k, v in w["neu_je_sicht"].items()) + "; origin " + ", ".join(f"{k} {v}" for k, v in list(w["neu_je_quelle"].items())[:5])
+             + f") · of these ever recalled {_pct(w['neu_abgerufen'], w['neu'])} · total {w['gesamt']}, ever recalled {w['je_abgerufen']} ({_pct(w['je_abgerufen'], w['gesamt'])})")
+    z += [f"    most recalled: [{oid}] {k}× {t}" for oid, k, t in w["top"][:3]]
+    z.append(f"E Search: {s['n']} searches, without hits {s['ohne_treffer']} ({_pct(s['ohne_treffer'], s['n'])}) · search kind "
+             + (", ".join(f"{k} {v}" for k, v in s["je_art"].items()) or "—") + " · median "
              + (", ".join(f"{k} {v} ms" for k, v in s["ms_median"].items()) or "—"))
     m = learning.model()
-    z.append(f"F Aufräumen: {a['schlaefe']} Schläfe (Median {a['schlaf_ms_median'] // 1000} s, {a['neue_erkenntnisse']} neue Erkenntnisse, {a['fehler']} Schrittfehler) · "
-             f"{on_demand.line()} · Router AUC {m.data.get('auc_holdout') if m else '—'} · semantische Kanten {a['semantische_kanten']}")
+    z.append(f"F Cleanup: {a['schlaefe']} sleeps (median {a['schlaf_ms_median'] // 1000} s, {a['neue_erkenntnisse']} new insights, {a['fehler']} step errors) · "
+             f"{on_demand.line()} · router AUC {m.data.get('auc_holdout') if m else '—'} · semantic edges {a['semantische_kanten']}")
     return "\n".join(z)

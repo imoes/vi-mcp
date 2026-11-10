@@ -19,6 +19,7 @@ Code, API tables and commands are stored in full, because what is missing from m
 ## Tool names
 
 Since 0.22.0 the tools, their parameters and enum values are English. The German names used before remain valid as aliases, so existing clients keep working.
+Since 0.23.0 the command line, all output and the documentation are English too; German commands and options (`vi-mcp einrichten`, `vi-mcp netz …`, `--token-datei`) still work.
 
 | English | Alias (German) |
 |---|---|
@@ -82,7 +83,7 @@ Since 0.22.0 the tools, their parameters and enum values are English. The German
 - **Learning.** From those scores the router (logistic regression, weights kept as readable JSON) learns which hint helps when. Training runs on demand, about a minute after new experiences arrive (one run takes under a second), not only at night.
 - **Reflexes and skills.** Proven solutions become skills; small checks run as code in a sandbox (Landlock, seccomp).
 
-The in-depth documents are written in German: [architecture](docs/ARCHITEKTUR.md) · [operations](docs/BETRIEB.md) · [hook](docs/HOOK.md) · [research](docs/FORSCHUNG.md) · [training](docs/TRAINING.md)
+In-depth: [architecture](docs/ARCHITECTURE.md) · [operations](docs/OPERATIONS.md) · [hook](docs/HOOK.md) · research (German): [memory research](docs/FORSCHUNG.md) · [training](docs/TRAINING.md)
 
 ## Install
 
@@ -122,29 +123,29 @@ Join an open server, no token needed:
 
 ```bash
 claude mcp add --transport http -s user vi-mcp https://<server>/vi-mcp/mcp
-vi-mcp einrichten --claude --codex --hermes --hook --url https://<server>/vi-mcp/mcp     # detects the open server by itself
+vi-mcp setup --claude --codex --hermes --hook --url https://<server>/vi-mcp/mcp     # detects the open server by itself
 ```
 
 ## Set up
 
-On first install this menu opens by itself; otherwise run `sudo vi-mcp einrichten`. The interface is in German:
+On first install this menu opens by itself; otherwise run `sudo vi-mcp setup`:
 
 ```
- vi-mcp einrichten  0.13.0
+ vi-mcp setup  0.23.0
 
- Nutzer   anna
+ User     anna
  Server   http://127.0.0.1:8765/mcp
-          läuft noch nicht; startet nach dem Anlegen der Tokens
- Token    wird je Programm angelegt
- Aktion   einrichten
- ──────────────────────────────────────────────────────
- ▸ [x] Claude Code       noch nicht eingerichtet
-   [-] Codex CLI         nicht gefunden: codex nicht im PATH, ~/.codex fehlt
-   [x] Hermes Agent      noch nicht eingerichtet
-   [x] Claude-Code-Hook  meldet jede Handlung an den Server (Argumente maskiert)
- ──────────────────────────────────────────────────────
- Enter: einrichten
- ↑↓ select · space toggle · u URL · t token · e add/remove · q quit
+          not running yet; starts once the tokens are created
+ Token    created per program
+ Action   set up
+ ──────────────────────────────────────────────────────────────────────
+ ▸ [x] Claude Code       not set up yet
+   [-] Codex CLI         not found: codex not in PATH, ~/.codex missing
+   [x] Hermes Agent      not set up yet
+   [x] Claude Code hook  reports every action to the server (arguments masked)
+ ──────────────────────────────────────────────────────────────────────
+ Enter: set up
+ ↑↓ select · space on/off · u URL · t token · e action · q quit
 ```
 
 If the server runs on the same machine, each program gets its own instance and token. For another server, press `u` for the URL and `t` for the token.
@@ -154,9 +155,9 @@ Unattended installs never wait for a key press.
 Without the menu (scripts, Ansible):
 
 ```bash
-vi-mcp einrichten --status
-vi-mcp einrichten --claude --codex --hermes --hook --url https://server/vi-mcp/mcp --token-datei ./token
-vi-mcp einrichten --hermes --entfernen
+vi-mcp setup --status
+vi-mcp setup --claude --codex --hermes --hook --url https://server/vi-mcp/mcp --token-file ./token
+vi-mcp setup --hermes --uninstall
 ```
 
 | Program | File | Entry |
@@ -168,7 +169,7 @@ vi-mcp einrichten --hermes --entfernen
 The hook exists for Claude Code only and reports actions automatically. Codex and Hermes get the tools and report only what the model calls itself.
 You can rate work in your prompt: `#gut` (good), `#schlecht` (bad), `#note 0.8`. A prompt starting with "no", "wrong", "nein" or "falsch" counts as a correction. Your text never leaves the session, only the result does.
 
-Server by hand: `sudo vi-mcp instanz NAME [--reflexe] [--mensch]`, then `sudo systemctl restart vi-mcp`. The token is shown once.
+Server by hand: `sudo vi-mcp instance NAME [--reflexes] [--human]`, then `sudo systemctl restart vi-mcp`. The token is shown once.
 
 ## The network
 
@@ -182,20 +183,20 @@ Each server keeps a signed, chained log. Servers compare logs with their neighbo
 
 ```bash
 # first server: founds the network, self-signed certificate, peers verify it by its pin
-sudo vi-mcp netz einrichten --modus peerhost --gruenden --adresse https://knowledge.example:8766 --tls-selbst
-sudo vi-mcp netz einladung --stunden 24          # one-time join code, treat it like a password
+sudo vi-mcp net setup --mode peerhost --found --address https://knowledge.example:8766 --tls-self
+sudo vi-mcp net invitation --hours 24            # one-time join code, treat it like a password
 
 # every further server: one command
-sudo vi-mcp netz beitreten <code>                                                        # outgoing only (peer)
-sudo vi-mcp netz beitreten <code> --modus peerhost --adresse https://b.example:8766 --tls-selbst
-sudo vi-mcp netz beitreten <code> --proxy http://proxy.example:3128                      # behind a company proxy
+sudo vi-mcp net join <code>                                                              # outgoing only (peer)
+sudo vi-mcp net join <code> --mode peerhost --address https://b.example:8766 --tls-self
+sudo vi-mcp net join <code> --proxy http://proxy.example:3128                            # behind a company proxy
 
-sudo vi-mcp netz peers                           # known peers, pin or CA, reachable or not
-sudo vi-mcp netz status
+sudo vi-mcp net peers                            # known peers, pin or CA, reachable or not
+sudo vi-mcp net status
 ```
 
 A join code contains the founders' keys, the address and certificate pin of the issuing peerhost, and a one-time secret that expires. Only its hash stays on the issuer.
-Behind a reverse proxy with a public certificate use `--adresse https://host/vi-p2p` without `--tls-selbst`. Manual way without a code: `vi-mcp netz id` on the new server, `vi-mcp netz einladen <key>` on a member.
+Behind a reverse proxy with a public certificate use `--address https://host/vi-p2p` without `--tls-self`. Manual way without a code: `vi-mcp net id` on the new server, `vi-mcp net invite <key>` on a member.
 
 - **Membership by invitation.** A server belongs if a chain of invitations leads to it from a founder. Founders and the inviting member can expel; whoever was only invited by an expelled server leaves with it.
 - **Forwarding is not believing.** A server carries signed entries onward after checking signature and rules, but its memory treats them as foreign: quarantine, the review model, release, then mode `test`.

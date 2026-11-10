@@ -1,4 +1,4 @@
-"""0.14.0: Logbuch, Mitgliedschaft, Netzdienst über echtes HTTP, TLS, Vergessen über mehrere Stationen, Torrent."""
+"""0.14.0: logbook, membership, network service over real HTTP, TLS, forgetting across several hops, torrent."""
 import datetime
 import hashlib
 import http.client
@@ -84,12 +84,12 @@ def test_chain_is_checked(tmp_path):
     assert b.headers() == {a.pub: 3}
     c = _log(tmp_path, "c", [a.pub])
     r = c.ingest(a.read(a.pub, 1))
-    assert r["neu"] == 0 and "Kette unterbrochen" in r["gruende"][0]  # Lücke am Anfang
+    assert r["neu"] == 0 and "chain broken" in r["gruende"][0]  # gap at the start
     d = _log(tmp_path, "d", [a.pub])
     forged = a.read(a.pub, 0)
     forged[1]["kopf"]["zeit"] = "2020-01-01"
     r = d.ingest(forged)
-    assert r["neu"] == 1 and "Signatur" in r["gruende"][0]
+    assert r["neu"] == 1 and "signature" in r["gruende"][0]
 
 
 def test_fork_blocks_the_publisher(tmp_path):
@@ -102,9 +102,9 @@ def test_fork_blocks_the_publisher(tmp_path):
     header.pop("sig")
     header["sig"] = a.k.sign(lb.canonical(header)).hex()
     r = b.ingest([{"kopf": header, "inhalt": {"adresse": "https://zwei.example"}}])
-    assert "Gabelung bei Nummer 1" in r["gruende"][0]
+    assert "fork at number 1" in r["gruende"][0]
     a.attach("adresse", {"adresse": "https://drei.example"})
-    assert "Gabelung bekannt" in b.ingest(a.read(a.pub, 1))["gruende"][0] and b.status()["gabelungen"] == 1
+    assert "fork known" in b.ingest(a.read(a.pub, 1))["gruende"][0] and b.status()["gabelungen"] == 1
 
 
 def test_membership_follows_invitations(tmp_path):
@@ -112,7 +112,7 @@ def test_membership_follows_invitations(tmp_path):
     b, c = _log(tmp_path, "b", [a.pub]), _log(tmp_path, "c", [a.pub])
     b.attach("adresse", {"adresse": "https://b.example"})
     z = _log(tmp_path, "z", [a.pub])
-    assert "kein Mitglied" in z.ingest(b.read(b.pub, 0))["gruende"][0]
+    assert "not a member" in z.ingest(b.read(b.pub, 0))["gruende"][0]
     a.attach("einladung", {"pub": b.pub})
     z.ingest(a.read(a.pub, 0))
     assert z.ingest(b.read(b.pub, 0))["neu"] == 1
@@ -121,7 +121,7 @@ def test_membership_follows_invitations(tmp_path):
     assert z.members() == {a.pub, b.pub, c.pub}
     a.attach("ausschluss", {"pub": b.pub})
     z.ingest(a.read(a.pub, 1))
-    assert z.members() == {a.pub}  # wer nur über b kam, fällt mit heraus
+    assert z.members() == {a.pub}  # whoever came only via b drops out as well
 
 
 def test_only_inviters_and_founders_may_exclude(tmp_path):
@@ -143,7 +143,7 @@ def test_internals_are_not_forwarded(tmp_path):
     o = {**mem_object(1), "text": "Der Rechner 10.1.2.3 fällt immer wieder aus"}
     a.attach("objekt", o, o["netz_id"], o["loesch_hash"])
     a.attach("objekt", mem_object(2), mem_object(2)["netz_id"], mem_object(2)["loesch_hash"])
-    assert b.ingest(a.read(a.pub, 0))["neu"] == 2  # die Kette bleibt ganz
+    assert b.ingest(a.read(a.pub, 0))["neu"] == 2  # the chain stays intact
     e = b.read(a.pub, 0)
     assert e[0]["inhalt"] is None and e[1]["inhalt"] and b.status()["verstoesse"] == 1
 
@@ -157,15 +157,15 @@ def test_forget_in_logbook(tmp_path):
     x = _log(tmp_path, "x", [a.pub])
     a.attach("widerruf", {"ziel": o["netz_id"], "token": "falsch"}, o["netz_id"])
     b.ingest(a.read(a.pub, 1))
-    assert b.read(a.pub, 0)[0]["inhalt"]  # falscher Nachweis ändert nichts
+    assert b.read(a.pub, 0)[0]["inhalt"]  # a false proof changes nothing
     a2 = len(a.read(a.pub, 0))
     a.attach("widerruf", {"ziel": o["netz_id"], "token": "geheim"}, o["netz_id"])
     b.ingest(a.read(a.pub, a2))
     assert b.read(a.pub, 0)[0]["inhalt"] is None and b.status()["grabsteine"] == 1
-    # die Kette bleibt prüfbar, auch für jemanden, der erst danach dazukommt
+    # the chain stays verifiable, even for someone who joins only later
     assert x.ingest(b.read(a.pub, 0))["neu"] == 3
     assert x.read(a.pub, 0)[0]["inhalt"] is None
-    # kommt der Inhalt von einem Peer mit altem Stand, bleibt er weg
+    # if the content comes from a peer with an old state, it stays away
     x.ingest([{"kopf": a.read(a.pub, 0)[0]["kopf"], "inhalt": o}])
     assert x.read(a.pub, 0)[0]["inhalt"] is None
 
@@ -177,7 +177,7 @@ def test_quota(tmp_path, monkeypatch):
     for i in range(3):
         a.attach("adresse", {"adresse": f"https://x{i}.example"})
     r = b.ingest(a.read(a.pub, 0))
-    assert r["neu"] == 2 and "Tageskontingent" in r["gruende"][0]
+    assert r["neu"] == 2 and "daily quota" in r["gruende"][0]
 
 
 def _three(net):
@@ -198,7 +198,7 @@ def test_knowledge_travels_over_several_stations(net):
     for _ in range(3):
         a.run_round(), b.run_round(), c.run_round()
     assert c.mcp.texts() == [mem_object(1)["text"]]
-    assert a.mcp.texts() == [mem_object(2)["text"]]  # vom Peer hinter der Firewall, über b geschoben
+    assert a.mcp.texts() == [mem_object(2)["text"]]  # from the peer behind the firewall, pushed via b
     assert sorted(b.mcp.texts()) == sorted([mem_object(1)["text"], mem_object(2)["text"]])
 
 
@@ -255,11 +255,11 @@ def test_only_members_get_an_answer(net):
     assert _raw(a, "GET", f"/netz/log/{a_pub}?ab=0", {"Authorization": nd._sign(foreign, "GET", f"/netz/log/{a_pub}?ab=0", b"")}) == 403
     own = a.log.k
     assert _raw(a, "GET", f"/netz/log/{a_pub}?ab=0", {"Authorization": nd._sign(own, "GET", f"/netz/log/{a_pub}?ab=0", b"")}) == 200
-    assert _raw(a, "GET", f"/netz/log/{a_pub}?ab=5", {"Authorization": nd._sign(own, "GET", f"/netz/log/{a_pub}?ab=0", b"")}) == 401  # Signatur gilt nur für diesen Pfad
+    assert _raw(a, "GET", f"/netz/log/{a_pub}?ab=5", {"Authorization": nd._sign(own, "GET", f"/netz/log/{a_pub}?ab=0", b"")}) == 401  # the signature is valid only for this path
     value = nd._sign(own, "GET", "/netz/segmente/x", b"").split()
     value[2] = str(int(time.time()) - 900)
     value[3] = own.sign("\n".join(("GET", "/netz/segmente/x", value[2], hashlib.sha256(b"").hexdigest())).encode()).hex()
-    assert _raw(a, "GET", "/netz/segmente/x", {"Authorization": " ".join(value)}) == 401  # veraltet
+    assert _raw(a, "GET", "/netz/segmente/x", {"Authorization": " ".join(value)}) == 401  # outdated
 
 
 def test_peer_outage_and_fallback(net):
@@ -277,7 +277,7 @@ def test_memory_gone_does_not_stop_the_net(net):
     a.run_round()
     b.mcp.outage = True
     b.run_round()
-    assert b.log.headers()[a.log.pub] >= 3 and not b.mcp.receive  # getragen, noch nicht übergeben
+    assert b.log.headers()[a.log.pub] >= 3 and not b.mcp.receive  # carried, not yet handed over
     b.mcp.outage = False
     b.run_round()
     assert b.mcp.texts() == [mem_object(1)["text"]]
@@ -292,13 +292,13 @@ def test_only_believed_publishers_reach_memory(net):
     a.mcp.revocations.append({"netz_id": "e" * 32, "token": "x"})
     a.run_round()
     b.run_round()
-    assert b.mcp.texts() == [] and b.mcp.targets() == ["e" * 32]  # getragen, nicht geglaubt; das Vergessen gilt trotzdem
+    assert b.mcp.texts() == [] and b.mcp.targets() == ["e" * 32]  # carried, not believed; the forgetting applies anyway
 
 
 def test_http_to_foreign_host_is_forbidden(net):
     (sa, a_pub) = net.key_()
     a = net.build(sa, [a_pub], mode="peer")
-    with pytest.raises(ValueError, match="unverschlüsselt"):
+    with pytest.raises(ValueError, match="unencrypted"):
         a._request("http://peer.example", "GET", "/netz/gesund")
 
 
@@ -329,7 +329,7 @@ def test_reconcile_via_tls(net, tmp_path):
     b = net.build(sb, [a_pub], mode="peer", start=[a.k.address], ca_file=cert)
     b.run_round()
     assert b.mcp.texts() == [mem_object(1)["text"]]
-    c = net.build(sc, [a_pub], mode="peer", start=[a.k.address])  # ohne vertrauenswürdiges Zertifikat
+    c = net.build(sc, [a_pub], mode="peer", start=[a.k.address])  # without a trusted certificate
     c.run_round()
     assert c.log.headers() == {}
 
@@ -347,7 +347,7 @@ def test_torrent_fetches_large_backlogs(net, tmp_path):
     b.run_round()
     assert b.usage_stats["per_torrent"] >= 10 and b.log.headers()[a.log.pub] == a.log.headers()[a.log.pub]
     assert len(b.mcp.texts()) == 25
-    # ein vergessenes Objekt lässt das Segment verschwinden
+    # a forgotten object makes the segment disappear
     nid = mem_object(3)["netz_id"]
     a.mcp.mem_objects = [o for o in a.mcp.mem_objects if o["netz_id"] != nid]
     a.mcp.revocations.append({"netz_id": nid, "token": "t3"})
@@ -371,7 +371,7 @@ def test_address_behind_reverse_proxy():
 
 
 def test_reconcile_via_path_prefix(net):
-    """Wie hinter nginx: der Peer erreicht den Dienst unter /vi-p2p, der Dienst sieht /netz/…"""
+    """As behind nginx: the peer reaches the service at /vi-p2p, the service sees /netz/…"""
     import threading
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     (sa, a_pub), (sb, b_pub) = net.key_(), net.key_()

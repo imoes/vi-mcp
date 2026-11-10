@@ -82,7 +82,7 @@ Seit 0.22.0 sind Werkzeuge, Parameter und feste Werte englisch. Die vorher genut
 - **Lernen.** Aus den Noten lernt der Router (logistische Regression, Gewichte als lesbares JSON), welcher Hinweis wann hilft. Trainiert wird bei Bedarf, etwa eine Minute nach neuen Erfahrungen (ein Lauf dauert unter einer Sekunde), nicht erst nachts.
 - **Reflexe und Skills.** Bewährte Lösungswege werden zu Skills, kleine Prüfungen laufen als Code in einer Sandbox (Landlock, seccomp).
 
-Tiefer: [Architektur](docs/ARCHITEKTUR.md) · [Betrieb](docs/BETRIEB.md) · [Hook](docs/HOOK.md) · [Forschung](docs/FORSCHUNG.md) · [Training](docs/TRAINING.md)
+Tiefer (englisch): [Architektur](docs/ARCHITECTURE.md) · [Betrieb](docs/OPERATIONS.md) · [Hook](docs/HOOK.md) · deutsch: [Forschung](docs/FORSCHUNG.md) · [Training](docs/TRAINING.md)
 
 ## Installieren
 

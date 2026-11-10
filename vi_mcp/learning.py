@@ -1,19 +1,19 @@
-"""Lernen — der Router lernt aus dem Hinweis-Lift, statt dass wir seine Gewichte setzen (docs/TRAINING.md 4a/4b).
+"""Learning — the router learns from the hint lift instead of us setting its weights (docs/TRAINING.md 4a/4b).
 
-Beobachtung = eine gemeldete Handlung mit Label `ok` (0/1); Merkmale = Reize der Handlung (tool, skill, host, thema,
-Tageszeit) × gezeigte Hinweise (`hinweis:<id>`, `hinweisart:<art>`, `hinweis_n`). Daraus lernt eine **logistische
-Regression** P(ok | Reize, Hinweis) — das Gewicht je Merkmal ist direkt lesbar (zureichender Grund). Der Router ordnet
-Kandidaten dann nach erwartetem **Lift** = P(ok | Reize, Hinweis) − P(ok | Reize), statt nach Aktualität + Wichtigkeit.
+Observation = a reported action with label `ok` (0/1); features = triggers of the action (tool, skill, host, thema,
+time of day) × shown hints (`hinweis:<id>`, `hinweisart:<art>`, `hinweis_n`). From this a **logistic regression**
+learns P(ok | triggers, hint) — the weight per feature is directly readable (sufficient reason). The router then orders
+candidates by expected **lift** = P(ok | triggers, hint) − P(ok | triggers) instead of recency + importance.
 
-Trainiert wird im Schlaf mit scikit-learn (Debian: Depends python3-sklearn; fehlt es in einer Entwicklungsumgebung,
-wird der Schritt benannt übersprungen); die Gewichte stehen als JSON im Objekt `modell:router` — Vorhersage braucht
-kein sklearn (reine Sigmoid-Summe), damit die Gewichte für jeden nachlesbar bleiben.
+Training runs during sleep with scikit-learn (Debian: Depends python3-sklearn; if it is missing in a development environment,
+the step is skipped with a named reason); the weights are stored as JSON in the object `modell:router` — prediction needs
+no sklearn (plain sigmoid sum), so the weights stay readable for everyone.
 
-Mindestmengen (Peduzzi et al. 1996: ≥ 10 Ereignisse je Merkmal; Harrell): Merkmale mit < MIN_JE_MERKMAL Vorkommen
-fallen weg; ist danach min(ok, nicht ok) < MIN_EREIGNISSE oder die Holdout-AUC ≤ AUC_MIN, bleibt das Modell im Modus
-`test` (gespeichert, gezeigt, nicht benutzt) — der Router bleibt dann Heuristik. Das steht im Modellobjekt.
-Rückkopplung (Labels nur für Gezeigtes): jede Beobachtung hält `kandidaten`, `gezeigt`, `router`, `exploration`;
-ein Anteil EPSILON der Handlungen bekommt einen zufälligen Kandidaten als Erkundung (markiert).
+Minimum amounts (Peduzzi et al. 1996: ≥ 10 events per feature; Harrell): features with < MIN_PER_FEATURE occurrences
+are dropped; if min(ok, not ok) < MIN_EVENTS afterwards or the holdout AUC ≤ AUC_MIN, the model stays in mode
+`test` (saved, shown, not used) — the router then stays heuristic. This is recorded in the model object.
+Feedback loop (labels only for what was shown): each observation keeps `kandidaten`, `gezeigt`, `router`, `exploration`;
+a share EPSILON of actions gets a random candidate as exploration (marked).
 """
 from __future__ import annotations
 
@@ -27,17 +27,17 @@ MODEL = "modell:router"
 MIN_PER_FEATURE = 10
 MIN_EVENTS = 50
 AUC_MIN = 0.6
-#: 0.20.8: Warnung vor riskanten Handlungen. Die Schwelle legt das Training im Holdout fest: gewarnt wird nur, wo dort mindestens
-#: WARN_PRAEZISION der so eingestuften Handlungen tatsächlich scheiterte, bei mindestens WARN_MIN_N Fällen. Die Wahrscheinlichkeiten
-#: des Modells sind wegen class_weight="balanced" nicht kalibriert — deshalb nennt die Warnung gezählte Quoten, nicht P(ok).
+#: 0.20.8: Warning before risky actions. Training sets the threshold on the holdout: a warning is given only where at least
+#: WARN_PRECISION of the actions classified that way actually failed there, with at least WARN_MIN_N cases. The model's probabilities
+#: are not calibrated because of class_weight="balanced" — so the warning names counted rates, not P(ok).
 WARN_PRECISION = 0.5
 WARN_MIN_N = 10
 EPSILON = 0.1
-#: Bedeutungsnähe und Inhaltsgruppe als Merkmale (inhalt.py). Abschaltbar, um den Unterschied zu messen.
+#: Semantic proximity and content group as features (content.py). Can be switched off to measure the difference.
 CONTENT = True
 HOLDOUT = 0.2
-#: 0.20.9: Das Holdout (zeitlich jüngster Teil) wächst bis HOLDOUT_MAX, bis es mindestens so viele Fehlschläge enthält. Am 09.11. fiel die
-#: Holdout-AUC von 0,92 auf 0,70, als die jüngsten 20 % fast nur aus gelungenen Bash-Aufrufen bestanden (9 Fehlschläge in 230 Handlungen).
+#: 0.20.9: The holdout (most recent part in time) grows up to HOLDOUT_MAX until it contains at least this many failures. On 09.11. the
+#: holdout AUC fell from 0.92 to 0.70 when the most recent 20 % consisted almost only of successful Bash calls (9 failures in 230 actions).
 HOLDOUT_MAX = 0.5
 HOLDOUT_MIN_ERRORS = 30
 TRIGGER_KINDS = ("tool:", "skill:", "host:", "thema:")
@@ -61,8 +61,8 @@ def hint_features(hid: str, triggers: list[str] | None = None) -> dict:
 
 
 def observations(since: str | None = None) -> list[tuple[dict, int, str]]:
-    """(Merkmale, ok, erfahrung_id) je gemeldeter Handlung mit Label; aus dem Gedächtnis beantwortete fallen weg.
-    Ein Beispiel je gezeigtem Hinweis (Paar) plus eines ohne Hinweis-Merkmale (Basis) — so lernt das Modell beides."""
+    """(features, ok, experience_id) per reported action with a label; actions answered from memory are dropped.
+    One example per shown hint (pair) plus one without hint features (base) — so the model learns both."""
     outputs = []
     with g.lock:
         rows = g.db().execute("SELECT id, zeit, daten, gespraech FROM objekt WHERE art = 'erfahrung' AND modus = 'aktiv'" + (" AND zeit >= ?" if since else "") + " ORDER BY zeit",
@@ -78,7 +78,7 @@ def observations(since: str | None = None) -> list[tuple[dict, int, str]]:
         v = d.get("vorher") or {}
         if v.get("aus_gedaechtnis"):
             continue
-        s = d.get("score")  # Label: Urteil des Scorers, sonst „Werkzeug ohne Fehler“; eine schlechte Gesprächsnote gilt für alle Handlungen
+        s = d.get("score")  # label: the scorer's verdict, else "tool without error"; a bad conversation grade applies to all actions
         y = (1 if s["note"] >= scorer.GOOD_FROM else 0) if s else (1 if oid in ok_yes else 0)
         if serial in grades and grades[serial] < scorer.BAD_BELOW:
             y = 0
@@ -87,7 +87,7 @@ def observations(since: str | None = None) -> list[tuple[dict, int, str]]:
         base[f"hinweis_n:{min(4, len(shown))}"] = 1.0
         if not shown:
             outputs.append((base, y, oid))
-        rm = d.get("rueckmeldung") or {}  # 0.20.9: direkte Rückmeldung (vi_confirm/vi_refute) ersetzt das indirekte Label des Paares
+        rm = d.get("rueckmeldung") or {}  # 0.20.9: direct feedback (vi_confirm/vi_refute) replaces the pair's indirect label
         for h in shown:
             outputs.append(({**base, **hint_features(h, v.get("reize", []))}, (1 if rm[h] > 0 else 0) if h in rm else y, oid))
     return outputs
@@ -102,13 +102,13 @@ def model() -> g.MemoryObject | None:
 
 
 def prediction(m: g.MemoryObject, features: dict) -> float:
-    """P(ok | Merkmale) aus den gespeicherten Gewichten — reine Standardbibliothek."""
+    """P(ok | features) from the stored weights — standard library only."""
     w = m.data["gewichte"]
     return _sigmoid(m.data["achsenabschnitt"] + sum(w.get(k, 0.0) * v for k, v in features.items()))
 
 
 def ranking(m: g.MemoryObject, triggers: list[str], candidates: list[str], ts: str | None = None) -> list[tuple[str, float]]:
-    """Kandidaten nach erwartetem Lift (absteigend). Unbekannte Hinweise haben Lift 0 (nur ihre Art zählt)."""
+    """Candidates by expected lift (descending). Unknown hints have lift 0 (only their kind counts)."""
     base = action_features(triggers, ts or g.now())
     with_hint = {**base, "hinweis_n:1": 1.0}
     p0 = prediction(m, {**base, "hinweis_n:0": 1.0})
@@ -120,8 +120,8 @@ def active() -> g.MemoryObject | None:
     return m if m and m.mode == "aktiv" else None
 
 
-def train(reason: str = "Schlaf") -> dict:
-    """Mit scikit-learn trainieren, Gewichte als JSON speichern. Liefert den Bericht (auch bei Verzicht, benannt)."""
+def train(reason: str = "sleep") -> dict:
+    """Train with scikit-learn, store weights as JSON. Returns the report (also when skipping, with a named reason)."""
     try:
         import numpy as np
         from sklearn import __version__ as skv
@@ -129,10 +129,10 @@ def train(reason: str = "Schlaf") -> dict:
         from sklearn.linear_model import LogisticRegression
         from sklearn.metrics import roc_auc_score
     except ImportError as e:
-        return {"zustand": "uebersprungen", "grund": f"scikit-learn fehlt ({e.name}) — python3-sklearn installieren"}
+        return {"zustand": "uebersprungen", "grund": f"scikit-learn missing ({e.name}) — install python3-sklearn"}
     obs = observations()
     if not obs:
-        return {"zustand": "zu_wenig_daten", "grund": "keine Beobachtungen mit Label", "n": 0}
+        return {"zustand": "zu_wenig_daten", "grund": "no labeled observations", "n": 0}
     tally: dict[str, int] = {}
     for m, _y, _o in obs:
         for k in m:
@@ -144,10 +144,10 @@ def train(reason: str = "Schlaf") -> dict:
     report = {"n": len(obs), "ok": n_pos, "nicht_ok": n_neg, "merkmale": len(kept), "verworfen": len(tally) - len(kept),
                "sklearn": skv, "trainiert": g.now(), "grund": reason}
     if min(n_pos, n_neg) < MIN_EVENTS or not kept:
-        report.update(zustand="zu_wenig_daten", urteil=f"min(ok, nicht ok) = {min(n_pos, n_neg)} < {MIN_EVENTS} oder keine Merkmale ≥ {MIN_PER_FEATURE}")
+        report.update(zustand="zu_wenig_daten", urteil=f"min(ok, not ok) = {min(n_pos, n_neg)} < {MIN_EVENTS} or no features ≥ {MIN_PER_FEATURE}")
         _save(report, {}, 0.0, "test")
         return report
-    # zeitliche Teilung: Älteres lernt, Neueres prüft (kein Blick in die Zukunft)
+    # split by time: older data trains, newer data tests (no look into the future)
     n_test = _holdout_size([yy for _m, yy, _o in obs])
     vec = DictVectorizer(sparse=True)
     X = vec.fit_transform(X_d)
@@ -159,21 +159,21 @@ def train(reason: str = "Schlaf") -> dict:
     report.update(auc_holdout=None if auc is None else round(auc, 3), holdout=n_test, holdout_fehler=int(len(yte) - yte.sum()),
                    rueckmeldungen=sum(len((json.loads(r[0]) or {}).get("rueckmeldung") or {}) for r in _feedbacks()))
     if auc is None or auc <= AUC_MIN:
-        report.update(zustand="test", urteil=f"Holdout-AUC {auc} ≤ {AUC_MIN} oder nicht bestimmbar — Modell gespeichert, Router bleibt Heuristik")
+        report.update(zustand="test", urteil=f"holdout AUC {auc} ≤ {AUC_MIN} or not determinable — model saved, router stays heuristic")
         mode = "test"
     else:
-        report.update(zustand="aktiv", urteil=f"Holdout-AUC {auc:.3f} > {AUC_MIN} — Router nutzt das Modell")
+        report.update(zustand="aktiv", urteil=f"holdout AUC {auc:.3f} > {AUC_MIN} — router uses the model")
         mode = "aktiv"
-    report["warnung"] = _warn_threshold(clf, vec, obs[-n_test:]) if mode == "aktiv" else {"zustand": "aus", "grund": "Modell nicht aktiv"}
+    report["warnung"] = _warn_threshold(clf, vec, obs[-n_test:]) if mode == "aktiv" else {"zustand": "aus", "grund": "model not active"}
     report["quoten"] = _ratios(obs, kept)
     _save(report, weights, float(clf.intercept_[0]), mode)
-    log(f"Lernen: {report['zustand']} — n {len(obs)}, Merkmale {len(kept)}, AUC {report.get('auc_holdout')}, "
-        f"Warnung {report['warnung'].get('zustand')}")
+    log(f"Learning: {report['zustand']} — n {len(obs)}, features {len(kept)}, AUC {report.get('auc_holdout')}, "
+        f"warning {report['warnung'].get('zustand')}")
     return report
 
 
 def _holdout_size(y: list[int]) -> int:
-    """Jüngster Teil der Daten als Holdout: HOLDOUT, vergrößert in 5-%-Schritten bis HOLDOUT_MAX, bis er HOLDOUT_MIN_FEHLER Fehlschläge hat."""
+    """Most recent part of the data as holdout: HOLDOUT, grown in 5 % steps up to HOLDOUT_MAX until it has HOLDOUT_MIN_ERRORS failures."""
     n = len(y)
     share = HOLDOUT
     while share < HOLDOUT_MAX and (len(y[-max(1, int(n * share)):]) - sum(y[-max(1, int(n * share)):])) < HOLDOUT_MIN_ERRORS:
@@ -187,7 +187,7 @@ def _feedbacks() -> list:
 
 
 def _base(m: dict) -> dict:
-    """Nur die Lage der Handlung (ohne Hinweise) — so, wie vi_before sie vor dem Zeigen kennt."""
+    """Only the situation of the action (without hints) — as vi_before knows it before showing anything."""
     return {**{k: v for k, v in m.items() if k.startswith(TRIGGER_KINDS + ("stunde:",))}, "hinweis_n:0": 1.0}
 
 
@@ -201,7 +201,7 @@ def _per_experience(obs: list) -> list[tuple[dict, int]]:
 
 
 def _ratios(obs: list, kept: set) -> dict:
-    """[Handlungen, gescheitert] je Situationsmerkmal, je Erfahrung einmal gezählt; „_gesamt“ für alle."""
+    """[actions, failed] per situation feature, counted once per experience; "_gesamt" for all."""
     q: dict[str, list[int]] = {"_gesamt": [0, 0]}
     for b, y in _per_experience(obs):
         for k in ["_gesamt"] + [k for k in b if k in kept and k.startswith(TRIGGER_KINDS)]:
@@ -212,10 +212,10 @@ def _ratios(obs: list, kept: set) -> dict:
 
 
 def _warn_threshold(clf, vec, holdout: list) -> dict:
-    """Größte Schwelle t, bei der im Holdout von den Handlungen mit P(ok) ≤ t mindestens WARN_PRAEZISION scheiterten (≥ WARN_MIN_N Fälle)."""
+    """Largest threshold t at which at least WARN_PRECISION of the holdout actions with P(ok) ≤ t failed (≥ WARN_MIN_N cases)."""
     cases = _per_experience(holdout)
     if not cases:
-        return {"zustand": "aus", "grund": "kein Holdout"}
+        return {"zustand": "aus", "grund": "no holdout"}
     p = clf.predict_proba(vec.transform([b for b, _y in cases]))[:, 1]
     pairs = sorted(zip(p.tolist(), [y for _b, y in cases]))
     failed_total = sum(1 - y for _p, y in pairs)
@@ -225,13 +225,13 @@ def _warn_threshold(clf, vec, holdout: list) -> dict:
         if n >= WARN_MIN_N and f / n >= WARN_PRECISION and (i + 1 == len(pairs) or pairs[i + 1][0] > pp):
             best = {"schwelle": round(pp, 4), "gewarnt": n, "scheiterten": f}
     if not best:
-        return {"zustand": "aus", "grund": f"keine Schwelle mit ≥ {WARN_MIN_N} Fällen und ≥ {int(WARN_PRECISION * 100)} % gescheitert im Holdout"}
+        return {"zustand": "aus", "grund": f"no threshold with ≥ {WARN_MIN_N} cases and ≥ {int(WARN_PRECISION * 100)} % failed in the holdout"}
     return {"zustand": "aktiv", **best, "praezision_pct": round(100 * best["scheiterten"] / best["gewarnt"]),
             "abdeckung_pct": round(100 * best["scheiterten"] / failed_total) if failed_total else 0, "holdout_handlungen": len(pairs)}
 
 
 def warning(triggers: list[str], ts: str | None = None) -> str | None:
-    """Warnung vor einer riskanten Handlung — nur bei aktivem Modell und aktiver Schwelle, nur mit benennbarem Grund (gezählte Quote)."""
+    """Warning before a risky action — only with an active model and active threshold, only with a nameable reason (counted rate)."""
     m = active()
     w = (m.data.get("warnung") or {}) if m else {}
     if w.get("zustand") != "aktiv":
@@ -244,44 +244,44 @@ def warning(triggers: list[str], ts: str | None = None) -> str | None:
     rate_total = tot[1] / max(1, tot[0])
     reasons = sorted((k for k in base if gw.get(k, 0.0) < 0 and k in q and q[k][1] / max(1, q[k][0]) > rate_total), key=lambda k: gw[k])[:3]
     if not reasons:
-        return None  # ohne benennbaren Grund keine Warnung
-    parts = "; ".join(f"{k}: {q[k][1]} von {q[k][0]} Handlungen scheiterten ({round(100 * q[k][1] / q[k][0])} %)" for k in reasons)
-    return (f"[VI-Warnung] Handlungen wie diese scheitern oft — {parts}; insgesamt {round(100 * rate_total)} %. Im Test scheiterten "
-            f"{w['scheiterten']} von {w['gewarnt']} so eingestuften Handlungen ({w['praezision_pct']} %). Vorher Argumente, Pfade und Erreichbarkeit prüfen.")
+        return None  # no nameable reason, no warning
+    parts = "; ".join(f"{k}: {q[k][1]} of {q[k][0]} actions failed ({round(100 * q[k][1] / q[k][0])} %)" for k in reasons)
+    return (f"[VI warning] Actions like this one often fail — {parts}; overall {round(100 * rate_total)} %. In the test, "
+            f"{w['scheiterten']} of {w['gewarnt']} actions classified this way failed ({w['praezision_pct']} %). Check arguments, paths and reachability first.")
 
 
 def _save(report: dict, weights: dict, intercept: float, mode: str) -> g.MemoryObject:
     m = g.load(MODEL)
     data = {**report, "gewichte": weights, "achsenabschnitt": round(intercept, 4)}
-    text = (f"Router-Modell ({report.get('zustand')}): {report.get('n', 0)} Beobachtungen, {report.get('merkmale', 0)} Merkmale, "
+    text = (f"Router model ({report.get('zustand')}): {report.get('n', 0)} observations, {report.get('merkmale', 0)} features, "
             f"AUC {report.get('auc_holdout', '—')} — {report.get('urteil', report.get('grund', ''))}")
     if m is None:
         return g.new_object("modell", text, ["modell:router"], data, importance=2, who="vi", oid=MODEL,
-                              mode=mode, reason=report.get("grund", "Lernen"), instance=g.SERVER_INSTANCE)
+                              mode=mode, reason=report.get("grund", "learning"), instance=g.SERVER_INSTANCE)
     m.text, m.data, m.mode = text, {**data, "versionen": m.data.get("versionen", 0) + 1}, mode
-    m.change("vi", f"neu trainiert → {mode}", report.get("grund", "Lernen"))
+    m.change("vi", f"retrained → {mode}", report.get("grund", "learning"))
     return g.save(m)
 
 
 def explanation(limit: int = 12) -> str:
     m = model()
     if not m:
-        return "noch kein Router-Modell — entsteht im Schlaf, sobald genug Beobachtungen vorliegen (Router: Heuristik)"
+        return "no router model yet — it is created during sleep once there are enough observations (router: heuristic)"
     d = m.data
-    z = [m.text, f"  trainiert {str(d.get('trainiert', '—'))[:16]} · sklearn {d.get('sklearn', '—')} · ok {d.get('ok', 0)} / nicht ok {d.get('nicht_ok', 0)} "
-                 f"· Merkmale {d.get('merkmale', 0)} (verworfen {d.get('verworfen', 0)}: < {MIN_PER_FEATURE} Vorkommen) · Holdout {d.get('holdout', 0)} "
-                 f"({d.get('holdout_fehler', '—')} Fehlschläge) · direkte Rückmeldungen zu Hinweisen {d.get('rueckmeldungen', 0)}"]
+    z = [m.text, f"  trained {str(d.get('trainiert', '—'))[:16]} · sklearn {d.get('sklearn', '—')} · ok {d.get('ok', 0)} / not ok {d.get('nicht_ok', 0)} "
+                 f"· features {d.get('merkmale', 0)} (dropped {d.get('verworfen', 0)}: < {MIN_PER_FEATURE} occurrences) · holdout {d.get('holdout', 0)} "
+                 f"({d.get('holdout_fehler', '—')} failures) · direct feedback on hints {d.get('rueckmeldungen', 0)}"]
     w = sorted(d.get("gewichte", {}).items(), key=lambda kv: -abs(kv[1]))[:limit]
     if w:
-        z.append("  stärkste Gewichte (positiv = erhöht P(ok)):")
+        z.append("  strongest weights (positive = raises P(ok)):")
         from . import content
         z += [f"    {k:50} {v:+.3f}" + (f"  ({content.group_name(int(k[7:]))})" if k.startswith("inhalt:") and k[7:].isdigit() else "")
-              + ("  (Bedeutungsnähe Hinweis ↔ Situation, 0–1)" if k == "naehe" else "") for k, v in w]
+              + ("  (semantic proximity hint ↔ situation, 0–1)" if k == "naehe" else "") for k, v in w]
     w = d.get("warnung") or {}
-    z.append("  Warnung vor riskanten Handlungen: " + (f"aktiv — Schwelle P ≤ {w['schwelle']}, im Holdout scheiterten {w['scheiterten']} von "
-             f"{w['gewarnt']} gewarnten ({w['praezision_pct']} %), erfasst {w['abdeckung_pct']} % aller Fehlschläge"
-             if w.get("zustand") == "aktiv" else f"aus — {w.get('grund', 'noch nicht trainiert')}"))
+    z.append("  Warning before risky actions: " + (f"active — threshold P ≤ {w['schwelle']}, in the holdout {w['scheiterten']} of "
+             f"{w['gewarnt']} warned actions failed ({w['praezision_pct']} %), covers {w['abdeckung_pct']} % of all failures"
+             if w.get("zustand") == "aktiv" else f"off — {w.get('grund', 'not trained yet')}"))
     if CONTENT:
         from . import content
-        z.append(f"  Inhalt: {content.line()}")
+        z.append(f"  Content: {content.line()}")
     return "\n".join(z)

@@ -1,13 +1,13 @@
-"""Sitzungen und Gespräche — die Zeitscheibe.
+"""Sessions and conversations — the time slice.
 
-Ein Serverprozess, viele Clients. Jede MCP-Sitzung (Header `Mcp-Session-Id`, vergeben bei `initialize`) ist ein
-Gespräch mit Seriennummer YYYYMMDDNNN: eigener Kontext (Verlauf der Züge), getaggt, komprimiert gespeichert
-(zlib in `gespraech_roh`), volltextdurchsuchbar über das Gesprächsobjekt.
+One server process, many clients. Every MCP session (header `Mcp-Session-Id`, assigned at `initialize`) is a
+conversation with serial number YYYYMMDDNNN: its own context (history of turns), tagged, stored compressed
+(zlib in `gespraech_roh`), full-text searchable via the conversation object.
 
-Zustände einer Sitzung (erschöpfend): `offen` (Anfragen kommen), `beendet` (Client hat DELETE gesendet),
-`abgelaufen` (länger als `LEERLAUF_S` ohne Anfrage), `unterbrochen` (Server wurde beendet, während sie offen
-war). Alles außer `offen` wird gesichert und aus dem Speicher genommen; eine Anfrage mit ihrer Id bekommt 404
-(Client muss neu initialisieren, MCP-Spec).
+States of a session (exhaustive): `offen` (requests arrive), `beendet` (client sent DELETE),
+`abgelaufen` (longer than `IDLE_S` without a request), `unterbrochen` (server was stopped while it was
+open). Everything except `offen` is saved and removed from memory; a request with its id gets 404
+(client must re-initialize, MCP spec).
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ class Session:
     lock: threading.Lock = field(default_factory=threading.Lock)
     secured_until: int = 0
     actions: int = 0
-    signals: list = field(default_factory=list)  # Korrekturen und Noten des Nutzers, ohne seinen Text
+    signals: list = field(default_factory=list)  # the user's corrections and grades, without their text
 
     def turn(self, z: dict) -> None:
         with self.lock:
@@ -57,7 +57,7 @@ def current() -> Session | None:
 
 @contextlib.contextmanager
 def on_behalf(s: Session | None):
-    """Für die Dauer einer Anfrage: Objekte gehören zu diesem Gespräch, Züge landen in seinem Verlauf."""
+    """For the duration of a request: objects belong to this conversation, turns go into its history."""
     t1 = _current.set(s)
     t2 = g.current_conversation.set(s.serial if s else None)
     t3 = g.current_instance.set(s.instance if s else None)
@@ -70,7 +70,7 @@ def on_behalf(s: Session | None):
 
 
 def new_serial() -> str:
-    """Höchste Nummer des Tages + 1, numerisch verglichen (auch über 999 hinaus), mit INSERT als Sperre."""
+    """Highest number of the day + 1, compared numerically (also beyond 999), with INSERT as the lock."""
     tag = datetime.now(timezone.utc).strftime("%Y%m%d")
     prefix = f"gespraech:{tag}"
     for _ in range(50):
@@ -86,16 +86,16 @@ def new_serial() -> str:
             except sqlite3.IntegrityError:
                 g.db().rollback()
                 continue
-    raise RuntimeError("keine freie Gesprächs-Seriennummer nach 50 Versuchen")
+    raise RuntimeError("no free conversation serial number after 50 attempts")
 
 
 def begin(instance: str, client: str) -> Session:
     serial = new_serial()
     tag = serial[:8]
-    g.new_object("gespraech", f"Gespräch {serial} begonnen ({client}, Instanz {instance})",
+    g.new_object("gespraech", f"Conversation {serial} started ({client}, instance {instance})",
                    [f"serial:{serial}", f"tag:{tag}"],
                    {"serial": serial, "aufrufe": 0, "client": client},
-                   oid=f"gespraech:{serial}", reason="Sitzung gestartet", conversation=serial, instance=instance)
+                   oid=f"gespraech:{serial}", reason="session started", conversation=serial, instance=instance)
     s = Session(id=secrets.token_urlsafe(24), serial=serial, instance=instance, client=client)
     with _reg_lock:
         _sessions[s.id] = s
@@ -118,7 +118,7 @@ def open_items() -> list[Session]:
 
 
 def persist(s: Session, state: str = "offen") -> None:
-    """Zusammenfassung + Hashtags ans Gesprächsobjekt, Rohverlauf komprimiert daneben. Idempotent."""
+    """Summary + hashtags on the conversation object, raw history compressed next to it. Idempotent."""
     with s.lock:
         turns = list(s.turns)
     o = g.load(f"gespraech:{s.serial}")
@@ -132,9 +132,9 @@ def persist(s: Session, state: str = "offen") -> None:
         hosts |= {t[5:] for t in z.get("vorher", {}).get("reize", []) if t.startswith("host:")}
         error += 1 if z["ok"] is False else 0
         without_result += 1 if z["ok"] is None else 0
-    o.text = (f"Gespräch {s.serial} ({s.client}, Instanz {s.instance}, {state}): {len(turns)} Aufrufe, {error} Fehler"
-              + (f", {without_result} ohne gemeldetes Ergebnis" if without_result else "")
-              + (" · Werkzeuge: " + ", ".join(f"{k} ({v})" for k, v in sorted(tools.items(), key=lambda kv: -kv[1])[:12]) if tools else "")
+    o.text = (f"Conversation {s.serial} ({s.client}, instance {s.instance}, {state}): {len(turns)} calls, {error} errors"
+              + (f", {without_result} without reported result" if without_result else "")
+              + (" · Tools: " + ", ".join(f"{k} ({v})" for k, v in sorted(tools.items(), key=lambda kv: -kv[1])[:12]) if tools else "")
               + (f" · Hosts: {', '.join(sorted(hosts)[:12])}" if hosts else ""))
     o.data = {**o.data, "aufrufe": len(turns), "fehler": error, "ohne_ergebnis": without_result, "signale": list(s.signals), "werkzeuge": tools, "zustand": state,
                "gesichert": g.now()}
@@ -151,7 +151,7 @@ def persist(s: Session, state: str = "offen") -> None:
 
 
 def finish(session_id: str, state: str = "beendet") -> bool:
-    from . import intuition  # spät: intuition importiert sitzung
+    from . import intuition  # late: intuition imports session
     with _reg_lock:
         s = _sessions.pop(session_id, None)
     if not s:
@@ -163,7 +163,7 @@ def finish(session_id: str, state: str = "beendet") -> bool:
 
 
 def tidy_up(idle_s: float = IDLE_S) -> list[str]:
-    """Sitzungen ohne Anfrage seit `leerlauf_s` → `abgelaufen` (gesichert, aus dem Speicher). Liefert ihre Serials."""
+    """Sessions without a request since `idle_s` → `abgelaufen` (saved, removed from memory). Returns their serials."""
     bound = time.monotonic() - idle_s
     with _reg_lock:
         old = [s.id for s in _sessions.values() if s.last_at < bound]
@@ -181,21 +181,21 @@ def find_without_touching(session_id: str) -> Session | None:
 
 
 def delete_conversation(serial: str, instance: str, reason: str) -> dict:
-    """Privaten Inhalt eines Gesprächs löschen: Erfahrungen, gemerkte Antworten, Rohverlauf, deren Kanten.
-    Das Gesprächsobjekt bleibt als **Grabstein** (Zustand `geloescht`, mit Zeit, Urheber, Grund, Anzahl) — nichts
-    verschwindet still. Geteiltes Wissen aus dem Gespräch (Erkenntnisse, Suchen, Regeln) bleibt: es ist Wissen, kein
-    Verlauf. Nur die Urheber-Instanz darf löschen; offene Gespräche nicht (erst beenden)."""
+    """Delete the private content of a conversation: experiences, remembered answers, raw history, their edges.
+    The conversation object stays as a **tombstone** (state `geloescht`, with time, author, reason, count) — nothing
+    vanishes silently. Shared knowledge from the conversation (insights, searches, rules) stays: it is knowledge, not
+    history. Only the author instance may delete; open conversations cannot be deleted (end them first)."""
     if not (reason or "").strip():
-        raise ValueError("Grund ist Pflicht")
+        raise ValueError("reason is required")
     o = g.load(f"gespraech:{serial}")
     if not o:
-        raise ValueError(f"Gespräch {serial} unbekannt")
+        raise ValueError(f"conversation {serial} unknown")
     if o.instance != instance:
-        raise ValueError(f"Gespräch {serial} gehört Instanz {o.instance}, nicht {instance}")
+        raise ValueError(f"conversation {serial} belongs to instance {o.instance}, not {instance}")
     if any(s.serial == serial for s in open_items()):
-        raise ValueError(f"Gespräch {serial} ist noch offen — erst beenden (DELETE)")
+        raise ValueError(f"conversation {serial} is still open — end it first (DELETE)")
     if o.data.get("zustand") == "geloescht":
-        raise ValueError(f"Gespräch {serial} ist bereits gelöscht ({o.data['geloescht']['zeit']})")
+        raise ValueError(f"conversation {serial} is already deleted ({o.data['geloescht']['zeit']})")
     with g.lock:
         ids = [r[0] for r in g.db().execute("SELECT id FROM objekt WHERE gespraech = ? AND sicht = 'privat'", (serial,))]
         g.db().execute("DELETE FROM gespraech_roh WHERE serial = ?", (serial,))
@@ -203,24 +203,24 @@ def delete_conversation(serial: str, instance: str, reason: str) -> dict:
     from . import archive
     archive.delete_raw(serial)
     g.delete(ids)
-    o.text = f"Gespräch {serial} ({o.data.get('client', '?')}, Instanz {o.instance}): Inhalt gelöscht am {g.now()[:16]} — {reason.strip()[:200]}"
+    o.text = f"Conversation {serial} ({o.data.get('client', '?')}, instance {o.instance}): content deleted on {g.now()[:16]} — {reason.strip()[:200]}"
     o.data = {"serial": serial, "client": o.data.get("client"), "zustand": "geloescht",
                "geloescht": {"zeit": g.now(), "wer": f"ki@{instance}", "grund": reason.strip()[:300], "objekte": len(ids)}}
     o.hashtags = [t for t in o.hashtags if t.startswith(("serial:", "tag:"))] + ["zustand:geloescht"]
-    o.change(f"ki@{instance}", "gelöscht", reason)
+    o.change(f"ki@{instance}", "deleted", reason)
     g.save(o)
     return {"serial": serial, "objekte": len(ids)}
 
 
 def delete_instance_data(instance: str, reason: str) -> dict:
-    """Admin (CLI, nicht per MCP): alle privaten Daten einer Instanz — jedes ihrer Gespräche bekommt einen Grabstein."""
+    """Admin (CLI, not via MCP): all private data of an instance — each of its conversations gets a tombstone."""
     with g.lock:
         serials = [r[0][len("gespraech:"):] for r in g.db().execute(
             "SELECT id FROM objekt WHERE art = 'gespraech' AND instanz = ? AND json_extract(daten, '$.zustand') <> 'geloescht'", (instance,))]
     n = 0
     for s in serials:
         n += delete_conversation(s, instance, reason)["objekte"]
-    with g.lock:  # private Objekte ohne Gespräch (z. B. aus Tests ohne Sitzung)
+    with g.lock:  # private objects without a conversation (e.g. from tests without a session)
         rest = [r[0] for r in g.db().execute("SELECT id FROM objekt WHERE instanz = ? AND sicht = 'privat'", (instance,))]
     n += g.delete(rest)
     return {"gespraeche": len(serials), "objekte": n}

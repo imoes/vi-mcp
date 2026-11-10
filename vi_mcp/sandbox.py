@@ -1,20 +1,20 @@
-"""Sandbox — Reflex-Code läuft in einem eigenen Prozess, nie im Server.
+"""Sandbox — reflex code runs in its own process, never in the server.
 
-Erste Schranke bleibt die AST-Whitelist (reflexe.pruefe). Die Sandbox ist die zweite und setzt voraus, dass die erste
-versagt hat. Der Kindprozess (`python3 -I -S`, leere Umgebung, cwd /) begrenzt sich selbst, bevor er fremden Code
-übersetzt — unumkehrbar:
-  Ressourcen  RLIMIT_CPU, RLIMIT_AS, RLIMIT_NOFILE, RLIMIT_FSIZE 0; Wanduhr und Ausgabelimit erzwingt der Server (Kill)
-  Dateien     Landlock: gelesen werden darf nur /usr, /lib, /lib64, /bin (Standardbibliothek); nichts ist schreibbar,
-              nichts kürzbar — auch nicht vi.db, obwohl der Prozess unter demselben Nutzer läuft wie der Server
-  Netz        Landlock sperrt TCP bind/connect; seccomp sperrt socket() überhaupt (damit auch UDP und Unix-Sockets)
-  Prozesse    seccomp sperrt execve, fork, clone, ptrace
-Fehlt ein Baustein (Kernel ohne Landlock ABI ≥ 4, andere Architektur als x86_64), läuft der Code NICHT: Ergebnis
-`isolation: "keine"` mit Grund. Es gibt keinen stillen Rückfall auf weniger Schutz.
+The first barrier remains the AST whitelist (reflexes.check). The sandbox is the second and assumes that the first
+has failed. The child process (`python3 -I -S`, empty environment, cwd /) restricts itself before it compiles
+foreign code — irreversibly:
+  Resources   RLIMIT_CPU, RLIMIT_AS, RLIMIT_NOFILE, RLIMIT_FSIZE 0; wall clock and output limit are enforced by the server (kill)
+  Files       Landlock: only /usr, /lib, /lib64, /bin may be read (standard library); nothing is writable,
+              nothing truncatable — not even vi.db, although the process runs as the same user as the server
+  Network     Landlock blocks TCP bind/connect; seccomp blocks socket() altogether (thus also UDP and Unix sockets)
+  Processes   seccomp blocks execve, fork, clone, ptrace
+If a building block is missing (kernel without Landlock ABI ≥ 4, architecture other than x86_64), the code does NOT run: result
+`isolation: "keine"` with a reason. There is no silent fallback to less protection.
 
-Der Mechanismus braucht keine Rechte und keine User-Namespaces, läuft also auch im gehärteten systemd-Dienst
-(RestrictNamespaces=yes, NoNewPrivileges=yes). bubblewrap scheiterte dort und auf dem Entwicklungsrechner (AppArmor
-verbietet unprivilegierte Namespaces, gemessen 08.11.2026) und wurde deshalb wieder entfernt.
-Stufe 5 (P2P): Code aus dem Netz läuft ausschließlich hier und wird nur als Quelltext verteilt.
+The mechanism needs no privileges and no user namespaces, so it also runs in the hardened systemd service
+(RestrictNamespaces=yes, NoNewPrivileges=yes). bubblewrap failed there and on the development machine (AppArmor
+forbids unprivileged namespaces, measured 08.11.2026) and was therefore removed again.
+Stage 5 (P2P): code from the network runs exclusively here and is distributed only as source text.
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ WALLCLOCK_S = 12
 MEMORY_MB = 256
 OUTPUT_MAX = 1024 * 1024
 
-# Der Kindprozess. Reihenfolge: Eingabe lesen → Grenzen setzen → erst dann fremden Code übersetzen.
+# The child process. Order: read input → set limits → only then compile foreign code.
 RUNNER = r'''
 import ctypes, json, os, platform, resource, struct, sys
 
@@ -45,9 +45,9 @@ LL_CREATE, LL_ADD, LL_RESTRICT = 444, 445, 446
 def landlock():
     abi = libc.syscall(LL_CREATE, None, 0, 1)
     if abi < 4:
-        raise RuntimeError(f"Landlock ABI {abi} (gebraucht: mindestens 4 für die Netzsperre)")
+        raise RuntimeError(f"Landlock ABI {abi} (needed: at least 4 for the network block)")
     fs = (1 << 13) - 1 | 1 << 13 | 1 << 14 | (1 << 15 if abi >= 5 else 0)
-    # handled_access_fs, handled_access_net, scoped (ABI ≥ 6: abstrakte Unix-Sockets und Signale)
+    # handled_access_fs, handled_access_net, scoped (ABI ≥ 6: abstract Unix sockets and signals)
     attr = struct.pack("=QQ", fs, 3) + (struct.pack("=Q", 3) if abi >= 6 else b"")
     fd = libc.syscall(LL_CREATE, attr, len(attr), 0)
     if fd < 0:
@@ -79,7 +79,7 @@ class Programm(ctypes.Structure):
 
 def seccomp():
     if platform.machine() != "x86_64":
-        raise RuntimeError(f"seccomp-Filter nur für x86_64 gebaut, hier {platform.machine()}")
+        raise RuntimeError(f"seccomp filter built only for x86_64, here {platform.machine()}")
     # socket, socketpair, clone, fork, vfork, execve, ptrace, execveat, clone3
     verboten = (41, 53, 56, 57, 58, 59, 101, 322, 435)
     LD, JEQ, JGE, RET = 0x20, 0x15, 0x35, 0x06
@@ -90,7 +90,7 @@ def seccomp():
     prog += [(RET, 0, 0, ERLAUBT), (RET, 0, 0, EPERM)]
     arr = (Filter * len(prog))(*[Filter(*p) for p in prog])
     p = Programm(len(prog), arr)
-    if libc.prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ctypes.byref(p), 0, 0) != 0:  # byref: voller 64-Bit-Zeiger
+    if libc.prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ctypes.byref(p), 0, 0) != 0:  # byref: full 64-bit pointer
         raise OSError(ctypes.get_errno(), "seccomp")
 
 
@@ -108,12 +108,12 @@ try:
     abi = landlock()
     seccomp()
 except BaseException as exc:
-    melde({"fehler": f"Sandbox nicht herstellbar, Code nicht ausgeführt: {type(exc).__name__}: {exc}"[:400], "isolation": "keine"})
+    melde({"fehler": f"sandbox could not be set up, code not executed: {type(exc).__name__}: {exc}"[:400], "isolation": "keine"})
 stufe = f"landlock-abi{abi}+seccomp"
 try:
     ns = {"__name__": "reflex"}
     kompiliert = compile(roh["code"], "<reflex>", "exec")
-    if roh.get("nur_pruefen"):  # nur übersetzen, nichts ausführen
+    if roh.get("nur_pruefen"):  # compile only, execute nothing
         melde({"ok": True, "isolation": stufe})
     exec(kompiliert, ns)
     if roh.get("nur_schema"):
@@ -128,11 +128,11 @@ melde({**aus, "isolation": stufe})
 
 
 def run(code: str, args: list, schema_only: bool = False, wallclock_s: float = WALLCLOCK_S, check_only: bool = False) -> dict:
-    """Reflex-Code ausführen. Liefert {"wert"|"schema"|"fehler", "isolation", "dauer_ms"}; `isolation: "keine"` heißt:
-    der Code lief nicht, weil die Sandbox nicht herstellbar war."""
+    """Run reflex code. Returns {"wert"|"schema"|"fehler", "isolation", "dauer_ms"}; `isolation: "keine"` means:
+    the code did not run because the sandbox could not be set up."""
     t0 = time.monotonic()
     user_input = json.dumps({"code": code, "args": args, "nur_schema": schema_only, "nur_pruefen": check_only}, ensure_ascii=False, default=str).encode()
-    # Kein preexec_fn: der Server hat Threads, dort wäre das unsicher. Das Kind begrenzt sich selbst.
+    # No preexec_fn: the server has threads, it would be unsafe there. The child restricts itself.
     p = subprocess.Popen([sys.executable, "-I", "-S", "-c", RUNNER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.DEVNULL, cwd="/", env={"PATH": "/usr/bin:/bin"}, start_new_session=True)
     end = time.monotonic() + wallclock_s
@@ -165,16 +165,16 @@ def run(code: str, args: list, schema_only: bool = False, wallclock_s: float = W
         rc = p.wait()
     duration = int((time.monotonic() - t0) * 1000)
     if expired:
-        return {"fehler": f"Zeitlimit {wallclock_s:g} s — Prozess beendet", "isolation": "landlock+seccomp", "dauer_ms": duration}
+        return {"fehler": f"time limit {wallclock_s:g} s — process killed", "isolation": "landlock+seccomp", "dauer_ms": duration}
     if too_many:
-        return {"fehler": f"Ausgabe über {OUTPUT_MAX} Bytes — Prozess beendet", "isolation": "landlock+seccomp", "dauer_ms": duration}
+        return {"fehler": f"output over {OUTPUT_MAX} bytes — process killed", "isolation": "landlock+seccomp", "dauer_ms": duration}
     try:
-        return {**json.loads(data or b"{}" if data else b'{"fehler": "keine Antwort"}'), "dauer_ms": duration, **({"exit": rc} if rc else {})} \
-            if rc == 0 else {"fehler": f"Prozess beendet mit Exit {rc}", "isolation": "landlock+seccomp", "dauer_ms": duration}
+        return {**json.loads(data or b"{}" if data else b'{"fehler": "no answer"}'), "dauer_ms": duration, **({"exit": rc} if rc else {})} \
+            if rc == 0 else {"fehler": f"process ended with exit {rc}", "isolation": "landlock+seccomp", "dauer_ms": duration}
     except json.JSONDecodeError:
-        return {"fehler": f"keine JSON-Antwort: {bytes(data[:200])!r}", "isolation": "landlock+seccomp", "dauer_ms": duration}
+        return {"fehler": f"no JSON answer: {bytes(data[:200])!r}", "isolation": "landlock+seccomp", "dauer_ms": duration}
 
 
 def description() -> str:
-    return (f"eigener Prozess (python3 -I -S), Landlock + seccomp, CPU {CPU_S} s, Speicher {MEMORY_MB} MB, Wanduhr {WALLCLOCK_S} s, "
-            "kein Netz, keine Dateien außer Lesezugriff auf die Standardbibliothek, keine Kindprozesse; ohne Landlock läuft nichts")
+    return (f"own process (python3 -I -S), Landlock + seccomp, CPU {CPU_S} s, memory {MEMORY_MB} MB, wall clock {WALLCLOCK_S} s, "
+            "no network, no files except read access to the standard library, no child processes; without Landlock nothing runs")

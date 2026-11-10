@@ -1,4 +1,4 @@
-"""Block 1: Gedächtnis, Sitzungen, Reflexe, Intuition — ohne Netz."""
+"""Block 1: memory, sessions, reflexes, intuition — without network."""
 import os
 import stat
 import threading
@@ -40,7 +40,7 @@ def test_recall_filter_fulltext_and_link(gd):
     assert [o.id for _, o, _g in g.recall("(host:web1 OR host:db1) !thema:disk")][0].startswith("erkenntnis:")
     assert len(g.recall("(host:web1 OR host:db1) !thema:disk")) == 1
     assert [o.id for _, o, _g in g.recall("langsam")] == [b.id]
-    assert (a.id, "2 gemeinsame Hashtags") in b.edges()
+    assert (a.id, "2 shared hashtags") in b.edges()
     b.refute("ki", "falsch")
     assert [o.id for _, o, _g in g.recall("host:web1")] == [a.id]
 
@@ -58,7 +58,7 @@ def test_access_counts_relatively(gd):
     o = g.new_object("erkenntnis", "x y z", ["thema:x"], reason="T")
     backup_copy = g.load(o.id)
     o.access()
-    backup_copy.access()  # veralteter Stand im Speicher darf den Zähler nicht zurücksetzen
+    backup_copy.access()  # a stale state in memory must not reset the counter
     assert g.load(o.id).accesses == 2
 
 
@@ -106,11 +106,11 @@ def test_remembered_answer_read_only(gd):
     intuition.after("netbox_get_devices", {"q": 1}, True, 5, None, "ERGEBNIS", v1["vorher_id"])
     v2 = intuition.before("netbox_get_devices", {"q": 1})
     assert v2["antwort"] == "ERGEBNIS" and v2["zugriff"]["aus_gedaechtnis"]
-    # schreibend: nie aus dem Gedächtnis
+    # writing: never from memory
     v3 = intuition.before("jira_create_ticket", {"q": 1})
     intuition.after("jira_create_ticket", {"q": 1}, True, 5, None, "OK", v3["vorher_id"])
     assert intuition.before("jira_create_ticket", {"q": 1})["antwort"] is None
-    # ausdrückliche Angabe des Clients schlägt das Namensmuster
+    # the client's explicit statement beats the name pattern
     v4 = intuition.before("Read", {"f": "a"}, is_read_only=False)
     intuition.after("Read", {"f": "a"}, True, 1, None, "inhalt", v4["vorher_id"], is_read_only=False)
     assert intuition.before("Read", {"f": "a"}, is_read_only=False)["antwort"] is None
@@ -123,9 +123,9 @@ def test_insight_as_hint_before(gd):
 
 
 def test_reflex_checks():
-    assert "nicht erlaubt" in reflexes.check("import os\ndef run(a): return 1", "nachher")
-    assert "nicht erlaubt" in reflexes.check("def run(a): return open('x')", "nachher")
-    assert "nicht erlaubt" in reflexes.check("def run(a): return ().__class__", "nachher")
+    assert "not allowed" in reflexes.check("import os\ndef run(a): return 1", "nachher")
+    assert "not allowed" in reflexes.check("def run(a): return open('x')", "nachher")
+    assert "not allowed" in reflexes.check("def run(a): return ().__class__", "nachher")
     assert "run" in reflexes.check("x = 1", "nachher")
     assert "TOOL" in reflexes.check("def run(a): return 1", "werkzeug")
     assert reflexes.check("import json\ndef run(t, a, e): return json.dumps(a)", "nachher") == ""
@@ -138,7 +138,7 @@ def test_reflex_defective_after_three_errors(gd):
     reflexes.load_all()
     for _ in range(3):
         h = reflexes.after("t", {}, "e")
-        assert "scheiterte" in h[0]
+        assert "failed" in h[0]
     assert g.load("reflex:kaputt").mode == "defekt"
     assert "kaputt" not in reflexes.loaded and reflexes.after("t", {}, "e") == []
 
@@ -149,11 +149,11 @@ def test_loop_error_becomes_rule_and_hint(gd):
         v = intuition.before("graylog_search", {"q": i})
         intuition.after("graylog_search", {"q": i}, False, 30000, f"TimeoutError: read timed out after {30 + i} s", None, v["vorher_id"])
     assert main_loop.step() == 1
-    assert main_loop.step() == 0  # idempotent: dieselbe Regel nicht doppelt
+    assert main_loop.step() == 0  # idempotent: the same rule not twice
     rule = [o for _, o, _g in g.recall("art:regel regelart:wiederholter-fehler")][0]
     assert rule.mode == "test" and rule.data["treffer"] == 3 and rule.conversation is None
     v = intuition.before("graylog_search", {"q": "neu"})
-    assert any(h.startswith("Regel [") and "scheiterte 3×" in h for h in v["hinweise"])
+    assert any(h.startswith("Rule [") and "failed 3×" in h for h in v["hinweise"])
 
 
 def test_before_without_after_does_not_vanish(gd):
@@ -182,7 +182,7 @@ def test_too_large_data_stays_readable(gd):
 
 
 def test_complete_knowledge_is_preserved(gd):
-    """Code und API-Tabellen gehören ins Gedächtnis: nichts wird gekürzt, alles wird gefunden und wieder gelesen."""
+    """Code and API tables belong in the memory: nothing is shortened, everything is found and read back."""
     from vi_mcp import tools
     table = "| GET | /api/hosts | Liste |\n" * 2000 + "\ndef baue_abfrage(token = lese_token()):\n    return Zaunkoenig(token)\n"
     r = tools.call_tool("vi_lerne", {"text": "Die Hosts-API liefert Listen", "inhalt": table, "hashtags": ["thema:api"], "quelle": "Handbuch Kapitel 3"}, "a", False)
@@ -191,7 +191,7 @@ def test_complete_knowledge_is_preserved(gd):
     assert full.data["inhalt"] == table.strip() and len(full.text) < 100
     assert full.id.startswith(oid[:20])
     assert table.strip() in tools.call_tool("vi_objekt", {"id": full.id}, "a", False)
-    assert [o.id for _, o, _g in g.recall("Zaunkoenig", viewer=None)] == [full.id]  # auch am Ende langer Texte gefunden
+    assert [o.id for _, o, _g in g.recall("Zaunkoenig", viewer=None)] == [full.id]  # found even at the end of long texts
 
 
 def test_too_long_text_is_not_cut_off(gd):
@@ -204,7 +204,7 @@ def test_too_long_text_is_not_cut_off(gd):
 
 def test_too_large_content_rejected_with_reason(gd):
     from vi_mcp import tools
-    with pytest.raises(tools.Rejected, match="aufteilen"):
+    with pytest.raises(tools.Rejected, match="split it"):
         tools.call_tool("vi_lerne", {"text": "Eine Kernaussage hier", "inhalt": "x" * (g.CONTENT_MAX + 1), "hashtags": ["thema:a"], "quelle": "Handbuch Kapitel 3"}, "a", False)
 
 
@@ -218,7 +218,7 @@ def test_skill_instructions_stay_complete(gd):
 @pytest.mark.parametrize("cli_command,expected", [
     ("vzdump 101 --mode snapshot", {"skill:proxmox", "thema:vzdump"}),
     ("ssh root@pve1.example 'qm list && pct list'", {"thema:ssh", "skill:proxmox", "thema:qm", "thema:pct", "host:pve1.example"}),
-    # 0.19.4: jeder fachliche Befehl wird thema:, Shell-Alltag nicht; Argumente in Anführungszeichen sind keine Befehle
+    # 0.19.4: every domain command becomes thema:, everyday shell commands do not; quoted arguments are not commands
     ("sudo ipa-client-install --domain example.org", {"thema:ipa-client-install"}),
     ("ssh gpu1.example 'llama-server -m m.gguf --load-mode mlock'", {"thema:ssh", "thema:llama-server", "host:gpu1.example"}),
     ('sudo -u postgres psql -c "select 1"', {"skill:postgres", "thema:psql"}),
@@ -227,12 +227,12 @@ def test_skill_instructions_stay_complete(gd):
     ("ansible-playbook site.yml -l web1.example,web2.example", {"skill:ansible", "thema:ansible-playbook", "host:web1.example", "host:web2.example"}),
     ("ansible-playbook site.yml --limit 'sites_a:!zeit1.example'", {"skill:ansible", "thema:ansible-playbook"}),
     ('echo "a; qm b" | tee x', set()),
-    # 0.20.2: Werkzeuge mit Fallstricken sind Reize, reiner Alltag nicht
+    # 0.20.2: tools with pitfalls are stimuli, plain everyday ones are not
     ('cd /tmp/x && pkill -f "python3 worker.py"; sleep 2', {"thema:pkill"}),
     ("find . -name '*.tmp' -exec rm {} +", {"thema:find"}),
     ("timeout 300 ssh web1.example 'vzdump 101'", {"thema:ssh", "host:web1.example", "skill:proxmox", "thema:vzdump"}),
     ("setsid nohup nice -n 10 pg_dump app", {"skill:postgres", "thema:pg_dump"}),
-    # 0.20.1: Code in Anführungszeichen innerhalb eines ssh-Befehls ist kein Befehl
+    # 0.20.1: quoted code inside an ssh command is not a command
     ("""ssh web1.example 'curl -s http://x/slots | python3 -c "import json,sys; d=json.load(sys.stdin); print([s for s in d])"; top -bn1'""",
      {"thema:ssh", "thema:curl", "thema:top", "host:web1.example"}),
     ("""ssh web1.example 'sudo sh -c "apt-get update; qm list"'""", {"thema:ssh", "host:web1.example", "thema:apt-get", "skill:proxmox", "thema:qm"}),
@@ -257,7 +257,7 @@ def test_shown_ids_can_be_looked_up(gd):
     listing = tools.call_tool("vi_erinnere", {"filter": "thema:id"}, "a", False)
     oid = listing.split("[", 1)[1].split("]", 1)[0]
     assert "Nachschlagen" in tools.call_tool("vi_objekt", {"id": oid}, "a", False)
-    assert "Nachschlagen" in tools.call_tool("vi_objekt", {"id": oid[:20]}, "a", False)  # gekürzt aus älteren Ausgaben
+    assert "Nachschlagen" in tools.call_tool("vi_objekt", {"id": oid[:20]}, "a", False)  # shortened, from older outputs
     with pytest.raises(tools.Rejected):
         tools.call_tool("vi_objekt", {"id": "erkenntnis:%"}, "a", False)
 
@@ -273,7 +273,7 @@ def test_matching_warning_beats_general(gd):
 
 
 def test_manual_paragraphs_do_not_displace_experience(gd):
-    """0.19.3: vor `docker logs` belegten vier Docker-Doku-Absätze alle Plätze; der passende ssh-Hinweis fiel heraus."""
+    """0.19.3: before `docker logs` four Docker doc paragraphs took all slots; the matching ssh hint dropped out."""
     from vi_mcp import tools
     for i in range(6):
         tools.call_tool("vi_lerne", {"text": f"Docker-Doku, Abschnitt {i}: allgemeiner Text", "hashtags": ["skill:docker", "art_wissen:doku-extern"],
@@ -281,9 +281,9 @@ def test_manual_paragraphs_do_not_displace_experience(gd):
     tools.call_tool("vi_lerne", {"text": "ssh nach web1 nur mit Schlüssel und BatchMode", "hashtags": ["host:web1.example", "tool:ssh"], "quelle": "Erfahrung"}, "a", False)
     h = intuition.before("Bash", {"command": "ssh web1.example 'docker logs nginx'"}, "a", False)["hinweise"]
     assert any("Schlüssel" in x for x in h)
-    assert sum("Docker-Doku" in x for x in h) <= intuition.LOOKUP_MAX + 1  # +1: ein Erkundungsplatz darf einen weiteren zeigen
+    assert sum("Docker-Doku" in x for x in h) <= intuition.LOOKUP_MAX + 1  # +1: an exploration slot may show one more
     searched = tools.call_tool("vi_erinnere", {"filter": "Docker-Doku"}, "a", False)
-    assert searched.count("Docker-Doku, Abschnitt") >= 6  # in der Suche bleibt alles
+    assert searched.count("Docker-Doku, Abschnitt") >= 6  # the search keeps everything
 
 
 def test_content_empty_auto_skill_is_refuted(gd):
@@ -296,18 +296,18 @@ def test_content_empty_auto_skill_is_refuted(gd):
 
 
 def test_missing_required_field_rejected_not_silently_answered(gd):
-    """0.20.4: vi_erinnere mit „text“ statt „filter“ lieferte die wichtigsten Objekte, als wäre gesucht worden."""
+    """0.20.4: vi_erinnere with "text" instead of "filter" returned the most important objects as if it had searched."""
     import pytest
     from vi_mcp import tools
     with pytest.raises(tools.Rejected, match="vi_recall: required field missing: filter — passed but unknown: text"):
         tools.call_tool("vi_erinnere", {"text": "Lizenz Dongle"}, "a", True)
-    tools.call_tool("vi_erinnere", {"filter": "Lizenz"}, "a", True)  # richtig benannt: geht
+    tools.call_tool("vi_erinnere", {"filter": "Lizenz"}, "a", True)  # correctly named: works
     with pytest.raises(tools.Rejected, match="required field missing: id$"):
         tools.call_tool("vi_objekt", {}, "a", True)
 
 
 def test_state_dependent_tools_are_never_remembered(gd):
-    """0.21.2: browser_wait_for(time=5) bekam die gemerkte Antwort von vor 53 s (andere Seiten-URL), statt zu warten."""
+    """0.21.2: browser_wait_for(time=5) got the remembered answer from 53 s earlier (other page URL) instead of waiting."""
     from vi_mcp import intuition
     for tool in ("browser_wait_for", "browser_snapshot", "browser_take_screenshot", "browser_evaluate", "openclaw_health"):
         assert intuition.state_dependent(tool), tool

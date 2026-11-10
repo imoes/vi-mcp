@@ -1,5 +1,5 @@
 #!/bin/sh
-# Gedächtnis (/var/lib/vi-mcp) und Konfiguration (/etc/vi-mcp) bleiben bei remove; purge löscht sie.
+# Memory (/var/lib/vi-mcp) and configuration (/etc/vi-mcp) stay on remove; purge deletes them.
 set -e
 if [ "$1" = "remove" ]; then
     systemctl disable vi-mcp.service vi-p2p.service >/dev/null 2>&1 || true

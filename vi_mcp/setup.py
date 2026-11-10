@@ -1,16 +1,16 @@
-"""Einrichten — trägt vi-mcp in Claude Code, Codex CLI und Hermes Agent ein. ANSI-Menü oder Schalter, nur Standardbibliothek + PyYAML.
+"""Setup — registers vi-mcp in Claude Code, Codex CLI and Hermes Agent. ANSI menu or switches, standard library + PyYAML only.
 
-  vi-mcp einrichten                       Menü
-  vi-mcp einrichten --status              Zustand je Programm
-  vi-mcp einrichten --claude --hermes --hook --url URL --token-datei DATEI   ohne Menü
-  vi-mcp einrichten --claude --entfernen
+  vi-mcp setup                            menu
+  vi-mcp setup --status                   state per program
+  vi-mcp setup --claude --hermes --hook --url URL --token-file FILE   without menu
+  vi-mcp setup --claude --uninstall
 
-Wird es mit sudo gestartet, gilt es für den aufrufenden Nutzer; Dateien werden mit dessen Rechten geschrieben.
-Läuft der Server auf demselben Rechner und ist seine Konfiguration beschreibbar, bekommt jedes Programm eine eigene Instanz
-mit eigenem Token (`<nutzer>-claude`, …), und der Dienst wird neu gestartet. Sonst wird ein vorhandenes Token verwendet.
-Vor dem Schreiben wird geprüft, ob der Server das Token annimmt. Eine Änderung wird nur geschrieben, wenn sich der Rest der
-jeweiligen Datei beim Nachlesen als unverändert erweist. Jede geänderte Datei bekommt eine Sicherung `<datei>.bak-vi-mcp-<zeit>`.
-Tokens stehen nie auf einer Kommandozeile.
+Started with sudo, it applies to the calling user; files are written with that user's rights.
+If the server runs on the same machine and its configuration is writable, every program gets its own instance
+with its own token (`<user>-claude`, …), and the service is restarted. Otherwise an existing token is used.
+Before writing, it checks that the server accepts the token. A change is only written if the rest of the
+file proves unchanged when read back. Every changed file gets a backup `<file>.bak-vi-mcp-<time>`.
+Tokens never appear on a command line.
 """
 from __future__ import annotations
 
@@ -45,11 +45,11 @@ NAME = "vi-mcp"
 ENV_TOKEN = "VI_MCP_TOKEN"
 LOCAL = ("127.0.0.1", "localhost", "::1")
 HOOK_EVENTS = ("PreToolUse", "PostToolUse", "PostToolUseFailure")
-HINT = "Einrichten für Claude Code, Codex und Hermes:  sudo vi-mcp einrichten"
+HINT = "Set up for Claude Code, Codex and Hermes:  sudo vi-mcp setup"
 
 
 class Refused(Exception):
-    """Etwas wird bewusst nicht getan; der Text nennt den Grund."""
+    """Something is deliberately not done; the text names the reason."""
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,7 @@ class TargetUser:
 
 
 def _caller() -> pwd.struct_passwd | None:
-    """Wer hinter root steht: SUDO_USER, sonst die Anmeldung (rpm reicht die Umgebung nicht immer an Scriptlets weiter)."""
+    """Who is behind root: SUDO_USER, otherwise the login (rpm does not always pass the environment on to scriptlets)."""
     try:
         if (n := os.environ.get("SUDO_USER")) and n != "root":
             return pwd.getpwnam(n)
@@ -80,7 +80,7 @@ def target() -> TargetUser:
 
 @contextmanager
 def _as_user(z: TargetUser):
-    """Mit den Rechten des Zielnutzers arbeiten, damit Eigentümer und Rechte seiner Dateien stimmen."""
+    """Work with the target user's rights so that owner and permissions of their files are right."""
     switch_user = os.geteuid() == 0 and z.uid != 0
     if switch_user:
         os.setegid(z.gid)
@@ -94,19 +94,19 @@ def _as_user(z: TargetUser):
 
 
 def _write(p: Path, content: str) -> str:
-    """Atomar, 0600 (die Dateien tragen Tokens). Liefert eine Beschreibung mit dem Pfad der Sicherung."""
+    """Atomic, 0600 (the files carry tokens). Returns a description with the path of the backup."""
     p = Path(os.path.realpath(p))
     old = p.read_text() if p.exists() else None
     if old == content:
-        return f"{p} unverändert"
+        return f"{p} unchanged"
     p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    text = f"{p} neu angelegt"
+    text = f"{p} created"
     if old is not None:
         backup_copy = Path(f"{p}.bak-vi-mcp-{time.strftime('%Y%m%d-%H%M%S')}")
         fd = os.open(backup_copy, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w") as f:
             f.write(old)
-        text = f"{p} geändert (Sicherung {backup_copy.name})"
+        text = f"{p} changed (backup {backup_copy.name})"
     tmp = Path(f"{p}.vi-mcp-{os.getpid()}")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w") as f:
@@ -123,9 +123,9 @@ def _json(p: Path) -> dict:
     try:
         d = json.loads(_text(p) or "{}")
     except json.JSONDecodeError as e:
-        raise Refused(f"{p} ist kein gültiges JSON ({e.msg}, Zeile {e.lineno}); nichts geändert") from e
+        raise Refused(f"{p} is not valid JSON ({e.msg}, line {e.lineno}); nothing changed") from e
     if not isinstance(d, dict):
-        raise Refused(f"{p} enthält kein JSON-Objekt; nichts geändert")
+        raise Refused(f"{p} contains no JSON object; nothing changed")
     return d
 
 
@@ -140,10 +140,10 @@ def _without_entry(d: dict) -> dict:
 
 def _only_entry_differs(old: dict, new: dict, desired: dict | None, p: Path) -> None:
     if _without_entry(old) != _without_entry(new) or (new.get("mcp_servers") or {}).get(NAME) != desired:
-        raise Refused(f"{p}: die Änderung hätte mehr als den Eintrag {NAME} berührt; nichts geändert")
+        raise Refused(f"{p}: the change would have touched more than the entry {NAME}; nothing changed")
 
 
-# ---- Claude Code: ~/.claude.json (mcpServers) und ~/.claude/settings.json (Hook) ----
+# ---- Claude Code: ~/.claude.json (mcpServers) and ~/.claude/settings.json (hook) ----
 
 def _claude_file(z: TargetUser) -> Path:
     return z.home / ".claude.json"
@@ -211,7 +211,7 @@ def _hook_on(z: TargetUser, url: str, token: str, signal: str | None) -> str:
     if token:
         _write(dir_path / "token-claude", token + "\n")
         environment += " VI_MCP_TOKEN_FILE=$HOME/.config/vi-mcp/token-claude"
-    else:  # offener Server: der Hook meldet ohne Token, eine alte Token-Datei darf nicht hineinfunken
+    else:  # open server: the hook reports without a token, an old token file must not interfere
         environment += " VI_MCP_TOKEN_FILE=/dev/null"
     if signal:
         _write(dir_path / "token-nutzer", signal + "\n")
@@ -226,7 +226,7 @@ def _hook_on(z: TargetUser, url: str, token: str, signal: str | None) -> str:
     for e in ("SessionEnd", *(("UserPromptSubmit",) if signal else ())):
         h.setdefault(e, []).append({"hooks": [{"type": "command", "command": command, "timeout": 5}]})
     text = _write(p, json.dumps(d, indent=2, ensure_ascii=False) + "\n")
-    return text + ("" if signal else "; ohne Korrektur-Erkennung (kein Signal-Token)")
+    return text + ("" if signal else "; without correction detection (no signal token)")
 
 
 def _hook_off(z: TargetUser) -> str:
@@ -238,7 +238,7 @@ def _hook_off(z: TargetUser) -> str:
     return _write(p, json.dumps(d, indent=2, ensure_ascii=False) + "\n")
 
 
-# ---- Codex CLI: ~/.codex/config.toml, Tabelle [mcp_servers.vi-mcp] ----
+# ---- Codex CLI: ~/.codex/config.toml, table [mcp_servers.vi-mcp] ----
 
 _TOML_HEADER = re.compile(r"^\s*\[+\s*([^\]]+?)\s*\]+")
 
@@ -251,7 +251,7 @@ def _toml(text: str, p: Path) -> dict:
     try:
         return tomllib.loads(text)
     except tomllib.TOMLDecodeError as e:
-        raise Refused(f"{p} ist kein gültiges TOML ({e}); nichts geändert") from e
+        raise Refused(f"{p} is not valid TOML ({e}); nothing changed") from e
 
 
 def _toml_without(text: str) -> str:
@@ -266,7 +266,7 @@ def _toml_without(text: str) -> str:
 
 
 def codex_set(text: str, url: str, token: str, p: Path = Path("config.toml")) -> str:
-    """Rein. json.dumps erzeugt hier gültige TOML-Zeichenketten (nur ASCII mit \\uXXXX)."""
+    """Pure. json.dumps produces valid TOML strings here (ASCII only, with \\uXXXX)."""
     old = _toml(text, p)
     body_text = _toml_without(text).rstrip("\n")
     block = f'[mcp_servers.{NAME}]\nurl = {json.dumps(url)}\n' + (f'http_headers = {{ Authorization = {json.dumps("Bearer " + token)} }}\n' if token else "")
@@ -297,7 +297,7 @@ def _codex_entry(z: TargetUser) -> dict | None:
     return _toml(_text(p), p).get("mcp_servers", {}).get(NAME)
 
 
-# ---- Hermes Agent: ~/.hermes/config.yaml (mcp_servers) und ~/.hermes/.env (Token) ----
+# ---- Hermes Agent: ~/.hermes/config.yaml (mcp_servers) and ~/.hermes/.env (token) ----
 
 def _hermes_dir(z: TargetUser) -> Path:
     e = os.environ.get("HERMES_HOME", "").strip()
@@ -308,13 +308,13 @@ def _yaml(text: str, p: Path) -> dict:
     try:
         import yaml
     except ImportError as e:
-        raise Refused("PyYAML fehlt (python3-yaml), die Hermes-Konfiguration lässt sich nicht prüfen") from e
+        raise Refused("PyYAML missing (python3-yaml), the Hermes configuration cannot be checked") from e
     try:
         d = yaml.safe_load(text) or {}
     except yaml.YAMLError as e:
-        raise Refused(f"{p} ist kein gültiges YAML; nichts geändert ({str(e)[:120]})") from e
+        raise Refused(f"{p} is not valid YAML; nothing changed ({str(e)[:120]})") from e
     if not isinstance(d, dict):
-        raise Refused(f"{p} enthält keine Zuordnung; nichts geändert")
+        raise Refused(f"{p} contains no mapping; nothing changed")
     return d
 
 
@@ -327,7 +327,7 @@ def _content(line: str) -> bool:
 
 
 def _yaml_section(lines: list[str]) -> tuple[int, int] | None:
-    """Kopfzeile und Ende des Abschnitts mcp_servers; None, wenn es ihn nicht gibt."""
+    """Header line and end of the mcp_servers section; None if there is none."""
     for i, z in enumerate(lines):
         if re.match(r"^mcp_servers:\s*(#.*)?$", z):
             end = next((j for j in range(i + 1, len(lines)) if _content(lines[j]) and _indent(lines[j]) == 0), len(lines))
@@ -351,7 +351,7 @@ def _yaml_without(lines: list[str]) -> list[str]:
 
 
 def hermes_set(text: str, url: str, p: Path = Path("config.yaml"), with_token: bool = True) -> str:
-    """Rein. Das Token steht nicht hier, sondern in ~/.hermes/.env; Hermes setzt ${VAR} beim Verbinden ein."""
+    """Pure. The token is not here but in ~/.hermes/.env; Hermes substitutes ${VAR} when connecting."""
     old = _yaml(text, p)
     lines = text.splitlines()
     for i, z in enumerate(lines):
@@ -359,7 +359,7 @@ def hermes_set(text: str, url: str, p: Path = Path("config.yaml"), with_token: b
             if m[1].split("#")[0].strip() in ("{}", "null", "~", ""):
                 lines[i] = "mcp_servers:"
             elif not m[1].startswith("#"):
-                raise Refused(f"{p}: mcp_servers ist in Inline-Schreibweise; bitte von Hand eintragen, nichts geändert")
+                raise Refused(f"{p}: mcp_servers is in inline notation; please add the entry by hand, nothing changed")
     lines = _yaml_without(lines)
     from_seq = _yaml_section(lines)
     if not from_seq:
@@ -384,7 +384,7 @@ def hermes_remove(text: str, p: Path = Path("config.yaml")) -> str:
 
 
 def env_set(text: str, token: str | None) -> str:
-    """Rein. token None entfernt die Zeile."""
+    """Pure. token None removes the line."""
     lines = [z for z in text.splitlines() if not z.startswith(f"{ENV_TOKEN}=")]
     if token:
         lines.append(f"{ENV_TOKEN}={token}")
@@ -412,7 +412,7 @@ def _hermes_entry(z: TargetUser) -> dict | None:
     return (_yaml(_text(p), p).get("mcp_servers") or {}).get(NAME)
 
 
-# ---- Übersicht ----
+# ---- Overview ----
 
 @dataclass(frozen=True)
 class SockFprog:
@@ -455,11 +455,11 @@ def progress(z: TargetUser) -> list[SetupStatus]:
             v = "installiert" if location else "nur_konfiguration" if p.directory(z).exists() else "fehlt"
             try:
                 e = p.entry(z)
-                configured, part = bool(e), (f"eingerichtet: {e.get('url')}" if e else "noch nicht eingerichtet")
+                configured, part = bool(e), (f"set up: {e.get('url')}" if e else "not set up yet")
             except Refused as ex:
-                configured, part = False, f"Konfiguration unlesbar: {ex}"
-            text = {"installiert": part, "nur_konfiguration": f"Programm nicht im PATH, Konfiguration vorhanden; {part}",
-                    "fehlt": f"nicht gefunden: {p.command} nicht im PATH, {p.directory(z)} fehlt"}[v]
+                configured, part = False, f"configuration unreadable: {ex}"
+            text = {"installiert": part, "nur_konfiguration": f"program not in PATH, configuration present; {part}",
+                    "fehlt": f"not found: {p.command} not in PATH, {p.directory(z)} missing"}[v]
             outputs.append(SetupStatus(p.key, p.title, v, configured, text))
         c = outputs[0]
         try:
@@ -467,10 +467,10 @@ def progress(z: TargetUser) -> list[SetupStatus]:
         except Refused:
             h = False
     if c.present == "fehlt":
-        hv, ht = "fehlt", "braucht Claude Code"
+        hv, ht = "fehlt", "needs Claude Code"
     else:
-        hv, ht = "installiert", "eingerichtet" if h else "meldet jede Handlung an den Server (Argumente maskiert)"
-    return outputs + [SetupStatus("hook", "Claude-Code-Hook", hv, h, ht)]
+        hv, ht = "installiert", "set up" if h else "reports every action to the server (arguments masked)"
+    return outputs + [SetupStatus("hook", "Claude Code hook", hv, h, ht)]
 
 
 # ---- Server ----
@@ -480,7 +480,7 @@ def _local(url: str) -> bool:
 
 
 def _urlopen(req: urllib.request.Request, timeout: float):
-    """Erst direkt, dann über den Proxy der Umgebung. Eine HTTP-Antwort (auch ein Fehler) beendet die Suche."""
+    """Direct first, then via the proxy of the environment. An HTTP answer (even an error) ends the search."""
     last: Exception | None = None
     for op in (urllib.request.build_opener(urllib.request.ProxyHandler({})), None if _local(req.full_url) else urllib.request.build_opener()):
         if op is None:
@@ -495,18 +495,18 @@ def _urlopen(req: urllib.request.Request, timeout: float):
 
 
 def check(url: str, token: str | None, timeout: float = 4) -> tuple[str, str]:
-    """(art, text); art ∈ token_ok, offen (ohne Token nutzbar), token_abgelehnt, erreichbar, nicht_erreichbar, keine_mcp_antwort."""
+    """(kind, text); kind ∈ token_ok, offen (usable without a token), token_abgelehnt, erreichbar, nicht_erreichbar, keine_mcp_antwort."""
     if not re.match(r"^https?://[^/\s]+/\S*$", url):
-        return "nicht_erreichbar", "URL hat nicht die Form http(s)://host/…/mcp"
+        return "nicht_erreichbar", "URL does not have the form http(s)://host/…/mcp"
     if not token:
         kind, text = _initialize(url, {}, timeout)
         if kind == "token_ok":
-            return "offen", text.replace("Token gültig", "offen, ohne Token nutzbar")
+            return "offen", text.replace("token valid", "open, usable without a token")
         try:
             with _urlopen(urllib.request.Request(url.rsplit("/mcp", 1)[0] + "/gesund"), timeout) as a:
                 return "erreichbar", a.read(200).decode("utf-8", "replace").strip()
         except urllib.error.HTTPError as e:
-            return "keine_mcp_antwort", f"HTTP {e.code} auf /gesund"
+            return "keine_mcp_antwort", f"HTTP {e.code} on /gesund"
         except (urllib.error.URLError, OSError, TimeoutError) as e:
             return "nicht_erreichbar", str(getattr(e, "reason", e))[:160]
     return _initialize(url, {"Authorization": f"Bearer {token}"}, timeout)
@@ -520,17 +520,17 @@ def _initialize(url: str, auth: dict, timeout: float) -> tuple[str, str]:
             sid = a.headers.get("Mcp-Session-Id")
             info = json.loads(a.read())["result"]["serverInfo"]
     except urllib.error.HTTPError as e:
-        return ("token_abgelehnt", f"Server lehnt das Token ab (HTTP {e.code})") if e.code in (401, 403) else ("keine_mcp_antwort", f"HTTP {e.code}")
+        return ("token_abgelehnt", f"server refuses the token (HTTP {e.code})") if e.code in (401, 403) else ("keine_mcp_antwort", f"HTTP {e.code}")
     except (urllib.error.URLError, OSError, TimeoutError) as e:
         return "nicht_erreichbar", str(getattr(e, "reason", e))[:160]
     except (json.JSONDecodeError, KeyError, TypeError):
-        return "keine_mcp_antwort", "Antwort ist kein MCP"
+        return "keine_mcp_antwort", "answer is not MCP"
     if sid:
         try:
             _urlopen(urllib.request.Request(url, headers={**header, "Mcp-Session-Id": sid}, method="DELETE"), timeout).close()
         except (urllib.error.URLError, OSError, TimeoutError):
             pass
-    return "token_ok", f"{info.get('name')} {info.get('version')}, Token gültig"
+    return "token_ok", f"{info.get('name')} {info.get('version')}, token valid"
 
 
 def can_create_tokens(url: str) -> bool:
@@ -538,7 +538,7 @@ def can_create_tokens(url: str) -> bool:
 
 
 def _restart() -> str | None:
-    """Der Dienst liest Instanzen nur beim Start. None = erfolgreich, sonst der Grund."""
+    """The service reads instances only at start. None = success, otherwise the reason."""
     command = ["systemctl", "restart", "vi-mcp"] if os.geteuid() == 0 else ["systemctl", "--user", "restart", "vi-mcp"]
     try:
         r = subprocess.run(command, capture_output=True, text=True, timeout=45)
@@ -582,7 +582,7 @@ def default_url(z: TargetUser) -> str:
 
 
 def _title(key: str) -> str:
-    return "Claude-Code-Hook" if key == "hook" else next(p.title for p in PROGRAMS if p.key == key)
+    return "Claude Code hook" if key == "hook" else next(p.title for p in PROGRAMS if p.key == key)
 
 
 def uninstall(choice: list[str], z: TargetUser) -> list[Result]:
@@ -598,7 +598,7 @@ def uninstall(choice: list[str], z: TargetUser) -> list[Result]:
 
 
 def setup(choice: list[str], z: TargetUser, url: str, token: str | None, signal: str | None = None, unchecked: bool = False) -> list[Result]:
-    """Tokens beschaffen → Server fragen → schreiben. Was nicht geprüft werden konnte, wird nicht geschrieben."""
+    """Get tokens → ask the server → write. What could not be checked is not written."""
     tokens: dict[str, str] = {}
     if token:
         tokens = {k: token for k in choice}
@@ -614,23 +614,23 @@ def setup(choice: list[str], z: TargetUser, url: str, token: str | None, signal:
             tokens["hook"] = tokens.get("claude") or present or config.create_instance(f"{short}-claude")
             signal = signal or config.create_instance(f"{short}-nutzer", human=True)
         if reason := _restart():
-            return [Result(k, _title(k), False, f"Dienst nicht neu gestartet, nichts eingetragen: {reason}") for k in choice]
+            return [Result(k, _title(k), False, f"service not restarted, nothing registered: {reason}") for k in choice]
         if not _wait(url):
-            return [Result(k, _title(k), False, "Server antwortet nach dem Neustart nicht, nichts eingetragen") for k in choice]
+            return [Result(k, _title(k), False, "server does not answer after the restart, nothing registered") for k in choice]
     elif "hook" in choice and len(choice) == 1 and (present := _token_from_claude(z)):
         tokens["hook"] = present
     elif unchecked or check(url, None)[0] == "offen":
-        tokens = {k: "" for k in choice}  # offener Server: ohne Token eintragen
+        tokens = {k: "" for k in choice}  # open server: register without a token
     outputs = []
     for k in choice:
         t = tokens.get(k)
         if t is None:
-            outputs.append(Result(k, _title(k), False, "kein Token: mit --token-datei angeben oder auf dem Server mit sudo starten"))
+            outputs.append(Result(k, _title(k), False, "no token: pass it with --token-file or run with sudo on the server"))
             continue
         if not unchecked:
             kind, text = check(url, t or None)
             if kind not in ("token_ok", "offen"):
-                outputs.append(Result(k, _title(k), False, f"nicht eingetragen: {text}"))
+                outputs.append(Result(k, _title(k), False, f"not registered: {text}"))
                 continue
         try:
             with _as_user(z):
@@ -641,7 +641,7 @@ def setup(choice: list[str], z: TargetUser, url: str, token: str | None, signal:
     return outputs
 
 
-# ---- Menü: Zustand und Darstellung sind rein, nur _lauf spricht mit dem Terminal ----
+# ---- Menu: state and rendering are pure, only _run talks to the terminal ----
 
 @dataclass
 class MenuLine:
@@ -672,29 +672,29 @@ def lines_for(statuses: list[SetupStatus], mode: str) -> list[MenuLine]:
         if mode == "einrichten":
             outputs.append(MenuLine(s.key, s.title, s.text, s.present != "fehlt", s.present != "fehlt" and not s.configured))
         else:
-            outputs.append(MenuLine(s.key, s.title, s.text if s.configured else "nichts zu entfernen: nicht eingerichtet", s.configured, False))
+            outputs.append(MenuLine(s.key, s.title, s.text if s.configured else "nothing to remove: not set up", s.configured, False))
     return outputs
 
 
 def obstacle(m: Menu) -> str | None:
     if not any(z.to for z in m.lines):
-        return "nichts ausgewählt"
+        return "nothing selected"
     if m.mode == "entfernen":
         return None
     kind, text = m.server
     if m.token:
-        return None if kind == "token_ok" else f"Server prüft nicht erfolgreich: {text}"
+        return None if kind == "token_ok" else f"server check failed: {text}"
     if m.auto or kind == "offen":
         return None
     if kind == "nicht_erreichbar":
-        return f"Server nicht erreichbar: {text}"
-    return "kein Token: mit t eingeben oder auf dem Server mit sudo starten"
+        return f"server not reachable: {text}"
+    return "no token: enter it with t or run with sudo on the server"
 
 
 def _server_line(m: Menu) -> str:
     kind, text = m.server
     if m.auto and kind != "erreichbar":
-        return "läuft noch nicht; startet nach dem Anlegen der Tokens"
+        return "not running yet; starts once the tokens are created"
     return text
 
 
@@ -705,10 +705,10 @@ def record(m: Menu, width: int = 80, color: bool = True) -> str:
     def k(s: str) -> str:
         return s if len(s) <= width - 1 else s[:width - 2] + "…"
     good = m.server[0] in ("token_ok", "erreichbar", "offen") or m.auto
-    tok = "eingegeben" if m.token else "wird je Programm angelegt" if m.auto else "nicht nötig (offener Server)" if m.server[0] == "offen" else "fehlt"
-    z = [f("1;36", k(f" vi-mcp einrichten  {__version__}")), "",
-         k(f" Nutzer   {m.username}"), k(f" Server   {m.url}"), f("32" if good else "31", k(f"          {_server_line(m)}")),
-         k(f" Token    {tok}"), k(f" Aktion   {m.mode}"), f("2", k(" " + "─" * min(width - 2, 70)))]
+    tok = "entered" if m.token else "created per program" if m.auto else "not needed (open server)" if m.server[0] == "offen" else "missing"
+    z = [f("1;36", k(f" vi-mcp setup  {__version__}")), "",
+         k(f" User     {m.username}"), k(f" Server   {m.url}"), f("32" if good else "31", k(f"          {_server_line(m)}")),
+         k(f" Token    {tok}"), k(f" Action   {MODE_LABEL[m.mode]}"), f("2", k(" " + "─" * min(width - 2, 70)))]
     for i, r in enumerate(m.lines):
         marker = "▸" if i == m.pos else " "
         checkbox = "[x]" if r.to else "[ ]" if r.selectable else "[-]"
@@ -716,15 +716,15 @@ def record(m: Menu, width: int = 80, color: bool = True) -> str:
         z.append(f("7" if i == m.pos else "0", text) if r.selectable else f("2;7" if i == m.pos else "2", text))
     z.append(f("2", k(" " + "─" * min(width - 2, 70))))
     h = obstacle(m)
-    z.append(f("2", k(f" Enter: gesperrt, {h}")) if h else f("1;32", k(f" Enter: {m.mode}")))
-    z.append(k(" ↑↓ wählen · Leertaste an/aus · u URL · t Token · e Aktion · q Ende"))
+    z.append(f("2", k(f" Enter: blocked, {h}")) if h else f("1;32", k(f" Enter: {MODE_LABEL[m.mode]}")))
+    z.append(k(" ↑↓ select · space on/off · u URL · t token · e action · q quit"))
     if m.notice:
         z += ["", f("33", k(f" {m.notice}"))]
     return "\r\n".join(z)
 
 
 def keystroke(m: Menu, k: str) -> str | None:
-    """Ändert den Zustand; liefert url, token, modus, los oder ende, wenn die Schleife handeln muss."""
+    """Changes the state; returns url, token, los (go) or ende (end) when the loop must act."""
     m.notice = ""
     if k in ("hoch", "k"):
         m.pos = (m.pos - 1) % len(m.lines)
@@ -754,12 +754,14 @@ def keystroke(m: Menu, k: str) -> str | None:
     return None
 
 
+#: Menu modes (internal value → shown label)
+MODE_LABEL = {"einrichten": "set up", "entfernen": "remove"}
 KEYSTROKES = {b"\x1b[A": "hoch", b"\x1bOA": "hoch", b"\x1b[B": "runter", b"\x1bOB": "runter", b"\r": "enter", b"\n": "enter", b"\x1b": "esc"}
 
 
 def _run(z: TargetUser, url: str, token: str | None, signal: str | None, idle: float | None) -> int:
     if not (sys.stdin.isatty() and sys.stdout.isatty()):
-        print("Kein Terminal für das Menü. Ohne Menü: vi-mcp einrichten --claude --url URL --token-datei DATEI", file=sys.stderr)
+        print("No terminal for the menu. Without the menu: vi-mcp setup --claude --url URL --token-file FILE", file=sys.stderr)
         return 2
     color = "NO_COLOR" not in os.environ and os.environ.get("TERM") != "dumb"
     statuses = progress(z)
@@ -803,9 +805,9 @@ def _run(z: TargetUser, url: str, token: str | None, signal: str | None, idle: f
             if r == "los":
                 go = True
                 break
-            if r == "url" and (w := line(f" Server-URL [{m.url}]: ", False)):
+            if r == "url" and (w := line(f" Server URL [{m.url}]: ", False)):
                 m.url = w
-            if r == "token" and (w := line(" Token (Eingabe verdeckt): ", True)):
+            if r == "token" and (w := line(" Token (input hidden): ", True)):
                 m.token = w
             if r in ("url", "token"):
                 m.auto = not m.token and can_create_tokens(m.url)
@@ -825,7 +827,7 @@ def _report(results: list[Result]) -> int:
     for e in results:
         print(f"{'✓' if e.ok else '✗'} {e.title}: {e.text}")
     if any(e.ok for e in results):
-        print("Laufende Sitzungen der eingerichteten Programme neu starten, damit sie den Server sehen.")
+        print("Restart running sessions of the configured programs so they see the server.")
     return 0 if all(e.ok for e in results) else 1
 
 
@@ -837,7 +839,7 @@ def _file(fpath: str | None) -> str | None:
 
 
 def main(argv: list[str]) -> int:
-    a = argparse.ArgumentParser(prog="vi-mcp einrichten", description="vi-mcp in Claude Code, Codex CLI und Hermes Agent eintragen")
+    a = argparse.ArgumentParser(prog="vi-mcp setup", description="register vi-mcp in Claude Code, Codex CLI and Hermes Agent")
     for k in ("claude", "codex", "hermes", "hook"):
         a.add_argument(f"--{k}", action="store_true")
     a.add_argument("--url")
@@ -865,5 +867,5 @@ def main(argv: list[str]) -> int:
             return _run(z, url, token, signal, o.idle)
         return _report(uninstall(choice, z) if o.uninstall else setup(choice, z, url, token, signal, o.skip_check))
     except KeyboardInterrupt:
-        print("abgebrochen", file=sys.stderr)
+        print("aborted", file=sys.stderr)
         return 130

@@ -1,4 +1,4 @@
-"""0.13.0: Einrichten — Konfigurationen zusammenführen, ohne Fremdes zu berühren; Menü über ein echtes Pseudoterminal."""
+"""0.13.0: setup — merge configurations without touching foreign entries; menu over a real pseudo-terminal."""
 import json
 import os
 import pty
@@ -55,7 +55,7 @@ def test_codex_sets_and_replaces_only_own_table():
 
 
 def test_codex_broken_file_is_kept():
-    with pytest.raises(e.Refused, match="kein gültiges TOML"):
+    with pytest.raises(e.Refused, match="is not valid TOML"):
         e.codex_set("a = [", "u", "t")
 
 
@@ -80,7 +80,7 @@ def test_hermes_edge_cases(text):
 
 
 def test_hermes_inline_is_refused():
-    with pytest.raises(e.Refused, match="Inline"):
+    with pytest.raises(e.Refused, match="inline notation"):
         e.hermes_set("mcp_servers: {a: {url: b}}\n", "u")
 
 
@@ -116,7 +116,7 @@ def test_claude_and_hook_leave_foreign_entries_alone(target):
     d = json.loads((target.home / ".claude.json").read_text())
     assert d["numStartups"] == 7 and d["mcpServers"]["x"] == {"command": "y"} and d["mcpServers"]["vi-mcp"]["headers"]["Authorization"] == "Bearer tok"
     assert oct((target.home / ".claude.json").stat().st_mode)[-3:] == "600" and list(target.home.glob(".claude.json.bak-vi-mcp-*"))
-    assert e._hook_on(target, "http://h/mcp", "tok", None).endswith("ohne Korrektur-Erkennung (kein Signal-Token)")
+    assert e._hook_on(target, "http://h/mcp", "tok", None).endswith("without correction detection (no signal token)")
     e._hook_on(target, "http://i/mcp", "tok", "sig")
     s = json.loads((target.home / ".claude/settings.json").read_text())
     assert len(s["hooks"]["PreToolUse"]) == 2 and s["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == "fremd" and "http://i/mcp" in s["hooks"]["PreToolUse"][1]["hooks"][0]["command"]
@@ -148,7 +148,7 @@ def test_status_names_every_case(target, tmp_path):
     _program(tmp_path, "claude")
     (target.home / ".codex").mkdir()
     s = {x.key: x for x in e.progress(target)}
-    assert s["claude"].present == "installiert" and s["codex"].present == "nur_konfiguration" and s["hermes"].present == "fehlt" and "nicht gefunden" in s["hermes"].text
+    assert s["claude"].present == "installiert" and s["codex"].present == "nur_konfiguration" and s["hermes"].present == "fehlt" and "not found" in s["hermes"].text
     assert s["hook"].present == "installiert"
 
 
@@ -165,21 +165,21 @@ def test_menu_defaults_and_disabled_items():
     assert [z.to for z in m.lines] == [True, False, False, True]
     e.keystroke(m, "runter")
     e.keystroke(m, " ")
-    assert not m.lines[1].to and "nicht gefunden" in m.notice  # nicht wählbar, mit Grund
+    assert not m.lines[1].to and "nicht gefunden" in m.notice  # not selectable, with reason
     assert "[-]" in e.record(m, color=False)
 
 
 def test_menu_enter_names_the_reason():
     m = _menu(STATUSES, token=None, server=("nicht_erreichbar", "refused"))
     assert e.keystroke(m, "enter") is None and "refused" in m.notice
-    m = _menu(STATUSES, token=None, server=("nicht_erreichbar", "x"), auto=True)  # frisch installiert: Dienst startet erst mit Tokens
-    assert e.keystroke(m, "enter") == "los" and "läuft noch nicht" in e.record(m, color=False)
+    m = _menu(STATUSES, token=None, server=("nicht_erreichbar", "x"), auto=True)  # freshly installed: service starts only with tokens
+    assert e.keystroke(m, "enter") == "los" and "not running yet" in e.record(m, color=False)
     m = _menu(STATUSES, token="falsch", server=("token_abgelehnt", "HTTP 401"))
     e.keystroke(m, "enter")
     assert "401" in m.notice
     for z in (m := _menu(STATUSES)).lines:
         z.to = False
-    assert e.obstacle(m) == "nichts ausgewählt"
+    assert e.obstacle(m) == "nothing selected"
 
 
 def test_menu_remove_only_what_exists():
@@ -212,7 +212,7 @@ def ongoing(tmp_path, monkeypatch):
 def test_check(ongoing):
     url, tok = ongoing
     assert e.check(url, tok)[0] == "token_ok"
-    assert e.check(url, "falsch") == ("token_abgelehnt", "Server lehnt das Token ab (HTTP 401)")
+    assert e.check(url, "falsch") == ("token_abgelehnt", "server refuses the token (HTTP 401)")
     assert e.check(url, None)[0] == "erreichbar"
     assert e.check("http://127.0.0.1:1/mcp", "t")[0] == "nicht_erreichbar"
     assert e.check("kaputt", "t")[0] == "nicht_erreichbar"
@@ -232,14 +232,14 @@ def test_automatic_tokens_on_the_server(ongoing, target, tmp_path, monkeypatch):
     monkeypatch.setenv("VI_MCP_CONFIG", str(cfg))
     monkeypatch.setattr(e, "_restart", lambda: "kein Dienst")
     r = e.setup(["claude"], target, url, None)
-    assert not r[0].ok and "nicht neu gestartet" in r[0].text and not (target.home / ".claude.json").exists()
+    assert not r[0].ok and "not restarted" in r[0].text and not (target.home / ".claude.json").exists()
     monkeypatch.setattr(e, "_restart", lambda: None)
     monkeypatch.setattr(e, "check", lambda u, t, timeout=4: ("erreichbar", "x") if t is None else ("token_ok", "x"))
     r = e.setup(["claude", "hook"], target, url, None)
     assert all(x.ok for x in r), r
     inst = json.loads(cfg.read_text())["instanzen"]
     assert set(inst) == {f"{target.name}-claude", f"{target.name}-nutzer"} and inst[f"{target.name}-nutzer"]["mensch"] and not inst[f"{target.name}-claude"]["mensch"]
-    assert (target.home / ".config/vi-mcp/token-claude").read_text().strip() == e._claude_token(target)  # Hook und MCP dieselbe Instanz
+    assert (target.home / ".config/vi-mcp/token-claude").read_text().strip() == e._claude_token(target)  # hook and MCP use the same instance
 
 
 def _pty_run(args, env, keystrokes, ts=20):
@@ -282,9 +282,9 @@ def test_menu_in_pseudoterminal(ongoing, target, tmp_path):
 
 def test_menu_ends_when_idle(target):
     code, outputs = _pty_run(["--url", "http://127.0.0.1:1/mcp", "--leerlauf", "1"], {**os.environ, "PYTHONPATH": str(REPO), "TERM": "xterm"}, [], ts=15)
-    assert code == 0 and "sudo vi-mcp einrichten" in outputs and "\x1b[?25h" in outputs
+    assert code == 0 and "sudo vi-mcp setup" in outputs and "\x1b[?25h" in outputs
 
 
 def test_without_terminal_the_hint_appears(target):
     r = subprocess.run([sys.executable, "-m", "vi_mcp", "einrichten"], capture_output=True, text=True, stdin=subprocess.DEVNULL, env={**os.environ, "PYTHONPATH": str(REPO)}, cwd=REPO)
-    assert r.returncode == 2 and "Kein Terminal" in r.stderr
+    assert r.returncode == 2 and "No terminal" in r.stderr

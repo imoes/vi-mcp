@@ -1,4 +1,4 @@
-"""0.5.0: Lernen — Beobachtungen, Erkundung, Router-Modell (sklearn optional), Vorhersage ohne sklearn."""
+"""0.5.0: learning — observations, exploration, router model (sklearn optional), prediction without sklearn."""
 import builtins
 import json
 import random
@@ -33,12 +33,12 @@ def test_observation_view_and_features(gd):
         rows = g.db().execute("SELECT tool, ok, hinweise_n, ueberraschung, router FROM beobachtung ORDER BY zeit").fetchall()
     assert rows[0][:3] == ("checkmk_get_host", 1, 1) and rows[1][:3] == ("checkmk_get_host", 0, 0) and rows[0][4] == "heuristik"
     b = learning.observations()
-    assert len(b) == 2  # ein Paar (mit Hinweis) + eine Basis (ohne)
+    assert len(b) == 2  # one pair (with hint) + one baseline (without)
     with_hint = next(m for m, y, _ in b if y == 1)
     assert "thema:oom" in with_hint and "hinweisart:erkenntnis" in with_hint and "hinweis_n:1" in with_hint and any(k.startswith("hinweis:erkenntnis:") for k in with_hint)
     without = next(m for m, y, _ in b if y == 0)
     assert "hinweis_n:0" in without and not any(k.startswith("hinweis:") for k in without)
-    assert "thema:oom" in g.recall("tool:checkmk_get_host ok:ja", viewer=None)[0][1].hashtags  # Kontext-Reiz ist Tag
+    assert "thema:oom" in g.recall("tool:checkmk_get_host ok:ja", viewer=None)[0][1].hashtags  # context stimulus is a tag
 
 
 def test_exploration_is_tagged(gd, monkeypatch):
@@ -47,7 +47,7 @@ def test_exploration_is_tagged(gd, monkeypatch):
     monkeypatch.setattr(learning, "EPSILON", 1.0)
     v = intuition.before("Bash", {"host": "web3"}, "a", False)
     assert v["zugriff"]["exploration"] is True and len(v["zugriff"]["gezeigt"]) == intuition.HINT_BUDGET
-    assert any("(Erkundung)" in h for h in v["hinweise"]) and len(v["zugriff"]["kandidaten"]) == 8
+    assert any("(exploration)" in h for h in v["hinweise"]) and len(v["zugriff"]["kandidaten"]) == 8
     assert v["zugriff"]["gezeigt"][-1] not in v["zugriff"]["kandidaten"][:intuition.HINT_BUDGET]
     monkeypatch.setattr(learning, "EPSILON", 0.0)
     v = intuition.before("Bash", {"host": "web3"}, "a", False)
@@ -85,8 +85,8 @@ def test_too_little_data_and_missing_sklearn(gd, monkeypatch):
 
 @pytest.mark.skipif(not HAS_SKLEARN, reason="scikit-learn nicht installiert (.venv nutzen)")
 def test_router_learns_which_hint_helps(gd):
-    """Synthetik: Hinweis R (Regel) → ok 90 %; Hinweis E (Erkenntnis) → ok 20 %. Jede Handlung bekommt genau einen
-    der beiden gezeigt (wie bei Budget 1 / Erkundung). Nach dem Training: Gewicht(R) > 0 > Gewicht(E), R zuerst."""
+    """Synthetic: hint R (rule) → ok 90 %; hint E (insight) → ok 20 %. Every action is shown exactly one
+    of the two (as with budget 1 / exploration). After training: weight(R) > 0 > weight(E), R first."""
     random.seed(7)
     r = g.new_object("regel", "vor graylog_search Zeitraum setzen", ["skill:graylog"], {"quelle": "x"}, reason="T")
     e = g.new_object("erkenntnis", "graylog ist immer schnell", ["skill:graylog"], {"quelle": "x"}, reason="T")
@@ -94,7 +94,7 @@ def test_router_learns_which_hint_helps(gd):
         args = {"q": i}
         v = intuition.before("graylog_search", args, "a")
         intuition.after("graylog_search", args, True, 1, None, "ok", v["vorher_id"], "a")
-    with g.lock:  # „gezeigt“ auf genau einen Hinweis setzen und das Label danach würfeln
+    with g.lock:  # set "shown" to exactly one hint and then roll the label
         rows = g.db().execute("SELECT id, daten FROM objekt WHERE art = 'erfahrung'").fetchall()
         for i, (oid, data) in enumerate(rows):
             d = json.loads(data)
@@ -113,7 +113,7 @@ def test_router_learns_which_hint_helps(gd):
     assert rf[0][0] == r.id and rf[0][1] > 0.3
     v = intuition.before("graylog_search", {"q": "neu"}, "a")
     assert v["zugriff"]["router"] == "modell" and v["zugriff"]["gezeigt"][0] == r.id
-    assert "Router-Modell (aktiv)" in tools.call_tool("vi_modell", {}, "a", True)
+    assert "Router model (aktiv)" in tools.call_tool("vi_modell", {}, "a", True)
     assert sleep_cycle.run("Test").data["schritte"]["8_lernen"]["zustand"] == "aktiv"
 
 
@@ -123,37 +123,37 @@ def test_bandit_counters_and_ranking(gd):
     bad = g.new_object("erkenntnis", "graylog ist immer schnell", ["skill:graylog"], {"quelle": "x"}, reason="T")
     v = intuition.before("graylog_search", {"q": 0}, "a")
     assert v["zugriff"]["router"] == "heuristik" and set(v["zugriff"]["gezeigt"]) == {good.id, bad.id}
-    # Zähler: 20× nach dem Zeigen von „gut“ ok, 20× nach „schlecht“ nicht ok (direkt verbucht, wie nachher es tut)
-    bandit._reason.update(zeit=time.time(), je={"graylog_search": 0.5}, alle=0.5)  # Grundrate des Werkzeugs: halbe-halbe
+    # counters: 20× ok after showing "good", 20× not ok after "bad" (booked directly, as after does)
+    bandit._reason.update(zeit=time.time(), je={"graylog_search": 0.5}, alle=0.5)  # the tool's base rate: half and half
     assert bandit.book_entry([good.id], True, "graylog_search") == 1 and bandit.book_entry(["antwort:x"], True) == 0 and bandit.book_entry([good.id], None) == 0
     for _ in range(19):
         bandit.book_entry([good.id], True, "graylog_search")
     for _ in range(20):
         bandit.book_entry([bad.id], False, "graylog_search")
     assert bandit.counter(g.load(good.id)) == (10, 0) and bandit.counter(g.load(bad.id)) == (0, 10) and bandit.shown(g.load(good.id)) == 20
-    assert "20× gezeigt, Erfolg danach 100 % statt erwartet 50 % (+50 Punkte)" in tools.call_tool("vi_objekt", {"id": good.id}, "a", True)
+    assert "20× shown, success afterwards 100 % instead of expected 50 % (+50 points)" in tools.call_tool("vi_objekt", {"id": good.id}, "a", True)
     rnd = random.Random(1)
-    fresh = [g.load(bad.id), g.load(good.id)]  # Zähler stehen in der DB; vorher() lädt Kandidaten immer frisch
+    fresh = [g.load(bad.id), g.load(good.id)]  # counters live in the DB; before() always loads candidates fresh
     in_front = sum(1 for _ in range(100) if bandit.arrange(fresh, rnd)[0].id == good.id)
-    assert in_front >= 95  # Beta(11,1) gegen Beta(1,11)
+    assert in_front >= 95  # Beta(11,1) versus Beta(1,11)
     v = intuition.before("graylog_search", {"q": 1}, "a")
     assert v["zugriff"]["router"] == "bandit"
     n = intuition.after("graylog_search", {"q": 1}, False, 1, "Fehler", None, v["vorher_id"], "a")
     assert n["bewertet"] == len(v["zugriff"]["gezeigt"])
-    assert bandit.counter(g.load(good.id))[1] == 0.5 and bandit.shown(g.load(good.id)) == 21  # „nein“ nach echter Handlung verbucht, gewichtet mit der Grundrate
+    assert bandit.counter(g.load(good.id))[1] == 0.5 and bandit.shown(g.load(good.id)) == 21  # "no" booked after a real action, weighted with the base rate
 
 
 def test_ineffective_hint_stays_at_half(gd):
-    """Ein Hinweis, der vor einem fast immer gelingenden Werkzeug steht, bekommt keinen Vorteil gutgeschrieben, ein hilfreicher schon."""
+    """A hint shown before a tool that almost always succeeds gets no credit; a helpful one does."""
     from vi_mcp import bandit
     empty = g.new_object("regel", "Bash scheiterte und gelang danach", ["tool:Bash"], {"quelle": "x"}, reason="T")
     rng = random.Random(4)
-    for i in range(400):  # Bash ohne Hinweis: 94 %
+    for i in range(400):  # Bash without hint: 94 %
         g.new_object("erfahrung", "Bash", ["tool:Bash", "ok:ja" if rng.random() < 0.94 else "ok:nein"], {"vorher": {"gezeigt": []}, "args": {"i": i}}, reason="T")
-    for i in range(300):  # mit dem leeren Hinweis: ebenfalls 94 %
+    for i in range(300):  # with the empty hint: also 94 %
         g.new_object("erfahrung", "Bash", ["tool:Bash", "ok:ja" if rng.random() < 0.94 else "ok:nein"], {"vorher": {"gezeigt": [empty.id]}, "args": {"j": i}}, reason="T")
     helps = g.new_object("regel", "Zeitraum halbieren", ["tool:graylog_search"], {"quelle": "x"}, reason="T")
-    for i in range(200):  # graylog ohne Hinweis 50 %, mit Hinweis 90 %
+    for i in range(200):  # graylog without hint 50 %, with hint 90 %
         g.new_object("erfahrung", "g", ["tool:graylog_search", "ok:ja" if rng.random() < 0.5 else "ok:nein"], {"vorher": {"gezeigt": []}, "args": {"k": i}}, reason="T")
         g.new_object("erfahrung", "g", ["tool:graylog_search", "ok:ja" if rng.random() < 0.9 else "ok:nein"], {"vorher": {"gezeigt": [helps.id]}, "args": {"l": i}}, reason="T")
     r = bandit.recompute()
@@ -163,12 +163,12 @@ def test_ineffective_hint_stays_at_half(gd):
     assert abs(bandit.lift(g.load(empty.id)) or 0) < 0.06 and bandit.lift(g.load(helps.id)) > 0.3
     old = g.new_object("regel", "Altlast mit falschen Zählern", ["tool:x"], {"quelle": "x", "nuetzlich": {"ja": 226, "nein": 1}}, reason="T")
     bandit.recompute()
-    assert "nuetzlich" not in g.load(old.id).data  # ohne bewertete Handlung keine Zähler
+    assert "nuetzlich" not in g.load(old.id).data  # no counters without a rated action
 
 
 @pytest.mark.skipif(not HAS_SKLEARN, reason="scikit-learn fehlt")
 def test_warning_before_risky_actions(gd):
-    """0.20.8: Das Router-Modell erkennt Lagen, in denen Handlungen oft scheitern, und warnt mit gezählter Begründung."""
+    """0.20.8: the router model detects situations in which actions often fail and warns with a counted reason."""
     rnd = random.Random(7)
     for _ in range(400):
         broken = rnd.random() < 0.3
@@ -176,29 +176,29 @@ def test_warning_before_risky_actions(gd):
     r = learning.train("Test")
     assert r["zustand"] == "aktiv" and r["warnung"]["zustand"] == "aktiv" and r["warnung"]["praezision_pct"] >= 50
     w = learning.warning(intuition.triggers("deploy_run", {"host": "kaputt1"}))
-    assert w and w.startswith("[VI-Warnung]") and "host:kaputt1:" in w and "Handlungen scheiterten" in w
+    assert w and w.startswith("[VI warning]") and "host:kaputt1:" in w and "actions failed" in w
     assert learning.warning(intuition.triggers("deploy_run", {"host": "gut2"})) is None
     v = intuition.before("deploy_run", {"host": "kaputt1", "n": -1}, "a")
-    assert any(h.startswith("[VI-Warnung]") for h in v["hinweise"])
-    assert "Warnung vor riskanten Handlungen: aktiv" in learning.explanation()
+    assert any(h.startswith("[VI warning]") for h in v["hinweise"])
+    assert "Warning before risky actions: active" in learning.explanation()
 
 
 def test_hint_feedback_is_direct_learning_signal(gd):
-    """0.20.9: vi_bestaetige/vi_widerlege eines gerade gezeigten Hinweises wird zum Label des Paares (Lage + Hinweis)."""
+    """0.20.9: vi_bestaetige/vi_widerlege of a hint just shown becomes the label of the pair (situation + hint)."""
     h = g.new_object("erkenntnis", "web7 braucht den Proxy", ["host:web7"], {"quelle": "x"}, reason="T", instance="b")
-    action("checkmk_get_host", "web7", False)  # Handlung scheiterte trotzdem — das indirekte Label wäre 0
+    action("checkmk_get_host", "web7", False)  # the action failed anyway — the indirect label would be 0
     outputs = tools.call_tool("vi_bestaetige", {"id": h.id, "grund": "Hinweis war richtig, Fehler hatte andere Ursache"}, "a", True)
-    assert "Rückmeldung zum Hinweis" in outputs
+    assert "feedback on the hint" in outputs
     pair = [y for m, y, _ in learning.observations() if f"hinweis:{h.id}" in m]
     assert pair == [1]
-    # Widerlegen eines Objekts, das nicht gezeigt wurde: normale Widerlegung, keine Rückmeldung
+    # refuting an object that was not shown: normal refutation, no feedback
     others = g.new_object("erkenntnis", "web8 ist abgeschaltet", ["host:web8"], {"quelle": "y"}, reason="T", instance="b")
-    assert "Rückmeldung" not in tools.call_tool("vi_widerlege", {"id": others.id, "grund": "stimmt nicht"}, "a", True)
+    assert "feedback" not in tools.call_tool("vi_widerlege", {"id": others.id, "grund": "stimmt nicht"}, "a", True)
 
 
 def test_holdout_grows_until_enough_failures():
-    """0.20.9: Mit 9 Fehlschlägen in den jüngsten 20 % schwankte die AUC stark; das Holdout wächst bis 30 Fehlschläge (höchstens 50 %)."""
-    y = [0] * 100 + [1] * 800 + [0] * 5 + [1] * 95  # jüngste 20 % = 200 Handlungen mit nur 5 Fehlschlägen
+    """0.20.9: with 9 failures in the most recent 20 % the AUC varied strongly; the holdout grows up to 30 failures (at most 50 %)."""
+    y = [0] * 100 + [1] * 800 + [0] * 5 + [1] * 95  # most recent 20 % = 200 actions with only 5 failures
     n = learning._holdout_size(y)
-    assert n == 500 and len(y[-n:]) - sum(y[-n:]) >= 5  # wächst bis HOLDOUT_MAX, weil erst ganz vorn genug Fehlschläge liegen
-    assert learning._holdout_size([1, 0] * 500) == 200  # genug Fehlschläge: bleibt bei 20 %
+    assert n == 500 and len(y[-n:]) - sum(y[-n:]) >= 5  # grows up to HOLDOUT_MAX because enough failures lie only at the very front
+    assert learning._holdout_size([1, 0] * 500) == 200  # enough failures: stays at 20 %

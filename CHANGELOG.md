@@ -1,7 +1,54 @@
 # Changelog
 
-Was ein Nutzer von vi-mcp merkt — gruppiert nach Wirkung, jeder Eintrag mit Nachweis.
-Verlinkt aus [README.md](README.md).
+What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
+Linked from [README.md](README.md).
+
+## 0.23.0 — 2026-11-09 — English throughout (steps 2–4 of 4)
+
+### What is new
+
+- **All output is English**: tool answers, the hints before an action (`Learned […]`, `Rule […]`, `[VI warning] …`), error messages,
+  the setup menu, CLI help, log lines, sleep reports and the self narrative. The hook marks its context as `[VI memory before <tool>]`.
+- **English command line; the German commands stay as aliases.** `vi-mcp setup` (`einrichten`), `vi-mcp net setup|invite|exclude|invitation|join|run|peers|id|status`
+  (`netz einrichten|einladen|…`), `vi-mcp instance`, `net-token`, `p2p-key`, `release`, `delete-instance`; options such as `--token-file`,
+  `--idle`, `--uninstall`, `--skip-check`, `--mode`, `--address`, `--found`, `--founder`, `--tls-self`, `--no-proxy`, `--hours`, `--reflexes`, `--human`.
+  *Proof:* `test_net_cli_accepts_english_options_and_german_aliases` (both spellings give the same parsed result); `python -m vi_mcp einrichten </dev/null`
+  still reaches the setup command.
+- **Documentation in English**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (was `ARCHITEKTUR.md`), [docs/OPERATIONS.md](docs/OPERATIONS.md) (was `BETRIEB.md`),
+  [docs/HOOK.md](docs/HOOK.md), `AGENTS.md`. The menu shown in the README is rendered by the code itself (`setup.record`).
+- **Code in English**: modules (`gedaechtnis` → `memory`, `schlaf` → `sleep_cycle`, `werkzeuge` → `tools`, …), classes, functions, variables;
+  the MCP tool table is English internally and `api_en.py` only translates German aliases on the way in.
+
+### What has changed
+
+- The hook calls `vi_before`/`vi_after` with English parameter names and therefore needs a server ≥ 0.22.0. Servers keep accepting older hooks.
+- The network config file keeps its German keys (stored format) and is read as before. **Unknown keys are now logged**
+  (`config: unknown keys ignored: …`) instead of being dropped silently. *Proof:* `test_config_file_keeps_german_keys`.
+- Search output reads `N objects for "…"`. The usage statistics recognise the English and the German form, and an **empty search now counts as
+  0 hits** — before, „nichts im Gedächtnis“ was not recognised and recorded as unknown. *Proof:* `usage_stats._hits` on six sample outputs
+  (English, German, empty, OR search, hybrid, drill-down level).
+- Example host names in code, tests and research docs are neutral names now.
+
+### What was fixed
+
+- **The v0.22.0 release tag points at the wrong commit.** `deploy/release.sh` created the GitHub release with `--target main` before the push, so
+  the tag landed on the remote main of that moment, `3b9f14c` (0.21.2), while the attached packages were built from the 0.22.0 code.
+  *Proof:* `git ls-remote --tags origin v0.22.0` → `3b9f14c`. The script now refuses to publish unless the working tree is clean and HEAD equals
+  `origin/main`, refuses an existing tag, and tags the HEAD commit explicitly.
+
+### What is still missing
+
+- **Stored formats stay German on purpose**: database columns, JSON keys in object data, hashtag kinds and values, stored enum values
+  (`geteilt`, `intern`, `aktiv`, …), the P2P wire format and config keys — changing them would migrate 16,000 production objects and break peers.
+- **Existing objects keep their German texts** (change history, edge reasons, experience texts); new ones are English. The production self
+  (`selbst:kern`) still says its style is German — changing it takes a `vi_self_propose` confirmed by another trusted instance.
+- `README.de.md` stays German by design; the research reports `docs/FORSCHUNG.md` and `docs/TRAINING.md` are German.
+- The hook's error markers `unbekannter Fehler` / `[abgebrochen]` stay German: they become part of `fehler:` hashtags, and translating them would
+  split existing error statistics.
+- The reviewer's self-test text is English now; the pass/fail logic is unchanged, but its strength against the production model is only
+  re-measured when the reviewer runs there.
+- Known gap, not new: the anonymiser treats `node` + digits as a software version, so a host named like `node0412` is not replaced.
+
 
 ## 0.22.0 — 2026-11-09 — English public interface (step 1 of 4)
 

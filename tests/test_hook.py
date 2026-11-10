@@ -1,4 +1,4 @@
-"""Block 4: Claude-Code-Hook gegen echten vi-mcp-Server (Hook-Ereignisse als JSON wie von Claude Code)."""
+"""Block 4: Claude Code hook against a real vi-mcp server (hook events as JSON like from Claude Code)."""
 import importlib.util
 import json
 from pathlib import Path
@@ -41,7 +41,7 @@ def test_before_after_and_remembered_answer(h):
                     tool_response={"content": [{"type": "text", "text": "web1 aktiv"}]}))
     e = [o for _, o, _g in g.recall("tool:netbox_get_devices art:erfahrung ok:ja")]
     assert len(e) == 1 and e[0].data["vorher"]["reize"][:3] == ["tool:netbox_get_devices", "skill:netbox", "host:web1"]
-    # zweiter gleicher Aufruf (andere Claude-Sitzung): aus dem Gedächtnis → verweigert mit der Antwort als Grund
+    # second identical call (other Claude session): from memory → denied with the answer as reason
     outputs = h.process(ev("PreToolUse", "cc-2", tool_name=t, tool_input={"host": "web1"}, tool_use_id="u2"))
     hs = outputs["hookSpecificOutput"]
     assert hs["permissionDecision"] == "deny" and "web1 aktiv" in hs["permissionDecisionReason"]
@@ -71,8 +71,8 @@ def test_session_end_and_server_restart(h):
     serial = [o for _, o, _g in g.recall("art:gespraech instanz:laptop")][0].data["serial"]
     h.process(ev("SessionEnd", "cc-9", reason="exit"))
     gs = g.load(f"gespraech:{serial}")
-    assert gs.data["zustand"] == "beendet" and gs.data["ohne_ergebnis"] == 1  # vorher ohne nachher: benannt
-    # Zustandsdatei zeigt auf eine unbekannte Sitzung (Server neu gestartet) → Hook meldet sich neu an
+    assert gs.data["zustand"] == "beendet" and gs.data["ohne_ergebnis"] == 1  # before without after: named
+    # state file points to an unknown session (server restarted) → hook registers again
     h.write("sitzung", "cc-10", {"mcp_session_id": "veraltet"})
     assert h.process(ev("PreToolUse", "cc-10", tool_name="Glob", tool_input={"pattern": "*"}, tool_use_id="g2")) is None
     assert h.read("sitzung", "cc-10")["mcp_session_id"] != "veraltet"
@@ -83,7 +83,7 @@ def test_outage_runs_through(h, monkeypatch, capsys):
     monkeypatch.setattr("sys.stdin", __import__("io").StringIO(json.dumps(ev("PreToolUse", tool_name="Bash", tool_input={}))))
     assert h.main() == 0
     assert capsys.readouterr().out == ""
-    assert "ohne Gedächtnis weiter" in (h.STATE / "hook.log").read_text()
+    assert "continuing without memory" in (h.STATE / "hook.log").read_text()
 
 
 def test_masking_and_truncation():

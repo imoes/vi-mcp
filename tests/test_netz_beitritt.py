@@ -1,4 +1,4 @@
-"""0.15.0: Beitritt mit Code, selbstsigniertes TLS mit Pin, HTTPS-Proxy, Befehle für weitere Peers."""
+"""0.15.0: joining with a code, self-signed TLS with a pin, HTTPS proxy, commands for further peers."""
 import json
 import select
 import socket
@@ -22,8 +22,8 @@ def test_code_round_trip():
     c = nd.build_code(g, "https://wissen.example/vi-p2p", "b" * 64, "geheim", time.time() + 60)
     d = nd.read_code(c)
     assert d["g"] == g and d["s"] == "https://wissen.example/vi-p2p" and d["p"] == "b" * 64 and d["n"] == "geheim"
-    for broken, reason in ((c[:-6], "beschädigt|Gründer|Adresse"), ("xyz", "kein Beitrittscode"), (nd.build_code(g, "https://w.example", None, "n", time.time() - 1), "abgelaufen"),
-                          (nd.build_code(["x"], "https://w.example", None, "n", time.time() + 9), "Gründer"), (nd.build_code(g, "https://w.example/", None, "n", time.time() + 9), "Adresse")):
+    for broken, reason in ((c[:-6], "corrupted|founders|address"), ("xyz", "not a join code"), (nd.build_code(g, "https://w.example", None, "n", time.time() - 1), "expired"),
+                          (nd.build_code(["x"], "https://w.example", None, "n", time.time() + 9), "founders"), (nd.build_code(g, "https://w.example/", None, "n", time.time() + 9), "address")):
         with pytest.raises(ValueError, match=reason):
             nd.read_code(broken)
 
@@ -45,13 +45,13 @@ def test_join_via_tls_with_pin(net, tmp_path):
     a.log.create_join(nonce, 60)
     b = net.build(sb, [a_pub], mode="peer")
     with pytest.raises(ValueError, match="CERTIFICATE_VERIFY_FAILED|certificate verify failed"):
-        b._request(a.k.address, "POST", "/netz/beitritt", {"code": nonce})  # ohne Pin und ohne CA kein Vertrauen
+        b._request(a.k.address, "POST", "/netz/beitritt", {"code": nonce})  # no pin and no CA: no trust
     b.log.peer_remember(a.k.address, "beitritt", "f" * 64)
-    with pytest.raises(ValueError, match="Pin"):
+    with pytest.raises(ValueError, match="pin"):
         b._request(a.k.address, "POST", "/netz/beitritt", {"code": nonce})
     b.log.peer_remember(a.k.address, "beitritt", nd.certificate_pin(Path(cert)))
     assert b._request(a.k.address, "POST", "/netz/beitritt", {"code": nonce}) == {"eingeladen": lb.pseudonym(b_pub)}
-    with pytest.raises(ValueError, match="403.*schon benutzt"):
+    with pytest.raises(ValueError, match="403.*already used"):
         b._request(a.k.address, "POST", "/netz/beitritt", {"code": nonce})
     assert a.log.is_member(b_pub)
     b.mcp.mem_objects.append(mem_object(2))
@@ -65,7 +65,7 @@ def test_expired_code_and_missing_signature(net):
     a = net.build(sa, [a_pub])
     a.log.create_join("alt", -1)
     b = net.build(sb, [a_pub], mode="peer")
-    with pytest.raises(ValueError, match="403.*abgelaufen"):
+    with pytest.raises(ValueError, match="403.*expired"):
         b._request(a.k.address, "POST", "/netz/beitritt", {"code": "alt"})
     with pytest.raises(ValueError, match="403"):
         b._request(a.k.address, "POST", "/netz/beitritt", {"code": "gibtsnicht"})
@@ -78,11 +78,11 @@ def test_expired_code_and_missing_signature(net):
 def test_pin_moves_with_the_address(net, tmp_path):
     cert, key = _cert(tmp_path)
     (sa, a_pub), (sb, b_pub), (sc, c_pub) = net.key_(), net.key_(), net.key_()
-    b = net.build(sb, [a_pub])  # b ist peerhost ohne eigenes TLS (lokal), a mit selbstsigniertem
+    b = net.build(sb, [a_pub])  # b is a peerhost without its own TLS (local), a with a self-signed one
     a = net.build(sa, [a_pub], tls_cert=cert, tls_key=key, start=[b.k.address])
     a.log.attach("einladung", {"pub": b_pub})
     a.log.attach("einladung", {"pub": c_pub})
-    a.run_round()  # a schiebt sein Logbuch samt Adresse und Pin zu b
+    a.run_round()  # a pushes its logbook including address and pin to b
     c = net.build(sc, [a_pub], mode="peer", start=[b.k.address])
     c.run_round()
     assert c.log.pin(a.k.address) == nd.certificate_pin(Path(cert))
@@ -92,7 +92,7 @@ def test_pin_moves_with_the_address(net, tmp_path):
 
 
 class ConnectProxy:
-    """Ein winziger HTTPS-Proxy: merkt sich jedes CONNECT-Ziel und leitet an 127.0.0.1 weiter."""
+    """A tiny HTTPS proxy: remembers every CONNECT target and forwards to 127.0.0.1."""
 
     def __init__(self):
         self.targets = []
@@ -141,19 +141,19 @@ def test_https_via_proxy(net, tmp_path):
     a.mcp.mem_objects.append(mem_object(4))
     a.run_round()
     p = ConnectProxy()
-    remote = f"https://peer.wissen.test:{a.port()}"  # nur über den Proxy erreichbar: der Name existiert nicht
+    remote = f"https://peer.wissen.test:{a.port()}"  # reachable only via the proxy: the name does not exist
     b = net.build(sb, [a_pub], mode="peer", proxy=f"http://127.0.0.1:{p.port}")
     b.log.peer_remember(remote, "beitritt", nd.certificate_pin(Path(cert)))
     b.run_round()
     assert b.mcp.texts() == [mem_object(4)["text"]] and f"peer.wissen.test:{a.port()}" in p.targets
     b.k.no_proxy = ["wissen.test"]
-    with pytest.raises(OSError):  # ohne Proxy ist der Name nicht auflösbar
+    with pytest.raises(OSError):  # without the proxy the name cannot be resolved
         b._request(remote, "POST", "/netz/koepfe", {"koepfe": {}})
     p.s.close()
 
 
 def test_commands_end_to_end(tmp_path, monkeypatch, capsys):
-    """einrichten --tls-selbst → einladung → beitreten → peers, wie auf echten Servern, nur ohne systemd."""
+    """einrichten --tls-selbst → einladung → beitreten → peers, as on real servers, just without systemd."""
     monkeypatch.setenv("VI_MCP_KEIN_DIENST", "1")
     token = tmp_path / "mcp-token"
     token.write_text("t\n")
@@ -182,10 +182,10 @@ def test_commands_end_to_end(tmp_path, monkeypatch, capsys):
         assert code.startswith("vinetz1.") and nd.read_code(code)["p"] == nd.certificate_pin(Path(ka.tls_cert))
         conf("b")
         assert net_cli.main(["beitreten", code]) == 0
-        assert "Aufgenommen als vi-" in capsys.readouterr().out
+        assert "Joined as vi-" in capsys.readouterr().out
         kb = nd.load()
         assert kb.mode == "peer" and kb.founders == ka.founders and kb.startpeers == [f"https://127.0.0.1:{port}"]
-        assert net_cli.main(["beitreten", code]) == 1  # zweimal geht nicht
+        assert net_cli.main(["beitreten", code]) == 1  # twice is not possible
         b = nd.NetService(kb, FakeMemory())
         a.mcp.mem_objects.append(mem_object(5))
         a.run_round()

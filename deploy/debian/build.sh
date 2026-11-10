@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Baut dist/vi-mcp_<version>-<rev>_all.deb aus dem Arbeitsbaum. Nur dpkg-deb nötig.
+# Builds dist/vi-mcp_<version>-<rev>_all.deb from the working tree. Needs only dpkg-deb.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 version=$(python3 -c "import vi_mcp; print(vi_mcp.__version__)")
@@ -14,13 +14,13 @@ install -m 0755 deploy/debian/vi-mcp.sh "$r/usr/bin/vi-mcp"
 install -m 0644 deploy/debian/vi-mcp.service "$r/lib/systemd/system/vi-mcp.service"
 install -m 0644 deploy/vi-p2p.service "$r/lib/systemd/system/vi-p2p.service"
 install -m 0644 README.md README.de.md AGENTS.md CHANGELOG.md "$r/usr/share/doc/vi-mcp/"
-# docs/LOKAL* enthält Hostangaben und den Prüfer-Prompt und darf in kein Paket
+# docs/LOKAL* holds host details and the reviewer prompt and must never go into a package
 find docs -maxdepth 1 -name "*.md" ! -name "LOKAL*" -exec install -m 0644 {} "$r/usr/share/doc/vi-mcp/docs/" \;
 install -m 0755 hook/vi_hook.py "$r/usr/share/vi-mcp/hook/vi_hook.py"
 install -m 0755 deploy/nach-installation.sh "$r/usr/share/vi-mcp/nach-installation.sh"
 for s in postinst prerm postrm; do install -m 0755 "deploy/debian/$s" "$r/DEBIAN/$s"; done
 groesse=$(du -sk "$r" | cut -f1)
-# Maintainer aus DEB_MAINTAINER oder der git-Konfiguration — steht nicht fest im Repo
+# Maintainer from DEB_MAINTAINER or the git config — not fixed in the repo
 maintainer="${DEB_MAINTAINER:-$(git config user.name) <$(git config user.email)>}"
 cat > "$r/DEBIAN/control" <<CTRL
 Package: vi-mcp

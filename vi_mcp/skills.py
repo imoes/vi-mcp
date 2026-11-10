@@ -1,20 +1,20 @@
-"""Skills — Lösungswege, die entstehen, wenn etwas als gelöst gilt (Stufe 6; prozedurales Gedächtnis, docs/FORSCHUNG.md A3).
+"""Skills — solution paths that arise when something counts as solved (stage 6; procedural memory, docs/FORSCHUNG.md A3).
 
-Ein Skill ist ein geteiltes Objekt `skill:<name>`:
-  Problem    Reize (tool:, skill:, host:, thema:, fehler:), an denen er vor einer Handlung erscheint
-  Lösungsweg Schritte (Werkzeugfolge) + ein Satz Anleitung — zunächst Text, der dem Bewusstsein gezeigt wird;
-             ausführbar wird ein Skill nur über den geprüften Reflex-Weg (Code im Gedächtnis), nie von selbst
-  Versionen  jede Weiterentwicklung mit Zeit, Urheber, Grund, Belegen (vollständig in daten.versionen)
-  Zähler     genützt/nicht nach dem Zeigen (bandit) — ein Skill, der dreimal scheitert und nie nützt, wird `strittig`
-Entstehung:
-  vi_solved      eine Instanz meldet: Problem X wurde so gelöst (Schritte, Grund, Belege)
-  Schlaf 4c       automatisch: eine Handlung gelang nach Fehlern desselben Werkzeugs im selben Gespräch
-                  (`ueberraschung:erholt`) — die Werkzeugfolge vom ersten Fehler bis zum Erfolg ist der Lösungsweg
-Zusammenführen:
-  vi_skill_merge(a, b, grund)  neuer Skill aus beiden (Reize vereinigt, Schritte hintereinander, Belege vereinigt);
-                  a und b bekommen Modus `aufgegangen` mit Verweis — sie verschwinden nicht, sie sind aufgegangen.
-  Schlaf          gleicher Problem-Schlüssel (tool + Fehlersignatur) oder Vektornähe ≥ 0,95 → `fusion:vorschlag` + Kante;
-                  zusammengeführt wird nur von einer Instanz, nie vom Server.
+A skill is a shared object `skill:<name>`:
+  Problem    triggers (tool:, skill:, host:, thema:, fehler:) at which it appears before an action
+  Solution   steps (tool sequence) + one sentence of instructions — at first text shown to the conscious session;
+             a skill becomes executable only via the reviewed reflex path (code in memory), never by itself
+  Versions   every evolution with time, author, reason, evidence (complete in daten.versionen)
+  Counters   helped/did not help after being shown (bandit) — a skill that fails three times and never helps becomes `strittig`
+Origin:
+  vi_solved      an instance reports: problem X was solved like this (steps, reason, evidence)
+  sleep 4c        automatically: an action succeeded after errors of the same tool in the same conversation
+                  (`ueberraschung:erholt`) — the tool sequence from the first error to the success is the solution path
+Merging:
+  vi_skill_merge(a, b, reason) new skill from both (triggers united, steps in sequence, evidence united);
+                  a and b get mode `aufgegangen` with a reference — they do not vanish, they are merged.
+  sleep           same problem key (tool + error signature) or vector proximity ≥ 0.95 → `fusion:vorschlag` + edge;
+                  merging is done only by an instance, never by the server.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from . import memory as g
 BAD_FROM = 3
 BAD_RATIO = 0.3
 
-#: Werkzeuge, die in fast jedem Gespräch vorkommen. Ein Lösungsweg nur aus ihnen sagt nichts darüber, was das Problem gelöst hat.
+#: Tools that occur in almost every conversation. A solution path made only of them says nothing about what solved the problem.
 GENERAL_TOOLS = {"Bash", "Read", "Write", "Edit", "MultiEdit", "Glob", "Grep", "AskUserQuestion", "ToolSearch", "TodoWrite", "WebSearch", "WebFetch",
                         "Agent", "Task", "Skill", "SendMessage", "NotebookEdit", "BashOutput", "KillShell", "Monitor", "ScheduleWakeup", "ListAgents"}
 
@@ -49,10 +49,10 @@ def _steps_ok(steps) -> list[dict]:
 
 
 def _content(instructions: str) -> dict:
-    """Eine ausführliche Anleitung (Befehle, Code) bleibt vollständig erhalten, der Hinweis zeigt nur den Anfang."""
+    """Detailed instructions (commands, code) are kept in full; the hint shows only the beginning."""
     a = (instructions or "").strip()
     if len(a) > g.CONTENT_MAX:
-        raise ValueError(f"anleitung hat {len(a)} Zeichen, erlaubt sind {g.CONTENT_MAX}")
+        raise ValueError(f"instructions have {len(a)} characters, allowed are {g.CONTENT_MAX}")
     return {"inhalt": a} if len(a) > 600 else {}
 
 
@@ -60,15 +60,15 @@ def new(name: str, triggers: list[str], steps, instructions: str, reason: str, e
         source: str = "", oid: str | None = None, who: str | None = None) -> g.MemoryObject:
     n = _slug(name)
     if len(n) < 2:
-        raise ValueError("name: mindestens 2 Zeichen a-z, 0-9, -")
+        raise ValueError("name: at least 2 characters a-z, 0-9, -")
     rz = _triggers_ok(triggers)
     if not rz:
-        raise ValueError("mindestens ein Reiz (Hashtag art:wert), an dem der Skill erscheint")
+        raise ValueError("at least one trigger (hashtag kind:value) at which the skill appears")
     st = _steps_ok(steps)
     if not st:
-        raise ValueError("mindestens ein Schritt (Werkzeugname)")
+        raise ValueError("at least one step (tool name)")
     if len((instructions or "").strip()) < 10 or len((reason or "").strip()) < 5:
-        raise ValueError("anleitung (der Lösungsweg, mindestens 10 Zeichen) und grund sind Pflicht")
+        raise ValueError("instructions (the solution path, at least 10 characters) and reason are required")
     oid = oid or f"skill:{n}"
     old = g.load(oid)
     if old and old.kind == "skill":
@@ -80,20 +80,20 @@ def new(name: str, triggers: list[str], steps, instructions: str, reason: str, e
                         "belege": list(evidence_list or [])[:200], "quelle": (source or reason).strip()[:300]},
                        importance=2, who=who or f"ki@{instance}", oid=oid, mode="test", reason=reason, instance=instance)
     for b in evidence_list or []:
-        o.link(b, "Beleg (Lösung)")
+        o.link(b, "Beleg (solution)")
     return o
 
 
 def evolve(o: g.MemoryObject, steps, instructions: str, reason: str, evidence_list: list[str], instance: str, who: str | None = None,
                      triggers: list[str] | None = None) -> g.MemoryObject:
-    """Neue Version: Schritte, die noch fehlen, kommen hinten dazu; Anleitung wird ersetzt, alte steht in der Version.
-    0.20.11: Neue Reize ersetzen die alten (vorher blieben sie stehen — ein zu allgemeiner Reiz wie tool:Bash ließ sich nie mehr entfernen);
-    die alten stehen in der Version."""
+    """New version: missing steps are appended; instructions are replaced, the old ones are kept in the version.
+    0.20.11: New triggers replace the old ones (before, they stayed — a too general trigger like tool:Bash could never be removed again);
+    the old ones are kept in the version."""
     st = _steps_ok(steps)
     triggers_before = list(o.data["problem"]["reize"])
     if triggers and sorted(triggers) != sorted(triggers_before):
         base = [t for t in o.hashtags if t not in triggers_before]
-        o.hashtags = base + [t for t in triggers if t not in base]  # gegen die bereinigte Liste prüfen, sonst fallen bleibende Reize weg (0.20.12)
+        o.hashtags = base + [t for t in triggers if t not in base]  # check against the cleaned list, otherwise remaining triggers get lost (0.20.12)
         o.data["problem"]["reize"] = list(triggers)
     present = {s["tool"] for s in o.data["loesung"]["schritte"]}
     o.data["loesung"]["schritte"] += [s for s in st if s["tool"] not in present]
@@ -110,7 +110,7 @@ def evolve(o: g.MemoryObject, steps, instructions: str, reason: str, evidence_li
     o.change(who or f"ki@{instance}", f"Version {o.data['version']}", reason)
     g.save(o)
     for b in evidence_list or []:
-        o.link(b, "Beleg (Lösung)")
+        o.link(b, "Beleg (solution)")
     return o
 
 
@@ -118,44 +118,44 @@ def fusion(a_id: str, b_id: str, name: str, reason: str, instance: str) -> g.Mem
     a, b = g.load(a_id), g.load(b_id)
     for x, xid in ((a, a_id), (b, b_id)):
         if not x or x.kind != "skill":
-            raise ValueError(f"{xid} ist kein Skill")
+            raise ValueError(f"{xid} is not a skill")
         if x.mode == "aufgegangen":
-            raise ValueError(f"{xid} ist bereits aufgegangen in {x.data.get('aufgegangen_in')}")
+            raise ValueError(f"{xid} is already merged into {x.data.get('aufgegangen_in')}")
         if x.mode == "quarantaene":
-            raise ValueError(f"{xid} liegt in der Quarantäne")
+            raise ValueError(f"{xid} is in quarantine")
     if a.id == b.id:
-        raise ValueError("ein Skill kann nicht mit sich selbst zusammengeführt werden")
+        raise ValueError("a skill cannot be merged with itself")
     triggers = sorted(set(a.data["problem"]["reize"]) | set(b.data["problem"]["reize"]))
     steps = list(a.data["loesung"]["schritte"]) + [s for s in b.data["loesung"]["schritte"] if s["tool"] not in {x["tool"] for x in a.data["loesung"]["schritte"]}]
     instructions = f"{a.data['loesung']['text']} — {b.data['loesung']['text']}"[:600]
     evidence_list = sorted(set(a.data.get("belege", [])) | set(b.data.get("belege", [])))
-    new_o = new(name, triggers, steps, instructions, f"Fusion aus {a.id} und {b.id}: {reason}", evidence_list, instance,
-                source=f"Fusion {a.id} + {b.id}")
+    new_o = new(name, triggers, steps, instructions, f"merge of {a.id} and {b.id}: {reason}", evidence_list, instance,
+                source=f"merge {a.id} + {b.id}")
     new_o.data["fusion_aus"] = [a.id, b.id]
-    if "herkunft:p2p" in a.hashtags or "herkunft:p2p" in b.hashtags:  # die Herkunft überlebt die Fusion
+    if "herkunft:p2p" in a.hashtags or "herkunft:p2p" in b.hashtags:  # the origin survives the merge
         new_o.hashtags = sorted(set(new_o.hashtags) | {"herkunft:p2p"})
     g.save(new_o)
     for x in (a, b):
         x.mode = "aufgegangen"
         x.data["aufgegangen_in"] = new_o.id
         x.hashtags = [t for t in x.hashtags if not t.startswith(("modus:", "fusion:"))] + ["modus:aufgegangen"]
-        x.change(f"ki@{instance}", f"aufgegangen in {new_o.id}", reason)
+        x.change(f"ki@{instance}", f"merged into {new_o.id}", reason)
         g.save(x)
-        new_o.link(x.id, "hervorgegangen aus")
+        new_o.link(x.id, "merged from")
     return new_o
 
 
 def line(o: g.MemoryObject) -> str:
     from . import bandit
     steps = " → ".join(s["tool"] for s in o.data["loesung"]["schritte"][:6])
-    return (f"Skill „{o.data['name']}“ v{o.data['version']} ({o.mode}, von {o.instance}, {bandit.line(o)}): {o.text[:200]}"
-            f" — Schritte: {steps}")
+    return (f"Skill \"{o.data['name']}\" v{o.data['version']} ({o.mode}, from {o.instance}, {bandit.line(o)}): {o.text[:200]}"
+            f" — steps: {steps}")
 
 
-# ── Schlaf-Schritte ───────────────────────────────────────────────────────────
+# ── Sleep steps ───────────────────────────────────────────────────────────────
 
 def from_recovery(since: str) -> dict:
-    """4c: Erfolg nach Fehlern desselben Werkzeugs im selben Gespräch → Skill (test) oder neue Version."""
+    """4c: success after errors of the same tool in the same conversation → skill (test) or new version."""
     new_n = evolved_n = 0
     with g.lock:
         recovered = g.db().execute(
@@ -181,30 +181,30 @@ def from_recovery(since: str) -> dict:
         sig = next((tg for tg in episode[error_idx[0]].hashtags if tg.startswith("fehler:")), None)
         triggers = sorted({tg for x in remove for tg in x.hashtags if tg.startswith(("host:", "thema:"))} | {f"tool:{tool}", f"skill:{tool.split('_')[0]}"} | ({sig} if sig else set()))
         if not _has_content(tool, steps):
-            continue  # „Bash scheiterte und gelang danach“ ohne weiteren Schritt ist kein Wissen, nur der Normalfall
+            continue  # "Bash failed and then succeeded" without another step is not knowledge, just the normal case
         name = f"auto-{g.hash_value(tool, sig or '', 'erholung')[:12]}"
-        instructions = (f"{tool} scheiterte ({sig[7:] if sig else 'Fehler'}) und gelang danach im selben Gespräch — Lösungsweg: "
+        instructions = (f"{tool} failed ({sig[7:] if sig else 'error'}) and then succeeded in the same conversation — solution path: "
                      + " → ".join(steps))
         before = g.load(f"skill:{name}")
-        o = new(name, triggers, steps, instructions, f"Schlaf: Erholung in Gespräch {e.conversation}", [x.id for x in remove], g.SERVER_INSTANCE,
-                source=f"Schlaf: Erfahrungen {remove[0].id} … {e.id}", who="vi")
+        o = new(name, triggers, steps, instructions, f"sleep: recovery in conversation {e.conversation}", [x.id for x in remove], g.SERVER_INSTANCE,
+                source=f"sleep: experiences {remove[0].id} … {e.id}", who="vi")
         if before is None:
             new_n += 1
         else:
             evolved_n += 1
-        o.link(e.id, "Erholung (Schlaf)")
+        o.link(e.id, "recovery (sleep)")
     return {"neu": new_n, "weiterentwickelt": evolved_n}
 
 
 def _has_content(tool: str, steps) -> bool:
-    """Ein Erholungsweg sagt etwas, wenn zwischen Fehler und Erfolg ein anderer Schritt lag. Bash zählt dabei nur, wenn nicht Bash selbst gescheitert ist
-    (dann wurde am System etwas getan); Lesen, Schreiben, Rückfragen kommen in fast jedem Gespräch vor."""
+    """A recovery path says something if another step lay between error and success. Bash only counts if Bash itself did not fail
+    (then something was done on the system); reading, writing, asking back occur in almost every conversation."""
     general = GENERAL_TOOLS - ({"Bash"} if tool != "Bash" else set())
     return bool(set(steps) - general - {tool})
 
 
 def content_empty(o: g.MemoryObject) -> bool:
-    """Ein automatischer Erholungs-Skill ohne aussagekräftigen Schritt."""
+    """An automatic recovery skill without a meaningful step."""
     if not o.data.get("name", "").startswith("auto-"):
         return False
     tool = next((r[5:] for r in (o.data.get("problem") or {}).get("reize", []) if r.startswith("tool:")), "")
@@ -212,28 +212,28 @@ def content_empty(o: g.MemoryObject) -> bool:
 
 
 def rate() -> dict:
-    """Skills, die wiederholt scheitern und nie nützen → strittig (benannt), nicht gelöscht. Inhaltsleere automatische Skills → widerlegt."""
+    """Skills that fail repeatedly and never help → strittig (named), not deleted. Automatic skills without content → widerlegt."""
     from . import bandit
     disputed = 0
     for _, o, _g in g.recall("art:skill (modus:test OR modus:aktiv OR modus:strittig)", limit=500, viewer=None):
         if content_empty(o):
             o.mode = "widerlegt"
             o.hashtags = [t for t in o.hashtags if not t.startswith("modus:")] + ["modus:widerlegt"]
-            o.change("vi", "widerlegt", "Schlaf: Lösungsweg besteht nur aus allgemeinen Werkzeugen; „genützt“ zählte nur, dass das Werkzeug ohnehin meist gelingt")
+            o.change("vi", "widerlegt", "sleep: solution path consists only of general tools; \"helped\" only counted that the tool usually succeeds anyway")
             g.save(o)
     for _, o, _g in g.recall("art:skill (modus:test OR modus:aktiv)", limit=500, viewer=None):
         yes, no = bandit.counter(o)
         if bandit.shown(o) >= BAD_FROM and bandit.expectation(o) < BAD_RATIO and o.mode != "strittig":
             o.mode = "strittig"
             o.hashtags = [t for t in o.hashtags if not t.startswith("modus:")] + ["modus:strittig"]
-            o.change("vi", "strittig", f"Schlaf: genützt {yes}, nicht genützt {no} — Lösungsweg prüfen oder widerlegen")
+            o.change("vi", "strittig", f"sleep: helped {yes}, did not help {no} — check or refute the solution path")
             g.save(o)
             disputed += 1
     return {"strittig": disputed}
 
 
 def fusion_proposals() -> dict:
-    """Gleicher Problem-Schlüssel (tool + Fehlersignatur) bei zwei Skills → fusion:vorschlag + Kante. Entscheidet eine Instanz."""
+    """Same problem key (tool + error signature) for two skills → fusion:vorschlag + edge. An instance decides."""
     skills = [o for _, o, _g in g.recall("art:skill !modus:aufgegangen", limit=500, viewer=None)]
     by_key: dict[tuple, list[g.MemoryObject]] = {}
     for o in skills:
@@ -249,9 +249,9 @@ def fusion_proposals() -> dict:
             others = [x.id for x in group if x.id != o.id]
             if "fusion:vorschlag" not in o.hashtags:
                 o.hashtags = o.hashtags + ["fusion:vorschlag"]
-                o.change("vi", "fusion:vorschlag", f"Schlaf: gleiches Problem wie {', '.join(others)} — vi_skill_merge entscheidet eine Instanz")
+                o.change("vi", "fusion:vorschlag", f"sleep: same problem as {', '.join(others)} — an instance decides with vi_skill_merge")
                 g.save(o)
                 n += 1
             for a in others:
-                o.link(a, "gleiches Problem (Fusionsvorschlag)")
+                o.link(a, "same problem (merge proposal)")
     return {"vorschlaege": n}

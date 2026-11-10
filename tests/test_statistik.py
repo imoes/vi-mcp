@@ -1,4 +1,4 @@
-"""0.21.0: Nutzungsstatistik — Aufrufe der VI-Werkzeuge, Regeln, Hinweise, Wissen, Suche, Aufräumen."""
+"""0.21.0: usage statistics — calls of VI tools, rules, hints, knowledge, search, cleanup."""
 from vi_mcp import intuition, usage_stats, tools
 from vi_mcp import memory as g
 
@@ -19,7 +19,7 @@ def test_shell_commands_classified_by_effect():
 
 def test_usage_stats_count_calls_rules_and_searches(gd):
     g.new_object("erkenntnis", "nginx auf web1 vor Neustart mit nginx -t prüfen", ["host:web1", "thema:nginx"], {"quelle": "x"}, reason="T")
-    # Instanz a sucht vorher, Instanz b nicht
+    # instance a searches beforehand, instance b does not
     text = tools.call_tool("vi_erinnere", {"filter": "nginx"}, "a", True)
     usage_stats.record("a", "claude-code", "vi_recall", "ok", 12, text)
     usage_stats.record("a", "claude-code", "vi_recall", "ok", 9, "0 Objekte zu „gibtsnicht“")
@@ -30,10 +30,10 @@ def test_usage_stats_count_calls_rules_and_searches(gd):
     d = usage_stats.data(1)
     assert d["nutzung"]["je_werkzeug"]["vi_recall"]["n"] == 2 and d["nutzung"]["je_werkzeug"]["vi_learn"]["abgelehnt"] == 1
     assert d["nutzung"]["clients"] == ["claude-code", "codex"]
-    assert d["regeln"]["aendernd"] == 2 and d["regeln"]["vorbereitet"] == 1  # nur a hat vorher gesucht; ls zählt nicht als Änderung
+    assert d["regeln"]["aendernd"] == 2 and d["regeln"]["vorbereitet"] == 1  # only a searched beforehand; ls does not count as a change
     assert d["suche"]["n"] == 2 and d["suche"]["ohne_treffer"] == 1
     b = tools.call_tool("vi_stats", {"days": 1}, "a", True)
-    for part in ("A Nutzung", "B Regeln", "C Hinweise", "D Wissen", "E Suche", "F Aufräumen", "1 von 2"):
+    for part in ("A Usage", "B Rules", "C Hints", "D Knowledge", "E Search", "F Cleanup", "1 of 2"):
         assert part in b, part
 
 

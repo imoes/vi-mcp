@@ -1,10 +1,10 @@
-"""Anonymisierung — was das Netz verlässt oder aus ihm kommt, trägt keine IPs, internen Namen, Zugangsdaten, Nutzernamen, Proxy-Angaben.
+"""Anonymisation — what leaves the network or comes from it carries no IPs, internal names, credentials, user names, proxy details.
 
-Zwei Richtungen, eine Musterliste: Der Export ersetzt Fundstellen durch Platzhalter und prüft das Ergebnis erneut; bleibt etwas
-hängen, geht das Objekt nicht hinaus. Der Import lehnt jedes Objekt mit Fundstelle ab. Berichte nennen nur die Klasse, nie den Wert.
+Two directions, one pattern list: the export replaces findings with placeholders and checks the result again; if anything
+remains, the object does not go out. The import rejects every object with a finding. Reports name only the class, never the value.
 
-Domains gelten als intern, solange sie nicht auf der Liste öffentlicher Domains stehen. Muster kennen keine Bedeutung: Frei stehende
-Eigennamen findet nur die Liste bekannter Namen, die der Export aus dem eigenen Gedächtnis und dem System zusammenstellt.
+Domains count as internal unless they are on the list of public domains. Patterns know no meaning: free-standing
+proper names are found only by the list of known names, which the export compiles from its own memory and the system.
 """
 from __future__ import annotations
 
@@ -20,14 +20,14 @@ PUBLIC = ("python.org", "github.com", "githubusercontent.com", "gitlab.com", "de
                "stackoverflow.com", "ietf.org", "rfc-editor.org", "w3.org", "mozilla.org", "apache.org", "nginx.org", "postgresql.org", "sqlite.org", "docker.com", "redhat.com",
                "fedoraproject.org", "microsoft.com", "openai.com", "anthropic.com", "scikit-learn.org", "numpy.org", "pytorch.org", "arxiv.org", "doi.org",
                "example.com", "example.org", "example.net", "modelcontextprotocol.io", "claude.com")
-#: Datei-Endungen, die wie Länderkürzel aussehen: `start.sh` ist kein Host, `a.b.sh` könnte einer sein
+#: file extensions that look like country codes: `start.sh` is not a host, `a.b.sh` could be one
 FILE_EXTENSIONS = {"py", "md", "sh", "pl", "rs", "cc", "mk", "ps", "so", "am", "ai", "app"}
 TLD = set("""com org net de at ch eu io co uk fr it nl be es pl se no dk fi cz us ca au jp cn ru br in ch li lu ie pt gr hu ro
              info biz name pro media cloud dev app ai tech online site store xyz top club live news shop group agency digital network systems solutions
              local lan internal intranet corp home localdomain intern priv private test invalid""".split())
 GENERIC = {"root", "admin", "administrator", "test", "nutzer", "user", "vi", "claude", "codex", "hermes", "claude-code", "ubuntu", "debian", "fedora", "centos", "nobody", "www-data",
              "postgres", "mysql", "nginx", "docker", "vi-mcp", "localhost", "server", "host", "client", "default"}
-#: Bezeichnungen, die wie Name+Nummer aussehen, aber keine Rechner sind. Im Zweifel wird ersetzt: ein Fehlalarm kostet nur ein Wort.
+#: designations that look like name+number but are not machines. When in doubt, replace: a false alarm costs only one word.
 _NAME_ALLOWED = re.compile(r"^(sha|rfc|iso|ieee|pep|bep|cwe|cve|md|utf|ipv|x|win|windows|server|debian|ubuntu|rhel|el|centos|fedora|alma|almalinux|python|py|node|java|jdk|php|es|ecmascript|http|tls|ssl|h|"
                            r"gpt|qwen|llama|bge|top|cp|iso|port|ip|ipv|ec|aes|des|rsa|ed|curve|base|int|uint|float|bit|kb|mb|gb|tb|ms|hz|ghz|mhz|nr|nummer|version|v|kw|q|c|cpp|cxx|net|dotnet|ie|vs|office|excel|word|ansible|bep|nis|tcp|udp|dns|ms|ldap)-?\d+$", re.I)
 
@@ -39,7 +39,7 @@ _SECRET_CONTEXT = [
     re.compile(r"(?<![\w-])(?:[\w-]*(?:pass(?:wort|word|wd|phrase)?|pwd|kennwort|secret|geheimnis|token|api[_-]?key|credentials?)[\w-]*)[\"']?\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|\S+)", re.I),
     re.compile(r"\b(?:sshpass\s+-p\s*|mysql\s+\S*\s*-p)\S+"),
 ]
-#: Index des groben Musters „Schlüsselwort = Wert“ in _GEHEIM_KONTEXT
+#: index of the coarse pattern "keyword = value" in _SECRET_CONTEXT
 _CONTEXT_KEYS = 4
 _PROXY = [
     re.compile(r"\b(?:https?|ftp|all|no|socks)_proxy\s*[=:]\s*\S+", re.I),
@@ -61,13 +61,13 @@ _IP6 = re.compile(r"(?<![\w:.])(?=[0-9a-f:]*:[0-9a-f:]*:)[0-9a-f:]{2,39}(?![\w:]
 _MAC = re.compile(r"(?<![\w:-])(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}(?![\w:-])", re.I)
 _URL_HOST = re.compile(r"(?<=://)[^/\s:@?#<>\"']+")
 _FQDN = re.compile(r"(?<![\w@./-])[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+\.?(?![\w-])", re.I)
-#: Hostnamen nach Schema Name+Nummer: app0815, dbtest01, web-01, db-test-02 (gefunden am 08.11.2026: dbtest01 ging durch)
+#: host names following the name+number scheme: app0815, dbtest01, web-01, db-test-02 (found 08.11.2026: dbtest01 got through)
 _NUMBERED_HOST = re.compile(r"\b[a-z]{2,12}(?:-[a-z]{2,12})*-?\d{2,5}\b", re.I)
 _WORD = re.compile(r"(?<![\w<])[^\s<>\"'`=:,;()\[\]{}]{8,}")
-#: `dvxhMSsqSC][`: Sonderzeichen am Ende trennen `_WORT`; eine Variable mit Index (`werte[i]`) hat keinen Großbuchstaben
+#: `dvxhMSsqSC][`: special characters at the end split `_WORD`; a variable with an index (`werte[i]`) has no capital letter
 _BRACKET_WORD = re.compile(r"(?<![\w<])[A-Za-z0-9]{6,}[\]\[!$%&*#]{1,3}(?![\w\]\[])")
 _MCP = re.compile(r"mcp__[\w-]+?__")
-#: Hashtags, deren Wert immer den Standort oder eine Person beschreibt
+#: hashtags whose value always describes the site or a person
 LOCATION_REF = ("host:", "ort:", "standort:", "site:", "kunde:", "nutzer:", "user:", "ip:", "gespraech:", "dublette:", "suche:")
 CREDENTIAL_WORDS = re.compile(r"passwor|kennwort|zugangsdaten|anmeldedaten|credential", re.I)
 PRIVATE_EXTRA: tuple[str, ...] = ()
@@ -75,7 +75,7 @@ EXTRA_NAMES: tuple[str, ...] = ()
 
 
 def configure(p2p: dict | None) -> None:
-    """Aus der Konfiguration: öffentliche Domains (p2p.oeffentliche_domains), eigene Namen (p2p.interne_namen)."""
+    """From the config: public domains (p2p.oeffentliche_domains), own names (p2p.interne_namen)."""
     global PRIVATE_EXTRA, EXTRA_NAMES
     PRIVATE_EXTRA = tuple(x.lower() for x in (p2p or {}).get("oeffentliche_domains", []))
     EXTRA_NAMES = tuple((p2p or {}).get("interne_namen", []))
@@ -87,7 +87,7 @@ def _public(host: str) -> bool:
 
 
 def _mixed(w: str) -> bool:
-    """Sieht ein Wort wie ein Kennwort oder Schlüssel aus? Fehlalarme kosten nur einen Platzhalter, Treffer verhindern ein Leck."""
+    """Does a word look like a password or key? False alarms cost only a placeholder, hits prevent a leak."""
     w = w.strip(".")
     if "/" in w or len(w) < 8 or w.startswith(("http", "mcp__")):
         return False
@@ -111,20 +111,20 @@ def _tld_matches(cand: str) -> bool:
     return not (len(parts) == 2 and parts[-1] in FILE_EXTENSIONS)
 
 
-#: 0.20.10: absolute Pfade außerhalb der Standardverzeichnisse verraten den Aufbau eines Standorts (z. B. /intern/ansible/prod, /daten2/…).
-#: Nicht nach einem Host (URL-Pfad) und nicht /etc, /usr, /var … — die sind überall gleich und Wissen.
+#: 0.20.10: absolute paths outside the standard directories reveal the layout of a site (e.g. /intern/ansible/prod, /daten2/…).
+#: Not after a host (URL path) and not /etc, /usr, /var … — those are the same everywhere and are knowledge.
 _DEFAULT_PATHS = ("etc", "usr", "var", "opt", "home", "tmp", "proc", "sys", "dev", "bin", "sbin", "lib", "lib64", "run", "srv", "mnt",
                    "media", "root", "boot", "snap")
 _PATH = re.compile(rf"(?<![\w.~/:@-])/(?!(?:{'|'.join(_DEFAULT_PATHS)})(?:/|\b))[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.*-]+)+/?")
 
 
 def companies(known_names) -> set[str]:
-    """0.20.10: Organisationsnamen aus den Domains bekannter Hosts (*.firma.tld → firma), auch in Zusammensetzungen wie firma-skills.
-    Rein. Öffentliche Domains und generische Wörter zählen nicht."""
+    """0.20.10: organisation names from the domains of known hosts (*.firma.tld → firma), also in compounds like firma-skills.
+    Pure. Public domains and generic words do not count."""
     outputs = set()
     for n in known_names:
         n = str(n).lower()
-        # nur echte Hostnamen: Zeichen eines DNS-Namens und eine passende Top-Level-Domain (nicht CHANGELOG.md, felder.py, app/x)
+        # only real host names: characters of a DNS name and a matching top-level domain (not CHANGELOG.md, felder.py, app/x)
         if not re.fullmatch(r"[a-z0-9-]+(?:\.[a-z0-9-]+)+", n) or not _tld_matches(n):
             continue
         parts = n.split(".")
@@ -136,7 +136,7 @@ def companies(known_names) -> set[str]:
 
 
 def findings(text: str, known_names: frozenset[str] | set[str] = frozenset()) -> list[tuple[str, int, int]]:
-    """(klasse, anfang, ende), sortiert, ohne Überlappung. Rein. Früher genannte Klassen haben Vorrang."""
+    """(class, start, end), sorted, without overlap. Pure. Classes named earlier take precedence."""
     if not text:
         return []
     raw: list[tuple[str, int, int]] = []
@@ -191,7 +191,7 @@ def findings(text: str, known_names: frozenset[str] | set[str] = frozenset()) ->
     return outputs
 
 
-#: `token = lese_token()` oder `password: ${PW}` im Codebeispiel ist Wissen, kein Geheimnis
+#: `token = lese_token()` or `password: ${PW}` in a code example is knowledge, not a secret
 _EXPRESSION = re.compile(r"[(${%<]|environ")
 
 
@@ -200,11 +200,11 @@ def _local_replacement(m: re.Match) -> str:
     return m.group(0) if len(parts) == 2 and _EXPRESSION.search(parts[1]) else "<geheimnis>"
 
 
-#: Wörter, nach denen ein geheimer Wert folgt. „pw“ und „pin“ nur als ganzes Wort.
+#: words followed by a secret value. "pw" and "pin" only as whole words.
 _SECRET_KEY_WORDS = re.compile(r"(passw(?:or)?[td]s?|kennw(?:ort|örter)|pass(?:phrase|code)|\bpwd?\b|\bpin\b|zugangsdaten|anmeldedaten|credentials?|"
                          r"\bsecret\b|geheimnis|\btoken\b|api[ _-]?key|client[ _-]?secret|shared[ _-]?key|psk\b|community[ _-]?string)", re.I)
 _SEPARATOR = re.compile(r"\s*(?::|=|\||->|=>|\bist\b|\blautet\b|\bwar\b|\bauf\b|\bwird\b)\s*", re.I)
-#: Was nach einem Passwort-Wort steht, aber kein Wert ist: Verweise, Platzhalter, Anweisungen
+#: what follows a password word but is not a value: references, placeholders, instructions
 _NO_VALUE = re.compile(r"^(<[^>]*>|\$\{|\$[A-Z_]|\{\{|\*{2,}|x{3,}|\.{3}|…|siehe|s\.|im\b|in\b|aus\b|vom\b|von\b|der\b|die\b|das\b|des\b|dem\b|den\b|ein\w*\b|kein\w*\b|nicht\b|"
                        r"bitte|wird|ist\b|sind\b|password[ -]?depot|pwdepot|keepass|passwortsafe|tresor|vault|bekannt|vorhanden|leer|none|null|n/?a\b|-+$|ja\b|nein\b|"
                        r"ändern|aendern|setzen|eingeben|vergeben|zurücksetzen|abfragen|prompt|erforderlich|benötigt|nötig|optional|identisch|gleich|wie\b|per\b|über\b|mit\b|für\b|und\b|oder\b|"
@@ -224,11 +224,11 @@ def _value_after(line: str, m: re.Match) -> tuple[int, int] | None:
 
 
 def strip_credentials(text: str) -> tuple[str, int]:
-    """Für Wissen aus Dokumenten und Verläufen: Werte hinter Passwort-Wörtern, Passwort-Spalten in Tabellen und der Wert in der Zeile
-    nach „Passwort:“ werden zu <geheimnis>. Liefert (Text, Anzahl). Rein. Code-Ausdrücke wie `lese_token()` oder ${PW} bleiben."""
+    """For knowledge from documents and transcripts: values after password words, password columns in tables and the value in the line
+    after "Passwort:" become <geheimnis>. Returns (text, count). Pure. Code expressions like `lese_token()` or ${PW} stay."""
     text, n = text or "", 0
     for i, pattern in enumerate(_SECRET_CONTEXT):
-        if i != _CONTEXT_KEYS:  # das grobe Schlüsselwort-Muster ersetzt auch Verweise; hier entscheidet _wert_hinter genauer
+        if i != _CONTEXT_KEYS:  # the coarse keyword pattern also replaces references; here _value_after decides more precisely
             text, k = pattern.subn("<geheimnis>", text)
             n += k
     lines, column, upcoming = text.split("\n"), None, False
@@ -259,7 +259,7 @@ def strip_credentials(text: str) -> tuple[str, int]:
 
 
 def without_secrets(value):
-    """Für alles, was lokal gespeichert wird: Zugangsdaten eindeutiger Form fallen weg, rekursiv. Host-Angaben bleiben, der Router braucht sie."""
+    """For everything stored locally: credentials of unambiguous form are removed, recursively. Host details stay, the router needs them."""
     if isinstance(value, str):
         for m in _SECRET_CONTEXT:
             value = m.sub(_local_replacement, value)
@@ -276,7 +276,7 @@ def categories(text: str, known_names=frozenset()) -> list[str]:
 
 
 def replace(text: str, known_names=frozenset()) -> str:
-    """Rein. MCP-Servernamen sind standortspezifisch und fallen weg."""
+    """Pure. MCP server names are site-specific and are removed."""
     text = _MCP.sub("", text or "")
     for k, a, b in reversed(findings(text, known_names)):
         text = text[:a] + PLACEHOLDERS[k] + text[b:]
@@ -288,7 +288,7 @@ def tool_parts(name: str) -> str:
 
 
 def system_names() -> set[str]:
-    """Hostname und Konten des Rechners (uid ≥ 1000), dazu die Konfiguration. Generische Wörter tragen keine Identität."""
+    """Host name and accounts of the machine (uid ≥ 1000), plus the config. Generic words carry no identity."""
     outputs = set(EXTRA_NAMES)
     for full in (socket.gethostname(), socket.getfqdn()):
         outputs.add(full)

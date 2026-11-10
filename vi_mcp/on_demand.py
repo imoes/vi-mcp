@@ -1,18 +1,18 @@
-"""Training bei Bedarf (seit 0.20.0) — statt erst im nächtlichen Schlaf.
+"""Training on demand (since 0.20.0) — instead of only in the nightly sleep.
 
-Gemessen am 09.11.2026 auf einer Kopie der Produktivdaten (5.118 Objekte, 1.310 Beobachtungen): Router-Training
-(LogisticRegression) 68 ms, Bandit-Zähler 30 ms, KMeans-Inhaltsgruppen 2,4 s. Das ist schnell genug, um nach jeder neuen
-Erfahrung zu lernen. Ein Hintergrund-Thread läuft, sobald `anstossen()` gerufen wurde, frühestens ABSTAND_S nach dem
-letzten Lauf (mehrere Erfahrungen in einer Minute ergeben einen Lauf). Reihenfolge:
+Measured on 09.11.2026 on a copy of the production data (5,118 objects, 1,310 observations): router training
+(LogisticRegression) 68 ms, bandit counters 30 ms, KMeans content groups 2.4 s. That is fast enough to learn after every new
+experience. A background thread runs as soon as `nudge()` was called, at the earliest INTERVAL_S after the
+last run (several experiences within a minute result in one run). Order:
 
-  1. fehlende Vektoren einbetten (höchstens VEKTOR_MAX_S je Lauf; bleibt ein Rest, folgt sofort der nächste Lauf)
-  2. Nähe-Kanten für die neuen Vektoren (inkrementell, vektor.naehe_kanten)
-  3. Inhaltsgruppen (KMeans) neu, wenn seit dem letzten Mal KMEANS_AB_NEU Vektoren dazukamen
-  4. Bandit-Zähler neu (bandit.neu_berechnen)
-  5. Router neu trainieren (lernen.trainiere)
+  1. embed missing vectors (at most VECTOR_MAX_S per run; if a rest remains, the next run follows immediately)
+  2. proximity edges for the new vectors (incremental, vector.proximity_edges)
+  3. recompute content groups (KMeans) if KMEANS_MIN_NEW vectors were added since the last time
+  4. recompute bandit counters (bandit.recompute)
+  5. retrain the router (learning.train)
 
-Der Schlaf behält, was ein Sprachmodell braucht oder Erfahrungen verdichtet (Reflexion, Abstraktion, Skills, Scorer, Lager).
-Training und Schlaf teilen sich TRAINING, damit nie zwei Läufe gleichzeitig dasselbe Modell schreiben.
+Sleep keeps what needs a language model or condenses experiences (reflection, abstraction, skills, scorer, archive).
+Training and sleep share TRAINING so that two runs never write the same model at the same time.
 """
 from __future__ import annotations
 
@@ -36,15 +36,15 @@ _thread: threading.Thread | None = None
 
 
 def nudge(reason: str) -> None:
-    """Neue Daten sind da (Erfahrung gemeldet, Wissen gelernt). Ohne laufenden Thread (Tests, Werkzeuge) nur gezählt."""
+    """New data has arrived (experience reported, knowledge learned). Without a running thread (tests, tools) only counted."""
     progress["angestossen"] += 1
     if len(_reasons) < 50:
         _reasons.append(reason)
     _event.set()
 
 
-def run(reason: str = "von Hand") -> dict:
-    """Ein Trainingslauf, synchron. Liefert die Schritte mit Dauer; Fehler eines Schritts werden benannt, die übrigen laufen weiter."""
+def run(reason: str = "by hand") -> dict:
+    """One training run, synchronous. Returns the steps with duration; an error in one step is named, the others continue."""
     from . import bandit, content, learning, vector
     steps: dict = {}
     t_total = time.monotonic()
@@ -53,9 +53,9 @@ def run(reason: str = "von Hand") -> dict:
         t0 = time.monotonic()
         try:
             r = fn()
-        except Exception as exc:  # noqa: BLE001 — benannt im Stand
+        except Exception as exc:  # noqa: BLE001 — named in the progress state
             r = {"zustand": "fehler", "grund": f"{type(exc).__name__}: {exc}"[:200]}
-            log(f"Training bei Bedarf: {name} scheiterte: {exc}")
+            log(f"Training on demand: {name} failed: {exc}")
         short = {k: v for k, v in (r or {}).items() if k in ("zustand", "neu", "offen", "kanten_neu", "neu_verglichen", "gruppen", "hinweise",
                                                               "n", "merkmale", "auc_holdout", "grund", "pause_s", "gekappt")} if isinstance(r, dict) else {}
         steps[name] = {**short, "ms": int((time.monotonic() - t0) * 1000)}
@@ -72,11 +72,11 @@ def run(reason: str = "von Hand") -> dict:
                 step("inhalt", content.compute)
                 progress["vektoren_seit_kmeans"] = 0
         step("hinweise", bandit.recompute)
-        step("lernen", lambda: learning.train(f"Bedarf: {reason}"))
+        step("lernen", lambda: learning.train(f"on demand: {reason}"))
     duration = int((time.monotonic() - t_total) * 1000)
     progress.update({"laeufe": progress["laeufe"] + 1, "zuletzt": g.now(), "grund": reason, "dauer_ms": duration, "schritte": steps,
                   "fehler": next((f"{k}: {s['grund']}" for k, s in steps.items() if s.get("zustand") == "fehler"), None)})
-    if rest:  # Rückstand an Vektoren: gleich weiter, nicht erst bei der nächsten Erfahrung
+    if rest:  # backlog of vectors: continue right away, not only at the next experience
         _event.set()
     return {"grund": reason, "dauer_ms": duration, "schritte": steps, "vektoren_offen": rest}
 
@@ -90,13 +90,13 @@ def _main_loop() -> None:
         if wait > 0 and _halt.wait(wait):
             return
         _event.clear()
-        reason = ", ".join(sorted(set(_reasons)))[:200] or "angestoßen"
+        reason = ", ".join(sorted(set(_reasons)))[:200] or "nudged"
         _reasons.clear()
         try:
             run(reason)
-        except Exception as exc:  # noqa: BLE001 — Thread darf nicht sterben
+        except Exception as exc:  # noqa: BLE001 — the thread must not die
             progress["fehler"] = f"{type(exc).__name__}: {exc}"[:300]
-            log(f"Training bei Bedarf scheiterte: {exc}")
+            log(f"Training on demand failed: {exc}")
         last = time.monotonic()
 
 
@@ -115,8 +115,8 @@ def stop_background() -> None:
 
 def line() -> str:
     if not progress["laeufe"]:
-        return f"Training bei Bedarf: noch kein Lauf ({progress['angestossen']}× angestoßen)"
+        return f"Training on demand: no run yet (nudged {progress['angestossen']}×)"
     s = progress["schritte"]
     parts = [f"{k} {v['ms']} ms" for k, v in s.items()]
-    return (f"Training bei Bedarf: {progress['laeufe']} Läufe, zuletzt {str(progress['zuletzt'])[:16]} UTC ({progress['grund']}), {progress['dauer_ms']} ms: "
-            + ", ".join(parts) + (f" · Fehler: {progress['fehler']}" if progress["fehler"] else ""))
+    return (f"Training on demand: {progress['laeufe']} runs, last {str(progress['zuletzt'])[:16]} UTC ({progress['grund']}), {progress['dauer_ms']} ms: "
+            + ", ".join(parts) + (f" · error: {progress['fehler']}" if progress["fehler"] else ""))

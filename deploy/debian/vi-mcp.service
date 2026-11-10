@@ -1,5 +1,5 @@
 [Unit]
-Description=vi-mcp — VI-Gedächtnis als MCP-Server (Streamable HTTP, ein Prozess)
+Description=vi-mcp — VI memory as an MCP server (Streamable HTTP, one process)
 Documentation=file:///usr/share/doc/vi-mcp/README.md
 After=network-online.target docker.service
 Wants=network-online.target
@@ -18,7 +18,7 @@ TimeoutStopSec=30
 UMask=0077
 StateDirectory=vi-mcp
 StateDirectoryMode=0700
-# Härtung: nur /var/lib/vi-mcp beschreibbar, Konfiguration nur lesbar
+# Hardening: only /var/lib/vi-mcp is writable, the configuration is read-only
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
