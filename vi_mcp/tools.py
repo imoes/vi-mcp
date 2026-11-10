@@ -728,7 +728,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         label = {"geteilt": "shared", "intern": "internal"}[new]
         return (f"{c['matched']} object(s) for “{filt}” · {c['changed']} {'switched' if apply else 'would be switched'} to {label} · "
                 f"{c['already']} already {label} · {c['private']} private (never switched) · {c['not_yours']} of other instances "
-                f"(need the release right)" + ("" if apply else " — dry run, nothing changed; apply=true to switch")
+                f"(need the release right)" + ("" if apply else " — dry run, nothing changed; to switch: apply=true (command line: --apply)")
                 + (" · internal stops further sharing; copies already on the network: vi_net_forget" if new == "intern" and c["changed"] else ""))
     if name == "vi_why":
         o = _visible(args.get("id"), instance)

@@ -3,6 +3,13 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.30.1 — unreleased
+
+### What was fixed
+
+- The dry run of `vi-mcp visibility` told command-line users to pass "apply=true"; it now names both spellings (MCP `apply=true`,
+  command line `--apply`). Seen on production 10.11.2026 when switching the 221 manual sections to internal.
+
 ## 0.30.0 — 2026-11-10 — The router goes live only when its order pays off
 
 Prompted by reading three sources (10.11.2026): Takehi et al., *Sparks of Weight-Space Programming* (blog, 02.11.2026) with the audit
