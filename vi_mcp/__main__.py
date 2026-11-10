@@ -20,6 +20,10 @@
   python3 -m vi_mcp visibility FILTER shared|internal REASON [--apply]
                                           switch the objects of FILTER between shared and internal (through the running service, release
                                           token); without --apply it only counts. Private objects are never switched.
+  python3 -m vi_mcp stdio [--socket PATH]  MCP over stdio for clients on the server host (claude mcp add vi-mcp -- vi-mcp stdio):
+                                          a bridge to the running service's local socket — no token, the kernel names the user
+  python3 -m vi_mcp local [USER [INSTANCE|-]]
+                                          show or allow which local user reaches the VI over stdio as which instance; restarts the service
   python3 -m vi_mcp image FILE --text T --hashtags a:b,c:d --source S [--content-file F|-] [--regions F.json] [--visibility shared|internal]
                                           put an image with its description (and regions in SAM 3 format) into memory, through the
                                           server the clients use; "image get ID OUTFILE" fetches it back
@@ -32,7 +36,7 @@ import sys
 from . import config, server
 
 #: English command → German alias (accepted as well)
-COMMANDS = {"setup": "einrichten", "image": "bild", "net": "netz", "instance": "instanz", "net-token": "netz-token", "p2p-key": "p2p-schluessel",
+COMMANDS = {"setup": "einrichten", "image": "bild", "local": "lokal", "net": "netz", "instance": "instanz", "net-token": "netz-token", "p2p-key": "p2p-schluessel",
             "release": "freigeben", "delete-instance": "loesche-instanz"}
 _ALIASES = {de: en for en, de in COMMANDS.items()}
 
@@ -180,6 +184,30 @@ def _cli(argv: list[str]) -> int:
             print(e, file=sys.stderr)
             return 2
         print(f"{argv[1]}: family {old or 'undeclared'} → {argv[2] if argv[2] != '-' else 'undeclared'}; restarting the service")
+        from . import setup
+        setup._restart()
+        return 0
+    if command == "stdio":
+        from . import stdio_bridge
+        return stdio_bridge.main(argv[1:])
+    if command == "local" and len(argv) in (1, 2, 3):
+        k = config.load()
+        if len(argv) == 1:
+            print(f"local socket: {k.socket or 'not configured'}")
+            for u, i in sorted(k.local.items()):
+                print(f"  {u} → {i}" + ("" if i in k.instances else "  (instance unknown!)"))
+            if not k.local:
+                print("  no local user allowed — vi-mcp local USER INSTANCE")
+            return 0
+        if len(argv) == 2:
+            print(k.local.get(argv[1]) or "not allowed")
+            return 0
+        try:
+            old = config.set_local(argv[1], None if argv[2] == "-" else argv[2])
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 2
+        print(f"local user {argv[1]}: {old or 'not allowed'} → {argv[2] if argv[2] != '-' else 'not allowed'}; restarting the service")
         from . import setup
         setup._restart()
         return 0

@@ -249,6 +249,17 @@ Im Prompt kannst du bewerten: `#gut`, `#schlecht`, `#note 0.8`. Ein Prompt, der 
 
 Server von Hand: `sudo vi-mcp instanz NAME [--reflexe] [--mensch]`, dann `sudo systemctl restart vi-mcp`. Das Token wird einmal angezeigt.
 
+**Über stdio, ohne Token (auf dem Server selbst, Linux):** Der Dienst lauscht zusätzlich auf einem lokalen Socket (`/run/vi-mcp/mcp.sock`);
+der Kernel sagt ihm, welcher lokale Benutzer sich verbindet. Einmal den Benutzer zulassen, dann den Client eintragen:
+
+```bash
+sudo vi-mcp lokal anna anna          # der lokale Benutzer anna erreicht die VI als Instanz anna (auch internes Wissen)
+claude mcp add vi-mcp -- vi-mcp stdio
+codex mcp add vi-mcp -- vi-mcp stdio
+```
+
+Nicht zugelassene Benutzer bekommen eine Ablehnung, die den Befehl oben nennt. `vi-mcp lokal` zeigt, wer zugelassen ist.
+
 ## Das Netz
 
 Jeder Server führt ein signiertes, verkettetes Logbuch. Die Server gleichen ihre Logbücher mit den Nachbarn ab und holen nur, was fehlt. Eine gemeinsame Wahrheit braucht niemand, also keine Blockchain und kein Konsens.

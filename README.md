@@ -243,6 +243,17 @@ You can rate work in your prompt: `#gut` (good), `#schlecht` (bad), `#note 0.8`.
 
 Server by hand: `sudo vi-mcp instance NAME [--reflexes] [--human]`, then `sudo systemctl restart vi-mcp`. The token is shown once.
 
+**Over stdio, without a token (on the server host, Linux):** the service also listens on a local socket (`/run/vi-mcp/mcp.sock`);
+the kernel tells it which local user connects. Allow a user once, then register the client:
+
+```bash
+sudo vi-mcp local anna anna          # local user anna reaches the VI as instance anna (internal knowledge included)
+claude mcp add vi-mcp -- vi-mcp stdio
+codex mcp add vi-mcp -- vi-mcp stdio
+```
+
+Users not allowed get a refusal that names the command above. `vi-mcp local` lists who is allowed.
+
 ## The network
 
 Each server keeps a signed, chained log. Servers compare logs with their neighbours and fetch only what is missing; nobody needs a shared truth, so there is no blockchain and no consensus.

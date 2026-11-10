@@ -533,6 +533,12 @@ Remaining limit: guests' actions flow into the hint counters and the router trai
   The instance becomes the owner: hashtag `instanz:<name>` on conversations, experiences, learned items; `wer = ki@<instance>`.
 - **Origin check** (protection against DNS rebinding, MCP spec): foreign origin → 403.
 - A session belongs to its instance: foreign session id → 404.
+- **Local socket instead of a token (0.36.0, Linux):** the service also serves `/mcp` on a Unix socket (config `socket`, the package
+  sets `/run/vi-mcp/mcp.sock`). The socket is open to everyone (0666), but the kernel names the connecting user (`SO_PEERCRED`), and
+  only users listed in config `lokal` (`vi-mcp local USER INSTANCE`) get in, each as its instance — with its visibility, internal
+  knowledge included. Others get 403 with the command that would allow them. Whoever can log in to the server host as that user is
+  trusted as that instance; that is the same trust as a token file readable by that user, without a token to copy around. Not on
+  Windows (no `SO_PEERCRED`); not reachable from containers unless the socket is mounted.
 - Database, configuration, token file: `0600`, directories `0700` — the memory contains conversation histories
   and tool results, which can contain credentials.
 
@@ -543,6 +549,12 @@ MCP "Streamable HTTP" (https://modelcontextprotocol.io/specification/2025-03-26/
 ends the session. Answers as `application/json`, no SSE. Protocol versions 2025-06-18, 2025-03-26,
 2024-11-05 (the requested one is returned, otherwise the newest). Tool errors come as a result with
 `isError: true` and a reason ("abgelehnt: …" — rejected), protocol errors as JSON-RPC errors.
+
+**stdio (0.36.0):** `vi-mcp stdio` is a bridge, not a second server: it reads one JSON-RPC message per line from stdin, sends it as
+`POST /mcp` over the local socket, and writes the answer as one line to stdout (only JSON-RPC there; notes go to stderr). So there stays
+one process that writes the memory. If the service restarted (404, session unknown), the bridge repeats the client's `initialize` once
+and resends; at the end of stdin it ends the session (`DELETE`). A refusal or a service that is not running comes back as a JSON-RPC
+error with the reason.
 
 ## Logic check (according to CLAUDE.md)
 

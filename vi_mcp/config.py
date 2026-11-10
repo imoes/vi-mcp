@@ -67,6 +67,10 @@ class Config:
     llm: dict | None = None
     #: Access without a token. A wrong token still gets 401: whoever sends one wants to be a specific instance.
     open_: bool = False
+    #: 0.36.0: local socket (Linux) for `vi-mcp stdio`: path, and local user → instance. The kernel names the user (SO_PEERCRED),
+    #: so no token is needed; only users listed here get in, each as its instance (with its visibility, internal included).
+    socket: str | None = None
+    local: dict[str, str] = field(default_factory=dict)
 
     def instance_for(self, token: str | None) -> Instance | None:
         """Instance for the bearer token, or None. Constant-time comparison across all instances."""
@@ -100,6 +104,8 @@ def load(p: Path | None = None) -> Config:
     k.archive_days = {a: int(t) for a, t in (raw.get("lager_tage") or {}).items()}
     k.llm = raw.get("llm") or None
     k.open_ = bool(raw.get("offen", False))
+    k.socket = raw.get("socket") or os.environ.get("VI_MCP_SOCKET") or None
+    k.local = {str(u): str(i) for u, i in (raw.get("lokal") or {}).items()}
     for n, d in (raw.get("instanzen") or {}).items():
         k.instances[n] = Instance(n, d["token_sha256"], bool(d.get("reflexe", False)), bool(d.get("freigabe", False)), bool(d.get("mensch", False)),
                                   (d.get("familie") or None))
@@ -146,6 +152,24 @@ def set_family(name: str, family: str | None, p: Path | None = None) -> str | No
         inst["familie"] = family
     else:
         inst.pop("familie", None)
+    _save_raw(raw, p)
+    return old
+
+
+def set_local(user: str, instance: str | None, p: Path | None = None) -> str | None:
+    """0.36.0: let a local user reach the VI over the local socket as INSTANCE (None removes it). Returns the previous instance."""
+    if not user or not all(c.isalnum() or c in "-_.$@" for c in user):
+        raise ValueError("local user: letters, digits, - _ . $ @")
+    p = p or fpath()
+    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    if instance is not None and instance not in (raw.get("instanzen") or {}):
+        raise ValueError(f"instance {instance!r} unknown — first: vi-mcp instance {instance}")
+    m = raw.setdefault("lokal", {})
+    old = m.get(user)
+    if instance:
+        m[user] = instance
+    else:
+        m.pop(user, None)
     _save_raw(raw, p)
     return old
 

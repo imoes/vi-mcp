@@ -3,6 +3,28 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.36.0 — 2026-11-10 — MCP over stdio, without a token
+
+### What is new
+
+- **`vi-mcp stdio`: MCP over stdio for clients on the server host** (`claude mcp add vi-mcp -- vi-mcp stdio`,
+  `codex mcp add vi-mcp -- vi-mcp stdio`). No token: the service also listens on a local Unix socket (`/run/vi-mcp/mcp.sock`, set by the
+  package's systemd unit), the kernel names the connecting user (`SO_PEERCRED`), and `vi-mcp local USER INSTANCE` allows that user as
+  that instance — internal knowledge included. The bridge is not a second server: one process still writes the memory. It renews the
+  session by itself after a service restart and ends it when stdin closes; refusals come back as JSON-RPC errors with the reason
+  ("local user X has no instance on this socket — an administrator allows it with: vi-mcp local X INSTANCE").
+  *Proof:* `tests/test_stdio.py` (8 tests: internal knowledge read and knowledge learned as the mapped instance through a real
+  `vi-mcp stdio` process, the model family taken from the client name, notifications unanswered and stdout JSON-RPC only, an unlisted
+  user refused with the command, socket mode 0666, session renewed after the sessions were ended, service not running and bad JSON
+  answered, a socket that cannot be opened leaves HTTP running, the unit opens the socket).
+- **`vi-mcp local [USER [INSTANCE|-]]`** (German alias `lokal`): shows or sets who may use the socket; setting restarts the service.
+
+### What is missing
+
+- Only Linux (no `SO_PEERCRED` on Windows); clients in containers reach the socket only if it is mounted into the container.
+- `vi-mcp setup` does not offer stdio yet; register the client with `claude mcp add` / `codex mcp add` as above.
+- The Claude Code hook still talks HTTP with its token file.
+
 ## 0.35.1 — 2026-11-10 — Rules ask for code; one name per tool in the statistics
 
 ### What has changed

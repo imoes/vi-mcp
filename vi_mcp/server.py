@@ -10,12 +10,17 @@ Protection: bearer token per instance (401 without/with wrong token), Origin che
 bind 127.0.0.1 by default; several addresses possible (e.g. additionally the gateway of a Docker network through
 which a reverse proxy in a container connects) — all share the same process, the same memory.
 Additionally `GET /gesund` without authentication: only "ok" + version, for systemd/monitoring.
+0.36.0: the same handler also on a local Unix socket (Linux, config `socket` or $VI_MCP_SOCKET) for `vi-mcp stdio`: there the kernel
+names the connecting user (SO_PEERCRED) and config `lokal` maps the user to an instance — no token. Unlisted users get 403 with the reason.
 """
 from __future__ import annotations
 
 import json
+import os
 import signal
 import socket
+import socketserver
+import struct
 import sys
 import threading
 import time
@@ -149,6 +154,44 @@ class Server(ThreadingHTTPServer):
         super().handle_error(request, client_address)
 
 
+class LocalServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+    """0.36.0: HTTP on a Unix socket; who connects is told by the kernel, not by a token. Mode 0666: everyone may knock, only users in
+    config `lokal` get in (Handler._check)."""
+    daemon_threads = True
+    request_queue_size = 64
+    local = True
+
+    def __init__(self, path: str, handler):
+        p = Path(path)
+        if p.is_socket():
+            p.unlink()  # left over from a crash; a running second server would hold the port and fail before this
+        super().__init__(path, handler)
+        os.chmod(path, 0o666)
+
+    def get_request(self):
+        conn, _ = self.socket.accept()
+        return conn, ("local", 0)  # BaseHTTPRequestHandler logs client_address[0]
+
+    def server_close(self):
+        super().server_close()
+        try:
+            Path(self.server_address).unlink()
+        except OSError:
+            pass
+
+    handle_error = Server.handle_error
+
+
+def peer_user(conn) -> str:
+    """Name of the local user at the other end of a Unix socket (SO_PEERCRED; Linux)."""
+    _pid, uid, _gid = struct.unpack("3i", conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")))
+    try:
+        import pwd
+        return pwd.getpwuid(uid).pw_name
+    except (KeyError, ImportError):
+        return f"uid{uid}"
+
+
 class Handler(BaseHTTPRequestHandler):
     k: config.Config  # set by the server
     protocol_version = "HTTP/1.1"
@@ -174,6 +217,15 @@ class Handler(BaseHTTPRequestHandler):
             log(f"{self.command} {self.path} → {code} ({from_}): {req_body if isinstance(req_body, str) else ''}"[:300])
 
     def _check(self) -> config.Instance | None:
+        if getattr(self.server, "local", False):  # 0.36.0: local socket — the kernel names the user, no token
+            user = peer_user(self.connection)
+            name = self.k.local.get(user)
+            inst = self.k.instances.get(name or "")
+            if not inst:
+                self._send(403, f"local user {user} has no instance on this socket" + (f" (instance {name!r} unknown)" if name else "")
+                           + f" — an administrator allows it with: vi-mcp local {user} INSTANCE")
+                return None
+            return inst
         origin = self.headers.get("Origin")
         if origin and not any(origin == o or origin.startswith(o + ":") for o in self.k.origins):
             self._send(403, f"Origin {origin} not allowed")
@@ -290,6 +342,15 @@ def build(k: config.Config) -> list[Server]:
     handler = type("KHandler", (Handler,), {"k": k})
     srvs = [Server((addr, k.port), handler) for addr in k.bind]
     addresses = ", ".join(f"http://{s.server_address[0]}:{s.server_address[1]}/mcp" for s in srvs)
+    if k.socket:  # 0.36.0
+        if sys.platform != "linux" or not hasattr(socket, "SO_PEERCRED"):
+            log(f"local socket {k.socket} not opened: it needs Linux (the user is taken from SO_PEERCRED)")
+        else:
+            try:
+                srvs.append(LocalServer(k.socket, handler))
+                addresses += f", local socket {k.socket} (users: {', '.join(f'{u}→{i}' for u, i in sorted(k.local.items())) or 'none allowed yet'})"
+            except OSError as e:  # HTTP keeps working; the reason is named, the socket is not silently missing
+                log(f"local socket {k.socket} not opened: {e} — HTTP is unaffected, vi-mcp stdio will not reach this service")
     log(f"vi-mcp {__version__} on {addresses} · memory {k.db} · {n} reflexes · "
         f"instances {', '.join(sorted(k.instances))} · loop every {main_loop.LOOP_S} s")
     return srvs
@@ -309,7 +370,7 @@ def main() -> None:
     main_loop.launch()
     on_demand.launch()
     for s in srvs[1:]:
-        threading.Thread(target=s.serve_forever, name=f"http-{s.server_address[0]}", daemon=True).start()
+        threading.Thread(target=s.serve_forever, name=f"http-{s.server_address if isinstance(s.server_address, str) else s.server_address[0]}", daemon=True).start()
 
     def _stop(*_a):
         def _all():
