@@ -152,7 +152,7 @@ TOOLS = [
                     "unabridged (up to 200,000 characters). Store it completely and do not point to files that exist on one machine only "
                     "— what is missing here is a gap in memory. vi_object reads it back; full-text search finds it. Objects sharing "
                     "hashtags are linked.",
-     "inputSchema": _schema({"content": {"type": "string", "description": "complete knowledge: code, API tables, commands, unabridged"}, "text": _S, "hashtags": _TAGS, "source": {"type": "string", "description": "source: command, host and time, or URL (for vi_ask: why you ask)"}, "importance": {"type": "integer", "description": "0–3 (default 1)"}, "visibility": {"type": "string", "enum": ["shared", "internal"], "description": "shared (default): everyone, also without a token, and the network. internal: only instances with a token, never the network — for company knowledge"}, "outcome": {"type": "string", "enum": ["good", "bad"], "description": "optional: does the insight describe a working or a broken state? Sleep compares new experiences with it."}}, ["text", "hashtags", "source"])},
+     "inputSchema": _schema({"content": {"type": "string", "description": "complete knowledge: code, API tables, commands, unabridged"}, "text": _S, "hashtags": _TAGS, "source": {"type": "string", "description": "source: command, host and time, or URL (for vi_ask: why you ask)"}, "importance": {"type": "integer", "description": "0–3 (default 1)"}, "visibility": {"type": "string", "enum": ["shared", "internal"], "description": "shared (default): everyone, also without a token, and the network. internal: only instances with a token, never the network — for company knowledge"}, "outcome": {"type": "string", "enum": ["good", "bad"], "description": "optional: does the insight describe a working or a broken state? Sleep compares new experiences with it."}, "key": {"type": "string", "description": "optional: identity of a recurring finding (e.g. a detection signature). The same key from the same instance updates that object instead of adding a new one: the new text becomes current, the previous one goes into its history, repeats +1."}}, ["text", "hashtags", "source"])},
     {"name": "vi_stats",
      "description": "VI: usage statistics — is the VI used and does it work as intended? Calls per tool and instance, rule compliance "
                     "(search before changing actions, learning, feedback), hints and warnings with success afterwards, new and ever "
@@ -511,12 +511,25 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                 return _proposal(text, tags, data, int(args.get("importance") or 1))
             if args.get("visibility") not in (None, "geteilt", "intern"):
                 raise ValueError("visibility must be shared or internal")
-            o = g.new_object("erkenntnis", text, tags, data,
-                               importance=int(args.get("importance") or 1), who=f"ki@{instance}", reason="vi_learn", visibility=args.get("visibility"))
+            key = (args.get("key") or "").strip()[:500]
+            if len(key) > 0 and len(key) < 3:
+                raise ValueError("key must have at least 3 characters")
+            prev = g.find_by_key(instance, key) if key else None
+            if prev and args.get("visibility") and args["visibility"] != prev.visibility:
+                raise ValueError(f"key {key!r} belongs to {prev.id} with visibility {prev.visibility}; the visibility of a recurring finding does not change")
+            if prev:
+                o = g.repeat(prev, text, tags, data, int(args.get("importance") or 1), who=f"ki@{instance}")
+            else:
+                o = g.new_object("erkenntnis", text, tags, {**data, **({"key": key, "repeats": 1} if key else {})},
+                                 importance=int(args.get("importance") or 1), who=f"ki@{instance}", reason="vi_learn",
+                                 visibility=args.get("visibility"), instance=instance)
         except ValueError as e:
             raise Rejected(str(e)) from e
         from . import on_demand
         on_demand.nudge("knowledge learned")
+        if prev:
+            return (f"updated {o.id} (key {key!r}, {o.data['repeats']}×) — the previous text is in its history ({len(o.data.get('history') or [])} entries); "
+                    "no new object")
         return (f"learned {o.id} with {', '.join(o.hashtags)} — {len(o.edges())} edges to objects with shared hashtags"
                 + (" · visibility internal (instances with a token only, never the network)" if o.visibility == "intern" else ""))
     if name == "vi_recall":

@@ -63,7 +63,7 @@ entries; older ones are truncated **with a count** (`daten.aenderungen_gekuerzt`
 |---|---|---|
 | `erfahrung` (experience) | every reported action: tool, arguments, duration, `ok:ja`/`ok:nein`/`ok:unbekannt`; `daten.vorher` = memory access before it; **importance from surprise** (`ueberraschung:neu` 3 · `wiederholt`/`erholt` 2 · `chronisch` 1 · `keine` 0 — prediction error as a learning signal, docs/FORSCHUNG.md A7) | `vi_after`; `vi_before` with a remembered answer; before without after (session end/1 h) |
 | `antwort` (answer) | remembered result of a **read-only** call (`frage:<hash>`), valid for 120 s (configurable per tool, max 1 h) | `vi_after` |
-| `erkenntnis` (insight) | something learned, with source and importance 0–3 | `vi_learn` |
+| `erkenntnis` (insight) | something learned, with source and importance 0–3; with `key` (0.23.0) **one object per recurring finding**: the same key from the same instance updates it (`daten.key`, `daten.repeats`, earlier states in `daten.history`) instead of adding a new one | `vi_learn` |
 | `regel` (rule) | condensed: same error ≥ 3× in 24 h, mode `test` | loop |
 | `reflex` | Python code: kind `werkzeug`, `vorher`, `nachher` (MCP: `tool`, `before`, `after`) | `vi_reflex_learn` |
 | `suche` (search) | mnemonic: name, filter, **triggers**, story | `vi_learn_search` |

@@ -7,6 +7,15 @@ Linked from [README.md](README.md).
 
 ### What is new
 
+- **One object per recurring finding: `vi_learn(key=…)`.** The same key from the same instance updates that object instead of adding a new
+  one: the new text becomes current, the previous text (with source and content) goes into its history, `repeats` counts up, hashtags are
+  united. Refuted, archived or merged objects are not continued. Reason: CentralStation learned the same known error again and again with a
+  higher repetition counter — 158 of its 907 known errors (105 signatures) were such repetitions (production DB, 10.11.2026).
+  *Proof:* `tests/test_dedup.py` (update instead of new object, per instance, refuted not continued, visibility fixed, merge).
+- **`vi-mcp merge-repeats INSTANCE REGEX [--apply]`** merges existing repetitions once: per key (regex group 1) the oldest object keeps its id
+  and gets the newest text, every earlier state stays in its history, the others get mode `aufgegangen` with `merged_into` — nothing is
+  deleted. *Proof:* dry run of this code against the production database (read-only connection, 10.11.2026):
+  `{"objects": 1033, "with_key": 907, "keys": 749, "keys_repeated": 105, "merged": 158}`.
 - **All output is English**: tool answers, the hints before an action (`Learned […]`, `Rule […]`, `[VI warning] …`), error messages,
   the setup menu, CLI help, log lines, sleep reports and the self narrative. The hook marks its context as `[VI memory before <tool>]`.
 - **English command line; the German commands stay as aliases.** `vi-mcp setup` (`einrichten`), `vi-mcp net setup|invite|exclude|invitation|join|run|peers|id|status`

@@ -10,6 +10,9 @@
   python3 -m vi_mcp delete-instance NAME "REASON"
                                           delete all private data of an instance (conversations → tombstones);
                                           stop a running service first (one writer)
+  python3 -m vi_mcp merge-repeats INSTANCE REGEX [--apply]
+                                          merge the instance's insights whose text gives the same key (REGEX group 1) into one object
+                                          per key, earlier texts in its history; without --apply it only counts. Stop the service first.
 """
 import sys
 
@@ -85,6 +88,19 @@ def _cli(argv: list[str]) -> int:
         finally:
             g.close_db()
         print(f"Instance {argv[1]}: {r['gespraeche']} conversations → tombstones, {r['objekte']} private objects deleted. Shared knowledge stays.")
+        return 0
+    if command == "merge-repeats" and len(argv) in (3, 4) and argv[3:] in ([], ["--apply"]):
+        import json
+        import re
+        from . import memory as g
+        rx = re.compile(argv[2], re.S)
+        g.open_db(config.load().db)
+        try:
+            r = g.merge_by_key(argv[1], lambda t: (m.group(1).strip() if (m := rx.search(t)) else None), who="admin",
+                               reason=f"merge-repeats {argv[2]}", apply="--apply" in argv)
+        finally:
+            g.close_db()
+        print(json.dumps(r))
         return 0
     print(__doc__, file=sys.stderr)
     return 2

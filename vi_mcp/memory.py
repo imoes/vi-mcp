@@ -409,6 +409,96 @@ def new_object(kind: str, text: str, hashtags: list[str], data: dict | None = No
     return o
 
 
+# ── Recurring findings: one object per key (0.23.0) ─────────────────────────
+# vi_learn(key=…): the same key from the same instance updates that object instead of adding a new one. Stored fields (English
+# from the start): data.key, data.repeats (how often it was learned), data.history (earlier states, oldest first).
+MERGED = "aufgegangen"  # stored mode value (German, existing): merged into another object, out of searches
+KEY_MODES = ("aktiv", "test", "strittig")  # refuted, archived or merged objects are not continued — a new object starts
+KEY_HISTORY_MAX = 200
+
+
+def find_by_key(instance: str, key: str) -> MemoryObject | None:
+    with lock:
+        r = db().execute(f"SELECT id FROM objekt WHERE instanz = ? AND art = 'erkenntnis' AND modus IN ({','.join('?' * len(KEY_MODES))}) "
+                         "AND json_extract(daten, '$.key') = ? ORDER BY zeit LIMIT 1", (instance, *KEY_MODES, key)).fetchone()
+    return load(r[0]) if r else None
+
+
+def _push_history(o: MemoryObject, entries: list[dict]) -> None:
+    h = (o.data.get("history") or []) + entries
+    if len(h) > KEY_HISTORY_MAX:  # nothing vanishes silently: the trimming is counted
+        o.data["history_trimmed"] = o.data.get("history_trimmed", 0) + len(h) - KEY_HISTORY_MAX
+        h = h[-KEY_HISTORY_MAX:]
+    o.data["history"] = h
+
+
+def _state(o: MemoryObject) -> dict:
+    """The current state of an object as a history entry (text, source, content, time)."""
+    return {"ts": o.last_at or o.ts, "text": o.text, **{k: o.data[k] for k in ("quelle", "inhalt", "ausgang") if k in o.data}}
+
+
+def repeat(o: MemoryObject, text: str, hashtags: list[str], data: dict, importance: int, who: str) -> MemoryObject:
+    """The same finding again: o keeps its id; its previous state goes into the history, the new text becomes the current one."""
+    text, data = anonymize.without_secrets(text), anonymize.without_secrets(data)
+    _push_history(o, [_state(o)])
+    for k in ("quelle", "inhalt", "ausgang"):
+        o.data.pop(k, None)
+    o.data.update(data)
+    o.data["repeats"] = int(o.data.get("repeats") or 1) + 1
+    o.text = text
+    o.hashtags = sorted(set(o.hashtags) | {t for t in hashtags if not t.startswith("instanz:")})
+    o.importance = max(o.importance, max(0, min(3, importance)))
+    o.change(who, f"repeated ({o.data['repeats']}×), earlier text in the history", "vi_learn with the same key")
+    save(o)
+    link_similar(o)
+    return o
+
+
+def merge_by_key(instance: str, key_of, who: str, reason: str, apply: bool = False) -> dict:
+    """One-time clean-up: group the insights of `instance` by key_of(text) (None = no key) and merge each group into its oldest object.
+    The oldest keeps its id and gets the newest text; all earlier states go into its history; the others get mode MERGED
+    with a reference (data.merged_into) and drop out of searches — nothing is deleted. apply=False only counts."""
+    with lock:
+        rows = db().execute(f"SELECT id, text FROM objekt WHERE instanz = ? AND art = 'erkenntnis' AND modus IN ({','.join('?' * len(KEY_MODES))}) "
+                            "ORDER BY zeit, id", (instance, *KEY_MODES)).fetchall()
+    groups: dict[str, list[str]] = {}
+    for oid, text in rows:
+        k = key_of(text)
+        if k:
+            groups.setdefault(k, []).append(oid)
+    multi = {k: v for k, v in groups.items() if len(v) > 1}
+    report = {"objects": len(rows), "with_key": sum(len(v) for v in groups.values()), "keys": len(groups),
+              "keys_repeated": len(multi), "merged": sum(len(v) - 1 for v in multi.values()), "applied": apply}
+    if not apply:
+        return report
+    for k, ids in multi.items():
+        objs = [load(i) for i in ids]
+        main, rest = objs[0], objs[1:]
+        newest = rest[-1]
+        main.data["key"] = k
+        _push_history(main, [_state(x) for x in objs[:-1]])  # every state except the newest, oldest first
+        for f in ("quelle", "inhalt", "ausgang"):
+            main.data.pop(f, None)
+            if f in newest.data:
+                main.data[f] = newest.data[f]
+        main.text = newest.text
+        main.data["repeats"] = int(main.data.get("repeats") or 1) + len(rest)
+        main.hashtags = sorted(set().union(*[set(x.hashtags) for x in objs]) - {f"modus:{x.mode}" for x in objs})
+        main.importance = max(x.importance for x in objs)
+        main.accesses = sum(x.accesses for x in objs)
+        main.confirmed = sum(x.confirmed for x in objs)
+        main.change(who, f"merged {len(rest)} repetitions with the same key: {', '.join(x.id for x in rest)}"[:300], reason)
+        save(main)
+        for x in rest:
+            x.mode = MERGED
+            x.data["merged_into"] = main.id
+            x.hashtags = [t for t in x.hashtags if not t.startswith("modus:")] + [f"modus:{MERGED}"]
+            x.change(who, f"merged into {main.id}", reason)
+            save(x)
+            x.link(main.id, "merged into (same key)")
+    return report
+
+
 def link_similar(o: MemoryObject, at_least: int = 2, limit: int = 5) -> None:
     """Zettelkasten: objects sharing ≥ `at_least` content hashtags are linked (A-Mem idea)."""
     content = [t for t in o.hashtags if not t.startswith(ADMIN_PREFIXES)]  # otherwise instanz:/art: would link everything with everything

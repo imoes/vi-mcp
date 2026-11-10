@@ -121,6 +121,20 @@ New sessions then see the tools `mcp__vi-mcp__vi_*`. Every Claude Code session i
 | Memory status | tool `vi_status` (open conversations, objects, loop errors) |
 | Tests | `python3 -m pytest -q tests` |
 
+## Merging repeated findings (one-time)
+
+Clients that learned the same recurring finding again and again before 0.23.0 (each time with a new text and a higher repetition
+counter) can be cleaned up once. The key is taken from the text with a regular expression (group 1); per key, the oldest object stays,
+gets the newest text and keeps every earlier state in `daten.history`; the others get mode `aufgegangen` with `daten.merged_into` and
+drop out of searches — nothing is deleted. Afterwards the client should send `vi_learn(key=…)` so no new repetitions arise.
+
+```bash
+sudo systemctl stop vi-mcp                                                          # one writer
+sudo -u vi-mcp vi-mcp merge-repeats <instance> '— Filter:\s*(.+)$'                 # dry run: counts only
+sudo -u vi-mcp vi-mcp merge-repeats <instance> '— Filter:\s*(.+)$' --apply
+sudo systemctl start vi-mcp
+```
+
 ## Backup
 
 The database is a WAL file. For a consistent copy while running:
