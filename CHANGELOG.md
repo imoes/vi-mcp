@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.29.0 — unreleased — Why a hint was shown; is a new hint weaker?
+## 0.29.0 — 2026-11-10 — Why a hint was shown; is a new hint weaker?
 
 ### What is new
 
