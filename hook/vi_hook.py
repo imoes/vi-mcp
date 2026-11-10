@@ -356,7 +356,9 @@ def main() -> int:
         log_output(f"{e.get('hook_event_name')} {e.get('tool_name', '')}: internal error {type(ex).__name__}: {ex}")
         return 0
     if outputs:
-        print(json.dumps(outputs, ensure_ascii=False))
+        # UTF-8 bytes, whatever the locale: on Windows stdout to a pipe is cp1252, and "→" or "≤" in a hint raised UnicodeEncodeError (0.28.1)
+        sys.stdout.buffer.write((json.dumps(outputs, ensure_ascii=False) + "\n").encode("utf-8"))
+        sys.stdout.flush()
     return 0
 
 

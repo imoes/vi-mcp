@@ -3,6 +3,46 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.28.1 — 2026-11-10 — Windows installer works
+
+### What was fixed
+
+The MSI of 0.27.0/0.28.0 failed on a real Windows 11 machine (`msiexec` exit 1722, later 1603) and rolled back. Found and fixed in a
+Windows 11 Enterprise LTSC VM (build 26100, `dockurr/windows`), one cause per test run:
+
+- **Empty MSI properties broke the call of `install.ps1`** (exit 1722): Windows PowerShell 5.1 drops empty `-File` arguments
+  (`-Port ""`), so every later parameter shifted. The MSI now passes all options in one argument
+  (`-Options "server=…;port=…;embed=…;proxy=…"`).
+- **The scripts were read as cp1252** (12 parse errors at an em dash): PowerShell 5.1 reads a `.ps1` without BOM in the ANSI code page.
+  `install.ps1`/`uninstall.ps1` are ASCII only — `test_windows_scripts_are_ascii`.
+- **The python.org installer cannot run inside an MSI** (exit 1618, "another installation is in progress"). If no Python ≥ 3.11 is
+  installed, the MSI now unpacks Python 3.13.9 from the official NuGet package of the Python Software Foundation into
+  `%ProgramFiles%\vi-mcp\python` — used only if the pinned SHA256 matches and the Authenticode signature of `python.exe` is valid;
+  the uninstall removes it.
+- **`config.json` had a BOM** ("server port: 0", then "instance admin failed"): `Set-Content -Encoding utf8` of PowerShell 5.1 writes one
+  and `json.loads` refuses it. The installer writes UTF-8 without BOM, and vi-mcp reads its configuration with or without BOM —
+  `test_config_with_bom_is_read`. Failures of the Python calls in the installer now land in `install.log` with Python's own message.
+- **`vi-mcp port` on Windows showed 8765 while the server ran on 8790**: the command line found the server configuration only through
+  `VI_MCP_CONFIG`, which a process started before the installation does not have. `%ProgramData%\vi-mcp\config.json` is now the default
+  on Windows — `test_windows_default_config_is_programdata`.
+- A client hanging up mid-request no longer writes a `ConnectionResetError` traceback to the server log.
+
+*Proof* (test VM, 10.11.2026, results in `result-<run>/result.txt` of the test loop):
+- run 4: `msiexec` exit 0, `/gesund` → `ok vi-mcp 0.28.0`, scheduled task `vi-mcp` running, instance `admin` created;
+- run 5: uninstall exit 0 (task and PATH entry removed), clean reinstall with `PORT=8790` exit 0 — Python fresh from NuGet, venv and
+  PyPI packages downloaded again, server log "on http://127.0.0.1:8790/mcp", `install.log` "server: ok";
+- run 6 and 7 (0.28.1): `msiexec` exit 0, `vi-mcp port` → 8790 (the real port, without `VI_MCP_CONFIG`), `/gesund` → `ok vi-mcp 0.28.1`,
+  no traceback in `server.log` after the start.
+- The hook writes its JSON as UTF-8 bytes and the Windows scripts start Python with `-X utf8`: under a cp1252 stdout a hint with
+  "→" or "≤" raised `UnicodeEncodeError` — reproduced with `PYTHONIOENCODING=cp1252` (`test_hook_output_is_utf8_under_cp1252`),
+  not yet seen on a Windows machine with Claude Code.
+
+### What is still missing
+
+- The MSI is not code-signed; Windows SmartScreen may warn.
+- On Windows: no interactive setup menu, no reflexes (no sandbox), no network service (P2P).
+- `EMBED=1` (own embedding service) has not been run on Windows yet.
+
 ## 0.28.0 — 2026-11-10 — Own embedding service
 
 ### What is new

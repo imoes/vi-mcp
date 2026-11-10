@@ -97,6 +97,7 @@ def target(tmp_path, monkeypatch):
     monkeypatch.delenv("HERMES_HOME", raising=False)
     monkeypatch.delenv("SUDO_USER", raising=False)
     monkeypatch.setenv("PATH", f"{tmp_path}/bin:/usr/bin:/bin")
+    monkeypatch.setattr(e, "SYSTEM_BIN", [])
     monkeypatch.setenv("VI_MCP_CONFIG", str(tmp_path / "gibtsnicht.json"))
     (tmp_path / "bin").mkdir()
     return e.target()

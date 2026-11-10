@@ -151,7 +151,23 @@ Pakete liegen unter [Releases](https://github.com/imoes/vi-mcp/releases/latest).
 sudo apt install ./vi-mcp_0.13.0-1_all.deb      # Debian 12/13, Ubuntu 24.04
 sudo dnf install ./vi-mcp-0.13.0-1.noarch.rpm   # Fedora 43
 sudo dnf install epel-release && sudo dnf install ./vi-mcp-0.13.0-1.noarch.rpm   # AlmaLinux/RHEL 10
+sudo VI_MCP_PORT=9000 apt install ./vi-mcp_<version>-1_all.deb                       # anderer Port bei der Erstinstallation
 ```
+
+**Windows** (seit 0.27.0, Client und Server): `vi-mcp-<version>-x64.msi` nimmt ein installiertes Python ≥ 3.11 oder ein privates Python
+aus dem offiziellen NuGet-Paket der Python Software Foundation (SHA256 und Signatur geprüft), legt eine venv mit den PyPI-Paketen an, den
+Befehl `vi-mcp` und — außer bei `SERVER=0` — den Server als geplante Aufgabe `vi-mcp` (Daten in `%ProgramData%\vi-mcp`). Während der
+Installation braucht es Internetzugang:
+
+```bat
+msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [PROXY=http://proxy:3128] /l*v install.log
+vi-mcp setup --claude --hook --url http://127.0.0.1:8765/mcp --token-file <datei>
+```
+
+Den Port ändert `vi-mcp port 9000` später unter Linux und Windows (startet den Dienst neu). Vektoren für die semantische Suche liefert der
+eigene Embedding-Dienst, jederzeit nachinstallierbar: `sudo vi-mcp embed setup` (llama.cpp + bge-m3, Vulkan oder CPU; unter Windows
+`EMBED=1`). Unter Windows gibt es kein interaktives Einrichtungsmenü, keine Reflex-Sandbox (Reflex-Code läuft nicht) und keinen
+Netzdienst (P2P) — siehe [docs/OPERATIONS.md](docs/OPERATIONS.md#windows).
 
 **Ein Release vor der Installation prüfen.** Ab v0.15.0 ist `SHA256SUMS` mit dem Release-Schlüssel signiert (Ed25519, `SHA256SUMS.sig`). Leg dir eine eigene Kopie von
 [`deploy/release-schluessel.pem`](deploy/release-schluessel.pem) ab und vergleiche den Fingerabdruck einmal über einen Weg, dem du vertraust:

@@ -228,7 +228,7 @@ def _hook_on(z: TargetUser, url: str, token: str, signal: str | None) -> str:
     if WINDOWS:  # no "VAR=value command" in cmd.exe: the hook reads URL and token files from hook.json (0.27.0)
         _write(dir_path / "hook.json", json.dumps({"url": url, "token_file": str(dir_path / "token-claude") if token else "",
                                                    "signal_token_file": str(dir_path / "token-nutzer") if signal else ""}, indent=2) + "\n")
-        command = f'"{sys.executable}" -I "{_hook_script()}"'
+        command = f'"{sys.executable}" -I -X utf8 "{_hook_script()}"'
     p = _settings(z)
     d = _json(p)
     _hook_without(d)
@@ -444,11 +444,15 @@ PROGRAMS = (
 )
 
 
+#: system-wide directories searched besides PATH (tests empty it, so a program installed on the build host does not leak in)
+SYSTEM_BIN = ["/usr/local/bin"]
+
+
 def _find(command: str, z: TargetUser) -> str | None:
     if WINDOWS:
         return shutil.which(command, path=os.pathsep.join([os.environ.get("PATH", ""), str(z.home / "AppData" / "Roaming" / "npm"),
                                                            str(z.home / ".local" / "bin")]))
-    paths = [*os.environ.get("PATH", "").split(":"), str(z.home / ".local/bin"), str(z.home / ".npm-global/bin"), str(z.home / "bin"), "/usr/local/bin",
+    paths = [*os.environ.get("PATH", "").split(":"), str(z.home / ".local/bin"), str(z.home / ".npm-global/bin"), str(z.home / "bin"), *SYSTEM_BIN,
              *glob.glob(str(z.home / ".nvm/versions/node/*/bin"))]
     return shutil.which(command, path=":".join(paths))
 
@@ -599,7 +603,7 @@ def default_url(z: TargetUser) -> str:
             except Refused:
                 pass
     try:
-        port = json.loads(config.fpath().read_text()).get("port", 8765)
+        port = json.loads(config.fpath().read_text(encoding="utf-8-sig")).get("port", 8765)
     except (OSError, json.JSONDecodeError):
         port = 8765
     return f"http://127.0.0.1:{port}/mcp"

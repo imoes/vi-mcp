@@ -1,4 +1,4 @@
-# vi-mcp for Windows — runs from the MSI before its files are removed (deferred, as SYSTEM).
+# vi-mcp for Windows - runs from the MSI before its files are removed (deferred, as SYSTEM).
 # Stops and removes the scheduled task, the venv, the PATH entry and VI_MCP_CONFIG. Data and configuration in %ProgramData%\vi-mcp stay
 # (like `apt remove`); delete that folder by hand to remove them as well. Never fails the uninstall: problems are only logged.
 param([Parameter(Mandatory = $true)][string]$InstallDir)
@@ -7,7 +7,7 @@ $InstallDir = [IO.Path]::GetFullPath($InstallDir).TrimEnd("\")  # the MSI passes
 $Data = Join-Path $env:ProgramData "vi-mcp"
 New-Item -ItemType Directory -Force -Path $Data | Out-Null
 $Log = Join-Path $Data "install.log"
-function Log([string]$m) { "$(Get-Date -Format s) $m" | Out-File -FilePath $Log -Append -Encoding utf8 }
+function Log([string]$m) { Add-Content -Path $Log -Value "$(Get-Date -Format s) $m" -Encoding UTF8 }
 Log "vi-mcp uninstall: InstallDir=$InstallDir"
 if (Get-ScheduledTask -TaskName "vi-mcp" -ErrorAction SilentlyContinue) {
     Stop-ScheduledTask -TaskName "vi-mcp" -ErrorAction SilentlyContinue
@@ -17,6 +17,7 @@ if (Get-ScheduledTask -TaskName "vi-mcp" -ErrorAction SilentlyContinue) {
 Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.ExecutablePath -like "$InstallDir\venv\*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Remove-Item -Recurse -Force (Join-Path $InstallDir "venv") -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force (Join-Path $InstallDir "python") -ErrorAction SilentlyContinue  # private Python from the NuGet package
 $path = [Environment]::GetEnvironmentVariable("Path", "Machine")
 $new = ($path -split ";" | Where-Object { $_ -and $_ -ne $InstallDir }) -join ";"
 if ($new -ne $path) { [Environment]::SetEnvironmentVariable("Path", $new, "Machine"); Log "PATH entry removed" }

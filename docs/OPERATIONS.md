@@ -74,7 +74,7 @@ The service keeps running without a login if lingering is enabled (`loginctl sho
 
 ## Configuration
 
-`$VI_MCP_CONFIG` or `~/.config/vi-mcp/config.json` (the keys keep their German names, e.g. `instanzen`, `reflexe`):
+`$VI_MCP_CONFIG` or `~/.config/vi-mcp/config.json` (on Windows `%ProgramData%\vi-mcp\config.json`; the keys keep their German names, e.g. `instanzen`, `reflexe`):
 
 ```json
 {
@@ -171,12 +171,13 @@ Since 0.27.0 there is `vi-mcp-<version>-x64.msi` (built on Linux with `deploy/wi
 
 - **Install**: `msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [PROXY=http://proxy:3128] /l*v install.log` in an elevated shell.
   The MSI copies `vi_mcp`, the hook and the scripts to `%ProgramFiles%\vi-mcp` and runs `install.ps1` as SYSTEM: it uses an installed
-  64-bit Python ≥ 3.11 or downloads Python 3.13.9 from python.org (installed only if the Authenticode signature of the Python Software
-  Foundation is valid), creates `%ProgramFiles%\vi-mcp\venv` with NumPy, scikit-learn, cryptography and PyYAML from PyPI, and puts
+  64-bit Python ≥ 3.11 or unpacks Python 3.13.9 from the official NuGet package of the Python Software Foundation into
+  `%ProgramFiles%\vi-mcp\python` (used only if the pinned SHA256 matches and the Authenticode signature of `python.exe` is valid; the
+  python.org installer cannot run inside an MSI — exit 1618), creates `%ProgramFiles%\vi-mcp\venv` with NumPy, scikit-learn, cryptography and PyYAML from PyPI, and puts
   `vi-mcp` on the machine PATH. Log: `%ProgramData%\vi-mcp\install.log`. A failure rolls the installation back.
 - **Server** (`SERVER=1`, default): configuration and database in `%ProgramData%\vi-mcp` (only SYSTEM and administrators), first instance
   `admin` (token in `%ProgramData%\vi-mcp\token-admin`), scheduled task `vi-mcp` at system start as SYSTEM, restarted after a failure,
-  output in `%ProgramData%\vi-mcp\server.log`. `VI_MCP_CONFIG` points the command line to that configuration.
+  output in `%ProgramData%\vi-mcp\server.log`. The command line finds that configuration by default (since 0.28.1; `VI_MCP_CONFIG` still overrides it).
 - **Client**: `vi-mcp setup --claude --hook --url URL --token-file FILE` (no interactive menu on Windows). The hook entry is
   `"<venv python>" -I "<install dir>\hook\vi_hook.py"`; URL and token files are in `%USERPROFILE%\.config\vi-mcp\hook.json`.
 - **Not on Windows**: reflex code never runs (no Landlock/seccomp sandbox — it is refused with that reason), no network service

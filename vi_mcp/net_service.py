@@ -91,7 +91,7 @@ def from_file(d: dict) -> NetConfig:
 
 def load(p: Path | None = None) -> NetConfig:
     p = p or fpath()
-    d = json.loads(p.read_text()) if p.exists() else {}
+    d = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
     k = from_file(d)
     if k.mode not in MODES:
         raise ValueError(f"modus must be {', '.join(MODES)}")

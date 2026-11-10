@@ -150,8 +150,8 @@ sudo dnf install epel-release && sudo dnf install ./vi-mcp-0.13.0-1.noarch.rpm  
 sudo VI_MCP_PORT=9000 apt install ./vi-mcp_<version>-1_all.deb                       # another port on first installation
 ```
 
-**Windows** (since 0.27.0, client and server): `vi-mcp-<version>-x64.msi` installs Python ≥ 3.11 from python.org if it is missing (signature
-checked), a venv with the PyPI packages, the command `vi-mcp` and — unless `SERVER=0` — the server as scheduled task `vi-mcp`
+**Windows** (since 0.27.0, client and server): `vi-mcp-<version>-x64.msi` uses an installed Python ≥ 3.11 or a private Python
+from the official NuGet package of the Python Software Foundation (SHA256 and signature checked), a venv with the PyPI packages, the command `vi-mcp` and — unless `SERVER=0` — the server as scheduled task `vi-mcp`
 (data in `%ProgramData%\vi-mcp`). It needs internet access during installation:
 
 ```bat

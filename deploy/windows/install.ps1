@@ -1,25 +1,52 @@
-# vi-mcp for Windows — runs from the MSI after the files are copied (deferred, as SYSTEM). Also usable by hand in an elevated shell:
+# vi-mcp for Windows - runs from the MSI after the files are copied (deferred, as SYSTEM). Also usable by hand in an elevated shell:
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -InstallDir "C:\Program Files\vi-mcp" [-Server 1] [-Proxy http://proxy:3128]
-# Steps: find Python >= 3.11 (else download the python.org installer, check its Authenticode signature, install for all users),
-# create a venv with the PyPI packages, make `vi-mcp` callable, and — with -Server 1 — set up the server as scheduled task "vi-mcp".
+# Steps: find Python >= 3.11 (else unpack the NuGet package of the PSF into INSTALLDIR\python, check SHA256 and Authenticode signature),
+# create a venv with the PyPI packages, make `vi-mcp` callable, and - with -Server 1 - set up the server as scheduled task "vi-mcp".
 # Everything is logged to %ProgramData%\vi-mcp\install.log; any failure ends with exit code 1, so the MSI rolls back.
 param(
     [Parameter(Mandatory = $true)][string]$InstallDir,
     [string]$Server = "1",
     [string]$Proxy = "",
     [string]$Port = "",  # empty: keep the port of an existing configuration, 8765 for a new one
-    [string]$Embed = "0" # 1: own embedding service (llama.cpp + bge-m3) for the vectors, see `vi-mcp embed`
+    [string]$Embed = "0", # 1: own embedding service (llama.cpp + bge-m3) for the vectors, see `vi-mcp embed`
+    # From the MSI: all options in ONE argument "server=1;port=;embed=;proxy=...". Windows PowerShell 5.1 drops empty arguments of -File
+    # (-Port "" became -Port -Embed ..., the binding failed and the MSI ended with error 1722 - found in a Windows 11 test VM, 10.11.2026).
+    [string]$Options = ""
 )
+foreach ($pair in ($Options -split ";")) {
+    $k, $v = $pair -split "=", 2
+    switch ($k.Trim().ToLower()) {
+        "server" { if ($v) { $Server = $v } }
+        "port" { $Port = "$v" }
+        "embed" { if ($v) { $Embed = $v } }
+        "proxy" { $Proxy = "$v" }
+    }
+}
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 $InstallDir = [IO.Path]::GetFullPath($InstallDir).TrimEnd("\")  # the MSI passes "[INSTALLDIR]." (a trailing \ would escape the quote)
 $Data = Join-Path $env:ProgramData "vi-mcp"
 New-Item -ItemType Directory -Force -Path $Data | Out-Null
 $Log = Join-Path $Data "install.log"
-function Log([string]$m) { "$(Get-Date -Format s) $m" | Tee-Object -FilePath $Log -Append | Out-Host }
+function Log([string]$m) { $line = "$(Get-Date -Format s) $m"; Add-Content -Path $Log -Value $line -Encoding UTF8; Write-Host $line }
 
+# Runs the private Python. PowerShell 5.1 turns stderr of a native program into a terminating error under "Stop", so stderr is
+# collected here and written to the log when the call fails (before 0.28.1 the reason of a failure was lost).
+function Invoke-Py {
+    $old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+    try { $all = & $vpy -I @args 2>&1 } finally { $ErrorActionPreference = $old }
+    $code = $LASTEXITCODE
+    $err = @($all | Where-Object { $_ -is [Management.Automation.ErrorRecord] } | ForEach-Object { "$_" })
+    $out = @($all | Where-Object { $_ -isnot [Management.Automation.ErrorRecord] } | ForEach-Object { "$_" })
+    if ($code -ne 0) { foreach ($l in $err) { Log "  python: $l" }; throw "python $($args -join ' ') failed (exit $code)" }
+    return $out
+}
+
+# Private Python from the official NuGet package of the Python Software Foundation (a zip, no installer): the python.org installer
+# cannot run inside an MSI (exit 1618, "another installation is in progress" - found in a Windows 11 test VM, 10.11.2026).
 $PythonVersion = "3.13.9"
-$PythonUrl = "https://www.python.org/ftp/python/$PythonVersion/python-$PythonVersion-amd64.exe"
+$PythonUrl = "https://api.nuget.org/v3-flatcontainer/python/$PythonVersion/python.$PythonVersion.nupkg"
+$PythonSha256 = "ea7541c98f77b6f344460b88db6e677573069979bcbf0ba18747cc2c125aba25"
 $Packages = @("numpy>=1.26", "scikit-learn>=1.4", "cryptography>=41", "pyyaml>=6")
 
 try {
@@ -47,22 +74,30 @@ try {
     }
 
     $py = Find-Python
+    $private = Join-Path $InstallDir "python"
+    if (-not $py -and (Test-Python (Join-Path $private "python.exe"))) { $py = Join-Path $private "python.exe" }  # from an earlier install
     if (-not $py) {
-        Log "no Python >= 3.11 (64-bit) found — downloading $PythonUrl"
-        $setup = Join-Path $env:TEMP "python-$PythonVersion-amd64.exe"
-        $iwr = @{ Uri = $PythonUrl; OutFile = $setup; UseBasicParsing = $true }
+        Log "no Python >= 3.11 (64-bit) found - downloading $PythonUrl"
+        $pkg = Join-Path $env:TEMP "python.$PythonVersion.zip"
+        $iwr = @{ Uri = $PythonUrl; OutFile = $pkg; UseBasicParsing = $true }
         if ($Proxy) { $iwr.Proxy = $Proxy }
         Invoke-WebRequest @iwr
-        $sig = Get-AuthenticodeSignature $setup
+        $hash = (Get-FileHash -Path $pkg -Algorithm SHA256).Hash.ToLower()
+        if ($hash -ne $PythonSha256) { Remove-Item $pkg -Force; throw "Python package SHA256 $hash does not match the pinned $PythonSha256 - not used" }
+        $unz = Join-Path $env:TEMP "python.$PythonVersion"
+        Remove-Item -Recurse -Force $unz -ErrorAction SilentlyContinue
+        Expand-Archive -Path $pkg -DestinationPath $unz -Force
+        Remove-Item -Recurse -Force $private -ErrorAction SilentlyContinue
+        Move-Item -Path (Join-Path $unz "tools") -Destination $private
+        Remove-Item -Recurse -Force $unz, $pkg -ErrorAction SilentlyContinue
+        $sig = Get-AuthenticodeSignature (Join-Path $private "python.exe")
         if ($sig.Status -ne "Valid" -or $sig.SignerCertificate.Subject -notmatch "Python Software Foundation") {
-            throw "Python installer signature not valid ($($sig.Status), $($sig.SignerCertificate.Subject)) — not executed"
+            Remove-Item -Recurse -Force $private
+            throw "python.exe signature not valid ($($sig.Status), $($sig.SignerCertificate.Subject)) - removed"
         }
-        Log "signature valid ($($sig.SignerCertificate.Subject)); installing for all users"
-        $p = Start-Process -FilePath $setup -ArgumentList "/quiet", "InstallAllUsers=1", "PrependPath=1", "Include_test=0", "Include_launcher=1" -Wait -PassThru
-        Remove-Item $setup -Force -ErrorAction SilentlyContinue
-        if ($p.ExitCode -ne 0) { throw "Python installer ended with exit code $($p.ExitCode)" }
-        $py = Find-Python
-        if (-not $py) { throw "Python was installed but is not found in the registry" }
+        Log "private Python $PythonVersion in $private (SHA256 and signature of the Python Software Foundation checked)"
+        $py = Join-Path $private "python.exe"
+        if (-not (Test-Python $py)) { throw "the private Python does not start" }
     }
     Log "Python: $py ($(& $py --version 2>&1))"
 
@@ -77,7 +112,7 @@ try {
     if ($Proxy) { $pipArgs += @("--proxy", $Proxy) }
     Log "pip install $($Packages -join ' ')"
     & $vpy @pipArgs @Packages 2>&1 | Out-File -FilePath $Log -Append -Encoding utf8
-    if ($LASTEXITCODE -ne 0) { throw "pip install failed ($LASTEXITCODE) — see $Log" }
+    if ($LASTEXITCODE -ne 0) { throw "pip install failed ($LASTEXITCODE) - see $Log" }
     # vi_mcp lives next to the venv: a .pth file puts the install directory on sys.path (also with python -I)
     $site = & $vpy -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
     Set-Content -Path (Join-Path $site "vi-mcp.pth") -Value $InstallDir -Encoding ascii
@@ -96,23 +131,23 @@ try {
         $cfg = Join-Path $Data "config.json"
         if ($Port -and ($Port -notmatch '^\d+$' -or [int]$Port -lt 1024 -or [int]$Port -gt 65535)) { throw "PORT must be a number from 1024 to 65535" }
         if (-not (Test-Path $cfg)) {
-            @{ bind = "127.0.0.1"; port = $(if ($Port) { [int]$Port } else { 8765 }); db = (Join-Path $Data "vi.db") } | ConvertTo-Json |
-                Set-Content -Path $cfg -Encoding utf8
+            # UTF-8 without BOM: Set-Content -Encoding utf8 of PowerShell 5.1 writes a BOM, and json.loads refuses it
+            # (Windows 11 test VM, 10.11.2026: "server port: 0", then "instance admin failed")
+            $json = @{ bind = "127.0.0.1"; port = $(if ($Port) { [int]$Port } else { 8765 }); db = (Join-Path $Data "vi.db") } | ConvertTo-Json
+            [IO.File]::WriteAllText($cfg, $json, (New-Object Text.UTF8Encoding($false)))
             Log "created $cfg"
         }
         [Environment]::SetEnvironmentVariable("VI_MCP_CONFIG", $cfg, "Machine")
         $env:VI_MCP_CONFIG = $cfg
         if ($Port) {
-            & $vpy -I -c "import sys; from vi_mcp import config; config.set_port(int(sys.argv[1]))" $Port
-            if ($LASTEXITCODE -ne 0) { throw "could not set port $Port" }
+            Invoke-Py -c "import sys; from vi_mcp import config; config.set_port(int(sys.argv[1]))" $Port | Out-Null
         }
-        $ServerPort = [int](& $vpy -I -c "from vi_mcp import config; print(config.load().port)")
+        $ServerPort = [int](Invoke-Py -c "from vi_mcp import config; print(config.load().port)" | Select-Object -Last 1)
         Log "server port: $ServerPort"
         $raw = Get-Content $cfg -Raw | ConvertFrom-Json
         if (-not $raw.instanzen) {
             # the server needs at least one instance; the token is stored for administrators only
-            $out = & $vpy -I -m vi_mcp instance admin
-            if ($LASTEXITCODE -ne 0) { throw "vi-mcp instance admin failed" }
+            $out = Invoke-Py -m vi_mcp instance admin
             Set-Content -Path (Join-Path $Data "token-admin") -Value ($out | Select-Object -Last 1) -Encoding ascii
             Log "created instance admin (token in $Data\token-admin)"
         }
@@ -135,11 +170,11 @@ try {
                 if ($r.Content -like "ok vi-mcp*") { $up = $true; Log "server: $($r.Content.Trim())"; break }
             } catch { Start-Sleep -Seconds 1 }
         }
-        if (-not $up) { Log "WARNING: server did not answer /gesund within 30 s — see Task Scheduler, task vi-mcp, and $Data\server.log" }
+        if (-not $up) { Log "WARNING: server did not answer /gesund within 30 s - see Task Scheduler, task vi-mcp, and $Data\server.log" }
         if ($Embed -eq "1") {
             Log "setting up the embedding service (vi-mcp embed setup; downloads llama.cpp and bge-m3, ~470 MB)"
             & $vpy -I -m vi_mcp embed setup 2>&1 | Out-File -FilePath $Log -Append -Encoding utf8
-            if ($LASTEXITCODE -ne 0) { Log "WARNING: vi-mcp embed setup failed — the server runs without vectors; see $Log" }
+            if ($LASTEXITCODE -ne 0) { Log "WARNING: vi-mcp embed setup failed - the server runs without vectors; see $Log" }
         }
     }
     $hint = if ($Server -eq "1") { "http://127.0.0.1:$ServerPort/mcp" } else { "https://<server>/vi-mcp/mcp" }

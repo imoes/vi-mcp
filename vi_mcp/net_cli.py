@@ -102,7 +102,7 @@ def _write(p: Path, raw: dict) -> None:
 
 def setup(o) -> int:
     p = nd.fpath()
-    raw = json.loads(p.read_text()) if p.exists() else {}
+    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
     k_old = nd.from_file(raw)
     raw["modus"] = o.mode
     for attr, key in (("address", "adresse"), ("bind", "bind"), ("port", "port"), ("tls_cert", "tls_cert"), ("tls_key", "tls_key"), ("ca_file", "ca_datei")):

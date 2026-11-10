@@ -57,7 +57,7 @@ wxs = f'''<?xml version="1.0" encoding="utf-8"?>
     <Feature Id="Main" Level="1">{"".join(refs)}</Feature>
     <CustomAction Id="SetPwsh" Property="PWSH" Value="[System64Folder]WindowsPowerShell\\v1.0\\powershell.exe"/>
     <CustomAction Id="RunInstall" Property="PWSH" Execute="deferred" Impersonate="no" Return="check"
-      ExeCommand='{ps} "[INSTALLDIR]install.ps1" -InstallDir "[INSTALLDIR]." -Server "[SERVER]" -Port "[PORT]" -Embed "[EMBED]" -Proxy "[PROXY]"'/>
+      ExeCommand='{ps} "[INSTALLDIR]install.ps1" -InstallDir "[INSTALLDIR]." -Options "server=[SERVER];port=[PORT];embed=[EMBED];proxy=[PROXY]"'/>
     <CustomAction Id="RunUninstall" Property="PWSH" Execute="deferred" Impersonate="no" Return="ignore"
       ExeCommand='{ps} "[INSTALLDIR]uninstall.ps1" -InstallDir "[INSTALLDIR]."'/>
     <InstallExecuteSequence>

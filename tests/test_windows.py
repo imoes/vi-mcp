@@ -25,7 +25,7 @@ def test_windows_hook_entry_uses_hook_json(tmp_path, monkeypatch):
     cfg = json.loads((tmp_path / ".config" / "vi-mcp" / "hook.json").read_text())
     assert cfg == {"url": "https://vi.example/mcp", "token_file": str(tmp_path / ".config" / "vi-mcp" / "token-claude"), "signal_token_file": ""}
     cmd = json.loads((tmp_path / ".claude" / "settings.json").read_text())["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-    assert cmd == f'"{sys.executable}" -I "{e._hook_script()}"' and "VI_MCP_URL=" not in cmd
+    assert cmd == f'"{sys.executable}" -I -X utf8 "{e._hook_script()}"' and "VI_MCP_URL=" not in cmd
 
 
 def test_hook_reads_hook_json_and_environment_wins(tmp_path):
@@ -71,3 +71,60 @@ def test_port_is_configurable(tmp_path, monkeypatch):
     out = subprocess.run([sys.executable, "-m", "vi_mcp", "port"], capture_output=True, text=True,
                          env={**os.environ, "VI_MCP_CONFIG": str(p)}, cwd=Path(__file__).resolve().parents[1])
     assert out.returncode == 0 and out.stdout.strip() == "9100"
+
+
+def test_windows_scripts_are_ascii():
+    """Windows PowerShell 5.1 reads a .ps1 without BOM as Windows-1252: an em dash (E2 80 94) becomes â€” whose 0x94 is a curly quote,
+    PowerShell treats it as a string delimiter and the script breaks (MSI error 1722, found in a Windows 11 VM, 10.11.2026)."""
+    root = Path(__file__).resolve().parents[1] / "deploy" / "windows"
+    for f in [*root.glob("*.ps1"), *root.glob("*.cmd")]:
+        bad = sorted({c for c in f.read_text(encoding="utf-8") if ord(c) > 127})
+        assert not bad, f"{f.name}: non-ASCII {bad}"
+
+
+def test_config_with_bom_is_read(tmp_path):
+    """0.28.1: PowerShell 5.1 `Set-Content -Encoding utf8` writes a BOM; config.load and set_port must still read the file."""
+    from vi_mcp import config
+    cfg = tmp_path / "config.json"
+    cfg.write_bytes(b"\xef\xbb\xbf" + json.dumps({"bind": "127.0.0.1", "port": 8766}).encode())
+    assert config.load(cfg).port == 8766
+    assert config.set_port(8770, cfg) == 8766 and config.load(cfg).port == 8770
+    assert not cfg.read_bytes().startswith(b"\xef\xbb\xbf")  # written back without BOM
+
+
+def test_installer_writes_config_without_bom():
+    s = (Path(__file__).parent.parent / "deploy/windows/install.ps1").read_text()
+    assert "UTF8Encoding($false)" in s and "Set-Content -Path $cfg" not in s
+
+
+def test_windows_default_config_is_programdata(monkeypatch, tmp_path):
+    """0.28.1: without VI_MCP_CONFIG (a process started before the MSI set it) Windows still finds the server configuration."""
+    from vi_mcp import config
+    monkeypatch.delenv("VI_MCP_CONFIG", raising=False)
+    monkeypatch.setattr(config.sys, "platform", "win32")
+    monkeypatch.setenv("ProgramData", str(tmp_path))
+    assert config.fpath() == tmp_path / "vi-mcp" / "config.json"
+    monkeypatch.setattr(config.sys, "platform", "linux")
+    assert config.fpath() == config.DEFAULT_PATH
+
+
+def test_client_hangup_leaves_no_traceback(capsys):
+    from vi_mcp import server
+    s = server.Server.__new__(server.Server)
+    try:
+        raise ConnectionResetError(10054, "forcibly closed")
+    except ConnectionResetError:
+        s.handle_error(None, ("127.0.0.1", 1))
+    assert "Traceback" not in capsys.readouterr().err
+
+
+def test_hook_output_is_utf8_under_cp1252(tmp_path):
+    """0.28.1: the hook writes UTF-8 even when the locale is cp1252 (Windows, stdout to a pipe)."""
+    hook = Path(__file__).resolve().parents[1] / "hook" / "vi_hook.py"
+    probe = ("import runpy, sys; g = runpy.run_path(%r, run_name='probe'); "
+             "g['main'].__globals__['process'] = lambda e: {'hookSpecificOutput': {'additionalContext': 'nginx -t → reload, P ≤ 0.2'}}; "
+             "sys.stdin = __import__('io').StringIO('{\"hook_event_name\": \"PreToolUse\"}'); sys.exit(g['main']())") % str(hook)
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252", "HOME": str(tmp_path), "VI_MCP_URL": "http://127.0.0.1:9/mcp"}
+    r = subprocess.run([sys.executable, "-c", probe], capture_output=True, env=env, timeout=30)
+    assert r.returncode == 0, r.stderr.decode(errors="replace")
+    assert "→ reload, P ≤ 0.2" in r.stdout.decode("utf-8")

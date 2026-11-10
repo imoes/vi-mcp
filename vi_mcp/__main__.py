@@ -67,7 +67,7 @@ def _port(value: str | None) -> int:
         from . import net_service as ns
         p = ns.fpath()
         if p.exists():
-            raw = json.loads(p.read_text())
+            raw = json.loads(p.read_text(encoding="utf-8-sig"))
             url = raw.get("mcp_url") or ns.NetConfig().mcp_url
             if url.startswith(("http://127.0.0.1:", "http://localhost:")):
                 raw["mcp_url"] = f"http://127.0.0.1:{new}/mcp"

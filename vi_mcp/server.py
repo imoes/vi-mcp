@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import signal
 import socket
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -119,6 +120,12 @@ class Server(ThreadingHTTPServer):
             except OSError:
                 pass
         super().server_bind()
+
+    def handle_error(self, request, client_address):
+        # a client that hangs up mid-request is not a server error; no traceback in the log for it (0.28.1)
+        if isinstance(sys.exc_info()[1], (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
+            return
+        super().handle_error(request, client_address)
 
 
 class Handler(BaseHTTPRequestHandler):

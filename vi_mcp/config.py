@@ -20,10 +20,20 @@ import hmac
 import json
 import os
 import secrets
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 DEFAULT_PATH = Path("~/.config/vi-mcp/config.json").expanduser()
+
+
+def default_path() -> Path:
+    """0.28.1: on Windows the server configuration is %ProgramData%\\vi-mcp\\config.json (where the MSI puts it). Before, only the
+    machine variable VI_MCP_CONFIG pointed there, and a process started before the installation read the default and showed port 8765
+    while the server ran on 8790 (Windows 11 test VM, 10.11.2026)."""
+    if sys.platform == "win32":
+        return Path(os.environ.get("ProgramData") or r"C:\ProgramData") / "vi-mcp" / "config.json"
+    return DEFAULT_PATH
 
 
 #: Who comes without a token when `offen` is switched on: read, report actions, propose knowledge (quarantine). No rights.
@@ -68,12 +78,12 @@ class Config:
 
 
 def fpath() -> Path:
-    return Path(os.environ.get("VI_MCP_CONFIG") or DEFAULT_PATH).expanduser()
+    return Path(os.environ.get("VI_MCP_CONFIG") or default_path()).expanduser()
 
 
 def load(p: Path | None = None) -> Config:
     p = p or fpath()
-    raw = json.loads(p.read_text()) if p.exists() else {}
+    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
     k = Config()
     b = raw.get("bind", k.bind)
     k.bind = [b] if isinstance(b, str) else list(b)
@@ -99,7 +109,7 @@ def create_instance(name: str, reflexes: bool = False, p: Path | None = None, re
     if name == OPEN:
         raise ValueError(f"\"{OPEN}\" is reserved for access without a token")
     p = p or fpath()
-    raw = json.loads(p.read_text()) if p.exists() else {}
+    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
     token = secrets.token_urlsafe(32)
     raw.setdefault("instanzen", {})[name] = {"token_sha256": hashlib.sha256(token.encode()).hexdigest(), "reflexe": reflexes, "freigabe": release, "mensch": human}
     _save_raw(raw, p)
@@ -111,7 +121,7 @@ def set_port(port: int, p: Path | None = None) -> int:
     if not isinstance(port, int) or not 1024 <= port <= 65535:
         raise ValueError("port must be a number from 1024 to 65535")
     p = p or fpath()
-    raw = json.loads(p.read_text()) if p.exists() else {}
+    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
     old = int(raw.get("port", Config().port))
     raw["port"] = port
     _save_raw(raw, p)
@@ -121,7 +131,7 @@ def set_port(port: int, p: Path | None = None) -> int:
 def set_embed(embed: dict | None, p: Path | None = None) -> None:
     """0.28.0: set or clear the embedding service ({"url": ...}); the service reads it at start."""
     p = p or fpath()
-    raw = json.loads(p.read_text()) if p.exists() else {}
+    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
     if embed:
         raw["embed"] = embed
     else:
@@ -135,7 +145,7 @@ def _save_raw(raw: dict, p: Path) -> None:
     tmp = p.with_suffix(".tmp")
     old_umask_value = os.umask(0o077)
     try:
-        tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n")
+        tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     finally:
         os.umask(old_umask_value)
     # keep the permissions of an existing file (package: root:vi-mcp 0640, so the service can read it);
