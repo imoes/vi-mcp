@@ -134,6 +134,7 @@ def _run(reason: str) -> g.MemoryObject:
     step("5_lager", lambda: archive.cleanup())
     step("5b_pruefer", lambda: _reviewer())
     step("6_selbst_ist", lambda: _self_actual())
+    step("6b_doc_triggers", lambda: _doc_triggers())  # 0.26.0
     from . import on_demand
     with on_demand.TRAINING:  # never at the same time as on-demand training (same model, same vectors)
         step("7_vektoren", lambda: _vectors())
@@ -306,6 +307,11 @@ def _reviewer() -> dict:
     from . import reviewer
     from . import p2p
     return {**reviewer.work_off(100), "auto_freigegeben": p2p.auto_approve()}
+
+
+def _doc_triggers() -> dict:
+    from . import doc_triggers
+    return doc_triggers.run()
 
 
 def _hints_new() -> dict:

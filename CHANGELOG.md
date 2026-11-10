@@ -3,6 +3,28 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.26.0 — 2026-11-10 — Documentation can appear before matching actions
+
+### What is new
+
+- **Documentation gets triggers.** Imported documentation carried only administrative hashtags (`space:`, `seite:`, `bereich:`), but hints
+  before an action are found through `host:`/`thema:`/`tool:` — so of 12,994 Confluence objects only 73 were ever recalled (production,
+  10.11.2026). A new sleep step (`6b_doc_triggers`) adds `host:` for hosts the memory already knows from experiences and knowledge, and
+  `thema:` for topics that learned knowledge already uses (found in the title only). Conservative: links ignored, a host in > 2 % or a
+  topic in > 5 % of all documentation skipped, at most 5 each per object, no new edges, every derivation recorded in the object.
+  *Proof:* read-only dry run of this code on the production database: 2,667 of 17,382 documentation objects get `host:`, 427 get `thema:`;
+  skipped as too common: `thema:lanao`; the wiki host from page links no longer counts. Tests: `tests/test_doc_triggers.py`.
+
+### What has changed
+
+- Company documentation (`art_wissen:firmendoku`) and manuals (`art_wissen:handbuch`) count as reference material like vendor docs:
+  before an action at most one documentation hint is shown, further ones only via exploration — so the new triggers cannot flood the hints.
+
+### What is still missing
+
+- Triggers are derived once per object (version 1); a host or topic learned later is not added to already processed documentation.
+- German words that equal a topic (e.g. "Suche" in titles and `thema:suche`) can still match.
+
 ## 0.25.0 — 2026-11-10 — The self can replace a sentence
 
 ### What is new

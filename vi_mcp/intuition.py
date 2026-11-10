@@ -43,7 +43,8 @@ REPEAT_S = 3600
 #: Reference material (imported vendor docs): is searched, but shown unasked before an action at most LOOKUP_MAX times,
 #: so that manual paragraphs do not push experience knowledge (warnings, pitfalls) out of the budget. Measured 09.11.2026: before `docker logs`
 #: four general Docker doc paragraphs took all slots.
-LOOKUP = ("art_wissen:doku-extern",)
+# 0.26.0: company docs and manuals count as reference material too — documentation now carries host:/thema: triggers
+LOOKUP = ("art_wissen:doku-extern", "art_wissen:firmendoku", "art_wissen:handbuch")
 LOOKUP_MAX = 1
 HOSTKEYS = ("host", "hostname", "host_name", "node", "device")
 OPEN_MAX_S = 3600

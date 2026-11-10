@@ -288,6 +288,11 @@ which context — docs/TRAINING.md 4a/4b.
   Every observation names `router` (`heuristik`|`modell`), `kandidaten`, `gezeigt`, `exploration`.
 - **Minimum amounts** (Peduzzi 1996): features with < 10 occurrences are dropped; min(ok, not ok) < 50 or holdout AUC
   ≤ 0.6 → mode `test` (stored, shown, not used). Holdout = the chronologically last 20 %.
+- **Documentation gets triggers** (0.26.0, sleep step `6b_doc_triggers`, `doc_triggers.py`): imported documentation (company docs, vendor
+  docs, manuals) gets `host:` for hosts the memory already knows from outside the documentation and `thema:` for topics learned knowledge
+  already uses (title only). Links are ignored; a host in more than 2 %, a topic in more than 5 % of all documentation is skipped; at most
+  5 each per object; no new edges; recorded in `daten.derived_triggers`. Documentation of all three kinds counts as reference material
+  (`intuition.LOOKUP`): at most one slot before an action.
 - **No repetition within a conversation** (0.24.0): a hint shown in the same conversation during the last hour (`intuition.REPEAT_S`) is held back, counted in the closing line ("N already shown in this conversation …") and listed in `daten.vorher.repeat_suppressed`. Measured 09.11.2026: three objects made up about 2,300 of 5,841 shown hints.
 - **ε-exploration 10 %**: one slot of the budget goes to a random candidate from further back, marked
   "(exploration)" — otherwise the model only learns about what the heuristic shows anyway (off-policy, Li et al. 2011).
