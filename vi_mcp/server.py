@@ -29,7 +29,7 @@ from pathlib import Path
 
 from . import __version__
 from . import memory as g
-from . import anonymize, on_demand, intuition, config, reflexes, main_loop, scorer, self_model, session, usage_stats, tools
+from . import anonymize, index, on_demand, intuition, config, reflexes, main_loop, scorer, self_model, session, usage_stats, tools
 from .log_output import log
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -130,7 +130,8 @@ def _initialize(msg: dict, inst: config.Instance, announced: str | None = None) 
         "instructions": (f"VI memory, conversation {s.serial}, instance {inst.name}. Report vi_before before an action and vi_after "
                          "afterwards; vi_recall/vi_drilldown to look things up, vi_object reads one object completely. vi_learn with a source to learn: code, API tables and commands belong unabridged into the field content, otherwise memory has gaps.\n"
                          + tools.RULES + "\n"
-                         + (tools.RULES_WITHOUT_TOKEN + "\n" if inst.name == config.OPEN else "") + self_model.hint())}), s
+                         + (tools.RULES_WITHOUT_TOKEN + "\n" if inst.name == config.OPEN else "") + self_model.hint()
+                         + (f"\n{ix}" if (ix := index.text(inst.name)) else ""))}), s  # 0.38.0: the memory index, like a MEMORY.md
 
 
 class Server(ThreadingHTTPServer):

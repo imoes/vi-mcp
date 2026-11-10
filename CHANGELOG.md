@@ -3,6 +3,25 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.38.0 — 2026-11-10 — A memory index in every session, like a MEMORY.md
+
+### What is new
+
+- **Every session receives a memory index with the instructions**, like the MEMORY.md of a single assistant: one line per entry
+  (`- [id] text`), `vi_object <id>` for the whole entry. Three sections per instance: requirements and decisions (`thema:vorgabe`),
+  proven or most used knowledge (confirmed, then by accesses; bulk imports excluded), and what this instance learned recently. At most
+  2,000 characters, after the rules; a cut is named; only active objects the instance may read. Reason: the VI was pull-only and was
+  consulted before 63 % of changing actions (`vi_stats`, 7 days to 10.11.2026); what is in the context needs no decision to look.
+  *Proof:* `tests/test_index.py` (6 tests: sections and their order, imports/refuted/private left out, internal only with a token,
+  size bound with a named cut, images marked, index after the rules in `initialize`).
+- **Rule 6 asks for `thema:vorgabe`** on what the user requires or decided beyond one session — those are the first section of the index.
+
+### What is missing
+
+- Requirements learned before 0.38.0 carry no `thema:vorgabe` yet; until they are tagged (`vi_tag`), the first section stays empty.
+- The index is per instance, not per project: the MCP client of Claude Code does not send its working directory (only the hook does).
+- Searching on every user prompt (hook `UserPromptSubmit`) is not built: it would send the prompt text to the server — the user decides.
+
 ## 0.37.0 — 2026-11-10 — Images are their own kind; screenshots
 
 ### What has changed

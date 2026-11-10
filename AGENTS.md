@@ -37,7 +37,7 @@ On first installation the menu opens by itself if a terminal is present. Without
 | Check a release | `deploy/pruefe-release.sh <directory>` |
 
 Modules (`vi_mcp/`): `memory` (objects, search), `intuition` (before/after), `session`, `sleep_cycle`, `main_loop` (the loop), `scorer`, `learning`, `bandit`, `vector`, `reflection`, `skills`, `reflexes`, `sandbox`,
-`content` (meaning as a router feature), `on_demand` (training on demand), `usage_stats` (usage statistics, `vi_stats`), `metrics` (hint lift, by hint age), `images` (images with description and SAM 3 regions), `image_cli` (`vi-mcp image`), `stdio_bridge` (`vi-mcp stdio`, MCP over stdio through the local socket), `weight_audit` (fixed rules over the router weights), `archive`, `self_model`, `questions`, `p2p` (memory on the network), `logbook`, `net_service` (separate process `vi-p2p`), `net_torrent`, `net_cli`, `anonymize`, `checks`, `reviewer`, `setup`, `config`, `server`, `tools`, `api_en` (German aliases), `log_output`.
+`content` (meaning as a router feature), `on_demand` (training on demand), `usage_stats` (usage statistics, `vi_stats`), `metrics` (hint lift, by hint age), `images` (images with description and SAM 3 regions), `image_cli` (`vi-mcp image`), `stdio_bridge` (`vi-mcp stdio`, MCP over stdio through the local socket), `index` (memory index in the instructions), `weight_audit` (fixed rules over the router weights), `archive`, `self_model`, `questions`, `p2p` (memory on the network), `logbook`, `net_service` (separate process `vi-p2p`), `net_torrent`, `net_cli`, `anonymize`, `checks`, `reviewer`, `setup`, `config`, `server`, `tools`, `api_en` (German aliases), `log_output`.
 
 ## Rules
 

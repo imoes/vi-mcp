@@ -123,6 +123,24 @@ Since 0.21.0 the server counts every call of a VI tool (`usage_stats.record`, ta
 `vi_stats(days)` evaluates usage, compliance with the rules, hints and warnings, knowledge, search, as well as sleep and training
 (`usage_stats.report`). A changing action counts as prepared if the same instance consulted the VI in the 30 min before it. Since 0.24.0 each section names the period it really has data for: tool calls exist only since the table was created, so the rule rate counts only actions from then on, and the automatic `vi_before` of the hook does not count as consulting. Actions are also listed **per project** — the last part of the working directory the hook sends at `initialize` (`clientInfo.cwd`), stored as `daten.project` of the conversation (only the name, never the path).
 
+## The memory index — pushed like a MEMORY.md (since 0.38.0)
+
+`index.py`. A file memory of a single assistant works because nobody decides to look into it: its index is in the context from the first
+message, one line per entry, and an entry is read when its line fits. The VI only had the pull side — `vi_recall` — and was consulted
+before 63 % of changing actions (`vi_stats`, 7 days to 10.11.2026). So `initialize` appends a short index to the instructions, per
+instance, after the rules (a client that cuts long instructions loses the index, not the rules):
+
+| Section | What | Order |
+|---|---|---|
+| Requirements and decisions | objects with `thema:vorgabe` — rule 6 asks for this hashtag on what the user requires or decided beyond one session | newest first, 8 |
+| Proven or most used | knowledge with a confirmation, then by accesses; bulk imports (manuals, Confluence, Stibo, log findings, network) excluded | 6 |
+| Learned by this instance recently | its own knowledge, imports excluded | newest first, 6 |
+
+One line per entry (`- [id] text`, at most 110 characters, images marked `image:`), at most 2,000 characters together — Claude Code is
+reported to cut server instructions at 2,048 characters in some versions (GitHub issues; not in its documentation; in the version used
+on 10.11.2026, 3,853 characters arrived complete). A cut is named. Only active objects the instance may read; without a token only
+shared ones. The index never breaks `initialize`: on an error it is left out.
+
 ## What is shown unasked
 
 Since 0.21.1, disputed knowledge and language-model hypotheses from sleep (`herkunft:schlaf-llm`) no longer appear as hints before

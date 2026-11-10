@@ -41,7 +41,7 @@ If a question stays open and the hits on the topic come mostly from another inst
 Not needed for general programming knowledge or files you have in front of you. Hints "[VI memory …]" (older hooks: "[VI-Gedächtnis …]") before an action are already hits: read and follow them, or contradict them with a reason.
 LEARN (vi_learn: text = one concrete key statement; content = complete, with commands and code; hashtags host:/tool:/skill:/thema:/fehler:; source = command, host and time, or URL):
 5. A problem is solved whose solution was not obvious (more than one attempt, troubleshooting): cause, solution, evidence — the working code, script or commands of the solution unabridged in content.
-6. The user states a rule, requirement or decision that applies beyond this session.
+6. The user states a rule, requirement or decision that applies beyond this session — with the hashtag thema:vorgabe: those are listed in the index every session receives.
 7. A reusable fact about a system was looked up or measured (path, port, version, peculiarity, access route without secrets).
 8. Something turns out to be wrong: mark wrong VI knowledge with vi_refute, learn the correction.
 Search before learning: if it is already there, vi_confirm instead of creating it again. If a hint helped, vi_confirm; if it was wrong, vi_refute.
