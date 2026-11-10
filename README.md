@@ -85,6 +85,60 @@ Since 0.23.0 the command line, all output and the documentation are English too;
 
 In-depth: [architecture](docs/ARCHITECTURE.md) · [operations](docs/OPERATIONS.md) · [hook](docs/HOOK.md) · research (German): [memory research](docs/FORSCHUNG.md) · [training](docs/TRAINING.md)
 
+## How the memory works — and why it is built this way
+
+**Like human memory, but every memory has a source.** vi-mcp keeps the kinds of memory people have:
+
+| Human memory | vi-mcp | Where it comes from |
+|---|---|---|
+| episodic — "what happened" | `erfahrung` (experience): every reported action with tool, arguments, result, duration | the hook, automatically |
+| semantic — "what I know" | `erkenntnis` (insight), `regel` (rule): a key statement plus the complete content and its source | `vi_learn`, imports, sleep |
+| procedural — "how to do it" | `skill`: problem, steps, instructions, versions | `vi_solved`, sleep |
+| cues and mnemonics | hashtags `kind:value` (`tool:`, `host:`, `thema:` …) and learned searches | everywhere |
+
+**Recall works through cues.** Before every action the session tells the VI what it is about to do (`vi_before`). The tool, the host and the
+topics become *triggers*, and the VI answers with at most four hints (working memory holds about four chunks, Cowan 2001). A hint is not
+shown twice in the same conversation within an hour. Documentation (Confluence, vendor manuals) gets triggers too: a page that names a host
+appears before an action on that host.
+
+**Forgetting and sleep are features.** Unused knowledge fades along a power law and later moves to the archive (still findable, never lost
+silently). When enough has happened, the server *sleeps*: it condenses experiences into insights and skills, compares new evidence with what it
+knows, merges repetitions and archives what nobody needs. Surprising failures count as more important than routine — as in people.
+
+**Why this is the clever part:**
+- **The AI learns without anyone training a language model.** Knowledge is learned the moment it happens (`vi_learn`) and is available
+  before the next action — not after the next training run of a model.
+- **Every memory can be checked.** It has a source (command, host, time or URL), an author and a history. It can be confirmed, disputed and
+  refuted — by *other* instances: no instance can confirm itself. What is wrong is marked, not quietly kept.
+- **It can be forgotten.** Delete a conversation, an instance or an object, and it is gone (with a tombstone saying so). Knowledge baked into
+  model weights cannot be removed like that.
+- **One memory for many AIs.** Claude Code, Codex, Hermes and other clients share the same memory. What one session solved helps the next
+  one, even with a different model.
+- **Nothing disappears silently.** Held-back hints, truncated histories, merged duplicates and refuted knowledge are counted and named.
+
+## What our weights are made of — and why that is clever, too
+
+vi-mcp never trains the language model. The only weights it learns decide **which** memory to show — not **what** is true:
+
+- **The router** is a logistic regression (scikit-learn). Every action is one observation: the triggers of the situation × the hints that
+  were shown, and the label is whether the action then succeeded. The weights say, for example, "this hint before `tool:Bash` on that host
+  raises the chance of success". They are stored as readable JSON in the memory object `modell:router` — every weight belongs to a named
+  feature and can be inspected with `vi_model`. Production, 10.11.2026: 8,232 observations, 279 features, holdout AUC 0.798.
+- **The bandit** counts per hint how often an action succeeded after it was shown, compared with the base rate (Thompson sampling) — the
+  fallback while the router has too little data.
+- **Meaning** comes from a pre-trained embedding model (bge-m3): vectors for semantic search and for linking similar knowledge. vi-mcp
+  uses it, it does not train it.
+
+**Why this is clever:**
+- **The training signal is free and honest.** Nobody labels data: the label is the outcome of real work (did the action succeed, did a
+  person correct it, did the scorer accept it).
+- **Small, fast, explainable.** The model is kilobytes of JSON, trains in under a second on a CPU, about a minute after new experiences —
+  and every decision can be explained by the weights of named features.
+- **Weights cannot invent facts.** They only order memories that exist and have a source. A wrong weight shows a less helpful hint; it
+  cannot create a false statement.
+- **It switches itself off when it does not help.** Below 50 failures or at a holdout AUC ≤ 0.6 the model stays in test mode and the
+  heuristic decides; 10 % of the hints are exploration, so the model also learns about what it would not have shown.
+
 ## Install
 
 Packages are on the [releases page](https://github.com/imoes/vi-mcp/releases/latest). Your package manager pulls in all dependencies (Python ≥ 3.11, NumPy, scikit-learn, cryptography, PyYAML).

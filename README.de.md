@@ -84,6 +84,64 @@ Seit 0.22.0 sind Werkzeuge, Parameter und feste Werte englisch. Die vorher genut
 
 Tiefer (englisch): [Architektur](docs/ARCHITECTURE.md) · [Betrieb](docs/OPERATIONS.md) · [Hook](docs/HOOK.md) · deutsch: [Forschung](docs/FORSCHUNG.md) · [Training](docs/TRAINING.md)
 
+## Wie das Gedächtnis funktioniert — und warum es so gebaut ist
+
+**Wie das menschliche Gedächtnis, nur hat jede Erinnerung eine Quelle.** vi-mcp hat die Gedächtnisarten, die auch Menschen haben:
+
+| Menschliches Gedächtnis | vi-mcp | Woher es kommt |
+|---|---|---|
+| episodisch — „was passiert ist“ | `erfahrung`: jede gemeldete Handlung mit Werkzeug, Argumenten, Ergebnis, Dauer | der Hook, automatisch |
+| semantisch — „was ich weiß“ | `erkenntnis`, `regel`: Kernaussage plus vollständiger Inhalt und Quelle | `vi_learn`, Importe, Schlaf |
+| prozedural — „wie es geht“ | `skill`: Problem, Schritte, Anleitung, Versionen | `vi_solved`, Schlaf |
+| Reize und Eselsbrücken | Hashtags `art:wert` (`tool:`, `host:`, `thema:` …) und gelernte Suchen | überall |
+
+**Erinnern geht über Reize.** Vor jeder Handlung sagt die Sitzung der VI, was sie gleich tut (`vi_before`). Werkzeug, Host und Themen werden zu
+*Reizen*, und die VI antwortet mit höchstens vier Hinweisen (das Arbeitsgedächtnis hält etwa vier Einheiten, Cowan 2001). Derselbe Hinweis
+kommt im selben Gespräch höchstens einmal pro Stunde. Auch Doku (Confluence, Herstellerhandbücher) bekommt Reize: Eine Seite, die einen Host
+nennt, erscheint vor einer Handlung auf diesem Host.
+
+**Vergessen und Schlaf gehören dazu.** Ungenutztes Wissen verblasst nach einem Potenzgesetz und wandert später ins Langzeitlager (weiter
+auffindbar, nie still weg). Ist genug passiert, *schläft* der Server: Er verdichtet Erfahrungen zu Erkenntnissen und Skills, vergleicht neue
+Belege mit dem Bekannten, führt Wiederholungen zusammen und lagert aus, was niemand braucht. Überraschende Fehler zählen mehr als Routine —
+wie beim Menschen.
+
+**Warum das genial ist:**
+- **Die KI lernt, ohne dass jemand ein Sprachmodell trainiert.** Wissen wird gelernt, sobald es entsteht (`vi_learn`), und steht vor der
+  nächsten Handlung bereit — nicht erst nach dem nächsten Trainingslauf eines Modells.
+- **Jede Erinnerung ist prüfbar.** Sie hat eine Quelle (Befehl, Host und Zeit oder URL), einen Urheber und eine Geschichte. Sie kann bestätigt,
+  bestritten und widerlegt werden — von *anderen* Instanzen: Keine Instanz bestätigt sich selbst. Was falsch ist, wird markiert, nicht still
+  behalten.
+- **Es kann vergessen werden.** Ein Gespräch, eine Instanz oder ein Objekt gelöscht — und es ist weg (mit einem Grabstein, der das sagt).
+  Wissen in Modellgewichten lässt sich so nicht entfernen.
+- **Ein Gedächtnis für viele KIs.** Claude Code, Codex, Hermes und andere Clients teilen dasselbe Gedächtnis. Was eine Sitzung gelöst hat,
+  hilft der nächsten — auch mit einem anderen Modell.
+- **Nichts verschwindet still.** Zurückgehaltene Hinweise, gekürzte Verläufe, zusammengeführte Dubletten und widerlegtes Wissen werden gezählt
+  und benannt.
+
+## Woraus unsere Gewichte bestehen — und warum auch das genial ist
+
+vi-mcp trainiert nie das Sprachmodell. Die einzigen Gewichte, die es lernt, entscheiden, **welche** Erinnerung gezeigt wird — nicht, **was**
+wahr ist:
+
+- **Der Router** ist eine logistische Regression (scikit-learn). Jede Handlung ist eine Beobachtung: die Reize der Lage × die gezeigten
+  Hinweise, und das Label ist, ob die Handlung danach gelang. Die Gewichte sagen etwa: „Dieser Hinweis vor `tool:Bash` auf jenem Host erhöht
+  die Erfolgschance.“ Sie liegen als lesbares JSON im Gedächtnisobjekt `modell:router` — jedes Gewicht gehört zu einem benannten Merkmal und
+  ist mit `vi_model` einsehbar. Produktiv, 10.11.2026: 8.232 Beobachtungen, 279 Merkmale, Holdout-AUC 0,798.
+- **Der Bandit** zählt je Hinweis, wie oft eine Handlung danach gelang, verglichen mit der Grundrate (Thompson Sampling) — der Rückfall,
+  solange der Router zu wenig Daten hat.
+- **Bedeutung** kommt aus einem vortrainierten Embedding-Modell (bge-m3): Vektoren für die Bedeutungssuche und um ähnliches Wissen zu
+  verknüpfen. vi-mcp nutzt es, trainiert es aber nicht.
+
+**Warum das genial ist:**
+- **Das Trainingssignal ist kostenlos und ehrlich.** Niemand beschriftet Daten: Das Label ist das Ergebnis echter Arbeit (gelang die Handlung,
+  hat ein Mensch korrigiert, hat der Scorer sie angenommen).
+- **Klein, schnell, erklärbar.** Das Modell sind Kilobytes JSON, es trainiert in unter einer Sekunde auf einer CPU, etwa eine Minute nach
+  neuen Erfahrungen — und jede Entscheidung lässt sich über die Gewichte benannter Merkmale erklären.
+- **Gewichte können keine Fakten erfinden.** Sie ordnen nur Erinnerungen, die es gibt und die eine Quelle haben. Ein falsches Gewicht zeigt
+  einen weniger hilfreichen Hinweis — eine falsche Aussage kann es nicht erzeugen.
+- **Es schaltet sich ab, wenn es nicht hilft.** Unter 50 Fehlschlägen oder bei einer Holdout-AUC ≤ 0,6 bleibt das Modell im Testmodus, und die
+  Heuristik entscheidet; 10 % der Hinweise sind Erkundung, damit das Modell auch über das lernt, was es selbst nicht gezeigt hätte.
+
 ## Installieren
 
 Pakete liegen unter [Releases](https://github.com/imoes/vi-mcp/releases/latest). Der Paketmanager zieht alle Abhängigkeiten nach (Python ≥ 3.11, NumPy, scikit-learn, cryptography, PyYAML).
