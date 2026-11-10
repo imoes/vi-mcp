@@ -40,10 +40,12 @@ Linked from [README.md](README.md).
 
 ### What was fixed
 
+- **The RPM spec was never in the repository.** `.gitignore` excluded `*.spec` (a PyInstaller pattern), so `deploy/rpm/vi-mcp.spec` existed only on the build machine and nobody else could build the RPM. *Proof:* `git check-ignore -v` → `.gitignore:33:*.spec`; a clean checkout of v0.22.0 failed with `failed to stat …/deploy/rpm/vi-mcp.spec`. Now tracked.
 - **The v0.22.0 release tag points at the wrong commit.** `deploy/release.sh` created the GitHub release with `--target main` before the push, so
   the tag landed on the remote main of that moment, `3b9f14c` (0.21.2), while the attached packages were built from the 0.22.0 code.
   *Proof:* `git ls-remote --tags origin v0.22.0` → `3b9f14c`. The script now refuses to publish unless the working tree is clean and HEAD equals
   `origin/main`, refuses an existing tag, and tags the HEAD commit explicitly.
+  The v0.22.0 release was overwritten on 10.11.2026: its tag now points at the 0.22.0 commit and its packages were rebuilt from that commit (*proof:* `gh release download v0.22.0` + `deploy/pruefe-release.sh` → signature and checksums OK).
 
 ### What is still missing
 
