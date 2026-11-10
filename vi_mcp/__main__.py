@@ -155,7 +155,21 @@ def _cli(argv: list[str]) -> int:
             print(f"instance {argv[1]!r} unknown", file=sys.stderr)
             return 2
         if len(argv) == 2:
-            print(k.instances[argv[1]].family or "undeclared (counts as its own line)")
+            import sqlite3
+            declared = k.instances[argv[1]].family
+            print(f"declared: {declared or 'none'}" + (" (wins over announcements)" if declared else ""))
+            try:  # read only: what the clients of this instance announced (0.34.0)
+                c = sqlite3.connect(f"file:{k.db}?mode=ro", uri=True)
+                rows = c.execute("SELECT json_extract(daten, '$.familie'), json_extract(daten, '$.familie_quelle'), json_extract(daten, '$.client'), "
+                                 "MAX(zeit), COUNT(*) FROM objekt WHERE art = 'gespraech' AND instanz = ? AND json_extract(daten, '$.familie') IS NOT NULL "
+                                 "GROUP BY 1, 2, 3 ORDER BY 4 DESC LIMIT 10", (argv[1],)).fetchall()
+            except sqlite3.Error as e:
+                rows, err = [], e
+                print(f"announced: not readable ({err})")
+            for fam, src, client, last, n in rows:
+                print(f"announced: {fam} ({'header X-VI-Family' if src == 'header' else 'client name'}, {client}) — {n} conversation(s), last {str(last)[:16]}")
+            if not declared and not rows:
+                print("no family known — the instance counts as its own line")
             return 0
         try:
             old = config.set_family(argv[1], None if argv[2] == "-" else argv[2])

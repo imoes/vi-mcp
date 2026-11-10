@@ -114,10 +114,10 @@ def test_setup_without_token(open_, tmp_path, monkeypatch):
     z = e.target()
     r = e.setup(["claude", "codex", "hermes", "hook"], z, url, None)
     assert all(x.ok for x in r), r
-    assert json.loads((home / ".claude.json").read_text())["mcpServers"]["vi-mcp"] == {"type": "http", "url": url}
+    assert json.loads((home / ".claude.json").read_text())["mcpServers"]["vi-mcp"] == {"type": "http", "url": url, "headers": {"X-VI-Family": "claude"}}
     import tomllib
     import yaml
-    assert tomllib.loads((home / ".codex/config.toml").read_text())["mcp_servers"]["vi-mcp"] == {"url": url}
+    assert tomllib.loads((home / ".codex/config.toml").read_text())["mcp_servers"]["vi-mcp"] == {"url": url, "http_headers": {"X-VI-Family": "gpt"}}
     assert yaml.safe_load((home / ".hermes/config.yaml").read_text())["mcp_servers"]["vi-mcp"] == {"url": url}
     assert not (home / ".config/vi-mcp/token-claude").exists()
     hook = json.loads((home / ".claude/settings.json").read_text())["hooks"]["PreToolUse"][0]["hooks"][0]["command"]

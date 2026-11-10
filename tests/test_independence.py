@@ -68,3 +68,34 @@ def test_family_is_declared_in_the_configuration(tmp_path):
         config.set_family("nobody", "gpt", cfg)
     with pytest.raises(ValueError, match="letters"):
         config.set_family("claude-code", "gpt 5", cfg)
+
+
+def test_family_is_recognised_automatically():
+    """0.34.0: the client announces its family (header X-VI-Family, written by vi-mcp setup) or is recognised by its name."""
+    from vi_mcp import server
+    assert server.client_family("Qwen", "centralstation-centralstation") == ("qwen", "header")
+    assert server.client_family(None, "claude-code") == ("claude", "client")
+    assert server.client_family("", "codex-mcp-client") == ("gpt", "client")
+    assert server.client_family(None, "handbook-import") == (None, None)  # unknown script: no claim, the instance stays its own line
+    assert server.client_family("gpt 5; drop", None) == ("gpt5drop", "header")  # sanitised, never trusted as text
+
+
+def test_session_family_is_used_unless_the_operator_declared_one(gd):
+    """A family announced at initialize applies to the calls of that session; a declared family in the configuration wins."""
+    from vi_mcp import config, server, session
+    inst = config.Instance("b", "0" * 64)
+    _a, s = server._initialize({"id": 1, "params": {"clientInfo": {"name": "claude-code", "version": "2.1"}}}, inst)
+    assert s.family == "claude" and g.load(f"gespraech:{s.serial}").data["familie"] == "claude"
+    o = _fact()
+    tools.call_tool("vi_confirm", {"id": o.id, "reason": "geprüft"}, "b", False, False, inst.family or s.family)
+    assert g.load(o.id).data["bestaetigungen"][-1]["familie"] == "claude"
+    declared = config.Instance("c", "0" * 64, family="qwen")
+    _a, s2 = server._initialize({"id": 2, "params": {"clientInfo": {"name": "claude-code"}}}, declared, "claude")
+    assert (declared.family or s2.family) == "qwen"
+    session.end_all("test")
+
+
+def test_setup_writes_the_family_header(tmp_path):
+    from vi_mcp import setup as e
+    toml = e.codex_set("", "http://h/mcp", "tok")
+    assert '"X-VI-Family" = "gpt"' in toml

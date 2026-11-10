@@ -16,6 +16,13 @@ Linked from [README.md](README.md).
   0.34.0 with an empty proxy field → **Update**, `ok vi-mcp 0.34.1`; the same MSI again → **Repair / Remove / Close**.
   Tests: `test_msi_ui_is_consistent` (every dialog, event, condition and tab stop names an existing control).
 
+- **The model family is found automatically** (follow-up to 0.33.0, where it had to be declared by hand): per conversation, from the
+  header `X-VI-Family` (written by `vi-mcp setup` — `claude` for Claude Code, `gpt` for Codex) or from the client's name (`claude-code`,
+  `claude-code-hook` → claude, `codex…` → gpt). A family declared with `vi-mcp family` still wins. Unknown clients (scripts) claim
+  nothing: the instance stays its own line. `vi-mcp family INSTANCE` now lists what the clients announced. The family is recorded in the
+  conversation (`daten.familie`, `familie_quelle`). *Proof:* `test_family_is_recognised_automatically`,
+  `test_session_family_is_used_unless_the_operator_declared_one`, `test_setup_writes_the_family_header`.
+
 ### What was fixed
 
 - **A failed update removed the installed version.** wixl places RemoveExistingProducts before InstallInitialize (and ignores

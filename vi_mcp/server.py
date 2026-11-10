@@ -64,7 +64,8 @@ def process(msg: dict, s: session.Session | None, inst: config.Instance) -> dict
                 public = tools.api_en.canonical_name(name)  # statistics uniformly under the public (English) name
                 ms = lambda: int((time.monotonic() - t0) * 1000)  # noqa: E731
                 try:
-                    text = tools.call_tool(name, params.get("arguments") or {}, inst.name, inst.reflexes, inst.release, inst.family)
+                    text = tools.call_tool(name, params.get("arguments") or {}, inst.name, inst.reflexes, inst.release,
+                                          inst.family or (s.family if s else None))  # the operator's declaration wins over the client's
                     usage_stats.record(inst.name, client, public, "ok", ms(), text)
                     return _answer(mid, {"content": [{"type": "text", "text": text}], "isError": False})
                 except tools.Rejected as e:
@@ -90,14 +91,33 @@ def project_name(cwd) -> str | None:
     return name or None
 
 
-def _initialize(msg: dict, inst: config.Instance) -> tuple[dict, session.Session]:
+#: 0.34.0: model family of well-known MCP clients, recognised from clientInfo.name (prefix). Anything else must announce itself with the
+#: header X-VI-Family (vi-mcp setup writes it) or is declared by the operator (vi-mcp family) — otherwise the instance is its own line.
+KNOWN_CLIENT_FAMILIES = (("claude", "claude"), ("codex", "gpt"))
+
+
+def client_family(announced: str | None, client_name: str | None) -> tuple[str | None, str | None]:
+    """(family, source): the client's own announcement (header X-VI-Family) first, then a known client name; (None, None) if neither."""
+    a = "".join(c for c in (announced or "").strip().lower() if c.isalnum() or c in "-_.")[:40]
+    if a:
+        return a, "header"
+    n = (client_name or "").strip().lower()
+    for prefix, fam in KNOWN_CLIENT_FAMILIES:
+        if n.startswith(prefix):
+            return fam, "client"
+    return None, None
+
+
+def _initialize(msg: dict, inst: config.Instance, announced: str | None = None) -> tuple[dict, session.Session]:
     params = msg.get("params") or {}
     requested = params.get("protocolVersion")
     version = requested if requested in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0]
     ci = params.get("clientInfo") or {}
     client = f"{ci.get('name', '?')} {ci.get('version', '')}".strip()
-    s = session.begin(inst.name, client, project_name(ci.get("cwd")))
-    log(f"session {s.serial} started: instance {inst.name}, client {client}, protocol {version}")
+    family, source = client_family(announced, ci.get("name"))
+    s = session.begin(inst.name, client, project_name(ci.get("cwd")), family=family, family_source=source)
+    log(f"session {s.serial} started: instance {inst.name}, client {client}, protocol {version}"
+        + (f", family {family} ({source})" if family else ""))
     return _answer(msg.get("id"), {
         "protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
         "serverInfo": {"name": SERVER_NAME, "version": __version__},
@@ -237,7 +257,7 @@ class Handler(BaseHTTPRequestHandler):
         if init:
             if len(stack) != 1:
                 return self._send(400, _error(None, -32600, "initialize must come alone"))
-            answer, s = _initialize(init[0], inst)
+            answer, s = _initialize(init[0], inst, self.headers.get("X-VI-Family"))
             return self._send(200, answer, {"Mcp-Session-Id": s.id})
         if not sid:
             return self._send(400, _error(None, -32600, "header Mcp-Session-Id missing — initialize first"))

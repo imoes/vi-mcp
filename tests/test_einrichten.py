@@ -46,7 +46,7 @@ tools:
 def test_codex_sets_and_replaces_only_own_table():
     t = e.codex_set(CODEX, "http://h/mcp", "tok")
     d = tomllib.loads(t)
-    assert d["mcp_servers"]["vi-mcp"] == {"url": "http://h/mcp", "http_headers": {"Authorization": "Bearer tok"}}
+    assert d["mcp_servers"]["vi-mcp"] == {"url": "http://h/mcp", "http_headers": {"Authorization": "Bearer tok", "X-VI-Family": "gpt"}}
     assert d["mcp_servers"]["skills"]["command"] == "python3" and "# Kommentar bleibt" in t
     t2 = e.codex_set(t, "http://i/mcp", "neu")
     assert t2.count("[mcp_servers.vi-mcp]") == 1 and tomllib.loads(t2)["mcp_servers"]["vi-mcp"]["url"] == "http://i/mcp"

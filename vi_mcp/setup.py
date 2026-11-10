@@ -164,7 +164,9 @@ def _claude_entry(z: TargetUser) -> dict | None:
 def _claude_on(z: TargetUser, url: str, token: str) -> str:
     p = _claude_file(z)
     d = _json(p)
-    d.setdefault("mcpServers", {})[NAME] = {"type": "http", "url": url, **({"headers": {"Authorization": f"Bearer {token}"}} if token else {})}
+    # 0.34.0: X-VI-Family announces the model family (confirmations of one family count as one independent line)
+    d.setdefault("mcpServers", {})[NAME] = {"type": "http", "url": url,
+                                            "headers": {**({"Authorization": f"Bearer {token}"} if token else {}), "X-VI-Family": "claude"}}
     return _write(p, json.dumps(d, indent=2, ensure_ascii=False) + "\n")
 
 
@@ -281,9 +283,10 @@ def codex_set(text: str, url: str, token: str, p: Path = Path("config.toml")) ->
     """Pure. json.dumps produces valid TOML strings here (ASCII only, with \\uXXXX)."""
     old = _toml(text, p)
     body_text = _toml_without(text).rstrip("\n")
-    block = f'[mcp_servers.{NAME}]\nurl = {json.dumps(url)}\n' + (f'http_headers = {{ Authorization = {json.dumps("Bearer " + token)} }}\n' if token else "")
+    auth = f'Authorization = {json.dumps("Bearer " + token)}, ' if token else ""
+    block = f'[mcp_servers.{NAME}]\nurl = {json.dumps(url)}\nhttp_headers = {{ {auth}"X-VI-Family" = "gpt" }}\n'  # 0.34.0: model family
     new = (body_text + "\n\n" if body_text else "") + block
-    _only_entry_differs(old, _toml(new, p), {"url": url, **({"http_headers": {"Authorization": f"Bearer {token}"}} if token else {})}, p)
+    _only_entry_differs(old, _toml(new, p), {"url": url, "http_headers": {**({"Authorization": f"Bearer {token}"} if token else {}), "X-VI-Family": "gpt"}}, p)
     return new
 
 

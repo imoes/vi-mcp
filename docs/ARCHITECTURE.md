@@ -145,6 +145,10 @@ Since 0.33.0 a line is a model family, not an instance (Condorcet's jury theorem
 correlations", SEP *Jury Theorems*): instances of one declared family (`vi-mcp family INSTANCE claude`) count once, a confirmation
 citing the object's own source counts as none, an instance without a declared family counts as its own line. The same rule decides
 `widerlegt`: the author, or two different families — two sessions of one model only make an entry `strittig`.
+The family is found automatically (0.34.0), per conversation: the client announces it with the header `X-VI-Family` (`vi-mcp setup`
+writes `claude` for Claude Code and `gpt` for Codex), or it is recognised from `clientInfo.name` (prefix `claude` → claude, `codex` →
+gpt). A family declared by the operator (`vi-mcp family`) wins over the announcement; a client that announces nothing and is not
+recognised (a script) leaves the instance its own line. `vi-mcp family INSTANCE` shows the declared and the announced families.
 Every hit of `vi_recall` is **reinforced** (`zugriffe + 1` atomically, `zuletzt = now`) — except with `reinforce=false` (0.31.0), the
 read-only search for measurements and probes: a benchmark of 49 questions had reinforced 733 objects once each.
 
