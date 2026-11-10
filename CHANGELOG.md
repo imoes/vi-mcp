@@ -3,6 +3,26 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.35.1 — 2026-11-10 — Rules ask for code; one name per tool in the statistics
+
+### What has changed
+
+- **The rules every client receives now ask for code explicitly.** Rule 5 (a non-obvious problem solved): "cause, solution, evidence —
+  the working code, script or commands of the solution unabridged in content". A new line separates what belongs in memory from what
+  does not: the code of a solution, a fix, a reusable script or a query belongs in `content`, complete and runnable; a copy of a file
+  that lives in a repository does not (name repository, path and commit instead). Before, "never learn: what is maintained in a
+  repository" could be read as "never store source code". A sample on 10.11.2026 (`vi_recall "def return import python"`, read only)
+  found code only in imported manuals, none learned during work. A new line names how images go in (`vi-mcp image …`, regions in SAM 3
+  format). *Proof:* `test_rules_ask_for_code_and_name_images`; `test_http` checks that the rules arrive in `instructions`.
+
+### What was fixed
+
+- **`vi_stats` counted one tool under two names.** Calls recorded before 0.22.0 carry the German name, so section A listed `vi_recall`
+  (313×) and `vi_erinnere` (426×) side by side (production, 7 days, 10.11.2026), section E counted only the 313, and section B did not
+  see the older searches before changing actions. Names are now mapped to the English one when read; searches recorded before hit counts
+  existed are named ("… older ones without a hit count") and the share without hits refers only to searches with a recorded count.
+  *Proof:* `test_german_tool_names_of_old_records_count_under_the_english_name`.
+
 ## 0.35.0 — 2026-11-10 — Images with description and SAM 3 regions
 
 ### What is new

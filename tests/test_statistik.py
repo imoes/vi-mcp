@@ -42,3 +42,23 @@ def test_cleanup_deletes_old_entries(gd):
     with g.lock:
         g.db().execute("UPDATE nutzung SET zeit = '2020-01-01T00:00:00+00:00'")
     assert usage_stats.cleanup() == 1
+
+
+def test_german_tool_names_of_old_records_count_under_the_english_name(gd):
+    """0.35.1: calls recorded before 0.22.0 carry vi_erinnere/vi_lerne — one tool, one name; searches without a hit count are named."""
+    usage_stats.record("a", "claude-code", "vi_erinnere", "ok", 5, "")  # old record: German name, no hit count
+    usage_stats.record("a", "claude-code", "vi_recall", "ok", 7, "0 objects for “x”")
+    usage_stats.record("a", "claude-code", "vi_lerne", "ok", 3)
+    d = usage_stats.data(1)
+    assert "vi_erinnere" not in d["nutzung"]["je_werkzeug"] and d["nutzung"]["je_werkzeug"]["vi_recall"]["n"] == 2
+    assert d["nutzung"]["je_werkzeug"]["vi_learn"]["n"] == 1 and d["regeln"]["gelernt"] == 1
+    assert d["suche"]["n"] == 2 and d["suche"]["ohne_treffer"] == 1 and d["suche"]["treffer_unbekannt"] == 1
+    b = tools.call_tool("vi_stats", {"days": 1}, "a", True)
+    assert "without hits 1 (100 % of 1 with a recorded hit count; 1 older ones without a hit count)" in b, b
+
+
+def test_rules_ask_for_code_and_name_images():
+    """0.35.1: the rules say that the code of a solution belongs in content, and how images go in."""
+    assert "working code, script or commands of the solution unabridged in content" in tools.RULES
+    assert "Not a copy of a file that lives in a repository: name repository, path and commit instead" in tools.RULES
+    assert "vi-mcp image FILE" in tools.RULES and "SAM 3" in tools.RULES

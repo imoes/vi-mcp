@@ -40,12 +40,14 @@ ASK (vi_recall with semantic=true for free text, or kind:value; then vi_object f
 If a question stays open and the hits on the topic come mostly from another instance ("from <instance>"): ask that instance with vi_ask (to, text, triggers) instead of guessing — it answers from its own context; the answer appears before your next action or via vi_questions.
 Not needed for general programming knowledge or files you have in front of you. Hints "[VI memory …]" (older hooks: "[VI-Gedächtnis …]") before an action are already hits: read and follow them, or contradict them with a reason.
 LEARN (vi_learn: text = one concrete key statement; content = complete, with commands and code; hashtags host:/tool:/skill:/thema:/fehler:; source = command, host and time, or URL):
-5. A problem is solved whose solution was not obvious (more than one attempt, troubleshooting): cause, solution, evidence.
+5. A problem is solved whose solution was not obvious (more than one attempt, troubleshooting): cause, solution, evidence — the working code, script or commands of the solution unabridged in content.
 6. The user states a rule, requirement or decision that applies beyond this session.
 7. A reusable fact about a system was looked up or measured (path, port, version, peculiarity, access route without secrets).
 8. Something turns out to be wrong: mark wrong VI knowledge with vi_refute, learn the correction.
 Search before learning: if it is already there, vi_confirm instead of creating it again. If a hint helped, vi_confirm; if it was wrong, vi_refute.
-Never learn: passwords, tokens, keys; unproven claims (only explicitly as a hypothesis); transient state (progress, current load); what is maintained in a repository or documentation. Company knowledge with visibility=internal."""
+Code: the code of a solution, a fix, a reusable script or a query belongs in content, complete and runnable. Not a copy of a file that lives in a repository: name repository, path and commit instead.
+Images (screenshots, diagrams, photos): vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F.json] (regions in SAM 3 format); vi_object shows them.
+Never learn: passwords, tokens, keys; unproven claims (only explicitly as a hypothesis); transient state (progress, current load); copies of what is maintained in a repository or documentation. Company knowledge with visibility=internal."""
 #: Without a token, confirming, refuting and visibility=internal are not allowed (OPEN_ALLOWED) — the rules say so instead of only refusing
 RULES_WITHOUT_TOKEN = ("Without an own token: search, read and propose knowledge with vi_learn (visibility=shared) — confirming, refuting, vi_ask "
                      "and visibility=internal need a token; report wrong knowledge to the user instead.")

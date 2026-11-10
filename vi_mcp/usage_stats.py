@@ -19,6 +19,7 @@ import re
 import statistics
 from datetime import datetime, timedelta, timezone
 
+from . import api_en
 from . import memory as g
 
 RETENTION_DAYS = 90
@@ -114,6 +115,9 @@ def data(days: float = 7) -> dict:
         first_call = db.execute("SELECT MIN(zeit) FROM nutzung").fetchone()[0]
         projects_of = dict(db.execute("SELECT json_extract(daten, '$.serial'), json_extract(daten, '$.project') FROM objekt "
                                       "WHERE art = 'gespraech' AND json_extract(daten, '$.project') IS NOT NULL").fetchall())
+    # 0.35.1: calls recorded before 0.22.0 (f344419) carry the German tool name (vi_erinnere, vi_lerne …). One tool, one name: count
+    # them under the English one — otherwise A listed vi_recall and vi_erinnere as two tools and B/E missed the older searches.
+    calls = [(z, i, c, api_en.canonical_name(w), *rest) for z, i, c, w, *rest in calls]
     # 0.24.0: tool calls are only recorded since the table nutzung exists (0.21.0); before, the report mixed 24 h of actions with
     # a few hours of searches. Everything that compares calls with actions counts only from calls_since on.
     calls_since = max(since, first_call) if first_call else None
@@ -183,7 +187,9 @@ def data(days: float = 7) -> dict:
                    "neu_je_quelle": _count((r[3] or "quelle_art:—")[11:] for r in knowledge_new),
                    "neu_abgerufen": sum(1 for r in knowledge_new if r[2] > 0), "gesamt": knowledge_total[0] or 0, "je_abgerufen": knowledge_total[1] or 0,
                    "top": [(oid, n, t) for oid, n, t in top]},
-        "suche": {"n": len(search), "ohne_treffer": sum(1 for t, _a, _m in search if t == 0), "je_art": _count(a or "?" for _t, a, _m in search),
+        "suche": {"n": len(search), "ohne_treffer": sum(1 for t, _a, _m in search if t == 0),
+                  "treffer_unbekannt": sum(1 for t, _a, _m in search if t is None),  # 0.35.1: recorded before hit counts existed, named
+                  "je_art": _count(a or "?" for _t, a, _m in search),
                   "ms_median": {a: int(statistics.median([m for _t, a2, m in search if a2 == a])) for a in {a for _t, a, _m in search}}},
         "aufraeumen": {"schlaefe": len(sl), "schlaf_ms_median": int(statistics.median([s.get("dauer_ms", 0) for s in sl])) if sl else 0,
                        "neue_erkenntnisse": sum(len(s.get("neu") or []) for s in sl),
@@ -221,7 +227,9 @@ def report(days: float = 7) -> str:
              + ", ".join(f"{k} {v}" for k, v in w["neu_je_sicht"].items()) + "; origin " + ", ".join(f"{k} {v}" for k, v in list(w["neu_je_quelle"].items())[:5])
              + f") · of these ever recalled {_pct(w['neu_abgerufen'], w['neu'])} · total {w['gesamt']}, ever recalled {w['je_abgerufen']} ({_pct(w['je_abgerufen'], w['gesamt'])})")
     z += [f"    most recalled: [{oid}] {k}× {t}" for oid, k, t in w["top"][:3]]
-    z.append(f"E Search: {s['n']} searches, without hits {s['ohne_treffer']} ({_pct(s['ohne_treffer'], s['n'])}) · search kind "
+    known = s["n"] - s["treffer_unbekannt"]
+    z.append(f"E Search: {s['n']} searches, without hits {s['ohne_treffer']} ({_pct(s['ohne_treffer'], known)} of {known} with a recorded hit count"
+             + (f"; {s['treffer_unbekannt']} older ones without a hit count" if s["treffer_unbekannt"] else "") + ") · search kind "
              + (", ".join(f"{k} {v}" for k, v in s["je_art"].items()) or "—") + " · median "
              + (", ".join(f"{k} {v} ms" for k, v in s["ms_median"].items()) or "—"))
     m = learning.model()
