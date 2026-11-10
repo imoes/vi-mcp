@@ -174,6 +174,11 @@ The server listens on `port` from its configuration (default 8765, bound to 127.
 Since 0.27.0 there is `vi-mcp-<version>-x64.msi` (built on Linux with `deploy/windows/build.sh`, wixl in a Fedora container).
 
 - **Install**: `msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [PROXY=http://proxy:3128] /l*v install.log` in an elevated shell.
+- **Setup dialog** (0.34.0, double-click on the MSI): **Install** with an optional proxy field; **Update** when an earlier vi-mcp is
+  installed (configuration, database, tokens and port are kept); **Repair / Remove** when this version is installed. Silent installs
+  (`/qn`) show none of it. Server mode and proxy of the previous installation are remembered (`%ProgramData%\vi-mcp\install-options.json`,
+  administrators and SYSTEM only) and reused when not given, so an update keeps a client-only installation client-only and reaches PyPI
+  behind the same proxy. The previous version is removed inside the installation transaction: a failed update rolls back to it.
   The MSI copies `vi_mcp`, the hook and the scripts to `%ProgramFiles%\vi-mcp` and runs `install.ps1` as SYSTEM: it uses an installed
   64-bit Python ≥ 3.11 or unpacks Python 3.13.9 from the official NuGet package of the Python Software Foundation into
   `%ProgramFiles%\vi-mcp\python` (used only if the pinned SHA256 matches and the Authenticode signature of `python.exe` is valid; the

@@ -5,7 +5,7 @@
 # Everything is logged to %ProgramData%\vi-mcp\install.log; any failure ends with exit code 1, so the MSI rolls back.
 param(
     [Parameter(Mandatory = $true)][string]$InstallDir,
-    [string]$Server = "1",
+    [string]$Server = "",  # empty: as in the previous installation, else 1
     [string]$Proxy = "",
     [string]$Port = "",  # empty: keep the port of an existing configuration, 8765 for a new one
     [string]$Embed = "0", # 1: own embedding service (llama.cpp + bge-m3) for the vectors, see `vi-mcp embed`
@@ -28,6 +28,14 @@ $InstallDir = [IO.Path]::GetFullPath($InstallDir).TrimEnd("\")  # the MSI passes
 $Data = Join-Path $env:ProgramData "vi-mcp"
 New-Item -ItemType Directory -Force -Path $Data | Out-Null
 $Log = Join-Path $Data "install.log"
+# 0.34.0: server mode and proxy of the previous installation are remembered, so an update (e.g. from the setup dialog, which only asks
+# for a proxy) keeps them: a client-only installation stays one, and an update behind a proxy reaches PyPI. Admins and SYSTEM only.
+$Saved = Join-Path $Data "install-options.json"
+$previous = $null
+if (Test-Path $Saved) { try { $previous = Get-Content $Saved -Raw | ConvertFrom-Json } catch { $previous = $null } }
+$fromPrevious = @()
+if (-not $Server) { if ($previous -and $previous.server) { $Server = "$($previous.server)"; $fromPrevious += "server" } else { $Server = "1" } }
+if (-not $Proxy -and $previous -and $previous.proxy) { $Proxy = "$($previous.proxy)"; $fromPrevious += "proxy" }
 function Log([string]$m) { $line = "$(Get-Date -Format s) $m"; Add-Content -Path $Log -Value $line -Encoding UTF8; Write-Host $line }
 
 # Runs the private Python. PowerShell 5.1 turns stderr of a native program into a terminating error under "Stop", so stderr is
@@ -42,6 +50,14 @@ function Invoke-Py {
     return $out
 }
 
+# 0.34.0: runs a program, writes its stdout AND stderr to the log, and decides by its exit code only. Under "Stop" PowerShell 5.1 aborted
+# at the first stderr line - pip's "WARNING: Retrying ..." ended an installation that pip itself would have completed (test VM, 10.11.2026).
+function Invoke-Logged([string]$exe, [string[]]$arguments) {
+    $old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+    try { & $exe @arguments 2>&1 | ForEach-Object { Add-Content -Path $Log -Value "$_" -Encoding UTF8 } } finally { $ErrorActionPreference = $old }
+    return $LASTEXITCODE
+}
+
 # Private Python from the official NuGet package of the Python Software Foundation (a zip, no installer): the python.org installer
 # cannot run inside an MSI (exit 1618, "another installation is in progress" - found in a Windows 11 test VM, 10.11.2026).
 $PythonVersion = "3.13.9"
@@ -50,7 +66,7 @@ $PythonSha256 = "ea7541c98f77b6f344460b88db6e677573069979bcbf0ba18747cc2c125aba2
 $Packages = @("numpy>=1.26", "scikit-learn>=1.4", "cryptography>=41", "pyyaml>=6")
 
 try {
-    Log "vi-mcp install: InstallDir=$InstallDir Server=$Server Proxy=$(if ($Proxy) { 'set' } else { 'none' })"
+    Log "vi-mcp install: InstallDir=$InstallDir Server=$Server Proxy=$(if ($Proxy) { 'set' } else { 'none' })$(if ($fromPrevious) { ' (from the previous installation: ' + ($fromPrevious -join ', ') + ')' })"
     if ($Proxy) {
         $env:HTTP_PROXY = $Proxy; $env:HTTPS_PROXY = $Proxy
     }
@@ -111,8 +127,8 @@ try {
     $pipArgs = @("-m", "pip", "install", "--disable-pip-version-check", "--no-input", "--upgrade")
     if ($Proxy) { $pipArgs += @("--proxy", $Proxy) }
     Log "pip install $($Packages -join ' ')"
-    & $vpy @pipArgs @Packages 2>&1 | Out-File -FilePath $Log -Append -Encoding utf8
-    if ($LASTEXITCODE -ne 0) { throw "pip install failed ($LASTEXITCODE) - see $Log" }
+    $code = Invoke-Logged $vpy ($pipArgs + $Packages)
+    if ($code -ne 0) { throw "pip install failed ($code) - see $Log" }
     # vi_mcp lives next to the venv: a .pth file puts the install directory on sys.path (also with python -I)
     $site = & $vpy -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
     Set-Content -Path (Join-Path $site "vi-mcp.pth") -Value $InstallDir -Encoding ascii
@@ -173,10 +189,13 @@ try {
         if (-not $up) { Log "WARNING: server did not answer /gesund within 30 s - see Task Scheduler, task vi-mcp, and $Data\server.log" }
         if ($Embed -eq "1") {
             Log "setting up the embedding service (vi-mcp embed setup; downloads llama.cpp and bge-m3, ~470 MB)"
-            & $vpy -I -m vi_mcp embed setup 2>&1 | Out-File -FilePath $Log -Append -Encoding utf8
-            if ($LASTEXITCODE -ne 0) { Log "WARNING: vi-mcp embed setup failed - the server runs without vectors; see $Log" }
+            $code = Invoke-Logged $vpy @("-I", "-m", "vi_mcp", "embed", "setup")
+            if ($code -ne 0) { Log "WARNING: vi-mcp embed setup failed - the server runs without vectors; see $Log" }
         }
     }
+    $json = @{ server = $Server; proxy = $Proxy } | ConvertTo-Json
+    [IO.File]::WriteAllText($Saved, $json, (New-Object Text.UTF8Encoding($false)))
+    & icacls $Saved /inheritance:r /grant:r "*S-1-5-18:F" "*S-1-5-32-544:F" | Out-Null
     $hint = if ($Server -eq "1") { "http://127.0.0.1:$ServerPort/mcp" } else { "https://<server>/vi-mcp/mcp" }
     Log "done. Next, in a new shell: vi-mcp setup --claude --hook --url $hint --token-file <file>  (local server, elevated shell: tokens are created)"
     exit 0

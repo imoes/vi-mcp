@@ -3,6 +3,36 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.34.0 — 2026-11-10 — Windows setup dialog with Update
+
+### What is new
+
+- **Setup dialog for the MSI** (double-click): **Install** with an optional proxy field; **Update** when an earlier vi-mcp is installed
+  ("configuration, memory database, tokens and port are kept"); **Repair / Remove / Close** when this version is installed; a progress
+  dialog, and a finish, cancelled or failed dialog that names `install.log`. wixl builds no dialogs, so `deploy/windows/ui.sql` adds the
+  dialog tables after the build. Silent installs (`/qn`) are unchanged.
+  *Proof* (Windows 11 test VM, 10.11.2026, driven through the QEMU monitor, screenshots): over 0.28.1 the dialog showed **Update**; a fresh
+  install with the proxy field ended with "Setup is complete", `vi-mcp 0.34.0` registered, `/gesund` → `ok vi-mcp 0.34.0`; 0.34.1 over
+  0.34.0 with an empty proxy field → **Update**, `ok vi-mcp 0.34.1`; the same MSI again → **Repair / Remove / Close**.
+  Tests: `test_msi_ui_is_consistent` (every dialog, event, condition and tab stop names an existing control).
+
+### What was fixed
+
+- **A failed update removed the installed version.** wixl places RemoveExistingProducts before InstallInitialize (and ignores
+  MajorUpgrade/@Schedule), so the old version was removed in its own transaction: after a failed update no vi-mcp was registered while its
+  scheduled task kept running — and the dialog said "nothing was changed". It now runs inside the transaction (sequence 1501).
+  *Proof:* test VM — an update to 0.34.2 forced to fail (unreachable proxy) ended in "Setup failed … rolled back", and afterwards
+  `vi-mcp 0.34.1` was still registered, `/gesund` → `ok vi-mcp 0.34.1`, task running.
+- **An update forgot the proxy and the server mode** of the first installation: behind a proxy it could not reach PyPI, and a client-only
+  installation would have become a server. Both are remembered (`%ProgramData%\vi-mcp\install-options.json`, admins and SYSTEM only,
+  written only after a successful installation) and reused when not given. *Proof:* test VM — update with an empty proxy field used the
+  remembered proxy ("Proxy=set (from the previous installation: proxy)"); the failed update did not overwrite it.
+- **The first stderr line of pip aborted the installation** (PowerShell 5.1 under `Stop`): a "WARNING: Retrying …" ended a run pip would
+  have completed. pip and `embed setup` now run through `Invoke-Logged`, which logs stdout and stderr and decides by the exit code.
+  *Proof:* test VM — update to 0.34.3 through it, `ok vi-mcp 0.34.3`.
+- The setup PowerShell window no longer shows during installation (`-WindowStyle Hidden`), and pip's output no longer garbles
+  `install.log` (one writer, one encoding).
+
 ## 0.33.0 — 2026-11-10 — Independent confirmations
 
 From the philosophical review of 10.11.2026: Condorcet's jury theorem needs independent voters, and "common causes create correlations"

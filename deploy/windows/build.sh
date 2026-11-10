@@ -35,7 +35,7 @@ for p in sorted(src.rglob("*")):
         i += 1
         (mods if rel.startswith("vi_mcp/") else hooks if rel.startswith("hook/") else top).append(comp(rel, i))
         refs.append(f'<ComponentRef Id="C{i}"/>')
-ps = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File"
+ps = "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File"
 wxs = f'''<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product Id="*" Name="vi-mcp {version}" Language="1033" Version="{version}" Manufacturer="vi-mcp (github.com/imoes/vi-mcp)"
@@ -43,7 +43,6 @@ wxs = f'''<?xml version="1.0" encoding="utf-8"?>
     <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Description="vi-mcp — shared memory for AI sessions (MCP)"/>
     <MajorUpgrade DowngradeErrorMessage="A newer vi-mcp is already installed."/>
     <Media Id="1" Cabinet="vi.cab" EmbedCab="yes"/>
-    <Property Id="SERVER" Value="1"/>
     <Property Id="PWSH" Value="powershell.exe"/>
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
@@ -77,7 +76,7 @@ if ! docker image inspect "$image" >/dev/null 2>&1; then
 fi
 # wixl ignores Property/@Secure: without SERVER, PORT and PROXY in SecureCustomProperties an elevated install would drop them silently,
 # so patch-msi.sh sets it after the build (SQL UPDATE with msibuild) and checks it
-cp deploy/windows/patch-msi.sh "$work/"
+cp deploy/windows/patch-msi.sh deploy/windows/ui.sql "$work/"
 docker run --rm -v "$work":/w -w /w "$image" sh -c "wixl -a x64 -o vi-mcp.msi vi-mcp.wxs 1>&2 && sh patch-msi.sh vi-mcp.msi"
 
 cp "$work/vi-mcp.msi" "$out"

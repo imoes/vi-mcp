@@ -128,3 +128,52 @@ def test_hook_output_is_utf8_under_cp1252(tmp_path):
     r = subprocess.run([sys.executable, "-c", probe], capture_output=True, env=env, timeout=30)
     assert r.returncode == 0, r.stderr.decode(errors="replace")
     assert "→ reload, P ≤ 0.2" in r.stdout.decode("utf-8")
+
+
+def _ui_rows():
+    """Rows of ui.sql per table, parsed from the INSERT statements (no msitools needed)."""
+    import re
+    rows: dict[str, list[dict]] = {}
+    for line in (Path(__file__).parent.parent / "deploy/windows/ui.sql").read_text().splitlines():
+        m = re.match(r"INSERT INTO `(\w+)` \((.*?)\) VALUES \((.*)\)$", line)
+        if not m:
+            assert not line.strip() or line.startswith("CREATE TABLE"), line[:80]
+            continue
+        cols = [c.strip(" `") for c in m.group(2).split(",")]
+        vals = [v.strip().strip("'") for v in re.findall(r"'(?:[^']|'')*'|-?\d+", m.group(3))]
+        assert len(cols) == len(vals), line[:120]
+        rows.setdefault(m.group(1), []).append(dict(zip(cols, vals)))
+    return rows
+
+
+def test_msi_ui_is_consistent():
+    """0.34.0: every dialog in the UI sequence exists, every event and condition names a control of its dialog, buttons chain."""
+    r = _ui_rows()
+    dialogs = {d["Dialog"] for d in r["Dialog"]}
+    controls = {(c["Dialog_"], c["Control"]) for c in r["Control"]}
+    assert {"WelcomeDlg", "MaintenanceDlg", "ProgressDlg", "ExitDialog", "UserExit", "FatalError"} == dialogs
+    assert {s["Action"] for s in r["InstallUISequence"]} - {"VI_SetUpdate"} == dialogs
+    for d in r["Dialog"]:
+        for k in ("Control_First", "Control_Default", "Control_Cancel"):
+            assert (d["Dialog"], d[k]) in controls, (d["Dialog"], k)
+    for t in ("ControlEvent", "ControlCondition", "EventMapping"):
+        for e in r[t]:
+            assert (e["Dialog_"], e["Control_"]) in controls, (t, e)
+    for c in r["Control"]:
+        if c.get("Control_Next"):
+            assert (c["Dialog_"], c["Control_Next"]) in controls, c
+    welcome = {c["Control"]: c for c in r["Control"] if c["Dialog_"] == "WelcomeDlg"}
+    assert welcome["Go"]["Text"] == "[VI_GO]" and welcome["ProxyEdit"]["Property"] == "PROXY"
+    assert any(a["Action"] == "VI_SetUpdate" and a["Condition"] == "WIX_UPGRADE_DETECTED" for a in r["InstallUISequence"])
+
+
+def test_msi_update_is_transactional_and_remembers_options():
+    """0.34.0: the old version is removed inside the transaction (a failed update rolls back to it), and server mode and proxy of the
+    previous installation are reused when not given — found in the Windows 11 test VM, 10.11.2026."""
+    root = Path(__file__).parent.parent / "deploy/windows"
+    assert "SET Sequence = 1501 WHERE Action = 'RemoveExistingProducts'" in (root / "patch-msi.sh").read_text()
+    build = (root / "build.sh").read_text()
+    assert '<Property Id="SERVER"' not in build and "-WindowStyle Hidden" in build and "ui.sql" in build
+    ps = (root / "install.ps1").read_text()
+    assert "install-options.json" in ps and "$previous.proxy" in ps and "$previous.server" in ps
+    assert "Invoke-Logged $vpy ($pipArgs + $Packages)" in ps and "& $vpy @pipArgs" not in ps

@@ -159,8 +159,9 @@ sudo VI_MCP_PORT=9000 apt install ./vi-mcp_<version>-1_all.deb                  
 
 **Windows** (seit 0.27.0, Client und Server): `vi-mcp-<version>-x64.msi` nimmt ein installiertes Python ≥ 3.11 oder ein privates Python
 aus dem offiziellen NuGet-Paket der Python Software Foundation (SHA256 und Signatur geprüft), legt eine venv mit den PyPI-Paketen an, den
-Befehl `vi-mcp` und — außer bei `SERVER=0` — den Server als geplante Aufgabe `vi-mcp` (Daten in `%ProgramData%\vi-mcp`). Während der
-Installation braucht es Internetzugang:
+Befehl `vi-mcp` und — außer bei `SERVER=0` — den Server als geplante Aufgabe `vi-mcp` (Daten in `%ProgramData%\vi-mcp`). Ein Doppelklick
+öffnet einen Einrichtungsdialog — **Install**, oder **Update**, wenn schon eine ältere Version installiert ist (Konfiguration und Gedächtnis
+bleiben; ein fehlgeschlagenes Update rollt zurück). Während der Installation braucht es Internetzugang:
 
 ```bat
 msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [PROXY=http://proxy:3128] /l*v install.log
