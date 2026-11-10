@@ -67,7 +67,8 @@ def process(msg: dict, s: session.Session | None, inst: config.Instance) -> dict
                     text = tools.call_tool(name, params.get("arguments") or {}, inst.name, inst.reflexes, inst.release,
                                           inst.family or (s.family if s else None))  # the operator's declaration wins over the client's
                     usage_stats.record(inst.name, client, public, "ok", ms(), text)
-                    return _answer(mid, {"content": [{"type": "text", "text": text}], "isError": False})
+                    pics = [{"type": "image", "data": data, "mimeType": mime} for mime, data in getattr(text, "images", [])]  # 0.35.0
+                    return _answer(mid, {"content": [{"type": "text", "text": str(text)}, *pics], "isError": False})
                 except tools.Rejected as e:
                     usage_stats.record(inst.name, client, public, "abgelehnt", ms())
                     return _answer(mid, {"content": [{"type": "text", "text": f"rejected: {e}"}], "isError": True})

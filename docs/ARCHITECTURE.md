@@ -63,7 +63,7 @@ entries; older ones are truncated **with a count** (`daten.aenderungen_gekuerzt`
 |---|---|---|
 | `erfahrung` (experience) | every reported action: tool, arguments, duration, `ok:ja`/`ok:nein`/`ok:unbekannt`; `daten.vorher` = memory access before it; **importance from surprise** (`ueberraschung:neu` 3 · `wiederholt`/`erholt` 2 · `chronisch` 1 · `keine` 0 — prediction error as a learning signal, docs/FORSCHUNG.md A7) | `vi_after`; `vi_before` with a remembered answer; before without after (session end/1 h) |
 | `antwort` (answer) | remembered result of a **read-only** call (`frage:<hash>`), valid for 120 s (configurable per tool, max 1 h) | `vi_after` |
-| `erkenntnis` (insight) | something learned, with source and importance 0–3; with `key` (0.23.0) **one object per recurring finding**: the same key from the same instance updates it (`daten.key`, `daten.repeats`, earlier states in `daten.history`) instead of adding a new one | `vi_learn` |
+| `erkenntnis` (insight) | something learned, with source and importance 0–3; with `key` (0.23.0) **one object per recurring finding**: the same key from the same instance updates it (`daten.key`, `daten.repeats`, earlier states in `daten.history`) instead of adding a new one; with an image (0.35.0) `daten.bild` and `daten.regionen`, bytes in table `bild` (see Images) | `vi_learn` |
 | `regel` (rule) | condensed: same error ≥ 3× in 24 h, mode `test` | loop |
 | `reflex` | Python code: kind `werkzeug`, `vorher`, `nachher` (MCP: `tool`, `before`, `after`) | `vi_reflex_learn` |
 | `suche` (search) | mnemonic: name, filter, **triggers**, story | `vi_learn_search` |
@@ -381,6 +381,43 @@ by name, the tool refuses with a reason.
 the centroid of their vectors and groups all knowledge objects with K-means (k = √(n/2), at most 40; name of a group = its most frequent hashtags). `vi_before` gives the model, per candidate,
 `naehe` = cosine between the hint and the mean of the centroids of the current triggers (with the hint itself taken out) and `inhalt:<group>`. So the model also weights by content,
 and a new hint inherits the weight of its group. `learning.CONTENT = False` switches this off for comparison.
+## Images — with description and regions in the format of SAM 3 (since 0.35.0)
+
+`images.py`. An image belongs to an insight (`erkenntnis`): `text` = what it shows in one sentence (the hint text, embedded like any
+other), `inhalt` = the complete description, `daten.bild` = reference {`sha`, `mime`, `breite`, `hoehe`, `bytes`}, `daten.regionen` =
+what is where. The bytes are in table `bild`, **content-addressed** by SHA-256 (the same image twice is stored once).
+
+**Regions follow the output of SAM 3** (Meta, *Segment Anything with Concepts*, arXiv 2511.16719, github.com/facebookresearch/sam3):
+SAM 3 is prompted with a concept — a short noun phrase such as "red plug" — and returns every matching instance with a mask, a box and a
+score. One region per instance: `{"concept", "box": [x0, y0, x1, y1] (absolute pixels, xyxy), "score": 0–1, "mask"?: COCO RLE
+{"size": [height, width], "counts"}}` (stored as `begriff`, `box`, `score`, `maske`). The VI **segments and describes nothing itself**:
+the client (a person, a model with vision, a SAM 3 run) delivers, the VI checks, stores, finds and returns. From SAM 3 with Hugging Face
+Transformers, roughly:
+
+```python
+from pycocotools import mask as rle                      # results = processor.post_process_instance_segmentation(...)[0]
+regions = [{"concept": prompt, "box": [round(v, 1) for v in box.tolist()], "score": float(score),
+            "mask": {"size": list(m.shape), "counts": rle.encode(np.asfortranarray(m.numpy().astype(np.uint8)))["counts"].decode()}}
+           for m, box, score in zip(results["masks"], results["boxes"], results["scores"])]
+```
+
+**Checks (fixed rules, each refusal names its reason):** the type comes from the bytes (PNG, JPEG, GIF, WebP magic numbers), never
+from the client's word; width and height from the header; at most 5 MiB per image (`IMAGE_MAX` — what fits base64-encoded into a request
+of 8 MiB, and the largest image the Claude API accepts) and 2 GiB together (`TOTAL_MAX`, the database is backed up as a whole); every
+box inside the image and not empty, score 0–1, mask size = [height, width], at most 200 regions. Regions are checked **before** the
+bytes are stored: a refused image leaves nothing behind. No images without a token (open-wiki proposals are text), no image with `key`.
+
+**Finding:** hashtags `medium:bild` and `zeigt:<concept>` per concept (lower case, blanks → `-`), so `vi_recall zeigt:red-plug` finds
+every image showing one; the concepts are also in the full-text index. A hit line names the image ("image png 1024×768, 213 KiB,
+3 regions (red plug ×2, network cable)"). **Returning:** `vi_object` sends the image as MCP content `{type: image, data, mimeType}`
+next to the text, with every region; `image=false` leaves it out. **Writing from a file:** `vi-mcp image FILE --text … --hashtags …
+--source … [--content-file F] [--regions F.json]` (an AI session runs it instead of pasting base64), `vi-mcp image get ID FILE` fetches
+it back; both talk MCP to the server the clients use. There is one way in: `vi_learn` with `image`.
+
+**Never onto the network:** `p2p` holds an object with an image back ("has an image (images stay on this server)") — the network
+carries text, and what a photo shows is internal more often than its description suggests. Visibility is the object's: an internal image
+is visible only with a token.
+
 ## P2P import — foreign knowledge only comes in checked
 
 `p2p.py`, `checks.py`, `reviewer.py`. Foreign knowledge arrives as a signed logbook entry via the net service (see "Network — logbooks instead of bundles"), only source code and text as JSON. A torrent hash

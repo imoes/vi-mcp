@@ -43,7 +43,8 @@ Client ──TLS──▶ nginx (container, <docker-network>, certificate <certi
   container cannot reach the host's `127.0.0.1`). `IP_FREEBIND` allows starting before Docker creates the network.
 - nginx: block `location /vi-mcp/` in `<nginx.conf>`, backup
   `<backup of nginx.conf>`. Change only with `docker exec nginx nginx -t && docker exec nginx nginx -s reload`
-  (no restart). vi-mcp does the authentication itself; no API key from nginx.
+  (no restart). vi-mcp does the authentication itself; no API key from nginx. The block needs `client_max_body_size 8m` (= `server.MAX_BODY`):
+  since 0.35.0 an image of up to 5 MiB arrives base64-encoded in one request, and nginx's default of 1 MiB would refuse it with 413.
 - **Assumption with observation point:** the gateway stays `<docker-gateway>` as long as the Docker network `<docker-network>`
   is not recreated. If it changes, `https://<host>/vi-mcp/gesund` returns 502 — then
   `docker network inspect <docker-network>` and adjust `bind` in `/etc/vi-mcp/config.json` + `proxy_pass`.

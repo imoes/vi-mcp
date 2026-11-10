@@ -387,7 +387,8 @@ def save(o: MemoryObject) -> MemoryObject:
         db().executemany("INSERT OR IGNORE INTO tag (objekt_id, tag) VALUES (?, ?)", [(o.id, t) for t in tags])
         if fts:
             db().execute("DELETE FROM objekt_fts WHERE id = ?", (o.id,))
-            db().execute("INSERT INTO objekt_fts (id, text) VALUES (?, ?)", (o.id, (o.text + "\n" + str(o.data.get("inhalt") or ""))[:300000]))
+            db().execute("INSERT INTO objekt_fts (id, text) VALUES (?, ?)", (o.id, (o.text + "\n" + str(o.data.get("inhalt") or "")
+                                                                                + "".join("\n" + r.get("begriff", "") for r in o.data.get("regionen") or []))[:300000]))
         db().commit()
     o.hashtags = tags
     if _KINDS_CACHE["t"] != float("-inf"):  # cache loaded: a new kind counts at once, not only after KINDS_TTL_S

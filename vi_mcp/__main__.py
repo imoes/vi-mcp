@@ -20,6 +20,9 @@
   python3 -m vi_mcp visibility FILTER shared|internal REASON [--apply]
                                           switch the objects of FILTER between shared and internal (through the running service, release
                                           token); without --apply it only counts. Private objects are never switched.
+  python3 -m vi_mcp image FILE --text T --hashtags a:b,c:d --source S [--content-file F|-] [--regions F.json] [--visibility shared|internal]
+                                          put an image with its description (and regions in SAM 3 format) into memory, through the
+                                          server the clients use; "image get ID OUTFILE" fetches it back
   python3 -m vi_mcp merge-repeats INSTANCE REGEX [--apply]
                                           merge the instance's insights whose text gives the same key (REGEX group 1) into one object
                                           per key, earlier texts in its history; without --apply it only counts. Stop the service first.
@@ -29,7 +32,7 @@ import sys
 from . import config, server
 
 #: English command → German alias (accepted as well)
-COMMANDS = {"setup": "einrichten", "net": "netz", "instance": "instanz", "net-token": "netz-token", "p2p-key": "p2p-schluessel",
+COMMANDS = {"setup": "einrichten", "image": "bild", "net": "netz", "instance": "instanz", "net-token": "netz-token", "p2p-key": "p2p-schluessel",
             "release": "freigeben", "delete-instance": "loesche-instanz"}
 _ALIASES = {de: en for en, de in COMMANDS.items()}
 
@@ -180,6 +183,9 @@ def _cli(argv: list[str]) -> int:
         from . import setup
         setup._restart()
         return 0
+    if command == "image" and len(argv) >= 2:
+        from . import image_cli
+        return image_cli.main(argv[1:])
     if command == "port" and len(argv) in (1, 2):
         return _port(argv[1] if len(argv) == 2 else None)
     if command == "merge-repeats" and len(argv) in (3, 4) and argv[3:] in ([], ["--apply"]):

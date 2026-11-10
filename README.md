@@ -297,7 +297,7 @@ receivers delete them along with search index and vector, and keep only a tombst
 | Tools | Purpose |
 |---|---|
 | `vi_before` · `vi_after` | report before and after an action |
-| `vi_learn` · `vi_recall` · `vi_drilldown` · `vi_object` | learn (code and API tables in full in `inhalt`), search, drill down, read in full |
+| `vi_learn` · `vi_recall` · `vi_drilldown` · `vi_object` | learn (code and API tables in full in `inhalt`; images with description and regions in SAM 3 format, `vi-mcp image FILE …`), search, drill down, read in full (with the image) |
 | `vi_tag` · `vi_confirm` · `vi_refute` · `vi_forget` | change, always with a reason |
 | `vi_ask` · `vi_answer` · `vi_questions` | questions between instances |
 | `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | solutions |

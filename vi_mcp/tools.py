@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import memory as g
-from . import api_en, bandit, config, questions, intuition, archive, learning, metrics, p2p, reflexes, sleep_cycle, scorer, self_model, session, skills, vector
+from . import api_en, bandit, config, images, questions, intuition, archive, learning, metrics, p2p, reflexes, sleep_cycle, scorer, self_model, session, skills, vector
 from .main_loop import progress as loop_progress, LOOP_S
 
 _O = {"type": "object"}
@@ -155,7 +155,14 @@ TOOLS = [
                     "unabridged (up to 200,000 characters). Store it completely and do not point to files that exist on one machine only "
                     "— what is missing here is a gap in memory. vi_object reads it back; full-text search finds it. Objects sharing "
                     "hashtags are linked.",
-     "inputSchema": _schema({"content": {"type": "string", "description": "complete knowledge: code, API tables, commands, unabridged"}, "text": _S, "hashtags": _TAGS, "source": {"type": "string", "description": "source: command, host and time, or URL (for vi_ask: why you ask)"}, "importance": {"type": "integer", "description": "0–3 (default 1)"}, "visibility": {"type": "string", "enum": ["shared", "internal"], "description": "shared (default): everyone, also without a token, and the network. internal: only instances with a token, never the network — for company knowledge"}, "outcome": {"type": "string", "enum": ["good", "bad"], "description": "optional: does the insight describe a working or a broken state? Sleep compares new experiences with it."}, "key": {"type": "string", "description": "optional: identity of a recurring finding (e.g. a detection signature). The same key from the same instance updates that object instead of adding a new one: the new text becomes current, the previous one goes into its history, repeats +1."}}, ["text", "hashtags", "source"])},
+     "inputSchema": _schema({"content": {"type": "string", "description": "complete knowledge: code, API tables, commands, unabridged"}, "text": _S, "hashtags": _TAGS, "source": {"type": "string", "description": "source: command, host and time, or URL (for vi_ask: why you ask)"}, "importance": {"type": "integer", "description": "0–3 (default 1)"}, "visibility": {"type": "string", "enum": ["shared", "internal"], "description": "shared (default): everyone, also without a token, and the network. internal: only instances with a token, never the network — for company knowledge"}, "outcome": {"type": "string", "enum": ["good", "bad"], "description": "optional: does the insight describe a working or a broken state? Sleep compares new experiences with it."}, "key": {"type": "string", "description": "optional: identity of a recurring finding (e.g. a detection signature). The same key from the same instance updates that object instead of adding a new one: the new text becomes current, the previous one goes into its history, repeats +1."},
+                            "image": {"type": "string", "description": "optional: an image as base64 (png, jpeg, gif or webp, at most 5 MiB; a data: URL is fine). text = what it shows in one sentence, content = the complete description. For a file use the command line instead of pasting base64: vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F]"},
+                            "regions": {"type": "array", "description": "optional, with image: what is where, in the output format of SAM 3 (Segment Anything with Concepts) — one entry per instance found",
+                                        "items": {"type": "object", "properties": {"concept": {"type": "string", "description": "the noun phrase SAM 3 was prompted with, e.g. 'red plug'"},
+                                                                                   "box": {"type": "array", "items": {"type": "number"}, "description": "[x0, y0, x1, y1] in pixels (absolute, xyxy)"},
+                                                                                   "score": {"type": "number", "description": "0–1"},
+                                                                                   "mask": {"type": "object", "description": "optional: COCO RLE {size: [height, width], counts}"}},
+                                                  "required": ["concept", "box", "score"]}}}, ["text", "hashtags", "source"])},
     {"name": "vi_stats",
      "description": "VI: usage statistics — is the VI used and does it work as intended? Calls per tool and instance, rule compliance "
                     "(search before changing actions, learning, feedback), hints and warnings with success afterwards, new and ever "
@@ -171,8 +178,8 @@ TOOLS = [
                              "semantic": {"type": "boolean"},
                              "reinforce": {"type": "boolean", "description": "default true; false = read only (access count and last use stay unchanged)"}}, ["filter"])},
     {"name": "vi_object",
-     "description": "VI: one object with fields, hashtags, edges and change history.",
-     "inputSchema": _schema({"id": _S}, ["id"])},
+     "description": "VI: one object with fields, hashtags, edges and change history; an object with an image returns the image too, with its regions (SAM 3 format).",
+     "inputSchema": _schema({"id": _S, "image": {"type": "boolean", "description": "default true; false = only the text, without the image itself"}}, ["id"])},
     {"name": "vi_tag",
      "description": "VI: change an object's hashtags (add/remove), with a reason — with history.",
      "inputSchema": _schema({"id": _S, "add": _TAGS, "remove": _TAGS, "reason": _S}, ["id", "reason"])},
@@ -293,7 +300,8 @@ def _proposal(text: str, tags: list[str], data: dict, importance: int) -> str:
 def _line(o: g.MemoryObject, gw: dict | None = None) -> str:
     wt = f" · R{gw['relevanz']} A{gw['aktualitaet']} W{gw['wichtigkeit']}" if gw else ""
     tags = " ".join(t for t in o.hashtags if not t.startswith(("art:", "frage:")))[:160]
-    return f"  [{o.id}] {o.kind} {o.ts[:16]} {o.mode if o.mode != 'aktiv' else ''} {o.text[:200].replace(chr(10), ' ')}\n     {tags}{wt}"
+    pic = f" [{images.summary(o)} — vi_object shows it]" if o.data.get("bild") else ""
+    return f"  [{o.id}] {o.kind} {o.ts[:16]} {o.mode if o.mode != 'aktiv' else ''} {o.text[:200].replace(chr(10), ' ')}{pic}\n     {tags}{wt}"
 
 
 def _visible(oid: str, instance: str) -> g.MemoryObject:
@@ -306,6 +314,17 @@ def _visible(oid: str, instance: str) -> g.MemoryObject:
     if not o or not g.visible_to(o, instance):
         raise Rejected(f"object {oid} unknown")
     return o
+
+
+class WithImages(str):
+    """0.35.0: tool answer = text plus images [(mime, base64)] — the server sends each as MCP content {type: image}; callers that
+    only read text (statistics, command line) see a plain str."""
+    images: list[tuple[str, str]]
+
+    def __new__(cls, text: str, images: list[tuple[str, str]]):
+        s = super().__new__(cls, text)
+        s.images = images
+        return s
 
 
 RRF_K = 60  # Reciprocal Rank Fusion: damping of the ranks (Cormack, Clarke, Büttcher 2009)
@@ -504,6 +523,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                 f"Sleep: {(sleep_cycle.last().text if sleep_cycle.last() else 'none yet')[:200]}\n"
                 f"Scorer: {scorer.line()}\n"
                 f"Archive: {archive.line()}\n"
+                f"Images: {images.line()}\n"
                 f"Quarantine: {len(g.recall('modus:quarantaene', limit=1000, viewer=None))} imported objects\n"
                 f"Reflex sandbox: {__import__('vi_mcp.sandbox', fromlist=['x']).description()}\n"
                 f"Router: {(learning.model().text if learning.model() else 'no model')[:160]} · ranking without a model: Thompson sampling (bandit), once hints are rated\n"
@@ -530,6 +550,19 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             if len(content) > g.CONTENT_MAX:
                 raise ValueError(f"content has {len(content)} characters, {g.CONTENT_MAX} are allowed; please split it into several objects")
             data = {"quelle": args["source"].strip()[:500], **({"ausgang": args["outcome"]} if args.get("outcome") else {}), **({"inhalt": content} if content else {})}
+            if args.get("regions") is not None and not args.get("image"):
+                raise ValueError("regions belong to an image: give image as well")
+            if args.get("image"):  # 0.35.0
+                if instance == config.OPEN:
+                    raise Rejected("images need an own instance with a token (proposals without a token are text only)")
+                if (args.get("key") or "").strip():
+                    raise ValueError("an image is not a recurring finding: image and key do not go together")
+                raw = images.decode(args["image"])
+                _mime, w, h = images.sniff(raw)
+                regs = images.regions(args.get("regions"), w, h)  # checked before storing: a refused image leaves nothing behind
+                ref = images.store(raw)
+                data.update(bild=ref, **({"regionen": regs} if regs else {}))
+                tags = tags + [t for t in ["medium:bild", *images.concept_tags(regs)] if t not in tags]
             if instance == config.OPEN:
                 return _proposal(text, tags, data, int(args.get("importance") or 1))
             if args.get("visibility") not in (None, "geteilt", "intern"):
@@ -554,6 +587,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             return (f"updated {o.id} (key {key!r}, {o.data['repeats']}×) — the previous text is in its history ({len(o.data.get('history') or [])} entries); "
                     "no new object")
         return (f"learned {o.id} with {', '.join(o.hashtags)} — {len(o.edges())} edges to objects with shared hashtags"
+                + (f" · {images.summary(o)} (sha256 {o.data['bild']['sha'][:12]}…)" if o.data.get("bild") else "")
                 + (" · visibility internal (instances with a token only, never the network)" if o.visibility == "intern" else ""))
     if name == "vi_recall":
         f = args.get("filter") or ""
@@ -609,15 +643,31 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                         f"last {o.last_at[:16]} · conversation {o.conversation or '—'}"]
         if o.kind in ("erkenntnis", "regel", "suche"):
             z.append(f"  as a hint: {bandit.line(o)}")
-        d = {k: v for k, v in o.data.items() if k not in ("ergebnis", "code", "inhalt")}
+        d = {k: v for k, v in o.data.items() if k not in ("ergebnis", "code", "inhalt", "bild", "regionen")}
         z.append("  data: " + json.dumps(d, ensure_ascii=False)[:800])
+        pics = []
+        if o.data.get("bild"):  # 0.35.0
+            b = o.data["bild"]
+            z.append(f"  {images.summary(o)} · sha256 {b['sha']}")
+            for n, r in enumerate(o.data.get("regionen") or [], 1):
+                z.append(f"  region {n}: {r['begriff']} · box {r['box']} (px, xyxy) · score {r['score']}" + (" · mask (COCO RLE)" if r.get("maske") else ""))
+            if o.data.get("regionen") and any(r.get("maske") for r in o.data["regionen"]):
+                z.append("  masks: " + json.dumps([r.get("maske") for r in o.data["regionen"]], ensure_ascii=False)[:20000])
+            raw = images.load(b["sha"])
+            if raw is None:
+                z.append("  image bytes missing from the store (reference without data)")
+            elif args.get("image", True) is not False:
+                import base64
+                pics.append((b["mime"], base64.b64encode(raw).decode()))
+            else:
+                z.append("  image not attached (image=false)")
         if o.data.get("inhalt"):
             z.append(f"  content ({len(o.data['inhalt'])} characters, complete):\n{o.data['inhalt']}")
         z += [f"  edge → {b} ({gr})" for b, gr in o.edges()[:15]]
         if o.data.get("aenderungen_gekuerzt"):
             z.append(f"  ({o.data['aenderungen_gekuerzt']} older changes truncated — the history keeps {g.HISTORY_MAX} entries)")
         z += [f"  change {a['zeit'][:16]} {a['wer']}: {a['was']} — {a['grund']}" for a in o.changes[-10:]]
-        return "\n".join(z)
+        return WithImages("\n".join(z), pics) if pics else "\n".join(z)
     if name in ("vi_tag", "vi_confirm", "vi_refute"):
         o = _visible(args.get("id"), instance)
         if o.mode == "quarantaene":

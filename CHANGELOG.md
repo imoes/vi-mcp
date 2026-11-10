@@ -3,6 +3,42 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.35.0 — 2026-11-10 — Images with description and SAM 3 regions
+
+### What is new
+
+- **Images in memory.** `vi_learn` takes an `image` (base64, PNG/JPEG/GIF/WebP, at most 5 MiB) together with the key statement (`text`),
+  the complete description (`content`) and optionally `regions` in the output format of **SAM 3** (Meta, Segment Anything with
+  Concepts): per instance found a concept ("red plug"), a box in pixels (xyxy), a score 0–1 and optionally the mask as COCO RLE.
+  The image gets `medium:bild` and `zeigt:<concept>`, so `vi_recall zeigt:red-plug` finds it, the concepts are in the full-text index,
+  and a hit line names the image. `vi_object` returns the image itself as MCP image content next to the text and the regions
+  (`image=false` leaves it out); `vi_status` counts images and bytes.
+  *Proof:* `tests/test_images.py` (17 tests: round trip byte for byte, hashtags, search by concept and by full text, every refusal with
+  its reason, nothing left behind on refusal, stored once per SHA-256, limits, internal invisible without a token, never onto the
+  network, command line). Against a running server process (10.11.2026): a real 1024×640 JPEG with EXIF and ICC segments in through
+  `vi-mcp image`, back through `vi-mcp image get`, `cmp` identical; a text file named as an image refused ("not a supported image …
+  recognised by its bytes"). Type and size detection checked against Pillow for PNG, baseline and progressive JPEG, GIF, lossy, lossless
+  and alpha WebP (all 1024×640 as Pillow reads them).
+- **`vi-mcp image FILE --text … --hashtags … --source … [--content-file F|-] [--regions F.json] [--visibility …]`** and
+  **`vi-mcp image get ID FILE`** (German alias `bild`): an AI session puts a file in without pasting megabytes of base64 into a tool
+  call. They talk MCP to the server the clients use (`VI_MCP_URL`/`VI_MCP_TOKEN_FILE`, else `hook.json`, else the vi-mcp entry in
+  `~/.claude.json`); a wrong token or an unreachable server is named, without a traceback.
+
+### What has changed
+
+- The type of an image comes from its bytes, never from the client; boxes must lie inside the image and masks must have the image's
+  size — each refusal names the region and the reason.
+
+### What is missing
+
+- **The VI does not segment or describe images itself.** There is no SAM 3 service; the regions come from the client. A SAM 3 run on a
+  GPU host, or a description by a vision model during sleep, would be a follow-up.
+- **Images stay on this server:** an object with an image never goes onto the network (held back with the reason "has an image").
+- **Images are not deleted.** Bytes stay in table `bild` even when their object is refuted or archived (an archived object can be
+  restored); there is no clean-up of bytes no object refers to yet. The store is capped at 2 GiB.
+- The image itself has no vector: semantic search finds it by its key statement (`text`), like every other object.
+- Reverse proxy: the `/vi-mcp/` block needs `client_max_body_size 8m` (production has it, `nginx.conf:114`, read 10.11.2026).
+
 ## 0.34.0 — 2026-11-10 — Windows setup dialog with Update
 
 ### What is new

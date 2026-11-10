@@ -96,6 +96,8 @@ def _known() -> frozenset[str]:
 def _export_form(o: g.MemoryObject, token: str, known_set: frozenset[str]) -> tuple[dict | None, str | None]:
     """The object as the network would see it, or (None, reason). The reason names only the class, never the value."""
     raw_content = str(o.data.get("inhalt") or "")
+    if o.data.get("bild"):  # 0.35.0: the network carries text; an image (and what it shows) stays on this server
+        return None, "has an image (images stay on this server)"
     if anonymize.CREDENTIAL_WORDS.search(o.text) or anonymize.CREDENTIAL_WORDS.search(raw_content):
         return None, "mentions credentials"
     if len(raw_content) > checks.CONTENT_MAX:
