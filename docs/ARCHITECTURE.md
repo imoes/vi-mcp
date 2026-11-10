@@ -120,7 +120,7 @@ transient things. Without a token, `tools.RULES_WITHOUT_TOKEN` is added. Whether
 
 Since 0.21.0 the server counts every call of a VI tool (`usage_stats.record`, table `nutzung`, 90 days, without arguments and text).
 `vi_stats(days)` evaluates usage, compliance with the rules, hints and warnings, knowledge, search, as well as sleep and training
-(`usage_stats.report`). A changing action counts as prepared if the same instance consulted the VI in the 30 min before it.
+(`usage_stats.report`). A changing action counts as prepared if the same instance consulted the VI in the 30 min before it. Since 0.24.0 each section names the period it really has data for: tool calls exist only since the table was created, so the rule rate counts only actions from then on, and the automatic `vi_before` of the hook does not count as consulting. Actions are also listed **per project** — the last part of the working directory the hook sends at `initialize` (`clientInfo.cwd`), stored as `daten.project` of the conversation (only the name, never the path).
 
 ## What is shown unasked
 
@@ -288,6 +288,7 @@ which context — docs/TRAINING.md 4a/4b.
   Every observation names `router` (`heuristik`|`modell`), `kandidaten`, `gezeigt`, `exploration`.
 - **Minimum amounts** (Peduzzi 1996): features with < 10 occurrences are dropped; min(ok, not ok) < 50 or holdout AUC
   ≤ 0.6 → mode `test` (stored, shown, not used). Holdout = the chronologically last 20 %.
+- **No repetition within a conversation** (0.24.0): a hint shown in the same conversation during the last hour (`intuition.REPEAT_S`) is held back, counted in the closing line ("N already shown in this conversation …") and listed in `daten.vorher.repeat_suppressed`. Measured 09.11.2026: three objects made up about 2,300 of 5,841 shown hints.
 - **ε-exploration 10 %**: one slot of the budget goes to a random candidate from further back, marked
   "(exploration)" — otherwise the model only learns about what the heuristic shows anyway (off-policy, Li et al. 2011).
 - **Reference material at most once (since 0.19.3)**: imported vendor documentation (`art_wissen:doku-extern`) takes at most

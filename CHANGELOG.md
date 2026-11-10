@@ -3,6 +3,31 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.24.0 — 2026-11-10 — Fewer repeated hints, statistics per project and with honest periods
+
+### What has changed
+
+- **A hint is shown at most once per conversation and hour.** Before, the same objects came before every action: three objects made up
+  about 2,300 of 5,841 hints shown in 24 h (production, `vi_stats(days=1)` on 09.11.2026), the ssh tip appeared before every local `sed`.
+  Held-back hints are counted in the closing line ("… N already shown in this conversation within the last hour, not repeated") and
+  recorded per action (`repeat_suppressed`). *Proof:* `tests/test_hints.py::test_hint_is_not_repeated_within_the_conversation` (second action
+  without the hint, another conversation and the same one after an hour see it again).
+- **`vi_stats` names the period it really has data for.** Tool calls are recorded only since the table `nutzung` exists (production:
+  09.11.2026 11:27 UTC), but the report compared them with 24 h of actions and said "since 08.11. 14:54" — so the rule rate "0 %" was partly
+  a measurement error. Now section A says since when calls are recorded, and the rule rate counts only actions from then on; it also says that
+  the hook's automatic `vi_before` does not count as consulting. *Proof:* `test_stats_count_rules_only_while_calls_are_recorded_and_show_projects`.
+
+### What is new
+
+- **Actions per project.** The hook sends its working directory at `initialize`; the server keeps its last part as `project` of the
+  conversation, and `vi_stats` lists actions and success rate per project. Separating "you" and "me" by token does not work — all Claude Code
+  sessions of one user share the same configuration — the project does. *Proof:* `test_project_is_the_last_part_of_the_working_directory`.
+
+### What is still missing
+
+- Conversations from before 0.24.0 have no project; they appear as "—".
+- The hint memory per conversation lives in the server process: after a restart, a hint may appear once more.
+
 ## 0.23.0 — 2026-11-09 — English throughout (steps 2–4 of 4)
 
 ### What is new

@@ -38,6 +38,8 @@ def state_dependent(tool: str) -> bool:
     return bool(STATE_DEPENDENT.search(tool or ""))
 TTL_MAX = 3600
 HINT_BUDGET = 4
+#: 0.24.0: a hint is shown at most once per conversation within this many seconds
+REPEAT_S = 3600
 #: Reference material (imported vendor docs): is searched, but shown unasked before an action at most LOOKUP_MAX times,
 #: so that manual paragraphs do not push experience knowledge (warnings, pitfalls) out of the budget. Measured 09.11.2026: before `docker logs`
 #: four general Docker doc paragraphs took all slots.
@@ -204,6 +206,13 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     general = {f"tool:{tool}", f"skill:{tool.split('_')[0]}", "thema:ssh"} if tool in SHELL_TOOLS else set()  # ssh is only the transport
     matching = set(search_triggers) - general
     cand.sort(key=lambda o: (-(o.importance >= 3 and bool(matching & set(o.hashtags))), -len(matching & set(o.hashtags))))
+    # 0.24.0: a hint already shown in this conversation within REPEAT_S is not shown again. Measured 09.11.: three objects made up
+    # ~2,300 of 5,841 shown hints — the same ssh tip appeared before every shell command. Held back with a count, not silently.
+    repeated = []
+    if s is not None:
+        recent = time.monotonic() - REPEAT_S
+        repeated = [o for o in cand if s.shown.get(o.id, float("-inf")) > recent]
+        cand = [o for o in cand if o not in repeated]
     # never show surplus manual paragraphs regularly, only via exploration (so the bandit learns whether they help after all)
     surplus = {o.id for o in [o for o in cand if any(t in o.hashtags for t in LOOKUP)][LOOKUP_MAX:]}
     regular = [o for o in cand if o.id not in surplus]
@@ -213,6 +222,10 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     if rest and _random.random() < learning.EPSILON:  # ε-exploration: one slot for a random candidate from further back
         shown_obj = shown_obj[:-1] + [_random.choice(rest)]
         exploration = True
+    if s is not None:
+        shown_at = time.monotonic()
+        for o in shown_obj:
+            s.shown[o.id] = shown_at
     for i, o in enumerate(shown_obj):
         found.append(o.id)
         provenance = f"from {o.instance}" + (f", confirmed by {o.foreign_confirmations()} more instance(s)" if o.foreign_confirmations() else "")
@@ -239,9 +252,12 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     if len(from_memory) > HINT_BUDGET:
         remaining += len(from_memory) - HINT_BUDGET
         from_memory = from_memory[:HINT_BUDGET]
-    if remaining > 0 or only_on_request:
+    if remaining > 0 or only_on_request or repeated:
         addendum = f" (of which {len(only_on_request)} disputed or unconfirmed hypothesis, only on request)" if only_on_request else ""
-        from_memory.append(f"… {remaining + len(only_on_request)} more hits in memory{addendum} — vi_drilldown(\"{' '.join(search_triggers)}\") shows them")
+        again = f"{len(repeated)} already shown in this conversation within the last hour, not repeated" if repeated else ""
+        more = remaining + len(only_on_request)
+        from_memory.append((f"… {more} more hits in memory{addendum}" + (f" · {again}" if again else "") if more else f"… {again}")
+                           + f" — vi_drilldown(\"{' '.join(search_triggers)}\") shows them")
     hints += from_memory
     from . import archive
     hints += archive.hint(search_triggers)
@@ -255,7 +271,8 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
                 found.append(o.id)
                 answer, age_s = o.data.get("ergebnis", ""), int(age)
     access = {"reize": rz, "warnung": bool(warn), "gefunden": found, "gezeigt": [o.id for o in shown_obj], "kandidaten": candidate_ids,
-               "router": router, "exploration": exploration, "suchen": search, "aus_gedaechtnis": answer is not None}
+               "router": router, "exploration": exploration, "suchen": search, "aus_gedaechtnis": answer is not None,
+               "repeat_suppressed": [o.id for o in repeated]}
     before_id = secrets.token_hex(8)
     if answer is not None:
         experience(tool, args, True, 0, None, answer, access, instance, is_read_only)

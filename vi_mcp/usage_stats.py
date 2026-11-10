@@ -111,6 +111,12 @@ def data(days: float = 7) -> dict:
         conversations = db.execute("SELECT instanz, COUNT(*) FROM objekt WHERE art = 'gespraech' AND zeit >= ? GROUP BY instanz", (since,)).fetchall()
         sleeps = db.execute("SELECT daten FROM objekt WHERE art = 'schlaf' AND zeit >= ?", (since,)).fetchall()
         sem_edges = db.execute("SELECT COUNT(*) FROM kante WHERE grund LIKE 'semantisch%'").fetchone()[0]
+        first_call = db.execute("SELECT MIN(zeit) FROM nutzung").fetchone()[0]
+        projects_of = dict(db.execute("SELECT json_extract(daten, '$.serial'), json_extract(daten, '$.project') FROM objekt "
+                                      "WHERE art = 'gespraech' AND json_extract(daten, '$.project') IS NOT NULL").fetchall())
+    # 0.24.0: tool calls are only recorded since the table nutzung exists (0.21.0); before, the report mixed 24 h of actions with
+    # a few hours of searches. Everything that compares calls with actions counts only from calls_since on.
+    calls_since = max(since, first_call) if first_call else None
     # A Usage
     by_tool: dict[str, dict] = {}
     for _z, _i, _c, w, outputs, ms, _t, _a in calls:
@@ -133,6 +139,7 @@ def data(days: float = 7) -> dict:
     warn = {"n": 0, "ok": 0}
     without_warn = {"n": 0, "ok": 0}
     conv_with_action: set[str] = set()
+    per_project: dict[str, dict] = {}
     for z, i, tot, d_json, tooltag, oktag in exps:
         d = json.loads(d_json)
         v = d.get("vorher") or {}
@@ -140,12 +147,16 @@ def data(days: float = 7) -> dict:
         feedbacks += len(d.get("rueckmeldung") or {})
         if tot:
             conv_with_action.add(tot)
+        pr = per_project.setdefault(projects_of.get(tot) or "—", {"n": 0, "ok": 0, "ok_known": 0})
+        pr["n"] += 1
+        pr["ok"] += oktag == "ok:ja"
+        pr["ok_known"] += bool(oktag)
         if oktag:
             target = warn if v.get("warnung") else without_warn
             target["n"] += 1
             target["ok"] += oktag == "ok:ja"
         tool = (tooltag or "tool:?")[5:]
-        if not mutating(tool, d.get("args")):
+        if not mutating(tool, d.get("args")) or calls_since is None or z < calls_since:
             continue
         n_mutating += 1
         t = datetime.fromisoformat(z)
@@ -163,7 +174,8 @@ def data(days: float = 7) -> dict:
                                                                   "ms_median": int(statistics.median(e["ms"])) if e["ms"] else 0}
                                                               for w, e in sorted(by_tool.items(), key=lambda kv: -kv[1]["n"])},
                     "je_instanz": dict(sorted(per_instance.items(), key=lambda kv: -kv[1])), "clients": clients,
-                    "gespraeche": dict(conversations), "handlungen": len(exps)},
+                    "gespraeche": dict(conversations), "handlungen": len(exps), "aufrufe_seit": calls_since,
+                    "je_projekt": dict(sorted(per_project.items(), key=lambda kv: -kv[1]["n"]))},
         "regeln": {"aendernd": n_mutating, "vorbereitet": prepared, "gelernt": learned, "gespraeche_mit_handlung": len(conv_with_action),
                    "bestaetigt_widerlegt": confirmed, "hinweise_gezeigt": shown, "rueckmeldungen": feedbacks},
         "hinweise": {"gezeigt": shown, "warnung": warn, "ohne_warnung": without_warn},
@@ -191,12 +203,15 @@ def report(days: float = 7) -> str:
     from . import on_demand, learning, metrics
     n, r, h, w, s, a = d["nutzung"], d["regeln"], d["hinweise"], d["wissen"], d["suche"], d["aufraeumen"]
     z = [f"Usage statistics of the last {days:g} days (since {d['seit'][:16]} UTC; source: table nutzung, experiences, objects)"]
-    z.append(f"A Usage: {n['aufrufe']} calls of VI tools, {n['handlungen']} reported actions, conversations per instance "
+    z.append(f"A Usage: {n['aufrufe']} calls of VI tools (recorded since {(n['aufrufe_seit'] or '—')[:16]}), {n['handlungen']} reported actions, conversations per instance "
              + (", ".join(f"{i} {k}" for i, k in n["gespraeche"].items()) or "—"))
     z += [f"    {wz:22} {e['n']:5}×  rejected {e['abgelehnt']}, errors {e['fehler']}, median {e['ms_median']} ms" for wz, e in list(n["je_werkzeug"].items())[:12]]
     z.append("    per instance: " + (", ".join(f"{i} {k}" for i, k in n["je_instanz"].items()) or "—") + " · clients: " + (", ".join(n["clients"]) or "—"))
+    z.append("    actions per project (working directory sent by the hook; — = unknown): "
+             + (", ".join(f"{p} {e['n']} ({_pct(e['ok'], e['ok_known'])} ok)" for p, e in list(n["je_projekt"].items())[:8]) or "—"))
     z.append(f"B Rules: before {_pct(r['vorbereitet'], r['aendernd'])} of the changing actions ({r['vorbereitet']} of {r['aendernd']}) the same "
-             f"instance consulted the VI in the {LEAD_MIN} min before · learned {r['gelernt']}× in {r['gespraeche_mit_handlung']} conversations with actions · "
+             f"instance consulted the VI in the {LEAD_MIN} min before (counted since {(n['aufrufe_seit'] or '—')[:16]}, when calls are recorded; "
+             f"the automatic vi_before of the hook does not count as consulting) · learned {r['gelernt']}× in {r['gespraeche_mit_handlung']} conversations with actions · "
              f"feedback on hints {r['rueckmeldungen']} for {r['hinweise_gezeigt']} shown ({_pct(r['rueckmeldungen'], r['hinweise_gezeigt'])})")
     lift = metrics.hint_lift(24 * days, viewer=None)
     z.append(f"C Hints: {h['gezeigt']} shown · {metrics.line(lift)} · warnings {h['warnung']['n']} (succeeded afterwards "

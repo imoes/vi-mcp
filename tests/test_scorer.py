@@ -41,7 +41,8 @@ def action(s, tool, ok, error=None, n=None):
         return intuition.after(tool, args, ok, 1, error, None, v["vorher_id"], s.instance, False)["erfahrung"]
 
 
-def test_scorer_in_sleep_rebooks_and_labels(gd):
+def test_scorer_in_sleep_rebooks_and_labels(gd, monkeypatch):
+    monkeypatch.setattr(intuition, "REPEAT_S", 0)  # this test is about rebooking: the same hint must count in both actions
     k = g.new_object("erkenntnis", "Hinweis zu Bash hier", ["tool:Bash"], {"quelle": "x"}, reason="T", instance="b")
     s = session.begin("a", "t")
     bandit._reason.update(zeit=time.time(), je={"Bash": 0.8}, alle=0.8)

@@ -40,6 +40,8 @@ class Session:
     secured_until: int = 0
     actions: int = 0
     signals: list = field(default_factory=list)  # the user's corrections and grades, without their text
+    project: str | None = None  # 0.24.0: name of the client's working directory (hook: clientInfo.cwd), for statistics per project
+    shown: dict = field(default_factory=dict)  # 0.24.0: hint id → monotonic time last shown in this conversation (no repetition)
 
     def turn(self, z: dict) -> None:
         with self.lock:
@@ -89,14 +91,14 @@ def new_serial() -> str:
     raise RuntimeError("no free conversation serial number after 50 attempts")
 
 
-def begin(instance: str, client: str) -> Session:
+def begin(instance: str, client: str, project: str | None = None) -> Session:
     serial = new_serial()
     tag = serial[:8]
     g.new_object("gespraech", f"Conversation {serial} started ({client}, instance {instance})",
                    [f"serial:{serial}", f"tag:{tag}"],
-                   {"serial": serial, "aufrufe": 0, "client": client},
+                   {"serial": serial, "aufrufe": 0, "client": client, **({"project": project} if project else {})},
                    oid=f"gespraech:{serial}", reason="session started", conversation=serial, instance=instance)
-    s = Session(id=secrets.token_urlsafe(24), serial=serial, instance=instance, client=client)
+    s = Session(id=secrets.token_urlsafe(24), serial=serial, instance=instance, client=client, project=project)
     with _reg_lock:
         _sessions[s.id] = s
     return s

@@ -79,13 +79,23 @@ def process(msg: dict, s: session.Session | None, inst: config.Instance) -> dict
             return _error(mid, -32603, f"internal error: {type(e).__name__}: {e}")
 
 
+def project_name(cwd) -> str | None:
+    """0.24.0: the last component of the client's working directory names the project (the hook sends clientInfo.cwd). Only the name,
+    never the path; at most 80 characters of [A-Za-z0-9._-]."""
+    if not isinstance(cwd, str) or not cwd.strip():
+        return None
+    import re
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", cwd.rstrip("/\\").replace("\\", "/").rsplit("/", 1)[-1])[:80]
+    return name or None
+
+
 def _initialize(msg: dict, inst: config.Instance) -> tuple[dict, session.Session]:
     params = msg.get("params") or {}
     requested = params.get("protocolVersion")
     version = requested if requested in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0]
     ci = params.get("clientInfo") or {}
     client = f"{ci.get('name', '?')} {ci.get('version', '')}".strip()
-    s = session.begin(inst.name, client)
+    s = session.begin(inst.name, client, project_name(ci.get("cwd")))
     log(f"session {s.serial} started: instance {inst.name}, client {client}, protocol {version}")
     return _answer(msg.get("id"), {
         "protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
