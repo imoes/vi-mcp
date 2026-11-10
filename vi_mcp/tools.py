@@ -178,8 +178,10 @@ TOOLS = [
      "inputSchema": _schema({"id": _S, "add": _TAGS, "remove": _TAGS, "reason": _S}, ["id", "reason"])},
     {"name": "vi_confirm",
      "description": "VI: confirm an object (it becomes more important) — with a reason. Counts as feedback if it was just shown as a "
-                    "hint.",
-     "inputSchema": _schema({"id": _S, "reason": _S}, ["id", "reason"])},
+                    "hint. Weight comes from independent lines: confirmations of one model family count once, and a confirmation citing the "
+                    "object's own source counts as none — name your own source if you checked it elsewhere.",
+     "inputSchema": _schema({"id": _S, "reason": _S, "source": {"type": "string", "description": "optional: where you checked it (command, host, time or URL)"}},
+                            ["id", "reason"])},
     {"name": "vi_refute",
      "description": "VI: refute an object (no longer shown in searches) — with a reason. Counts as feedback if it was just shown as a "
                     "hint.",
@@ -309,7 +311,7 @@ def _visible(oid: str, instance: str) -> g.MemoryObject:
 RRF_K = 60  # Reciprocal Rank Fusion: damping of the ranks (Cormack, Clarke, Büttcher 2009)
 
 
-def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, release_permission: bool = False) -> str:
+def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, release_permission: bool = False, family: str | None = None) -> str:
     """Run a tool. Returns text; a domain refusal as Rejected(reason).
     Name and arguments may be English (public since 0.22.0) or German (alias) — translated to the internal form here."""
     name = api_en.canonical_name(name)
@@ -603,7 +605,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
     if name == "vi_object":
         o = _visible(args.get("id"), instance)
         z = [_line(o), f"  author {o.instance} · visibility {o.visibility} · importance {o.importance} · confirmed {o.confirmed} "
-                        f"(foreign instances: {o.foreign_confirmations()}) · refuted {o.refuted} · accesses {o.accesses} · "
+                        f"(independent lines: {o.foreign_confirmations()} — one per model family, not from the object's own source) · refuted {o.refuted} · accesses {o.accesses} · "
                         f"last {o.last_at[:16]} · conversation {o.conversation or '—'}"]
         if o.kind in ("erkenntnis", "regel", "suche"):
             z.append(f"  as a hint: {bandit.line(o)}")
@@ -628,9 +630,9 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                 if o.kind == "selbst" and o.id != self_model.CORE:
                     k = self_model.adopt(o, instance, reflex_permission, args.get("reason", ""))
                     return f"proposal {o.id} adopted into the self → version {k.data['version']}"
-                o.confirm(who, args.get("reason", ""), instance)
+                o.confirm(who, args.get("reason", ""), instance, family=family, source=(args.get("source") or "").strip() or None)
             else:
-                o.refute(who, args.get("reason", ""), instance)
+                o.refute(who, args.get("reason", ""), instance, family=family)
         except ValueError as e:
             raise Rejected(str(e)) from e
         if name == "vi_tag":

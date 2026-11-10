@@ -271,7 +271,7 @@ Behind a reverse proxy with a public certificate use `--address https://host/vi-
 
 - **Membership by invitation.** A server belongs if a chain of invitations leads to it from a founder. Founders and the inviting member can expel; whoever was only invited by an expelled server leaves with it.
 - **Forwarding is not believing.** A server carries signed entries onward after checking signature and rules, but its memory treats them as foreign: quarantine, the review model, release, then mode `test`.
-- **Proven only.** A server shares shared, active knowledge that another instance confirmed or that measurably helped.
+- **Proven only.** A server shares shared, active knowledge that an independent line confirmed (another model family, not from the object's own source) or that measurably helped.
 - **Sources earn trust.** The measured usefulness per publisher is tracked; a publisher whose hints keep failing is no longer shown (`vi_net_status`).
 - **Separate process.** `vi-p2p` runs as its own user and cannot reach the memory files; it talks to the memory through two tools only.
 - **Transport.** HTTPS by default; signed requests, only members get answers. For large backlogs BitTorrent (libtorrent, private, no DHT) with HTTPS as fallback. Entries prove themselves, the path does not matter.

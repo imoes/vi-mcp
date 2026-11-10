@@ -14,6 +14,9 @@
                                           network service (vi-p2p) follows. Clients and proxies (nginx) keep their URL: adjust them.
   python3 -m vi_mcp embed setup|status|remove [--port N] [--cpu] [--model-file F] [--no-switch]
                                           own embedding service (llama.cpp + bge-m3, Vulkan or CPU) for the vectors
+  python3 -m vi_mcp family INSTANCE [FAMILY|-]
+                                          show or declare the model family of an instance (claude, gpt, qwen …); confirmations and
+                                          refutations of one family count as one independent line. "-" removes it. Restarts the service.
   python3 -m vi_mcp visibility FILTER shared|internal REASON [--apply]
                                           switch the objects of FILTER between shared and internal (through the running service, release
                                           token); without --apply it only counts. Private objects are never switched.
@@ -146,6 +149,23 @@ def _cli(argv: list[str]) -> int:
     if command == "embed":
         from . import embed_service
         return embed_service.main(argv[1:])
+    if command == "family" and len(argv) in (2, 3):
+        k = config.load()
+        if argv[1] not in k.instances:
+            print(f"instance {argv[1]!r} unknown", file=sys.stderr)
+            return 2
+        if len(argv) == 2:
+            print(k.instances[argv[1]].family or "undeclared (counts as its own line)")
+            return 0
+        try:
+            old = config.set_family(argv[1], None if argv[2] == "-" else argv[2])
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 2
+        print(f"{argv[1]}: family {old or 'undeclared'} → {argv[2] if argv[2] != '-' else 'undeclared'}; restarting the service")
+        from . import setup
+        setup._restart()
+        return 0
     if command == "port" and len(argv) in (1, 2):
         return _port(argv[1] if len(argv) == 2 else None)
     if command == "merge-repeats" and len(argv) in (3, 4) and argv[3:] in ([], ["--apply"]):

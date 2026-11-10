@@ -229,7 +229,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
             s.shown[o.id] = shown_at
     for i, o in enumerate(shown_obj):
         found.append(o.id)
-        provenance = f"from {o.instance}" + (f", confirmed by {o.foreign_confirmations()} more instance(s)" if o.foreign_confirmations() else "")
+        provenance = f"from {o.instance}" + (f", confirmed by {o.foreign_confirmations()} independent line(s)" if o.foreign_confirmations() else "")
         ins = " (exploration)" if exploration and i == len(shown_obj) - 1 else ""
         if o.kind == "skill":
             from . import skills
@@ -332,7 +332,7 @@ def explain(hint: g.MemoryObject, instance: str, triggers: list[str] | None = No
         z.append(f"Situation given: {', '.join(triggers)} · router now {router}")
     match = sorted(set(triggers) & set(hint.hashtags))
     z.append(f"  Fit: {len(match)} trigger(s) match the hint's hashtags" + (f" ({', '.join(match)})" if match else " — it came in through search or content, not a hashtag"))
-    z.append(f"  Hint: {hint.kind} from {hint.instance}, mode {hint.mode}, importance {hint.importance}, confirmed by {hint.foreign_confirmations()} foreign instance(s)")
+    z.append(f"  Hint: {hint.kind} from {hint.instance}, mode {hint.mode}, importance {hint.importance}, confirmed by {hint.foreign_confirmations()} independent line(s)")
     z.append(f"  Measured usefulness: {bandit.line(hint)}")
     m = learning.model()
     if m is not None and m.data.get("gewichte"):

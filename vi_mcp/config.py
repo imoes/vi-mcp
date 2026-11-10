@@ -47,6 +47,9 @@ class Instance:
     reflexes: bool = False
     release: bool = False  # may release sensitive imported content from quarantine
     human: bool = False  # may report user signals (POST /signal)
+    #: 0.33.0: model family (e.g. claude, gpt, qwen). Confirmations and refutations of one family count as ONE line — instances of the
+    #: same model are not independent witnesses (Condorcet). None = undeclared: the instance counts as its own line.
+    family: str | None = None
 
 
 @dataclass
@@ -98,7 +101,8 @@ def load(p: Path | None = None) -> Config:
     k.llm = raw.get("llm") or None
     k.open_ = bool(raw.get("offen", False))
     for n, d in (raw.get("instanzen") or {}).items():
-        k.instances[n] = Instance(n, d["token_sha256"], bool(d.get("reflexe", False)), bool(d.get("freigabe", False)), bool(d.get("mensch", False)))
+        k.instances[n] = Instance(n, d["token_sha256"], bool(d.get("reflexe", False)), bool(d.get("freigabe", False)), bool(d.get("mensch", False)),
+                                  (d.get("familie") or None))
     return k
 
 
@@ -124,6 +128,24 @@ def set_port(port: int, p: Path | None = None) -> int:
     raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
     old = int(raw.get("port", Config().port))
     raw["port"] = port
+    _save_raw(raw, p)
+    return old
+
+
+def set_family(name: str, family: str | None, p: Path | None = None) -> str | None:
+    """0.33.0: declare (or with None remove) the model family of an instance. Returns the previous one. The service reads it at start."""
+    if family is not None and (not family or not all(c.isalnum() or c in "-_." for c in family)):
+        raise ValueError("family: letters, digits, - _ .")
+    p = p or fpath()
+    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    inst = (raw.get("instanzen") or {}).get(name)
+    if inst is None:
+        raise ValueError(f"instance {name!r} unknown")
+    old = inst.get("familie")
+    if family:
+        inst["familie"] = family
+    else:
+        inst.pop("familie", None)
     _save_raw(raw, p)
     return old
 

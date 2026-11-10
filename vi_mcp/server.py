@@ -64,7 +64,7 @@ def process(msg: dict, s: session.Session | None, inst: config.Instance) -> dict
                 public = tools.api_en.canonical_name(name)  # statistics uniformly under the public (English) name
                 ms = lambda: int((time.monotonic() - t0) * 1000)  # noqa: E731
                 try:
-                    text = tools.call_tool(name, params.get("arguments") or {}, inst.name, inst.reflexes, inst.release)
+                    text = tools.call_tool(name, params.get("arguments") or {}, inst.name, inst.reflexes, inst.release, inst.family)
                     usage_stats.record(inst.name, client, public, "ok", ms(), text)
                     return _answer(mid, {"content": [{"type": "text", "text": text}], "isError": False})
                 except tools.Rejected as e:

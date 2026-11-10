@@ -277,7 +277,7 @@ Hinter einem Reverse-Proxy mit öffentlichem Zertifikat: `--adresse https://host
 
 - **Mitglied durch Einladung.** Ein Server gehört dazu, wenn von einem Gründer eine Kette von Einladungen zu ihm führt. Gründer und der Einladende können ausschließen; wer nur über einen Ausgeschlossenen kam, fällt mit heraus.
 - **Weitertragen ist nicht glauben.** Ein Server reicht signierte Einträge nach Prüfung von Signatur und Regeln weiter, sein Gedächtnis behandelt sie trotzdem als fremd: Quarantäne, Prüfmodell, Freigabe, dann Modus `test`.
-- **Nur Bewährtes.** Geteilt wird geteiltes, aktives Wissen, das eine andere Instanz bestätigt hat oder das nachweislich geholfen hat.
+- **Nur Bewährtes.** Geteilt wird geteiltes, aktives Wissen, das eine unabhängige Linie bestätigt hat (eine andere Modellfamilie, nicht aus der Quelle des Objekts selbst) oder das nachweislich geholfen hat.
 - **Quellen müssen sich bewähren.** Der Nutzen je Herausgeber wird gemessen; wessen Hinweise immer wieder scheitern, der wird nicht mehr gezeigt (`vi_net_status`).
 - **Eigener Prozess.** `vi-p2p` läuft als eigener Nutzer und kommt nicht an die Gedächtnisdateien; mit dem Gedächtnis spricht er nur über zwei Werkzeuge.
 - **Transport.** Standard ist HTTPS mit signierten Anfragen, Antwort bekommen nur Mitglieder. Große Rückstände gehen über BitTorrent (libtorrent, privat, ohne DHT), HTTPS bleibt der Rückfall. Einträge beweisen sich selbst, der Weg ist egal.

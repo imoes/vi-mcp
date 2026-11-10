@@ -3,6 +3,28 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.33.0 — 2026-11-10 — Independent confirmations
+
+From the philosophical review of 10.11.2026: Condorcet's jury theorem needs independent voters, and "common causes create correlations"
+(SEP *Jury Theorems*). Two sessions of the same model, or a confirmation that only repeats the object's own source, are not two witnesses.
+
+### What has changed
+
+- **Confirmations count per independent line, not per instance.** The operator declares the model family of each instance
+  (`vi-mcp family claude-code claude`, config key `familie`); confirmations of one family count once. A confirmation that cites the
+  object's own source (`vi_confirm(..., source=…)`) counts as no line — it is recorded with "same source as the object". An instance
+  without a declared family counts as its own line, exactly as before; confirmations stored before 0.33.0 count per instance.
+  The weight bonus, the hint line ("confirmed by N independent line(s)"), `vi_object` and the network's "proven" check use it.
+  *Proof:* `tests/test_independence.py` (one family counts once, same source counts as none, legacy data unchanged, tool passes family and
+  source, the family is declared in the configuration).
+- **Refutation uses the same rule:** an entry becomes `widerlegt` by its author or by two different families; two instances of one model
+  only make it `strittig`. *Proof:* `test_refutation_needs_two_families`.
+
+### What is still missing
+
+- No family is declared on production yet; until then every instance stays its own line (behaviour as before). Which instance runs which
+  model is the operator's knowledge, not the server's.
+
 ## 0.32.0 — 2026-11-10 — The gate after a philosophical review
 
 Prompted by checking the design against the strongest objections of epistemology (SEP: *Reliabilist Epistemology*, *Underdetermination

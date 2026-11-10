@@ -60,7 +60,7 @@ def test_confirmation_across_instances(from_seq):
     g.load(o.id).confirm("ki@b", "bei mir auch", "b")
     w2 = g.recall("thema:y", viewer=None)[0][2]["wichtigkeit"]
     assert g.load(o.id).foreign_confirmations() == 1 and w2 - w1 >= g.BONUS_PER_INSTANCE - 0.01 and w1 >= w0
-    assert "confirmed by 1 more" in intuition.before("t", {}, "c", context=["thema:y"])["hinweise"][0]
+    assert "confirmed by 1 independent line" in intuition.before("t", {}, "c", context=["thema:y"])["hinweise"][0]
 
 
 def test_contradiction_disputed_then_refuted(from_seq):

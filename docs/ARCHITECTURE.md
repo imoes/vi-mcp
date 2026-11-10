@@ -140,7 +140,11 @@ Filter language: `art:wert` (AND), `(a OR b)`, `!art:wert`, prefix `art:wert*`, 
 Weight = **relevance** (FTS rank normalised, otherwise 1) + **recency** `(1 + hours since last access)^−0.3` (power law,
 Wixted & Ebbesen 1991 / ACT-R — docs/FORSCHUNG.md A9; exponential up to 0.3.0, see correction below) + **importance**
 `importance/3·0.6 + log1p(2·confirmed + accesses)/6 − 0.5·refuted` (capped at 1) + **collective bonus**
-0.2 per *other* confirming instance (at most 0.6). After Park et al. 2023, "Generative Agents" (arXiv 2304.03442).
+0.2 per *independent line* of confirmation (at most 0.6). After Park et al. 2023, "Generative Agents" (arXiv 2304.03442).
+Since 0.33.0 a line is a model family, not an instance (Condorcet's jury theorem needs independent voters; "common causes create
+correlations", SEP *Jury Theorems*): instances of one declared family (`vi-mcp family INSTANCE claude`) count once, a confirmation
+citing the object's own source counts as none, an instance without a declared family counts as its own line. The same rule decides
+`widerlegt`: the author, or two different families — two sessions of one model only make an entry `strittig`.
 Every hit of `vi_recall` is **reinforced** (`zugriffe + 1` atomically, `zuletzt = now`) — except with `reinforce=false` (0.31.0), the
 read-only search for measurements and probes: a benchmark of 49 questions had reinforced 733 objects once each.
 

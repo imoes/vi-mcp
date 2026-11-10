@@ -247,37 +247,60 @@ class MemoryObject:
         self.change(who, " ".join([f"+{t}" for t in add] + [f"-{t}" for t in remove]), reason)
         return save(self)
 
-    def confirm(self, who: str, reason: str, instance: str | None = None) -> "Objekt":
-        """Confirm. Counts per instance (daten.bestaetigt_von); weight bonus only for FOREIGN instances."""
+    def confirm(self, who: str, reason: str, instance: str | None = None, family: str | None = None, source: str | None = None) -> "Objekt":
+        """Confirm. Counts per instance (daten.bestaetigt_von); weight bonus only for independent lines (0.33.0, see independent_lines)."""
         self._require_reason(reason)  # check first, then change — a rejection leaves the object unchanged
         i = instance or SERVER_INSTANCE
         from_ = dict(self.data.get("bestaetigt_von") or {})
         from_[i] = from_.get(i, 0) + 1
         self.data["bestaetigt_von"] = from_
+        same_source = bool(source) and _norm_source(source) == _norm_source(self.data.get("quelle"))
+        self.data["bestaetigungen"] = (list(self.data.get("bestaetigungen") or []) + [
+            {"instanz": i, "familie": family or i, **({"quelle": source.strip()[:300]} if source else {}), "zeit": now()}])[-100:]
         self.confirmed += 1
         if self.mode == "strittig" and i != self.instance:
             self.mode = "aktiv"  # a foreign confirmation settles the dispute — with history
-        self.change(who, "confirmed" + (" (self-confirmation, no weight bonus)" if i == self.instance else ""), reason)
+        note = (" (self-confirmation, no weight bonus)" if i == self.instance else
+                " (same source as the object — not an independent line)" if same_source else "")
+        self.change(who, "confirmed" + note, reason)
         return save(self)
 
-    def refute(self, who: str, reason: str, instance: str | None = None) -> "Objekt":
-        """Refute. The author itself or ≥ 2 different instances → widerlegt (vanishes from searches);
-        exactly one foreign instance → strittig (stays visible, with a note) — one instance alone does not erase
-        the knowledge of another."""
+    def refute(self, who: str, reason: str, instance: str | None = None, family: str | None = None) -> "Objekt":
+        """Refute. The author itself or ≥ 2 different families → widerlegt (vanishes from searches); otherwise strittig (stays visible,
+        with a note) — one family alone does not erase the knowledge of another (0.33.0: before, two instances, even of the same model)."""
         self._require_reason(reason)
         i = instance or SERVER_INSTANCE
         from_ = dict(self.data.get("widerlegt_von") or {})
         from_[i] = from_.get(i, 0) + 1
         self.data["widerlegt_von"] = from_
+        self.data["widerlegungen"] = (list(self.data.get("widerlegungen") or []) + [{"instanz": i, "familie": family or i, "zeit": now()}])[-100:]
         self.refuted += 1
-        self.mode = "widerlegt" if (i == self.instance or len(from_) >= 2) else "strittig"
+        self.mode = "widerlegt" if (i == self.instance or len(self._lines("widerlegungen", "widerlegt_von")) >= 2) else "strittig"
         self.change(who, self.mode, reason)
         return save(self)
 
+    def _lines(self, entries_key: str, legacy_key: str, skip_same_source: bool = False) -> set[str]:
+        """Families of foreign instances (author and server excluded). Entries before 0.33.0 have no family: each instance is its own."""
+        own = (self.instance, SERVER_INSTANCE)
+        src = _norm_source(self.data.get("quelle"))
+        lines, covered = set(), set()
+        for e in self.data.get(entries_key) or []:
+            covered.add(e.get("instanz"))
+            if e.get("instanz") in own or (skip_same_source and e.get("quelle") and _norm_source(e["quelle"]) == src):
+                continue
+            lines.add(e.get("familie") or e.get("instanz"))
+        lines |= {i for i in (self.data.get(legacy_key) or {}) if i not in own and i not in covered}
+        return lines
+
+    def independent_lines(self) -> set[str]:
+        """0.33.0 (Condorcet's independence condition): foreign confirmations grouped by model family; a confirmation citing the object's
+        own source is no independent line (a common cause). What counts as one family is declared per instance (config "familie")."""
+        return self._lines("bestaetigungen", "bestaetigt_von", skip_same_source=True)
+
     def foreign_confirmations(self) -> int:
-        """Different foreign instances that confirmed. The server (`vi`, sleep) does not count as foreign —
+        """Independent lines that confirmed (0.33.0; before: different foreign instances). The server (`vi`, sleep) never counts —
         an automatic confirmation must not raise the weight (no self-confirmation of the system)."""
-        return len([i for i in (self.data.get("bestaetigt_von") or {}) if i not in (self.instance, SERVER_INSTANCE)])
+        return len(self.independent_lines())
 
     def link(self, other_id: str, reason: str) -> None:
         with lock:
@@ -459,6 +482,11 @@ def repeat(o: MemoryObject, text: str, hashtags: list[str], data: dict, importan
     save(o)
     link_similar(o)
     return o
+
+
+def _norm_source(s) -> str:
+    """Source text compared loosely: case, surrounding space and trailing punctuation do not make a different source."""
+    return str(s or "").strip().lower().rstrip(" .,;/")
 
 
 #: 0.30.0: visibilities that may be switched afterwards. "privat" belongs to its instance and is never switched by anyone else.
