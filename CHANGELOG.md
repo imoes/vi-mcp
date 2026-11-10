@@ -9,6 +9,8 @@ Linked from [README.md](README.md).
 
 - The dry run of `vi-mcp visibility` told command-line users to pass "apply=true"; it now names both spellings (MCP `apply=true`,
   command line `--apply`). Seen on production 10.11.2026 when switching the 221 manual sections to internal.
+- README (EN/DE): the install commands named version 0.13.0, so the project page never showed the current release. They now use
+  `<version>`, and a release badge next to the links shows the latest release from GitHub itself — one source for the version.
 
 ## 0.30.0 — 2026-11-10 — The router goes live only when its order pays off
 

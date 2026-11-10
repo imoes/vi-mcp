@@ -1,6 +1,6 @@
 # vi-mcp — ein Gedächtnis für viele KI-Sitzungen
 
-**Deutsch** · [English](README.md) · [Changelog](CHANGELOG.md) · [Download](https://github.com/imoes/vi-mcp/releases/latest)
+**Deutsch** · [English](README.md) · [Changelog](CHANGELOG.md) · [Download](https://github.com/imoes/vi-mcp/releases/latest) · [![Release](https://img.shields.io/github/v/release/imoes/vi-mcp?label=release)](https://github.com/imoes/vi-mcp/releases/latest)
 
 `vi-mcp` ist eine **VI (virtuelle Intelligenz)**: ein einziger Serverprozess mit einem Gedächtnis, an den sich beliebig viele KI-Sitzungen gleichzeitig über
 **MCP (Streamable HTTP)** anschließen. Jede Sitzung hat ihren eigenen Gesprächskontext, wie Zeitscheiben eines Prozessors. Alle teilen dasselbe Gedächtnis: Was eine Sitzung lernt,
@@ -151,9 +151,9 @@ wahr ist:
 Pakete liegen unter [Releases](https://github.com/imoes/vi-mcp/releases/latest). Der Paketmanager zieht alle Abhängigkeiten nach (Python ≥ 3.11, NumPy, scikit-learn, cryptography, PyYAML).
 
 ```bash
-sudo apt install ./vi-mcp_0.13.0-1_all.deb      # Debian 12/13, Ubuntu 24.04
-sudo dnf install ./vi-mcp-0.13.0-1.noarch.rpm   # Fedora 43
-sudo dnf install epel-release && sudo dnf install ./vi-mcp-0.13.0-1.noarch.rpm   # AlmaLinux/RHEL 10
+sudo apt install ./vi-mcp_<version>-1_all.deb      # Debian 12/13, Ubuntu 24.04
+sudo dnf install ./vi-mcp-<version>-1.noarch.rpm   # Fedora 43
+sudo dnf install epel-release && sudo dnf install ./vi-mcp-<version>-1.noarch.rpm   # AlmaLinux/RHEL 10
 sudo VI_MCP_PORT=9000 apt install ./vi-mcp_<version>-1_all.deb                       # anderer Port bei der Erstinstallation
 ```
 
