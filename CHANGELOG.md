@@ -3,6 +3,42 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.30.0 — 2026-11-10 — The router goes live only when its order pays off
+
+Prompted by reading three sources (10.11.2026): Takehi et al., *Sparks of Weight-Space Programming* (blog, 02.11.2026) with the audit
+arXiv 2611.08070 and WeightLoop arXiv 2611.07319; Google Research, *The SLEEP framework* (27.10.2026, arXiv 2606.03979); Mnemosyne,
+arXiv 2510.08601. Taken over: WeightLoop's utility gate and SLEEP's downstream check; Mnemosyne's age as a ranking signal.
+
+### What is new
+
+- **Ranking utility gate.** The router model goes live only if, on the holdout, the hints it ranks highest are followed by more success
+  over the tool's base rate than the hints it ranks lowest (gap > 0 and > its standard error, ≥ 30 pairs per quarter; otherwise
+  `nicht_bestimmbar`, named). Before, a holdout AUC > 0.6 was enough — which a model reaches from the situation alone while ordering the
+  hints at random. Shown in `vi_model` ("Ranking utility on the holdout") and the sleep report.
+  *Proof:* `test_good_auc_without_ranking_utility_stays_test` (AUC > 0.85 from the host alone, two hints without effect → stays `test`,
+  reason named); `test_router_learns_which_hint_helps` now also requires the gap (> 30 points for a 90 % vs 20 % hint).
+- **`alter:neu` router feature**: the hint was at most 7 days old when shown (same threshold as the cold-start observation point).
+  *Proof:* `test_hint_age_is_a_feature`.
+- **Weight audit: group contradiction.** A meaning-group weight (`inhalt:<c>`) against the pooled measured usefulness of the group's hints
+  is reported as `contradicts`. *Proof:* `test_group_weight_against_measured_hints`.
+
+### What has changed
+
+- **The warning before risky actions no longer depends on the ranking**: it needs only the AUC, so a model in mode `test` can still warn.
+  *Proof:* `test_warning_before_risky_actions` (no hints at all: ranking not determinable, warning active).
+- **`vi_why` separates what is the same for every candidate** (`hinweis_n`, which moves all lifts alike and never the order) from what
+  sets this hint apart and decides the order. Seen on production 10.11.2026: a hint with +3 points measured usefulness showed "lift −14",
+  mostly from `hinweis_n:1` −0.35. *Proof:* `test_vi_why_separates_what_is_same_for_every_candidate`.
+- `vi_before` records the size of the exploration pool (`rest_n`), so an off-policy estimate can be computed later.
+
+### What is still missing
+
+- **On production the router may drop to `test` after this update** if its order does not pay off on the holdout; then the bandit orders
+  the hints (as before 0.20) and warnings continue. That is the gate working, not a fault — `vi_model` names the verdict with numbers.
+- The utility is a proxy on the hints that were shown, not an off-policy estimate; selection (hints appear in harder situations) is not
+  removed.
+- Hypothetical questions for documentation (Mnemosyne/HyDE) are not built: first a probe whether they would find more.
+
 ## 0.29.0 — 2026-11-10 — Why a hint was shown; is a new hint weaker?
 
 ### What is new

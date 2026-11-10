@@ -90,7 +90,7 @@ def test_router_learns_which_hint_helps(gd):
     random.seed(7)
     r = g.new_object("regel", "vor graylog_search Zeitraum setzen", ["skill:graylog"], {"quelle": "x"}, reason="T")
     e = g.new_object("erkenntnis", "graylog ist immer schnell", ["skill:graylog"], {"quelle": "x"}, reason="T")
-    for i in range(400):
+    for i in range(800):
         args = {"q": i}
         v = intuition.before("graylog_search", args, "a")
         intuition.after("graylog_search", args, True, 1, None, "ok", v["vorher_id"], "a")
@@ -107,6 +107,7 @@ def test_router_learns_which_hint_helps(gd):
         g.db().commit()
     b = learning.train("Test")
     assert b["zustand"] == "aktiv", b
+    assert b["nutzen_holdout"]["zustand"] == "nutzen" and b["nutzen_holdout"]["abstand"] > 0.3, b["nutzen_holdout"]  # 0.30.0
     m = learning.active()
     assert m and m.data["gewichte"][f"hinweis:{r.id}"] > 0 > m.data["gewichte"][f"hinweis:{e.id}"]
     rf = learning.ranking(m, ["tool:graylog_search", "skill:graylog"], [e.id, r.id])
@@ -176,7 +177,9 @@ def test_warning_before_risky_actions(gd):
         broken = rnd.random() < 0.3
         action("deploy_run", "kaputt1" if broken else f"gut{rnd.randint(1, 5)}", (rnd.random() < 0.1) if broken else (rnd.random() < 0.95))
     r = learning.train("Test")
-    assert r["zustand"] == "aktiv" and r["warnung"]["zustand"] == "aktiv" and r["warnung"]["praezision_pct"] >= 50
+    # 0.30.0: no hints at all — the ranking cannot show utility (not determinable), the warning still works on the AUC alone
+    assert r["zustand"] == "test" and r["nutzen_holdout"]["zustand"] == "nicht_bestimmbar"
+    assert r["warnung"]["zustand"] == "aktiv" and r["warnung"]["praezision_pct"] >= 50
     w = learning.warning(intuition.triggers("deploy_run", {"host": "kaputt1"}))
     assert w and w.startswith("[VI warning]") and "host:kaputt1:" in w and "actions failed" in w
     assert learning.warning(intuition.triggers("deploy_run", {"host": "gut2"})) is None
@@ -260,3 +263,46 @@ def test_lift_by_age_splits_new_and_old_hints(gd, monkeypatch):
     # the new hint was only shown before odd i, which all succeeded: +0.5 against +0.25 for the old one
     assert abs(r["alt"]["vorteil"] - 0.25) < 1e-9 and abs(r["neu"]["vorteil"] - 0.5) < 1e-9 and r["urteil"] == "new hints stronger"
     assert "new (≤ 7 d) 12 shown" in metrics.age_line(r) and "12 of hints that no longer exist" in metrics.age_line(r)
+
+
+def test_vi_why_separates_what_is_same_for_every_candidate(gd):
+    """0.30.0: hinweis_n moves every lift alike; vi_why reports it apart from what decides the order."""
+    m = g.new_object("modell", "Testmodell", ["modell:router"],
+                     {"zustand": "aktiv", "gewichte": {"hinweis_n:1": -0.35, "hinweis_n:0": 0.05, "hinweisart:erkenntnis": 0.2, "tool:x": 0.1},
+                      "achsenabschnitt": 0.0}, oid=learning.MODEL, reason="T", instance=g.SERVER_INSTANCE)
+    h = g.new_object("erkenntnis", "web1 braucht Proxy", ["host:web1"], {"quelle": "x"}, reason="T", instance="b")
+    w = learning.why(m, h.id, ["tool:x"])
+    assert abs(w["same_for_all"] - (-0.40)) < 1e-9 and dict(w["distinguishing"]) == {"hinweisart:erkenntnis": 0.2}
+    out = tools.call_tool("vi_why", {"id": h.id, "triggers": ["tool:x"]}, "a", False)
+    assert "decides the order): +0.200" in out and "never the order): hinweis_n:1 − hinweis_n:0 = -0.400" in out
+
+
+def test_hint_age_is_a_feature(gd):
+    """0.30.0: alter:neu when the hint was at most metrics.NEW_DAYS old at the time it was shown."""
+    from datetime import datetime, timedelta, timezone
+    h = g.new_object("erkenntnis", "web1 braucht Proxy", ["host:web1"], {"quelle": "x"}, reason="T", instance="b")
+    now = datetime.now(timezone.utc)
+    assert learning.hint_features(h.id, [], now.isoformat())["alter:neu"] == 1.0
+    assert "alter:neu" not in learning.hint_features(h.id, [], (now + timedelta(days=8)).isoformat())
+    assert "alter:neu" not in learning.hint_features(h.id, [])  # no time, no age claim
+    action("checkmk_get_host", "web1", True)
+    assert any(m.get("alter:neu") == 1.0 and f"hinweis:{h.id}" in m for m, _y, _o in learning.observations())
+
+
+@pytest.mark.skipif(not HAS_SKLEARN, reason="scikit-learn fehlt")
+def test_good_auc_without_ranking_utility_stays_test(gd):
+    """0.30.0: the situation predicts the outcome (high AUC), the two hints do nothing — the order of hints must not go live."""
+    rnd = random.Random(3)
+    r = g.new_object("regel", "Hinweis A", ["tool:deploy_run"], {"quelle": "x"}, reason="T")
+    e = g.new_object("erkenntnis", "Hinweis B", ["tool:deploy_run"], {"quelle": "x"}, reason="T")
+    for i in range(1600):
+        broken = i % 2 == 0
+        ok = rnd.random() < (0.05 if broken else 0.95)
+        host = "host:kaputt1" if broken else "host:gut1"
+        g.new_object("erfahrung", "deploy", ["tool:deploy_run", host, "ok:ja" if ok else "ok:nein"],
+                     {"vorher": {"reize": ["tool:deploy_run", host], "gezeigt": [rnd.choice([r.id, e.id])]}, "args": {"i": i}},
+                     reason="T", instance="a")
+    b = learning.train("Test")
+    assert b["auc_holdout"] > 0.85 and b["zustand"] == "test" and b["nutzen_holdout"]["zustand"] == "kein_nutzen", b
+    assert "ranking utility kein_nutzen" in b["urteil"] and learning.active() is None
+    assert "Ranking utility on the holdout: kein_nutzen" in learning.explanation()

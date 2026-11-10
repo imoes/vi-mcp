@@ -8,7 +8,8 @@ verdicts only tighten).
 
 Classes (exhaustive; "ok" when none applies):
   dominant      one feature carries the model: |w| ≥ DOMINANT_FACTOR × the DOMINANT_RANK-th largest |w| and ≥ DOMINANT_MIN
-  contradicts   a hint weight and the hint's measured usefulness (bandit, ≥ CONTRA_MIN_N shown) point in opposite directions
+  contradicts   a hint weight and the hint's measured usefulness (bandit, ≥ CONTRA_MIN_N shown) point in opposite directions;
+                since 0.30.0 also a meaning-group weight (inhalt:<c>) against the pooled measured usefulness of the group's hints
   network       a hint from the network (herkunft:p2p) with a strong positive weight and no confirmation by another instance
   hour          an hour feature (stunde:HH) is among the strongest weights — time of day as a cause is post hoc
 """
@@ -54,11 +55,32 @@ def audit(m: g.MemoryObject | None = None) -> dict:
             publisher = next((t[11:] for t in hint.hashtags if t.startswith("herausgeber:")), "?")
             findings.append({"klasse": "network", "merkmal": k,
                              "grund": f"weight {v:+.2f} for a hint from the network ({publisher}) that no other instance confirmed"})
+    for k, v in ranked:  # 0.30.0: a group weight can push down hints that are measured as good (seen 10.11.2026: inhalt:21 −0.72)
+        if not k.startswith("inhalt:") or not k[7:].isdigit() or abs(v) < STRONG:
+            continue
+        lift, n, members = _group_lift(int(k[7:]))
+        if lift is not None and n >= CONTRA_MIN_N and abs(lift) >= CONTRA_MIN_LIFT and (lift > 0) != (v > 0):
+            findings.append({"klasse": "contradicts", "merkmal": k,
+                             "grund": f"group weight {v:+.2f}, but its {members} rated hints measured {lift * 100:+.0f} points over {n} showings"})
     for k, v in ranked[:HOUR_TOP]:
         if k.startswith("stunde:"):
             findings.append({"klasse": "hour", "merkmal": k, "grund": f"weight {v:+.2f} among the {HOUR_TOP} strongest — time of day is not a cause"})
     per = {c: sum(1 for f in findings if f["klasse"] == c) for c in CLASSES}
     return {"zustand": "befunde" if findings else "ok", "befunde": findings, "je_klasse": {c: n for c, n in per.items() if n}}
+
+
+def _group_lift(c: int) -> tuple[float | None, int, int]:
+    """Pooled measured usefulness of the hints in meaning group c: (Σ ok − Σ expected) / Σ shown, Σ shown, number of rated hints."""
+    from . import bandit, content
+    ok = expected = n = members = 0
+    for hid, grp in content._progress().get("gruppe", {}).items():
+        if grp != c or not hid.startswith(bandit.HINT_KINDS):
+            continue
+        o = g.load(hid)
+        z = (o.data.get("nuetzlich") or {}) if o else {}
+        if z.get("n") and "erwartet" in z:
+            ok, expected, n, members = ok + z.get("ok", 0), expected + z["erwartet"], n + int(z["n"]), members + 1
+    return ((ok - expected) / n if n else None), n, members
 
 
 def line(r: dict) -> str:

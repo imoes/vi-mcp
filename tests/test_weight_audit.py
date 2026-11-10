@@ -36,3 +36,17 @@ def test_each_class_is_found(gd):
 def test_sleep_runs_the_audit_after_learning(gd):
     rep = sleep_cycle.run("Test").data["schritte"]
     assert "8b_gewichte_pruefen" in rep and rep["8b_gewichte_pruefen"]["zustand"] in ("kein_modell", "ok", "befunde")
+
+
+def test_group_weight_against_measured_hints(gd, monkeypatch):
+    """0.30.0: a meaning-group weight that pushes down hints which are measured as good is a contradiction, too."""
+    from vi_mcp import content
+    a = g.new_object("erkenntnis", "nginx -t vor reload", ["tool:Bash"], {"quelle": "x", "nuetzlich": {"ja": 9, "nein": 1, "n": 15, "ok": 14, "erwartet": 10}},
+                     reason="T", instance="b")
+    b = g.new_object("regel", "certbot dry-run", ["tool:Bash"], {"quelle": "y", "nuetzlich": {"ja": 8, "nein": 2, "n": 15, "ok": 13, "erwartet": 10}},
+                     reason="T", instance="b")
+    monkeypatch.setattr(content, "_progress", lambda: {"gruppe": {a.id: 21, b.id: 21, "gespraech:x": 21}})
+    _model({"inhalt:21": -0.72, "tool:a": 0.3, "tool:b": 0.2})
+    r = weight_audit.audit()
+    f = [x for x in r["befunde"] if x["merkmal"] == "inhalt:21"]
+    assert len(f) == 1 and f[0]["klasse"] == "contradicts" and "2 rated hints measured +23 points over 30 showings" in f[0]["grund"]

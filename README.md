@@ -125,7 +125,7 @@ vi-mcp never trains the language model. The only weights it learns decide **whic
   raises the chance of success". They are stored as readable JSON in the memory object `modell:router` — every weight belongs to a named
   feature and can be inspected with `vi_model`. `vi_why` shows, for one hint, why it was shown: the stored decision and the weights that
   carried it. The router is taught through the labels (the scorer's verdicts, your feedback on a hint), never by writing weights; after
-  each training fixed rules check the weights and name what looks wrong (one feature dominating, a weight against the measured
+  each training it goes live only if its order of hints pays off on held-back data, and fixed rules check the weights and name what looks wrong (one feature dominating, a weight against the measured
   usefulness, an unconfirmed hint from the network, time of day as a cause).
 - **The bandit** counts per hint how often an action succeeded after it was shown, compared with the base rate (Thompson sampling) — the
   fallback while the router has too little data.

@@ -272,7 +272,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
                 found.append(o.id)
                 answer, age_s = o.data.get("ergebnis", ""), int(age)
     access = {"reize": rz, "warnung": bool(warn), "gefunden": found, "gezeigt": [o.id for o in shown_obj], "kandidaten": candidate_ids,
-               "router": router, "exploration": exploration, "suchen": search, "aus_gedaechtnis": answer is not None,
+               "router": router, "exploration": exploration, "rest_n": len(rest), "suchen": search, "aus_gedaechtnis": answer is not None,
                "repeat_suppressed": [o.id for o in repeated]}
     before_id = secrets.token_hex(8)
     if answer is not None:
@@ -339,7 +339,9 @@ def explain(hint: g.MemoryObject, instance: str, triggers: list[str] | None = No
         w = learning.why(m, hint.id, triggers, ts)
         z.append(f"  Router model ({m.mode}, trained {str(m.data.get('trainiert', '—'))[:16]}; today's weights, the decision may have used an older version): "
                  f"P(ok) without hint {w['p_without'] * 100:.0f} %, with {w['p_with'] * 100:.0f} % → lift {w['lift'] * 100:+.1f} points")
-        z += [f"    {k:46} {c:+.3f}" for k, c in w["hint"][:8]]
+        z.append(f"    what sets this hint apart from the other candidates (decides the order): {w['distinguishing_sum']:+.3f}")
+        z += [f"      {k:44} {c:+.3f}" for k, c in w["distinguishing"][:8]] or ["      — none of its features is in the model"]
+        z.append(f"    same for every candidate (moves all lifts alike, never the order): hinweis_n:1 − hinweis_n:0 = {w['same_for_all']:+.3f}")
         if w["hint_unknown"]:
             z.append(f"    not in the model (fewer than {learning.MIN_PER_FEATURE} observations): {', '.join(w['hint_unknown'][:6])}")
         if w["situation"]:

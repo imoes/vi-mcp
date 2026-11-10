@@ -40,6 +40,9 @@ HOLDOUT = 0.2
 #: holdout AUC fell from 0.92 to 0.70 when the most recent 20 % consisted almost only of successful Bash calls (9 failures in 230 actions).
 HOLDOUT_MAX = 0.5
 HOLDOUT_MIN_ERRORS = 30
+#: 0.30.0 utility gate: the model's ranking must order shown hints by their measured advantage, not only separate ok from not ok.
+#: Top quarter of holdout pairs by the model's lift against the bottom quarter, advantage = label − base rate of the tool.
+UTILITY_MIN_PER_QUARTER = 30
 TRIGGER_KINDS = ("tool:", "skill:", "host:", "thema:")
 
 
@@ -49,8 +52,26 @@ def action_features(triggers: list[str], ts: str) -> dict:
     return m
 
 
-def hint_features(hid: str, triggers: list[str] | None = None) -> dict:
+def _born(hid: str, cache: dict | None) -> str | None:
+    """Creation time of a hint (fixed field, so a cache per run is safe)."""
+    if cache is not None and hid in cache:
+        return cache[hid]
+    with g.lock:
+        r = g.db().execute("SELECT zeit FROM objekt WHERE id = ?", (hid,)).fetchone()
+    if cache is not None:
+        cache[hid] = r[0] if r else None
+    return r[0] if r else None
+
+
+def hint_features(hid: str, triggers: list[str] | None = None, ts: str | None = None, born: dict | None = None) -> dict:
     m = {f"hinweis:{hid}": 1.0, f"hinweisart:{hid.split(':')[0]}": 1.0}
+    # 0.30.0: was the hint new when it was shown (≤ metrics.NEW_DAYS)? Its weight answers the cold-start question directly, and the
+    # router can make up for it. Same threshold as the observation point metrics.lift_by_age — one definition of "new".
+    if ts and (b := _born(hid, born)):
+        from .metrics import NEW_DAYS
+        from datetime import datetime
+        if (datetime.fromisoformat(ts) - datetime.fromisoformat(b)).total_seconds() <= NEW_DAYS * 86400:
+            m["alter:neu"] = 1.0
     if CONTENT:
         from . import content
         if (c := content.group(hid)) is not None:
@@ -71,6 +92,7 @@ def observations(since: str | None = None) -> list[tuple[dict, int, str]]:
         ok_yes = {r[0] for r in g.db().execute("SELECT objekt_id FROM tag WHERE tag = 'ok:ja'")}
     from . import scorer
     grades = scorer.conversation_grades()
+    born: dict = {}
     for oid, ts, data, serial in rows:
         if oid not in labeled:
             continue
@@ -89,7 +111,7 @@ def observations(since: str | None = None) -> list[tuple[dict, int, str]]:
             outputs.append((base, y, oid))
         rm = d.get("rueckmeldung") or {}  # 0.20.9: direct feedback (vi_confirm/vi_refute) replaces the pair's indirect label
         for h in shown:
-            outputs.append(({**base, **hint_features(h, v.get("reize", []))}, (1 if rm[h] > 0 else 0) if h in rm else y, oid))
+            outputs.append(({**base, **hint_features(h, v.get("reize", []), ts, born)}, (1 if rm[h] > 0 else 0) if h in rm else y, oid))
     return outputs
 
 
@@ -115,22 +137,32 @@ def contributions(m: g.MemoryObject, features: dict) -> list[tuple[str, float]]:
 
 def why(m: g.MemoryObject, hint_id: str, triggers: list[str], ts: str | None = None) -> dict:
     """0.29.0: the same arithmetic as ranking() for one hint, laid open: P(ok) without and with the hint, the lift, and which
-    features carry it. Situation features cancel out in the lift; the hint's own features and hinweis_n decide."""
-    base = action_features(triggers, ts or g.now())
-    hint = hint_features(hint_id, triggers)
+    features carry it. Situation features cancel out in the lift; the hint's own features and hinweis_n decide.
+    0.30.0: hinweis_n is the same for every candidate — it moves every lift alike and never changes the order. It is reported apart
+    ("same_for_all"), and "distinguishing" holds only what sets this hint apart from the other candidates (measured 10.11.2026: a hint
+    with +3 points measured usefulness showed "lift −14", mostly from hinweis_n:1 −0.35, which says nothing about this hint)."""
+    ts = ts or g.now()
+    base = action_features(triggers, ts)
+    hint = hint_features(hint_id, triggers, ts)
     p0 = prediction(m, {**base, "hinweis_n:0": 1.0})
     p1 = prediction(m, {**base, "hinweis_n:1": 1.0, **hint})
+    w = m.data["gewichte"]
+    own = contributions(m, hint)
     return {"p_without": p0, "p_with": p1, "lift": p1 - p0, "intercept": m.data["achsenabschnitt"],
-            "hint": contributions(m, {"hinweis_n:1": 1.0, **hint}), "hint_unknown": [k for k in hint if k not in m.data["gewichte"]],
-            "situation": contributions(m, base)}
+            "hint": contributions(m, {"hinweis_n:1": 1.0, **hint}), "distinguishing": own,
+            "distinguishing_sum": sum(c for _, c in own),
+            "same_for_all": w.get("hinweis_n:1", 0.0) - w.get("hinweis_n:0", 0.0),
+            "hint_unknown": [k for k in hint if k not in w], "situation": contributions(m, base)}
 
 
 def ranking(m: g.MemoryObject, triggers: list[str], candidates: list[str], ts: str | None = None) -> list[tuple[str, float]]:
     """Candidates by expected lift (descending). Unknown hints have lift 0 (only their kind counts)."""
-    base = action_features(triggers, ts or g.now())
+    ts = ts or g.now()
+    base = action_features(triggers, ts)
     with_hint = {**base, "hinweis_n:1": 1.0}
     p0 = prediction(m, {**base, "hinweis_n:0": 1.0})
-    return sorted(((h, prediction(m, {**with_hint, **hint_features(h, triggers)}) - p0) for h in candidates), key=lambda x: -x[1])
+    born: dict = {}
+    return sorted(((h, prediction(m, {**with_hint, **hint_features(h, triggers, ts, born)}) - p0) for h in candidates), key=lambda x: -x[1])
 
 
 def active() -> g.MemoryObject | None:
@@ -176,18 +208,56 @@ def train(reason: str = "sleep") -> dict:
     weights = {name: round(float(w), 4) for name, w in zip(vec.get_feature_names_out(), clf.coef_[0]) if abs(w) > 1e-6}
     report.update(auc_holdout=None if auc is None else round(auc, 3), holdout=n_test, holdout_fehler=int(len(yte) - yte.sum()),
                    rueckmeldungen=sum(len((json.loads(r[0]) or {}).get("rueckmeldung") or {}) for r in _feedbacks()))
+    u = utility(weights, float(clf.intercept_[0]), obs[-n_test:])
+    report["nutzen_holdout"] = u
     if auc is None or auc <= AUC_MIN:
         report.update(zustand="test", urteil=f"holdout AUC {auc} ≤ {AUC_MIN} or not determinable — model saved, router stays heuristic")
         mode = "test"
+    elif u["zustand"] != "nutzen":  # 0.30.0: classification alone is not enough, the order has to pay off
+        report.update(zustand="test", urteil=f"holdout AUC {auc:.3f} > {AUC_MIN}, but ranking utility {u['zustand']}: "
+                                             f"{u.get('urteil') or u.get('grund')} — model saved, router stays heuristic/bandit")
+        mode = "test"
     else:
-        report.update(zustand="aktiv", urteil=f"holdout AUC {auc:.3f} > {AUC_MIN} — router uses the model")
+        report.update(zustand="aktiv", urteil=f"holdout AUC {auc:.3f} > {AUC_MIN} and ranking pays off ({u['urteil']}) — router uses the model")
         mode = "aktiv"
-    report["warnung"] = _warn_threshold(clf, vec, obs[-n_test:]) if mode == "aktiv" else {"zustand": "aus", "grund": "model not active"}
+    # 0.30.0: the warning needs only that the model tells failures apart (AUC); the ranking needs more (utility). Two abilities, two gates.
+    auc_ok = auc is not None and auc > AUC_MIN
+    report["warnung"] = _warn_threshold(clf, vec, obs[-n_test:]) if auc_ok else {"zustand": "aus", "grund": f"holdout AUC {auc} ≤ {AUC_MIN}"}
     report["quoten"] = _ratios(obs, kept)
     _save(report, weights, float(clf.intercept_[0]), mode)
     log(f"Learning: {report['zustand']} — n {len(obs)}, features {len(kept)}, AUC {report.get('auc_holdout')}, "
         f"warning {report['warnung'].get('zustand')}")
     return report
+
+
+def utility(weights: dict, intercept: float, holdout: list) -> dict:
+    """0.30.0: does the model's order bring more success? Over the holdout pairs (a shown hint with its label) the pairs are sorted by
+    the model's lift for that hint; the gap = mean advantage (label − base rate of the tool) of the top quarter minus the bottom quarter,
+    with its standard error. AUC only says whether ok and not ok are told apart — a model can do that from the situation alone and still
+    order the hints at random. Not an off-policy estimate (propensities exist only for the ε slot); a proxy on the hints that were shown.
+    Not compared with the previous model: training on demand runs every minute, so the previous model has seen most of this holdout."""
+    from . import bandit
+    m = type("M", (), {"data": {"gewichte": weights, "achsenabschnitt": intercept}})()
+    scored = []
+    for f, y, _o in holdout:
+        if not any(k.startswith("hinweis:") for k in f):
+            continue
+        tool = next((k[5:] for k in f if k.startswith("tool:")), "?")
+        scored.append((prediction(m, f) - prediction(m, _base(f)), y - bandit.base_rate(tool)))
+    q = len(scored) // 4
+    if q < UTILITY_MIN_PER_QUARTER:
+        return {"zustand": "nicht_bestimmbar", "paare": len(scored),
+                "grund": f"{len(scored)} holdout pairs with a hint — at least {4 * UTILITY_MIN_PER_QUARTER} needed ({UTILITY_MIN_PER_QUARTER} per quarter)"}
+    scored.sort(key=lambda t: -t[0])
+    top, bottom = [a for _, a in scored[:q]], [a for _, a in scored[-q:]]
+    mean = lambda v: sum(v) / len(v)
+    var = lambda v: sum((x - mean(v)) ** 2 for x in v) / (len(v) - 1)
+    gap, se = mean(top) - mean(bottom), math.sqrt(var(top) / q + var(bottom) / q)
+    ok = gap > 0 and gap > se
+    return {"zustand": "nutzen" if ok else "kein_nutzen", "paare": len(scored), "je_viertel": q, "oben": round(mean(top), 4),
+            "unten": round(mean(bottom), 4), "abstand": round(gap, 4), "standardfehler": round(se, 4),
+            "urteil": (f"top quarter {mean(top) * 100:+.1f} points over the base rate, bottom {mean(bottom) * 100:+.1f} → gap "
+                       f"{gap * 100:+.1f} ± {se * 100:.1f} points" + ("" if ok else " — not larger than 0 and its standard error"))}
 
 
 def _holdout_size(y: list[int]) -> int:
@@ -249,8 +319,9 @@ def _warn_threshold(clf, vec, holdout: list) -> dict:
 
 
 def warning(triggers: list[str], ts: str | None = None) -> str | None:
-    """Warning before a risky action — only with an active model and active threshold, only with a nameable reason (counted rate)."""
-    m = active()
+    """Warning before a risky action — only with an active threshold (set when the holdout AUC passed, also for a model whose ranking
+    is not active, 0.30.0) and only with a nameable reason (counted rate)."""
+    m = model()
     w = (m.data.get("warnung") or {}) if m else {}
     if w.get("zustand") != "aktiv":
         return None
@@ -289,6 +360,9 @@ def explanation(limit: int = 12) -> str:
     z = [m.text, f"  trained {str(d.get('trainiert', '—'))[:16]} · sklearn {d.get('sklearn', '—')} · ok {d.get('ok', 0)} / not ok {d.get('nicht_ok', 0)} "
                  f"· features {d.get('merkmale', 0)} (dropped {d.get('verworfen', 0)}: < {MIN_PER_FEATURE} occurrences) · holdout {d.get('holdout', 0)} "
                  f"({d.get('holdout_fehler', '—')} failures) · direct feedback on hints {d.get('rueckmeldungen', 0)}"]
+    u = d.get("nutzen_holdout")
+    if u:  # 0.30.0
+        z.append(f"  Ranking utility on the holdout: {u['zustand']} — {u.get('urteil') or u.get('grund')}")
     w = sorted(d.get("gewichte", {}).items(), key=lambda kv: -abs(kv[1]))[:limit]
     if w:
         z.append("  strongest weights (positive = raises P(ok)):")

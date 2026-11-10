@@ -128,7 +128,7 @@ wahr ist:
   die Erfolgschance.“ Sie liegen als lesbares JSON im Gedächtnisobjekt `modell:router` — jedes Gewicht gehört zu einem benannten Merkmal und
   ist mit `vi_model` einsehbar. `vi_why` zeigt für einen Hinweis, warum er gezeigt wurde: die gespeicherte Entscheidung und die Gewichte,
   die ihn getragen haben. Der Router lernt über die Labels (Urteile des Scorers, deine Rückmeldung zu einem Hinweis), nie dadurch, dass
-  jemand Gewichte schreibt; nach jedem Training prüfen feste Regeln die Gewichte und benennen, was falsch aussieht (ein Merkmal dominiert,
+  jemand Gewichte schreibt; nach jedem Training geht er nur live, wenn seine Reihenfolge auf zurückgehaltenen Daten mehr Erfolg bringt, und feste Regeln prüfen die Gewichte und benennen, was falsch aussieht (ein Merkmal dominiert,
   ein Gewicht gegen den gemessenen Nutzen, ein unbestätigter Hinweis aus dem Netz, die Uhrzeit als Ursache).
 - **Der Bandit** zählt je Hinweis, wie oft eine Handlung danach gelang, verglichen mit der Grundrate (Thompson Sampling) — der Rückfall,
   solange der Router zu wenig Daten hat.

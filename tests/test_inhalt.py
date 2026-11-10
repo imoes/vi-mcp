@@ -67,6 +67,7 @@ def test_model_learns_the_content(knowledge, monkeypatch):
     content.compute()
     rng = random.Random(9)
     monkeypatch.setattr(learning, "MIN_EVENTS", 20)
+    monkeypatch.setattr(learning, "UTILITY_MIN_PER_QUARTER", 10)  # 0.30.0: 400 actions give 80 holdout pairs
     for n in range(400):
         topic = rng.choice(["tls", "disk"])
         hid = rng.choice(knowledge[topic])

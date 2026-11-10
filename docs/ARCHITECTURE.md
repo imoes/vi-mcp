@@ -288,6 +288,19 @@ which context — docs/TRAINING.md 4a/4b.
   Every observation names `router` (`heuristik`|`modell`), `kandidaten`, `gezeigt`, `exploration`.
 - **Minimum amounts** (Peduzzi 1996): features with < 10 occurrences are dropped; min(ok, not ok) < 50 or holdout AUC
   ≤ 0.6 → mode `test` (stored, shown, not used). Holdout = the chronologically last 20 %.
+- **Ranking utility gate** (0.30.0, `learning.utility`). AUC says whether the model tells ok from not ok — it can do that from the
+  situation alone and still order the hints at random. Before the router uses a model, its order has to pay off on the holdout: the
+  holdout pairs (a shown hint and its label) sorted by the model's lift, mean advantage over the tool's base rate of the top quarter minus
+  the bottom quarter; it must be > 0 and larger than its standard error, with at least 30 pairs per quarter, else `nicht_bestimmbar`
+  (named, mode stays `test`). A proxy on shown hints, not an off-policy estimate: propensities exist only for the ε slot (`rest_n` is
+  logged since 0.30.0 so one can be computed later). Not compared with the previous model, because training on demand runs about every
+  minute and the previous model has already seen most of this holdout. Same principle as the "non-decreasing validation utility" gate of
+  WeightLoop (arXiv 2611.07319) and the downstream check of Google's sleep framework: what is learned goes live only when it pays off.
+  Any weight vector passes through this gate the same way — retrained, written by hand or by a language model.
+- **Warning and ranking are two abilities with two gates** (0.30.0): the warning before risky actions needs only the AUC (it classifies the
+  situation); the ranking also needs the utility gate. A model in mode `test` can therefore still warn.
+- **Hint age as a feature** (0.30.0): `alter:neu` when the hint was at most `metrics.NEW_DAYS` (7) days old when shown — the same threshold
+  as the cold-start observation point, so its weight answers the cold-start question directly.
 - **Documentation gets triggers** (0.26.0, sleep step `6b_doc_triggers`, `doc_triggers.py`): imported documentation (company docs, vendor
   docs, manuals) gets `host:` for hosts the memory already knows from outside the documentation and `thema:` for topics learned knowledge
   already uses (title only). Links are ignored; a host in more than 2 %, a topic in more than 5 % of all documentation is skipped; at most
