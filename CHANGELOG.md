@@ -3,6 +3,37 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.32.0 — 2026-11-10 — The gate after a philosophical review
+
+Prompted by checking the design against the strongest objections of epistemology (SEP: *Reliabilist Epistemology*, *Underdetermination
+of Scientific Theory*, *Jury Theorems*, *Philosophy of Statistics*, *Many-Valued Logic*, *The Problem of Induction*), 10.11.2026.
+
+### What has changed
+
+- **Stricter utility gate (severity, Mayo 2018).** The ranking gap must now exceed **two** standard errors instead of one. With one, a
+  model without any real ranking effect passed in about 16 % of trainings (normal approximation), with two in about 2 %. The verdict
+  names the gap in standard errors. Production on 10.11.2026 had 26.7 ± 2.8 points, about 9.5 SE — unaffected.
+  *Proof:* `test_gate_needs_two_standard_errors` (a gap of 1.5 SE no longer passes).
+- **Gate in two reference classes (generality problem of reliabilism).** The advantage is measured against the base rate of the tool and
+  of tool + host (the latter from the training part only); the model goes live only if both pass. A hint shown only on easy hosts no
+  longer looks useful because of the host. *Proof:* `test_gate_must_hold_in_every_reference_class`.
+
+### What is new
+
+- **Inseparable hints (Duhem) in `vi_model`**: groups of hints that were always shown in the same actions — their effect cannot be told
+  apart, an outcome confirms or refutes them only together. *Proof:* `test_inseparable_hints_are_named`.
+
+### Documentation
+
+- The design rule "excluded middle" is named for what it is: a **complete case distinction** — every case falls into exactly one named
+  class, while the truth values may be three-valued (Kleene K3, where A ∨ ¬A is not a tautology; "not determinable" is itself a value).
+
+### What is still missing
+
+- Confirmations by other instances still count as independent even when they share a model family or a source (Condorcet's independence
+  condition) — planned separately (V8).
+- 0 human grades so far: the model scorer cannot be calibrated and therefore does not count for learning.
+
 ## 0.31.0 — 2026-11-10 — Read-only search for measurements
 
 ### What is new

@@ -328,7 +328,7 @@ def _content_features() -> dict:
 def _learning() -> dict:
     from . import learning
     b = learning.train("sleep")
-    return {k: b.get(k) for k in ("zustand", "n", "merkmale", "auc_holdout", "nutzen_holdout", "grund", "urteil") if k in b}
+    return {k: b.get(k) for k in ("zustand", "n", "merkmale", "auc_holdout", "nutzen_holdout", "untrennbar", "grund", "urteil") if k in b}
 
 
 def _weight_audit() -> dict:

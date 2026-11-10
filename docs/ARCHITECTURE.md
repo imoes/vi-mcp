@@ -293,12 +293,18 @@ which context — docs/TRAINING.md 4a/4b.
 - **Ranking utility gate** (0.30.0, `learning.utility`). AUC says whether the model tells ok from not ok — it can do that from the
   situation alone and still order the hints at random. Before the router uses a model, its order has to pay off on the holdout: the
   holdout pairs (a shown hint and its label) sorted by the model's lift, mean advantage over the tool's base rate of the top quarter minus
-  the bottom quarter; it must be > 0 and larger than its standard error, with at least 30 pairs per quarter, else `nicht_bestimmbar`
+  the bottom quarter; it must be > 0 and larger than two standard errors (0.32.0, Mayo's severity: with one it passed without any real
+  effect in about 16 % of trainings), in both reference classes — base rate of the tool and of tool + host (0.32.0, the generality
+  problem of reliabilism: which reference class defines "reliable" is a choice, so no single choice may decide) — with at least 30
+  pairs per quarter, else `nicht_bestimmbar`
   (named, mode stays `test`). A proxy on shown hints, not an off-policy estimate: propensities exist only for the ε slot (`rest_n` is
   logged since 0.30.0 so one can be computed later). Not compared with the previous model, because training on demand runs about every
   minute and the previous model has already seen most of this holdout. Same principle as the "non-decreasing validation utility" gate of
   WeightLoop (arXiv 2611.07319) and the downstream check of Google's sleep framework: what is learned goes live only when it pays off.
   Any weight vector passes through this gate the same way — retrained, written by hand or by a language model.
+- **Inseparable hints** (0.32.0, `learning.inseparable`, Duhem): hints always shown in the same actions (≥ 10 times) are confirmed or
+  refuted only together; `vi_model` names them, so their weights are not read as individual evidence. Direct feedback on one hint
+  (`vi_confirm`/`vi_refute`) is what separates them.
 - **Warning and ranking are two abilities with two gates** (0.30.0): the warning before risky actions needs only the AUC (it classifies the
   situation); the ranking also needs the utility gate. A model in mode `test` can therefore still warn.
 - **Hint age as a feature** (0.30.0): `alter:neu` when the hint was at most `metrics.NEW_DAYS` (7) days old when shown — the same threshold
@@ -499,7 +505,7 @@ ends the session. Answers as `application/json`, no SSE. Protocol versions 2025-
 |---|---|
 | Identity | one memory, one process, one loop; one serial number per conversation; terms in code = docs = tool texts |
 | Non-contradiction | reason is checked before the change (a rejection changes nothing); counters atomic; writing tools never from memory |
-| Excluded middle | `ok:ja/nein/unbekannt`; conversation states and modes exhaustive; before without after is stored, not discarded |
+| Complete case distinction (excluded middle for cases, not truth values — three-valued, Kleene K3) | `ok:ja/nein/unbekannt`; conversation states and modes exhaustive; before without after is stored, not discarded |
 | Sufficient reason | every rejection names the reason; every change carries reason and owner; hints name their source; loop errors in the status |
 | Intension/extension | rule/search/reflex (target) separated from experience/conversation (actual); origin via `instanz:` and `aenderungen` |
 

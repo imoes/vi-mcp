@@ -306,3 +306,33 @@ def test_good_auc_without_ranking_utility_stays_test(gd):
     assert b["auc_holdout"] > 0.85 and b["zustand"] == "test" and b["nutzen_holdout"]["zustand"] == "kein_nutzen", b
     assert "ranking utility kein_nutzen" in b["urteil"] and learning.active() is None
     assert "Ranking utility on the holdout: kein_nutzen" in learning.explanation()
+
+
+def test_gate_needs_two_standard_errors():
+    """0.32.0 (Mayo, severity): a gap of about 1.5 standard errors passed the old gate (> 1 SE), it no longer does."""
+    top = [(1.0, 0.7 if i % 2 else -0.3) for i in range(30)]      # mean +0.2
+    bottom = [(0.0, 0.5 if i % 2 else -0.5) for i in range(30)]   # mean 0
+    r = learning._gap(top + bottom, 30)
+    assert 1.0 < r["abstand"] / r["standardfehler"] < 2.0 and r["zustand"] == "kein_nutzen" and "2 standard errors" in r["urteil"]
+
+
+def test_gate_must_hold_in_every_reference_class(monkeypatch):
+    """0.32.0 (generality problem): hint A is only shown on an easy host, hint B only on a hard one. Against the tool's base rate the
+    order looks useful; against tool+host it is not — the "usefulness" was the host. The gate must not pass."""
+    from vi_mcp import bandit
+    monkeypatch.setattr(bandit, "base_rate", lambda tool: 0.55)
+    train = [({"tool:t": 1.0, "host:easy": 1.0, "hinweis_n:0": 1.0}, int(i % 10 != 0), f"e{i}") for i in range(50)]
+    train += [({"tool:t": 1.0, "host:hard": 1.0, "hinweis_n:0": 1.0}, int(i % 10 < 2), f"h{i}") for i in range(50)]
+    holdout = [({"tool:t": 1.0, "host:easy": 1.0, "hinweis_n:1": 1.0, "hinweis:A": 1.0}, int(i % 10 != 0), f"a{i}") for i in range(100)]
+    holdout += [({"tool:t": 1.0, "host:hard": 1.0, "hinweis_n:1": 1.0, "hinweis:B": 1.0}, int(i % 10 < 2), f"b{i}") for i in range(100)]
+    u = learning.utility({"hinweis:A": 2.0, "hinweis:B": -2.0}, 0.0, holdout, train)
+    assert u["je_bezugsklasse"]["tool"]["zustand"] == "nutzen" and u["je_bezugsklasse"]["tool+host"]["zustand"] == "kein_nutzen"
+    assert u["zustand"] == "kein_nutzen" and "tool+host:" in u["urteil"]
+
+
+def test_inseparable_hints_are_named():
+    """0.32.0 (Duhem): two hints always shown in the same actions are reported as one group; a hint also shown alone is not."""
+    obs = [({"hinweis:A": 1.0, "hinweis:B": 1.0, "hinweis:C": 1.0}, 1, f"x{i}") for i in range(12)]
+    obs += [({"hinweis:C": 1.0}, 0, f"y{i}") for i in range(3)]
+    r = learning.inseparable(obs)
+    assert r == {"gruppen": 1, "hinweise": 2, "beispiele": [["A", "B"]]}

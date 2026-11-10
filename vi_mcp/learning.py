@@ -43,6 +43,12 @@ HOLDOUT_MIN_ERRORS = 30
 #: 0.30.0 utility gate: the model's ranking must order shown hints by their measured advantage, not only separate ok from not ok.
 #: Top quarter of holdout pairs by the model's lift against the bottom quarter, advantage = label − base rate of the tool.
 UTILITY_MIN_PER_QUARTER = 30
+#: 0.32.0 (Mayo, severe testing): the gap must exceed UTILITY_SE standard errors. With 1 SE a model without any real ranking effect
+#: passed in about 16 % of trainings (normal approximation); with 2 SE in about 2 %.
+UTILITY_SE = 2.0
+#: 0.32.0 (generality problem of reliabilism): "advantage over the base rate" depends on the reference class. The gate must hold for
+#: each of them — the tool alone, and tool plus host — so that no single arbitrary choice decides.
+REFERENCE_CLASSES = ("tool", "tool+host")
 TRIGGER_KINDS = ("tool:", "skill:", "host:", "thema:")
 
 
@@ -208,8 +214,9 @@ def train(reason: str = "sleep") -> dict:
     weights = {name: round(float(w), 4) for name, w in zip(vec.get_feature_names_out(), clf.coef_[0]) if abs(w) > 1e-6}
     report.update(auc_holdout=None if auc is None else round(auc, 3), holdout=n_test, holdout_fehler=int(len(yte) - yte.sum()),
                    rueckmeldungen=sum(len((json.loads(r[0]) or {}).get("rueckmeldung") or {}) for r in _feedbacks()))
-    u = utility(weights, float(clf.intercept_[0]), obs[-n_test:])
+    u = utility(weights, float(clf.intercept_[0]), obs[-n_test:], obs[:-n_test])
     report["nutzen_holdout"] = u
+    report["untrennbar"] = inseparable(obs)
     if auc is None or auc <= AUC_MIN:
         report.update(zustand="test", urteil=f"holdout AUC {auc} ≤ {AUC_MIN} or not determinable — model saved, router stays heuristic")
         mode = "test"
@@ -230,34 +237,80 @@ def train(reason: str = "sleep") -> dict:
     return report
 
 
-def utility(weights: dict, intercept: float, holdout: list) -> dict:
+def _ref_rates(train_obs: list) -> dict:
+    """Success rate without a hint per (tool, host), Laplace-smoothed, only with at least 10 cases (as bandit.BASE_MIN)."""
+    from . import bandit
+    counts: dict[tuple[str, str], list[int]] = {}
+    for f, y, _o in train_obs:
+        if "hinweis_n:0" not in f:
+            continue
+        key = (next((k[5:] for k in f if k.startswith("tool:")), "?"), next((k for k in f if k.startswith("host:")), "—"))
+        c = counts.setdefault(key, [0, 0])
+        c[0] += y
+        c[1] += 1
+    return {k: (ok + 1) / (n + 2) for k, (ok, n) in counts.items() if n >= bandit.BASE_MIN}
+
+
+def _gap(scored: list[tuple[float, float]], q: int) -> dict:
+    top, bottom = [a for _, a in scored[:q]], [a for _, a in scored[-q:]]
+    mean = lambda v: sum(v) / len(v)
+    var = lambda v: sum((x - mean(v)) ** 2 for x in v) / (len(v) - 1)
+    gap, se = mean(top) - mean(bottom), math.sqrt(var(top) / q + var(bottom) / q)
+    ok = gap > 0 and gap > UTILITY_SE * se
+    return {"zustand": "nutzen" if ok else "kein_nutzen", "oben": round(mean(top), 4), "unten": round(mean(bottom), 4),
+            "abstand": round(gap, 4), "standardfehler": round(se, 4),
+            "urteil": (f"top quarter {mean(top) * 100:+.1f} points over the base rate, bottom {mean(bottom) * 100:+.1f} → gap "
+                       f"{gap * 100:+.1f} ± {se * 100:.1f} points ({gap / se if se else float('inf'):.1f} SE)"
+                       + ("" if ok else f" — not larger than 0 and {UTILITY_SE:g} standard errors"))}
+
+
+def utility(weights: dict, intercept: float, holdout: list, train_obs: list | None = None) -> dict:
     """0.30.0: does the model's order bring more success? Over the holdout pairs (a shown hint with its label) the pairs are sorted by
-    the model's lift for that hint; the gap = mean advantage (label − base rate of the tool) of the top quarter minus the bottom quarter,
-    with its standard error. AUC only says whether ok and not ok are told apart — a model can do that from the situation alone and still
-    order the hints at random. Not an off-policy estimate (propensities exist only for the ε slot); a proxy on the hints that were shown.
-    Not compared with the previous model: training on demand runs every minute, so the previous model has seen most of this holdout."""
+    the model's lift for that hint; the gap = mean advantage (label − base rate) of the top quarter minus the bottom quarter, with its
+    standard error. AUC only says whether ok and not ok are told apart — a model can do that from the situation alone and still order the
+    hints at random. Not an off-policy estimate (propensities exist only for the ε slot); a proxy on the hints that were shown.
+    Not compared with the previous model: training on demand runs every minute, so the previous model has seen most of this holdout.
+    0.32.0: the gap must exceed UTILITY_SE standard errors (severity) and hold in every reference class (generality problem); the base
+    rates for tool+host come from the training part only, never from the holdout."""
     from . import bandit
     m = type("M", (), {"data": {"gewichte": weights, "achsenabschnitt": intercept}})()
-    scored = []
+    rates = _ref_rates(train_obs or [])
+    scored = []  # (lift, y, tool, host)
     for f, y, _o in holdout:
         if not any(k.startswith("hinweis:") for k in f):
             continue
         tool = next((k[5:] for k in f if k.startswith("tool:")), "?")
-        scored.append((prediction(m, f) - prediction(m, _base(f)), y - bandit.base_rate(tool)))
+        host = next((k for k in f if k.startswith("host:")), "—")
+        scored.append((prediction(m, f) - prediction(m, _base(f)), y, tool, host))
     q = len(scored) // 4
     if q < UTILITY_MIN_PER_QUARTER:
         return {"zustand": "nicht_bestimmbar", "paare": len(scored),
                 "grund": f"{len(scored)} holdout pairs with a hint — at least {4 * UTILITY_MIN_PER_QUARTER} needed ({UTILITY_MIN_PER_QUARTER} per quarter)"}
     scored.sort(key=lambda t: -t[0])
-    top, bottom = [a for _, a in scored[:q]], [a for _, a in scored[-q:]]
-    mean = lambda v: sum(v) / len(v)
-    var = lambda v: sum((x - mean(v)) ** 2 for x in v) / (len(v) - 1)
-    gap, se = mean(top) - mean(bottom), math.sqrt(var(top) / q + var(bottom) / q)
-    ok = gap > 0 and gap > se
-    return {"zustand": "nutzen" if ok else "kein_nutzen", "paare": len(scored), "je_viertel": q, "oben": round(mean(top), 4),
-            "unten": round(mean(bottom), 4), "abstand": round(gap, 4), "standardfehler": round(se, 4),
-            "urteil": (f"top quarter {mean(top) * 100:+.1f} points over the base rate, bottom {mean(bottom) * 100:+.1f} → gap "
-                       f"{gap * 100:+.1f} ± {se * 100:.1f} points" + ("" if ok else " — not larger than 0 and its standard error"))}
+    base = {"tool": lambda tool, host: bandit.base_rate(tool),
+            "tool+host": lambda tool, host: rates.get((tool, host), bandit.base_rate(tool))}
+    per = {c: _gap([(s_, y - base[c](t, h)) for s_, y, t, h in scored], q) for c in REFERENCE_CLASSES}
+    ok = all(r["zustand"] == "nutzen" for r in per.values())
+    first = per[REFERENCE_CLASSES[0]]
+    return {"zustand": "nutzen" if ok else "kein_nutzen", "paare": len(scored), "je_viertel": q,
+            **{k: first[k] for k in ("oben", "unten", "abstand", "standardfehler")}, "je_bezugsklasse": per,
+            "urteil": "; ".join(f"{c}: {r['urteil']}" for c, r in per.items())}
+
+
+def inseparable(obs: list) -> dict:
+    """0.32.0 (Duhem): hints that were always shown together (in the same actions, at least MIN_PER_FEATURE times) cannot be told apart
+    — an outcome confirms or refutes them only as a group. Named so that their weights are not read as individual evidence."""
+    shown_in: dict[str, set] = {}
+    for f, _y, oid in obs:
+        for k in f:
+            if k.startswith("hinweis:"):
+                shown_in.setdefault(k[8:], set()).add(oid)
+    groups: dict[frozenset, list[str]] = {}
+    for h, oids in shown_in.items():
+        if len(oids) >= MIN_PER_FEATURE:
+            groups.setdefault(frozenset(oids), []).append(h)
+    multi = sorted((sorted(v) for v in groups.values() if len(v) > 1), key=lambda v: -len(v))
+    return {"gruppen": len(multi), "hinweise": sum(len(v) for v in multi), "beispiele": [v[:4] for v in multi[:5]]}
 
 
 def _holdout_size(y: list[int]) -> int:
@@ -363,6 +416,11 @@ def explanation(limit: int = 12) -> str:
     u = d.get("nutzen_holdout")
     if u:  # 0.30.0
         z.append(f"  Ranking utility on the holdout: {u['zustand']} — {u.get('urteil') or u.get('grund')}")
+    t = d.get("untrennbar")
+    if t is not None:  # 0.32.0
+        z.append("  Inseparable hints (always shown together, the model cannot tell their effect apart): "
+                 + (f"{t['gruppen']} group(s) with {t['hinweise']} hints, e.g. " + "; ".join(" + ".join(g) for g in t["beispiele"][:2])
+                    if t["gruppen"] else "none"))
     w = sorted(d.get("gewichte", {}).items(), key=lambda kv: -abs(kv[1]))[:limit]
     if w:
         z.append("  strongest weights (positive = raises P(ok)):")
