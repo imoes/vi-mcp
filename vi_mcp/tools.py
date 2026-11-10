@@ -46,7 +46,7 @@ LEARN (vi_learn: text = one concrete key statement; content = complete, with com
 8. Something turns out to be wrong: mark wrong VI knowledge with vi_refute, learn the correction.
 Search before learning: if it is already there, vi_confirm instead of creating it again. If a hint helped, vi_confirm; if it was wrong, vi_refute.
 Code: the code of a solution, a fix, a reusable script or a query belongs in content, complete and runnable. Not a copy of a file that lives in a repository: name repository, path and commit instead.
-Images (screenshots, diagrams, photos): vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F.json] (regions in SAM 3 format); vi_object shows them.
+Images are their own kind (art:bild). Save a screenshot when it shows what text would lose: an error dialog, a UI state, a configuration screen, a graph — take it (e.g. browser_take_screenshot) and store it with vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F.json] (text = what it shows, content = full description, regions in SAM 3 format); vi_object shows it. Never screenshots with passwords or tokens on screen.
 Never learn: passwords, tokens, keys; unproven claims (only explicitly as a hypothesis); transient state (progress, current load); copies of what is maintained in a repository or documentation. Company knowledge with visibility=internal."""
 #: Without a token, confirming, refuting and visibility=internal are not allowed (OPEN_ALLOWED) — the rules say so instead of only refusing
 RULES_WITHOUT_TOKEN = ("Without an own token: search, read and propose knowledge with vi_learn (visibility=shared) — confirming, refuting, vi_ask "
@@ -158,7 +158,7 @@ TOOLS = [
                     "— what is missing here is a gap in memory. vi_object reads it back; full-text search finds it. Objects sharing "
                     "hashtags are linked.",
      "inputSchema": _schema({"content": {"type": "string", "description": "complete knowledge: code, API tables, commands, unabridged"}, "text": _S, "hashtags": _TAGS, "source": {"type": "string", "description": "source: command, host and time, or URL (for vi_ask: why you ask)"}, "importance": {"type": "integer", "description": "0–3 (default 1)"}, "visibility": {"type": "string", "enum": ["shared", "internal"], "description": "shared (default): everyone, also without a token, and the network. internal: only instances with a token, never the network — for company knowledge"}, "outcome": {"type": "string", "enum": ["good", "bad"], "description": "optional: does the insight describe a working or a broken state? Sleep compares new experiences with it."}, "key": {"type": "string", "description": "optional: identity of a recurring finding (e.g. a detection signature). The same key from the same instance updates that object instead of adding a new one: the new text becomes current, the previous one goes into its history, repeats +1."},
-                            "image": {"type": "string", "description": "optional: an image as base64 (png, jpeg, gif or webp, at most 5 MiB; a data: URL is fine). text = what it shows in one sentence, content = the complete description. For a file use the command line instead of pasting base64: vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F]"},
+                            "image": {"type": "string", "description": "optional: an image as base64 — stored as a memory of its own kind (art:bild); e.g. a screenshot (png, jpeg, gif or webp, at most 5 MiB; a data: URL is fine). text = what it shows in one sentence, content = the complete description. For a file use the command line instead of pasting base64: vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F]"},
                             "regions": {"type": "array", "description": "optional, with image: what is where, in the output format of SAM 3 (Segment Anything with Concepts) — one entry per instance found",
                                         "items": {"type": "object", "properties": {"concept": {"type": "string", "description": "the noun phrase SAM 3 was prompted with, e.g. 'red plug'"},
                                                                                    "box": {"type": "array", "items": {"type": "number"}, "description": "[x0, y0, x1, y1] in pixels (absolute, xyxy)"},
@@ -510,7 +510,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                                     "(SELECT id FROM objekt WHERE art = 'erfahrung' AND zeit >= ?)", (since,)).fetchone()[0]
             edges = g.db().execute("SELECT COUNT(*) FROM kante").fetchone()[0]
             per_inst = g.db().execute("SELECT instanz, COUNT(*) FROM objekt WHERE sicht = 'geteilt' AND art IN "
-                                     "('erkenntnis', 'regel', 'suche', 'reflex') GROUP BY instanz ORDER BY 2 DESC").fetchall()
+                                     "('erkenntnis', 'regel', 'suche', 'reflex', 'bild') GROUP BY instanz ORDER BY 2 DESC").fetchall()
             open_questions = g.db().execute("SELECT COUNT(*) FROM objekt WHERE art = 'frage' AND "
                                           "json_extract(daten, '$.zustand') IN ('offen', 'zugestellt')").fetchone()[0]
         s = session.current()
@@ -564,7 +564,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                 regs = images.regions(args.get("regions"), w, h)  # checked before storing: a refused image leaves nothing behind
                 ref = images.store(raw)
                 data.update(bild=ref, **({"regionen": regs} if regs else {}))
-                tags = tags + [t for t in ["medium:bild", *images.concept_tags(regs)] if t not in tags]
+                tags = tags + [t for t in images.concept_tags(regs) if t not in tags]
             if instance == config.OPEN:
                 return _proposal(text, tags, data, int(args.get("importance") or 1))
             if args.get("visibility") not in (None, "geteilt", "intern"):
@@ -578,7 +578,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             if prev:
                 o = g.repeat(prev, text, tags, data, int(args.get("importance") or 1), who=f"ki@{instance}")
             else:
-                o = g.new_object("erkenntnis", text, tags, {**data, **({"key": key, "repeats": 1} if key else {})},
+                o = g.new_object("bild" if data.get("bild") else "erkenntnis", text, tags, {**data, **({"key": key, "repeats": 1} if key else {})},
                                  importance=int(args.get("importance") or 1), who=f"ki@{instance}", reason="vi_learn",
                                  visibility=args.get("visibility"), instance=instance)
         except ValueError as e:
@@ -606,7 +606,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             # candidates: only the hashtag conditions (without free text), then order by closeness of meaning
             tags_only = " ".join(["(" + " OR ".join(gr) + ")" if len(gr) > 1 else gr[0] for gr in groups] + [f"!{w}" for w in remove])
             # all visible objects for the filter, no upper limit: the cosine over a few thousand vectors costs milliseconds
-            cand = g.ids_for_filter(tags_only, kinds=() if groups else ("erkenntnis", "regel", "suche"))
+            cand = g.ids_for_filter(tags_only, kinds=() if groups else ("erkenntnis", "regel", "suche", "bild"))
             bound = min(int(args.get("limit") or 10), 50)
             t0 = time.monotonic()
             near = vector.similar(" ".join(words), cand, limit=bound * 3)
@@ -643,7 +643,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         z = [_line(o), f"  author {o.instance} · visibility {o.visibility} · importance {o.importance} · confirmed {o.confirmed} "
                         f"(independent lines: {o.foreign_confirmations()} — one per model family, not from the object's own source) · refuted {o.refuted} · accesses {o.accesses} · "
                         f"last {o.last_at[:16]} · conversation {o.conversation or '—'}"]
-        if o.kind in ("erkenntnis", "regel", "suche"):
+        if o.kind in ("erkenntnis", "regel", "suche", "bild"):
             z.append(f"  as a hint: {bandit.line(o)}")
         d = {k: v for k, v in o.data.items() if k not in ("ergebnis", "code", "inhalt", "bild", "regionen")}
         z.append("  data: " + json.dumps(d, ensure_ascii=False)[:800])

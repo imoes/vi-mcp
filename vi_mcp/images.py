@@ -1,6 +1,6 @@
 """0.35.0: images in memory — an image with its description and its regions in the format of SAM 3 (Meta, Segment Anything with Concepts).
 
-An image belongs to a knowledge object (kind erkenntnis): `text` is the key statement, `content` the complete description, and the
+An image is a memory of its own kind (bild, since 0.37.0; 0.35.x: erkenntnis with medium:bild): `text` is the key statement, `content` the complete description, and the
 regions say what is where — per region a concept (the noun phrase SAM 3 was prompted with, e.g. "red plug"), a box in absolute pixel
 coordinates xyxy, a score 0–1 and optionally the mask as COCO run-length encoding ({"size": [h, w], "counts": ...}). That is the
 output of SAM 3 per matching instance (masks, boxes, scores; arXiv 2511.16719, github.com/facebookresearch/sam3). The VI does not

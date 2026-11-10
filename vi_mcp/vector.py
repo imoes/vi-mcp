@@ -36,7 +36,7 @@ PROXIMITY_DUPLICATE = 0.95
 #: 0.20.6: at most this many semantic neighbours per new vector. Without a limit the Confluence import linked nearly identical template pages
 #: all with each other: 2.24 million edges, up to 1,316 per object, 96 s per proximity step (measured 09.11. 07:41 UTC).
 PROXIMITY_MAX = 10
-VECTOR_KINDS = ("erkenntnis", "regel", "suche", "skill")
+VECTOR_KINDS = ("erkenntnis", "regel", "suche", "skill", "bild")  # bild: its key statement
 TIMEOUT_S = 120
 
 #: Configuration: {"url": "https://host/embed/v1/embeddings", "token": "...", "modell": "..."} or None

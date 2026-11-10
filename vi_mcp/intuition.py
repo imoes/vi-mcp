@@ -186,7 +186,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     # Candidates (heuristic: recency + importance + bonus), then possibly the router model (learned lift), then exploration
     from . import bandit, learning
     import random as _random
-    cand = [o for _, o, _g in g.recall("(" + " OR ".join(search_triggers) + ")", limit=HINT_BUDGET + 24, kinds=("erkenntnis", "regel", "skill"))]
+    cand = [o for _, o, _g in g.recall("(" + " OR ".join(search_triggers) + ")", limit=HINT_BUDGET + 24, kinds=("erkenntnis", "regel", "skill", "bild"))]
     # 0.21.1: disputed items and unconfirmed language-model hypotheses only on request (vi_recall), not unasked before actions.
     # Measured 09.11.: a disputed sleep hypothesis was the most shown hint with 719 reinforcements and pushed out evidenced knowledge.
     only_on_request = [o for o in cand if o.mode == "strittig" or ("herkunft:schlaf-llm" in o.hashtags and not o.foreign_confirmations())]
@@ -234,6 +234,11 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
         if o.kind == "skill":
             from . import skills
             from_memory.append(f"{skills.line(o)}{ins} [{o.id}]")
+            continue
+        if o.kind == "bild":  # 0.37.0
+            from . import images
+            from_memory.append(f"Image{ins} [{o.id}] ({provenance}): {o.text[:300]} — {images.summary(o)}; vi_object {o.id} shows it "
+                               f"[Source: {str(o.data.get('quelle', '—'))[:120]}]")
             continue
         from_memory.append(f"{'Learned' if o.kind == 'erkenntnis' else 'Rule'}{ins} [{o.id}] ({provenance}"
                                + (", DISPUTED — contradicted by another instance" if o.mode == "strittig" else "")

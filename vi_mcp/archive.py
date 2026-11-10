@@ -30,9 +30,9 @@ from pathlib import Path
 from . import memory as g
 from .log_output import log
 
-DAYS = {"erfahrung": 30, "schlaf": 90, "erkenntnis": 180, "regel": 180, "suche": 180, "skill": 180}
+DAYS = {"erfahrung": 30, "schlaf": 90, "erkenntnis": 180, "regel": 180, "suche": 180, "skill": 180, "bild": 180}
 DAYS_RAW = 30
-KNOWLEDGE = ("erkenntnis", "regel", "suche", "skill")
+KNOWLEDGE = ("erkenntnis", "regel", "suche", "skill", "bild")
 STUB_CHARS = 200
 #: Free share of the main file from which it is rewritten
 VACUUM_FROM = 0.25

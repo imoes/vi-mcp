@@ -63,7 +63,7 @@ entries; older ones are truncated **with a count** (`daten.aenderungen_gekuerzt`
 |---|---|---|
 | `erfahrung` (experience) | every reported action: tool, arguments, duration, `ok:ja`/`ok:nein`/`ok:unbekannt`; `daten.vorher` = memory access before it; **importance from surprise** (`ueberraschung:neu` 3 · `wiederholt`/`erholt` 2 · `chronisch` 1 · `keine` 0 — prediction error as a learning signal, docs/FORSCHUNG.md A7) | `vi_after`; `vi_before` with a remembered answer; before without after (session end/1 h) |
 | `antwort` (answer) | remembered result of a **read-only** call (`frage:<hash>`), valid for 120 s (configurable per tool, max 1 h) | `vi_after` |
-| `erkenntnis` (insight) | something learned, with source and importance 0–3; with `key` (0.23.0) **one object per recurring finding**: the same key from the same instance updates it (`daten.key`, `daten.repeats`, earlier states in `daten.history`) instead of adding a new one; with an image (0.35.0) `daten.bild` and `daten.regionen`, bytes in table `bild` (see Images) | `vi_learn` |
+| `erkenntnis` (insight) | something learned, with source and importance 0–3; with `key` (0.23.0) **one object per recurring finding**: the same key from the same instance updates it (`daten.key`, `daten.repeats`, earlier states in `daten.history`) instead of adding a new one; (an image is its own kind `bild` since 0.37.0) | `vi_learn` |
 | `regel` (rule) | condensed: same error ≥ 3× in 24 h, mode `test` | loop |
 | `reflex` | Python code: kind `werkzeug`, `vorher`, `nachher` (MCP: `tool`, `before`, `after`) | `vi_reflex_learn` |
 | `suche` (search) | mnemonic: name, filter, **triggers**, story | `vi_learn_search` |
@@ -71,6 +71,7 @@ entries; older ones are truncated **with a count** (`daten.aenderungen_gekuerzt`
 | `frage` (question) | question from one instance to another or to all; states `offen`/`zugestellt`/`beantwortet`/`abgelaufen` (open/delivered/answered/expired) | `vi_ask` |
 | `skill` | solution path: problem (triggers), steps, instructions, versions, evidence; modes `test`/`aktiv`/`strittig`/`aufgegangen` (merged) | `vi_solved`; sleep (success after errors) |
 | `selbst` (self) | `selbst:kern` = the self (target/actual/narrative, versioned); otherwise proposals for the target (mode `test`) | start / `vi_self_propose` |
+| `bild` (image, 0.37.0) | an image with its key statement (`text`), full description (`inhalt`), `daten.bild` (reference into table `bild`) and `daten.regionen` (SAM 3 format); hint before matching actions | `vi_learn` with `image`, `vi-mcp image` |
 | `schlaf` (sleep) | report of a consolidation run: counters per step, duration, errors, new/changed IDs | loop (from an importance sum; at night only after 24 h without sleep) |
 
 **Hashtags** `art:wert` (kind:value, table `tag`); `art:<kind>` is always set. Administrative hashtags (`art:`, `frage:`, `ok:`,
@@ -383,7 +384,8 @@ the centroid of their vectors and groups all knowledge objects with K-means (k =
 and a new hint inherits the weight of its group. `learning.CONTENT = False` switches this off for comparison.
 ## Images — with description and regions in the format of SAM 3 (since 0.35.0)
 
-`images.py`. An image belongs to an insight (`erkenntnis`): `text` = what it shows in one sentence (the hint text, embedded like any
+`images.py`. An image is a memory of its own kind, **`bild`** (since 0.37.0; 0.35.x stored it as `erkenntnis` with `medium:bild`, the
+migration changes kind and hashtags and keeps the id): `text` = what it shows in one sentence (the hint text, embedded like any
 other), `inhalt` = the complete description, `daten.bild` = reference {`sha`, `mime`, `breite`, `hoehe`, `bytes`}, `daten.regionen` =
 what is where. The bytes are in table `bild`, **content-addressed** by SHA-256 (the same image twice is stored once).
 
@@ -407,12 +409,17 @@ of 8 MiB, and the largest image the Claude API accepts) and 2 GiB together (`TOT
 box inside the image and not empty, score 0–1, mask size = [height, width], at most 200 regions. Regions are checked **before** the
 bytes are stored: a refused image leaves nothing behind. No images without a token (open-wiki proposals are text), no image with `key`.
 
-**Finding:** hashtags `medium:bild` and `zeigt:<concept>` per concept (lower case, blanks → `-`), so `vi_recall zeigt:red-plug` finds
+**Finding:** `art:bild`, and `zeigt:<concept>` per concept (lower case, blanks → `-`), so `vi_recall zeigt:red-plug` finds
 every image showing one; the concepts are also in the full-text index. A hit line names the image ("image png 1024×768, 213 KiB,
 3 regions (red plug ×2, network cable)"). **Returning:** `vi_object` sends the image as MCP content `{type: image, data, mimeType}`
 next to the text, with every region; `image=false` leaves it out. **Writing from a file:** `vi-mcp image FILE --text … --hashtags …
 --source … [--content-file F] [--regions F.json]` (an AI session runs it instead of pasting base64), `vi-mcp image get ID FILE` fetches
 it back; both talk MCP to the server the clients use. There is one way in: `vi_learn` with `image`.
+
+**Before actions:** an image is a hint candidate like an insight (same triggers, same ranking, bandit and router): before a matching
+action the client gets "Image [id] …: what it shows — image png 1024×640, 2 regions (…); vi_object <id> shows it". **Screenshots:** the
+rules tell the AI to save one when it shows what text would lose (an error dialog, a UI state, a configuration screen, a graph) — taken
+with its own tools (e.g. Playwright `browser_take_screenshot`) and stored with `vi-mcp image`; never with passwords or tokens on screen.
 
 **Never onto the network:** `p2p` holds an object with an image back ("has an image (images stay on this server)") — the network
 carries text, and what a photo shows is internal more often than its description suggests. Visibility is the object's: an internal image

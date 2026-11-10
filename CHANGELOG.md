@@ -3,6 +3,21 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.37.0 — 2026-11-10 — Images are their own kind; screenshots
+
+### What has changed
+
+- **An image is a memory of its own kind, `bild`** (0.35.x stored it as an insight with `medium:bild`). `vi_recall art:bild` lists the
+  images; free text and semantic search include them; the key statement gets a vector; the long-term archive treats them like other
+  knowledge; they never go onto the network. The database migration turns existing image insights into `bild` and keeps their ids.
+  *Proof:* `test_image_with_description_and_sam3_regions_round_trip` (kind, id prefix `bild:`, `art:bild`, search by kind and by free
+  text), `test_old_image_insights_become_kind_bild` (migration, ids kept, insights without an image untouched).
+- **Images come before matching actions** like insights: "Image [id] (…): what it shows — image png 1024×640, 2 regions (…); vi_object
+  <id> shows it". *Proof:* `test_image_is_a_hint_before_a_matching_action`.
+- **The rules tell the AI to save screenshots** when they show what text would lose (an error dialog, a UI state, a configuration
+  screen, a graph) — taken with its own tools (e.g. Playwright `browser_take_screenshot`), stored with `vi-mcp image`, never with
+  passwords or tokens on screen. *Proof:* `test_rules_tell_when_to_save_a_screenshot`.
+
 ## 0.36.0 — 2026-11-10 — MCP over stdio, without a token
 
 ### What is new

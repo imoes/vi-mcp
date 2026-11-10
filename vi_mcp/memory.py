@@ -29,7 +29,7 @@ from pathlib import Path
 from . import anonymize
 from .log_output import log
 
-KINDS = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell", "skill", "bewertung")
+KINDS = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell", "skill", "bewertung", "bild")
 #: strittig = refuted by exactly one foreign instance (still appears, with a note); widerlegt = refuted by the author
 #: or by ≥ 2 different instances (no longer appears)
 #: archiviert = stub (text, hashtags) stays, content compressed in the archive; visible only with modus:archiviert in the filter
@@ -39,7 +39,7 @@ MODES = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt", "archiviert"
 #: Collective: who may read an object? privat = only the author instance (results may contain credentials),
 #: geteilt = all instances. The loop (server) sees everything. Exhaustive for KINDS.
 VISIBILITY_PER_KIND = {"erfahrung": "privat", "antwort": "privat", "erkenntnis": "geteilt", "regel": "geteilt", "reflex": "geteilt",
-                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt", "skill": "geteilt", "bewertung": "privat"}
+                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt", "skill": "geteilt", "bewertung": "privat", "bild": "geteilt"}
 #: author of objects the server creates itself (loop) — a named instance, not NULL
 SERVER_INSTANCE = "vi"
 #: weight bonus per different FOREIGN instance that confirmed (self-confirmation does not count as evidence)
@@ -153,6 +153,15 @@ def _migrate(con: sqlite3.Connection) -> None:
     if n:
         log(f"migration: {n} cache hashtags frage: → cache:")
     con.execute("CREATE INDEX IF NOT EXISTS objekt_instanz ON objekt(instanz, sicht)")
+    # 0.37.0: an image is its own kind (bild); 0.35.x stored it as an insight with medium:bild. The id stays (edges, history, hints
+    # refer to it); kind, art: hashtag and the now redundant medium:bild change.
+    old = [r[0] for r in con.execute("SELECT id FROM objekt WHERE art = 'erkenntnis' AND json_extract(daten, '$.bild') IS NOT NULL")]
+    for oid in old:
+        con.execute("UPDATE objekt SET art = 'bild' WHERE id = ?", (oid,))
+        con.execute("DELETE FROM tag WHERE objekt_id = ? AND tag IN ('art:erkenntnis', 'medium:bild')", (oid,))
+        con.execute("INSERT OR IGNORE INTO tag (objekt_id, tag) VALUES (?, 'art:bild')", (oid,))
+    if old:
+        log(f"migration: {len(old)} image(s) from kind erkenntnis to kind bild (ids kept)")
     # the table archiv (0.4–0.9) is replaced by the long-term archive; it is only dropped when empty
     if con.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'archiv'").fetchone():
         if con.execute("SELECT COUNT(*) FROM archiv").fetchone()[0] == 0:
