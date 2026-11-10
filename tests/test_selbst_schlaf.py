@@ -137,3 +137,25 @@ def test_sleep_at_most_every_two_hours(gd):
     assert sleep_cycle.due(now) is not None  # 90 ≥ 80, never slept yet
     g.new_object("schlaf", "Schlaf fertig", ["zustand:fertig"], {}, reason="T")
     assert sleep_cycle.due(now) is None  # just slept
+
+
+def test_self_proposal_can_replace_a_sentence(gd):
+    """0.25.0: a confirmed proposal with replaces swaps the sentence instead of adding a contradicting second one."""
+    a, c = session.begin("a", "t"), session.begin("c", "t")
+    evidence_list = [g.new_object("erkenntnis", f"user decision {i}: all output in English", ["thema:sprache"], {"quelle": "x"}, reason="T").id
+                     for i in range(3)]
+    _age(evidence_list[0], 2)
+    old = self_model.core().data["soll"]["stil"][0]["satz"]
+    new = "Write in English, concise; numbers with unit, period and origin."
+    with session.on_behalf(a), pytest.raises(tools.Rejected, match="replaces: no sentence"):
+        tools.call_tool("vi_self_propose", {"area": "style", "sentence": new, "reason": "user decision", "evidence": evidence_list,
+                                            "replaces": "a sentence that is not there"}, "a", True)
+    with session.on_behalf(a):
+        vid = tools.call_tool("vi_self_propose", {"area": "style", "sentence": new, "reason": "user decision: English", "evidence": evidence_list,
+                                                  "replaces": old}, "a", True).split()[1]
+    with session.on_behalf(c):
+        tools.call_tool("vi_confirm", {"id": vid, "reason": "the user asked for it"}, "c", True)
+    style = [e["satz"] for e in self_model.core().data["soll"]["stil"]]
+    assert style == [new] and self_model.core().data["soll"]["stil"][0]["replaced"] == old  # replaced, not added
+    assert f"replaces: {old}" in self_model.versions()[0][5]  # the old sentence stays in the history
+    assert new in self_model.core().data["erzaehlung"] and old not in self_model.core().data["erzaehlung"]

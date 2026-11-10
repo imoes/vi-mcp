@@ -3,6 +3,17 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.25.0 — 2026-11-10 — The self can replace a sentence
+
+### What is new
+
+- **`vi_self_propose(replaces=…)`**: a proposal can name the current sentence of its area that it replaces. When another trusted instance
+  confirms it, the old sentence leaves the target and the new one takes its place — before, a confirmed proposal was only added, so a changed
+  style would have stood next to the old one ("Style: German, …" and "Style: English, …"). The old sentence stays in the version history
+  (`replaces: …`) and in the entry (`replaced`). *Proof:* `test_self_proposal_can_replace_a_sentence` (unknown sentence rejected, after
+  confirmation only the new sentence, old one in the history and gone from the narrative).
+- Default style for new installations: "Write in English, concise; numbers with unit, period and origin."
+
 ## 0.24.0 — 2026-11-10 — Fewer repeated hints, statistics per project and with honest periods
 
 ### What has changed

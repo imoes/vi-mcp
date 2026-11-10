@@ -78,8 +78,11 @@ TOOLS = [
      "inputSchema": _schema({"versions": {"type": "boolean"}})},
     {"name": "vi_self_propose",
      "description": "VI self: propose a sentence for the target (area values|goals|style|limits) — with reason and ≥ 3 evidence object "
-                    "IDs from ≥ 2 days. Takes effect when ANOTHER trusted instance confirms it with vi_confirm.",
-     "inputSchema": _schema({"area": {"type": "string", "enum": ["values", "goals", "style", "limits"]}, "sentence": _S, "reason": _S, "evidence": _TAGS}, ["area", "sentence", "reason", "evidence"])},
+                    "IDs from ≥ 2 days. Takes effect when ANOTHER trusted instance confirms it with vi_confirm. replaces (optional): the exact "
+                    "current sentence of that area that the new one replaces — otherwise the sentence is added.",
+     "inputSchema": _schema({"area": {"type": "string", "enum": ["values", "goals", "style", "limits"]}, "sentence": _S, "reason": _S, "evidence": _TAGS,
+                             "replaces": {"type": "string", "description": "optional: exact current sentence of the area to replace (see vi_self)"}},
+                            ["area", "sentence", "reason", "evidence"])},
     {"name": "vi_sleep",
      "description": "VI: last consolidation run (report) — or sleep now (now=true, trusted instance only).",
      "inputSchema": _schema({"now": {"type": "boolean"}})},
@@ -349,7 +352,8 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         return "\n".join(z)
     if name == "vi_self_propose":
         try:
-            o = self_model.proposal(instance, args.get("area") or "", args.get("sentence") or "", args.get("reason") or "", args.get("evidence") or [])
+            o = self_model.proposal(instance, args.get("area") or "", args.get("sentence") or "", args.get("reason") or "", args.get("evidence") or [],
+                                    replaces=args.get("replaces"))
         except ValueError as e:
             raise Rejected(str(e)) from e
         return f"Proposal {o.id} stored (test) — another trusted instance adopts it with vi_confirm(id, reason)"

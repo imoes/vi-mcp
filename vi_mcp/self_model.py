@@ -26,7 +26,7 @@ DEFAULT_TARGET = {
     "werte": [{"satz": "Every statement with evidence; what has no evidence is called a hypothesis.", "quelle": "CLAUDE.md, answers only with evidence", "seit": "2026-11-08"},
               {"satz": "Check first, then change; every change with a reason.", "quelle": "CLAUDE.md, logic rules 2 and 4", "seit": "2026-11-08"}],
     "ziele": [{"satz": "Learn from the experiences of all instances and have what was learned ready before the matching action.", "quelle": "docs/ARCHITECTURE.md, Target picture", "seit": "2026-11-08"}],
-    "stil": [{"satz": "Answer in the user's language, concise; numbers with unit, period and origin.", "quelle": "CLAUDE.md", "seit": "2026-11-08"}],
+    "stil": [{"satz": "Write in English, concise; numbers with unit, period and origin.", "quelle": "user decision 09.11.2026: program texts in English", "seit": "2026-11-08"}],
     "grenzen": [{"satz": "Never acts in the world itself; never answers calls of writing tools from memory.", "quelle": "docs/ARCHITECTURE.md, Reporting an action", "seit": "2026-11-08"},
                 {"satz": "Private experiences and results stay with their instance.", "quelle": "docs/ARCHITECTURE.md, Visibilities", "seit": "2026-11-08"}],
 }
@@ -80,7 +80,7 @@ def narrative(o: g.MemoryObject) -> str:
     return " ".join(words[:150]) + (" …" if len(words) > 150 else "")
 
 
-def proposal(instance: str, area: str, sentence: str, reason: str, evidence_list: list[str]) -> g.MemoryObject:
+def proposal(instance: str, area: str, sentence: str, reason: str, evidence_list: list[str], replaces: str | None = None) -> g.MemoryObject:
     """Proposal for the target: mode test until another trusted instance confirms."""
     if area not in AREAS:
         raise ValueError(f"bereich must be one of {', '.join(AREAS)}")
@@ -91,11 +91,15 @@ def proposal(instance: str, area: str, sentence: str, reason: str, evidence_list
     if len(ids) < EVIDENCE_MIN or any(o is None for o in mem_objects):
         missing = [i for i, o in zip(ids, mem_objects) if o is None]
         raise ValueError(f"at least {EVIDENCE_MIN} pieces of evidence as object IDs; unknown: {missing}" if missing else f"at least {EVIDENCE_MIN} pieces of evidence as object IDs")
+    replaces = (replaces or "").strip() or None
+    if replaces and replaces not in [e["satz"] for e in core().data.get("soll", {}).get(area, [])]:
+        raise ValueError(f"replaces: no sentence {replaces[:80]!r} in area {area} — see vi_self for the current sentences")
     days = {o.ts[:10] for o in mem_objects}
     if len(days) < DAYS_MIN:
         raise ValueError(f"evidence must come from at least {DAYS_MIN} different days (spacing instead of burst); here: {sorted(days)}")
     o = g.new_object("selbst", f"Proposal {area}: {sentence.strip()[:300]}", [f"selbstbereich:{area}", "modus:test"],
-                       {"bereich": area, "satz": sentence.strip()[:500], "grund": reason.strip()[:500], "belege": ids, "von": instance},
+                       {"bereich": area, "satz": sentence.strip()[:500], "grund": reason.strip()[:500], "belege": ids, "von": instance,
+                        **({"replaces": replaces} if replaces else {})},
                        importance=2, who=f"ki@{instance}", mode="test", reason=reason, instance=instance)
     for i in ids:
         o.link(i, "Beleg for self proposal")
@@ -113,15 +117,23 @@ def adopt(v: g.MemoryObject, instance: str, trusted: bool, reason: str) -> g.Mem
     k = core()
     entry = {"satz": v.data["satz"], "quelle": f"proposal {v.id} from {v.data['von']}, confirmed by {instance}: {reason.strip()[:200]}",
                "seit": g.now()[:10], "belege": v.data["belege"]}
-    k.data["soll"].setdefault(v.data["bereich"], []).append(entry)
+    target = k.data["soll"].setdefault(v.data["bereich"], [])
+    old = v.data.get("replaces")
+    if old:  # 0.25.0: replace instead of add — the old sentence stays in the version history, it does not vanish silently
+        if old not in [e["satz"] for e in target]:
+            raise ValueError(f"the sentence to replace is no longer in the target: {old[:80]!r}")
+        target[:] = [e for e in target if e["satz"] != old]
+        entry["replaced"] = old
+    target.append(entry)
     k.data["version"] = k.data.get("version", 1) + 1
     k.text = f"Self of the VI (version {k.data['version']})"
     with g.lock:
         g.db().execute("INSERT INTO selbst_version (zeit, wer, bereich, satz, grund, belege, vorschlag) VALUES (?,?,?,?,?,?,?)",
-                       (g.now(), f"ki@{instance}", v.data["bereich"], v.data["satz"], f"{v.data['grund']} // confirmation: {reason.strip()[:300]}",
+                       (g.now(), f"ki@{instance}", v.data["bereich"], v.data["satz"],
+                        f"{v.data['grund']} // confirmation: {reason.strip()[:300]}" + (f" // replaces: {old}" if old else ""),
                         json.dumps(v.data["belege"]), v.id))
         g.db().commit()
-    k.change(f"ki@{instance}", f"soll.{v.data['bereich']} += proposal {v.id}", reason)
+    k.change(f"ki@{instance}", f"soll.{v.data['bereich']} {'replaced by' if old else '+='} proposal {v.id}", reason)
     k.data["erzaehlung"] = narrative(k)
     g.save(k)
     v.mode = "aktiv"
