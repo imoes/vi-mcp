@@ -131,6 +131,9 @@ def run(code: str, args: list, schema_only: bool = False, wallclock_s: float = W
     """Run reflex code. Returns {"wert"|"schema"|"fehler", "isolation", "dauer_ms"}; `isolation: "keine"` means:
     the code did not run because the sandbox could not be set up."""
     t0 = time.monotonic()
+    if sys.platform != "linux":  # 0.27.0: Landlock and seccomp exist only on Linux — reflex code never runs without them
+        return {"fehler": f"no sandbox on {sys.platform}: reflex code runs only on Linux (Landlock + seccomp), not executed",
+                "isolation": "keine", "dauer_ms": 0}
     user_input = json.dumps({"code": code, "args": args, "nur_schema": schema_only, "nur_pruefen": check_only}, ensure_ascii=False, default=str).encode()
     # No preexec_fn: the server has threads, it would be unsafe there. The child restricts itself.
     p = subprocess.Popen([sys.executable, "-I", "-S", "-c", RUNNER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,

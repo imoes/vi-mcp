@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds .deb and .rpm, writes SHA256SUMS, signs them and publishes the release.
+# Builds .deb, .rpm and the Windows .msi, writes SHA256SUMS, signs them and publishes the release.
 #   deploy/release.sh            build, sign, verify (no publishing)
 #   deploy/release.sh --gh       also publish as GitHub release v<version>
 # Private key: $VI_MCP_RELEASE_KEY (old name VI_MCP_RELEASE_SCHLUESSEL; default ~/.config/vi-mcp/release-ed25519.pem), never in the repo.
@@ -20,14 +20,15 @@ if [ "${1:-}" = "--gh" ]; then
 fi
 deb=$(deploy/debian/build.sh)
 rpm=$(deploy/rpm/build.sh | tail -1)
+msi=$(deploy/windows/build.sh | tail -1)
 cd dist
 rm -f SHA256SUMS SHA256SUMS.sig
-sha256sum "$(basename "$deb")" "$(basename "$rpm")" > SHA256SUMS
+sha256sum "$(basename "$deb")" "$(basename "$rpm")" "$(basename "$msi")" > SHA256SUMS
 openssl pkeyutl -sign -inkey "$key" -rawin -in SHA256SUMS -out SHA256SUMS.sig
 cd ..
 deploy/pruefe-release.sh dist
 if [ "${1:-}" = "--gh" ]; then
-    gh release create "v$version" "$deb" "$rpm" dist/SHA256SUMS dist/SHA256SUMS.sig --title "vi-mcp $version" \
+    gh release create "v$version" "$deb" "$rpm" "$msi" dist/SHA256SUMS dist/SHA256SUMS.sig --title "vi-mcp $version" \
         --notes-file <(python3 - "$version" <<'PY'
 import sys
 v = sys.argv[1]; s = open("CHANGELOG.md").read(); i = s.index(f"## {v} "); j = s.find("\n## ", i + 1)

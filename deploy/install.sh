@@ -19,4 +19,4 @@ systemctl --user enable --now vi-mcp.service
 systemctl --user restart vi-mcp.service
 sleep 1
 systemctl --user --no-pager --lines=5 status vi-mcp.service
-curl -fsS http://127.0.0.1:8765/gesund
+curl -fsS "http://127.0.0.1:$(python3 -m vi_mcp port)/gesund"

@@ -20,17 +20,14 @@ import getpass
 import glob
 import json
 import os
-import pwd
 import re
 import select
 import shlex
 import shutil
 import subprocess
 import sys
-import termios
 import time
 import tomllib
-import tty
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -60,7 +57,16 @@ class TargetUser:
     gid: int
 
 
-def _caller() -> pwd.struct_passwd | None:
+WINDOWS = os.name == "nt"
+try:  # POSIX only — on Windows the non-interactive setup works, the ANSI menu does not (0.27.0)
+    import pwd
+    import termios
+    import tty as _tty
+except ImportError:
+    pwd = termios = _tty = None
+
+
+def _caller():
     """Who is behind root: SUDO_USER, otherwise the login (rpm does not always pass the environment on to scriptlets)."""
     try:
         if (n := os.environ.get("SUDO_USER")) and n != "root":
@@ -72,6 +78,8 @@ def _caller() -> pwd.struct_passwd | None:
 
 
 def target() -> TargetUser:
+    if WINDOWS:
+        return TargetUser(getpass.getuser(), Path.home(), -1, -1)
     if os.geteuid() == 0 and (p := _caller()):
         return TargetUser(p.pw_name, Path(p.pw_dir), p.pw_uid, p.pw_gid)
     p = pwd.getpwuid(os.geteuid())
@@ -81,7 +89,7 @@ def target() -> TargetUser:
 @contextmanager
 def _as_user(z: TargetUser):
     """Work with the target user's rights so that owner and permissions of their files are right."""
-    switch_user = os.geteuid() == 0 and z.uid != 0
+    switch_user = not WINDOWS and os.geteuid() == 0 and z.uid != 0
     if switch_user:
         os.setegid(z.gid)
         os.seteuid(z.uid)
@@ -217,6 +225,10 @@ def _hook_on(z: TargetUser, url: str, token: str, signal: str | None) -> str:
         _write(dir_path / "token-nutzer", signal + "\n")
         environment += " VI_MCP_SIGNAL_TOKEN_FILE=$HOME/.config/vi-mcp/token-nutzer"
     command = f"{environment} python3 -I {shlex.quote(str(_hook_script()))}"
+    if WINDOWS:  # no "VAR=value command" in cmd.exe: the hook reads URL and token files from hook.json (0.27.0)
+        _write(dir_path / "hook.json", json.dumps({"url": url, "token_file": str(dir_path / "token-claude") if token else "",
+                                                   "signal_token_file": str(dir_path / "token-nutzer") if signal else ""}, indent=2) + "\n")
+        command = f'"{sys.executable}" -I "{_hook_script()}"'
     p = _settings(z)
     d = _json(p)
     _hook_without(d)
@@ -433,6 +445,9 @@ PROGRAMS = (
 
 
 def _find(command: str, z: TargetUser) -> str | None:
+    if WINDOWS:
+        return shutil.which(command, path=os.pathsep.join([os.environ.get("PATH", ""), str(z.home / "AppData" / "Roaming" / "npm"),
+                                                           str(z.home / ".local" / "bin")]))
     paths = [*os.environ.get("PATH", "").split(":"), str(z.home / ".local/bin"), str(z.home / ".npm-global/bin"), str(z.home / "bin"), "/usr/local/bin",
              *glob.glob(str(z.home / ".nvm/versions/node/*/bin"))]
     return shutil.which(command, path=":".join(paths))
@@ -539,6 +554,15 @@ def can_create_tokens(url: str) -> bool:
 
 def _restart() -> str | None:
     """The service reads instances only at start. None = success, otherwise the reason."""
+    if WINDOWS:  # the MSI runs the server as scheduled task "vi-mcp"
+        for command in (["schtasks", "/End", "/TN", "vi-mcp"], ["schtasks", "/Run", "/TN", "vi-mcp"]):
+            try:
+                r = subprocess.run(command, capture_output=True, text=True, timeout=45)
+            except (OSError, subprocess.TimeoutExpired) as e:
+                return f"{' '.join(command)}: {e}"
+            if r.returncode != 0 and command[1] == "/Run":
+                return f"{' '.join(command)}: {(r.stderr or r.stdout).strip()[:200]}"
+        return None
     command = ["systemctl", "restart", "vi-mcp"] if os.geteuid() == 0 else ["systemctl", "--user", "restart", "vi-mcp"]
     try:
         r = subprocess.run(command, capture_output=True, text=True, timeout=45)
@@ -783,12 +807,12 @@ def _run(z: TargetUser, url: str, token: str | None, signal: str | None, idle: f
         except (EOFError, KeyboardInterrupt):
             return None
         finally:
-            tty.setcbreak(fd)
+            _tty.setcbreak(fd)
             outputs.write("\x1b[?25l")
             outputs.flush()
     go = False
     try:
-        tty.setcbreak(fd)
+        _tty.setcbreak(fd)
         outputs.write("\x1b[?1049h\x1b[?25l")
         while True:
             image()
@@ -864,6 +888,10 @@ def main(argv: list[str]) -> int:
     choice = [k for k in ("claude", "codex", "hermes", "hook") if getattr(o, k)]
     try:
         if not choice:
+            if WINDOWS:
+                print("The interactive menu needs a Unix terminal. On Windows: vi-mcp setup --claude --hook --url URL --token-file FILE "
+                      "(see vi-mcp setup --help)", file=sys.stderr)
+                return 2
             return _run(z, url, token, signal, o.idle)
         return _report(uninstall(choice, z) if o.uninstall else setup(choice, z, url, token, signal, o.skip_check))
     except KeyboardInterrupt:

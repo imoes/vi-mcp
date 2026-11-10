@@ -102,6 +102,24 @@ def create_instance(name: str, reflexes: bool = False, p: Path | None = None, re
     raw = json.loads(p.read_text()) if p.exists() else {}
     token = secrets.token_urlsafe(32)
     raw.setdefault("instanzen", {})[name] = {"token_sha256": hashlib.sha256(token.encode()).hexdigest(), "reflexe": reflexes, "freigabe": release, "mensch": human}
+    _save_raw(raw, p)
+    return token
+
+
+def set_port(port: int, p: Path | None = None) -> int:
+    """0.27.0: set the server port in the configuration (1024–65535). Returns the previous port. The service reads it at start."""
+    if not isinstance(port, int) or not 1024 <= port <= 65535:
+        raise ValueError("port must be a number from 1024 to 65535")
+    p = p or fpath()
+    raw = json.loads(p.read_text()) if p.exists() else {}
+    old = int(raw.get("port", Config().port))
+    raw["port"] = port
+    _save_raw(raw, p)
+    return old
+
+
+def _save_raw(raw: dict, p: Path) -> None:
+    """Atomic write of the configuration; keeps owner and permissions of an existing file, a new one is 0600."""
     p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     tmp = p.with_suffix(".tmp")
     old_umask_value = os.umask(0o077)
@@ -115,10 +133,10 @@ def create_instance(name: str, reflexes: bool = False, p: Path | None = None, re
         st = os.stat(p)
         os.chmod(tmp, st.st_mode & 0o777)
         try:
-            os.chown(tmp, st.st_uid, st.st_gid)
+            if hasattr(os, "chown"):  # not on Windows
+                os.chown(tmp, st.st_uid, st.st_gid)
         except PermissionError:
             pass
     else:
         os.chmod(tmp, 0o600)
     os.replace(tmp, p)
-    return token

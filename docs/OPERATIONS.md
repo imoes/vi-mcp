@@ -135,6 +135,34 @@ sudo -u vi-mcp vi-mcp merge-repeats <instance> '— Filter:\s*(.+)$' --apply
 sudo systemctl start vi-mcp
 ```
 
+## Changing the port
+
+The server listens on `port` from its configuration (default 8765, bound to 127.0.0.1).
+
+- At first installation: Linux `sudo VI_MCP_PORT=9000 apt install ./vi-mcp_<version>-1_all.deb` (also `dnf`), Windows `msiexec /i … PORT=9000`.
+- Later, on both: `vi-mcp port` shows it, `vi-mcp port 9000` sets it (1024–65535) and restarts the service. On Linux the local network
+  service follows (`mcp_url` in the p2p configuration). Clients keep their URL and a reverse proxy (nginx `proxy_pass`) keeps its target —
+  adjust them by hand (`vi-mcp setup --claude --hook --url http://127.0.0.1:9000/mcp …`).
+
+## Windows
+
+Since 0.27.0 there is `vi-mcp-<version>-x64.msi` (built on Linux with `deploy/windows/build.sh`, wixl in a Fedora container).
+
+- **Install**: `msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [PROXY=http://proxy:3128] /l*v install.log` in an elevated shell.
+  The MSI copies `vi_mcp`, the hook and the scripts to `%ProgramFiles%\vi-mcp` and runs `install.ps1` as SYSTEM: it uses an installed
+  64-bit Python ≥ 3.11 or downloads Python 3.13.9 from python.org (installed only if the Authenticode signature of the Python Software
+  Foundation is valid), creates `%ProgramFiles%\vi-mcp\venv` with NumPy, scikit-learn, cryptography and PyYAML from PyPI, and puts
+  `vi-mcp` on the machine PATH. Log: `%ProgramData%\vi-mcp\install.log`. A failure rolls the installation back.
+- **Server** (`SERVER=1`, default): configuration and database in `%ProgramData%\vi-mcp` (only SYSTEM and administrators), first instance
+  `admin` (token in `%ProgramData%\vi-mcp\token-admin`), scheduled task `vi-mcp` at system start as SYSTEM, restarted after a failure,
+  output in `%ProgramData%\vi-mcp\server.log`. `VI_MCP_CONFIG` points the command line to that configuration.
+- **Client**: `vi-mcp setup --claude --hook --url URL --token-file FILE` (no interactive menu on Windows). The hook entry is
+  `"<venv python>" -I "<install dir>\hook\vi_hook.py"`; URL and token files are in `%USERPROFILE%\.config\vi-mcp\hook.json`.
+- **Not on Windows**: reflex code never runs (no Landlock/seccomp sandbox — it is refused with that reason), no network service
+  (`vi-mcp net` says so), no interactive setup menu.
+- **Upgrade**: install the newer MSI over it; the venv stays and is updated. **Uninstall**: Apps & Features or `msiexec /x …` removes the
+  task, the venv and the PATH entry; `%ProgramData%\vi-mcp` (data, configuration) stays.
+
 ## Backup
 
 The database is a WAL file. For a consistent copy while running:

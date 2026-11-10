@@ -3,6 +3,39 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.27.0 — 2026-11-10 — Windows package (client and server), configurable port
+
+### What is new
+
+- **Windows MSI** `vi-mcp-<version>-x64.msi` (client and server). Built on Linux with `deploy/windows/build.sh` (wixl from msitools in a
+  Fedora container), part of every release and of the signed `SHA256SUMS`. The MSI copies `vi_mcp`, the hook and the scripts to
+  `%ProgramFiles%\vi-mcp` and runs `install.ps1` as SYSTEM:
+  - uses an installed 64-bit Python ≥ 3.11, otherwise downloads Python 3.13.9 from python.org and installs it only if its Authenticode
+    signature (Python Software Foundation) is valid;
+  - creates a venv with NumPy, scikit-learn, cryptography and PyYAML from PyPI (`PROXY=` for a proxy) and puts `vi-mcp` on the PATH;
+  - with `SERVER=1` (default): configuration and database in `%ProgramData%\vi-mcp` (SYSTEM and administrators only), first instance
+    `admin`, scheduled task `vi-mcp` at system start, restarted after failures, health check against `/gesund`.
+  Upgrades keep the venv; uninstalling keeps the data. *Proof:* MSI tables checked with `msiinfo` (custom actions 51/3122/3186,
+  sequence after InstallFiles / before RemoveFiles, MajorUpgrade, SecureCustomProperties incl. SERVER;PORT;PROXY); `install.ps1` and
+  `uninstall.ps1` parse without errors in PowerShell 7.4. **Not yet tested on a Windows machine** — see below.
+- **Configurable port on Linux and Windows.** `vi-mcp port` shows it, `vi-mcp port 9000` sets it (1024–65535) and restarts the service; on
+  Linux the local network service follows. At first installation: `VI_MCP_PORT=9000 apt|dnf install …`, `msiexec … PORT=9000`.
+  *Proof:* `test_port_is_configurable` (range check, other keys and file permissions kept, CLI shows the port).
+
+### What has changed
+
+- Windows-safe code: the setup command loads without `pwd`/`termios` and writes the hook entry as `"<python>" -I "<hook>"` with
+  `hook.json` instead of `VAR=value` (cmd.exe knows no such prefix); the hook reads `~/.config/vi-mcp/hook.json` when `VI_MCP_URL` is not set
+  (the environment still wins, Linux entries are unchanged); reflex code is refused with a reason on systems without the Linux sandbox;
+  `vi-mcp net` says that the network service needs Linux. *Proof:* `tests/test_windows.py` (Windows branches simulated on Linux).
+
+### What is still missing
+
+- **The MSI has not been installed on a Windows machine yet** — the first real installation is the acceptance test (install.log, `vi-mcp
+  setup --status`, `/gesund`).
+- On Windows: no interactive setup menu, no reflexes (no sandbox), no network service (P2P).
+- The MSI is not code-signed; Windows SmartScreen may warn.
+
 ## 0.26.0 — 2026-11-10 — Documentation can appear before matching actions
 
 ### What is new

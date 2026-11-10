@@ -10,6 +10,8 @@
   python3 -m vi_mcp delete-instance NAME "REASON"
                                           delete all private data of an instance (conversations → tombstones);
                                           stop a running service first (one writer)
+  python3 -m vi_mcp port [PORT]           show the server port, or set it (1024–65535) and restart the service; the local
+                                          network service (vi-p2p) follows. Clients and proxies (nginx) keep their URL: adjust them.
   python3 -m vi_mcp merge-repeats INSTANCE REGEX [--apply]
                                           merge the instance's insights whose text gives the same key (REGEX group 1) into one object
                                           per key, earlier texts in its history; without --apply it only counts. Stop the service first.
@@ -30,7 +32,9 @@ def _approve(oid: str, reason: str) -> int:
     import os
     import urllib.request
     k = config.load()
-    token = open(os.environ.get("VI_MCP_FREIGABE_TOKEN_FILE", "/etc/vi-mcp/freigabe-token")).read().strip()
+    default = (os.path.join(os.environ.get("ProgramData", r"C:\ProgramData"), "vi-mcp", "freigabe-token") if os.name == "nt"
+               else "/etc/vi-mcp/freigabe-token")
+    token = open(os.environ.get("VI_MCP_FREIGABE_TOKEN_FILE", default)).read().strip()
     op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     url = f"http://127.0.0.1:{k.port}/mcp"
 
@@ -44,12 +48,51 @@ def _approve(oid: str, reason: str) -> int:
     return 1 if a["result"]["isError"] else 0
 
 
+def _port(value: str | None) -> int:
+    """0.27.0: show or set the server port (Linux and Windows); the local network service follows, the service is restarted."""
+    import json
+    if value is None:
+        print(config.load().port)
+        return 0
+    try:
+        old = config.set_port(int(value))
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 2
+    new = int(value)
+    print(f"port {old} → {new} in {config.fpath()}")
+    if sys.platform == "linux":  # the network service calls the server at 127.0.0.1:<port>
+        from . import net_service as ns
+        p = ns.fpath()
+        if p.exists():
+            raw = json.loads(p.read_text())
+            url = raw.get("mcp_url") or ns.NetConfig().mcp_url
+            if url.startswith(("http://127.0.0.1:", "http://localhost:")):
+                raw["mcp_url"] = f"http://127.0.0.1:{new}/mcp"
+                from . import net_cli
+                net_cli._write(p, raw)
+                print(f"network service: mcp_url → {raw['mcp_url']}")
+    from . import setup
+    reason = setup._restart()
+    if reason:
+        print(f"restart failed: {reason} — restart the service by hand", file=sys.stderr)
+        return 1
+    if sys.platform == "linux":
+        import subprocess
+        subprocess.run(["systemctl", "try-restart", "vi-p2p"], capture_output=True, timeout=45)
+    print(f"service restarted; clients use http://127.0.0.1:{new}/mcp (a reverse proxy such as nginx must be adjusted by hand)")
+    return 0
+
+
 def _cli(argv: list[str]) -> int:
     if not argv:
         server.main()
         return 0
     command = _ALIASES.get(argv[0], argv[0])
     if command == "net":
+        if sys.platform != "linux":  # 0.27.0
+            print("The network service (vi-p2p) needs Linux with systemd; it is not available on this system.", file=sys.stderr)
+            return 2
         from . import net_cli
         return net_cli.main(argv[1:])
     if command == "setup":
@@ -89,6 +132,8 @@ def _cli(argv: list[str]) -> int:
             g.close_db()
         print(f"Instance {argv[1]}: {r['gespraeche']} conversations → tombstones, {r['objekte']} private objects deleted. Shared knowledge stays.")
         return 0
+    if command == "port" and len(argv) in (1, 2):
+        return _port(argv[1] if len(argv) == 2 else None)
     if command == "merge-repeats" and len(argv) in (3, 4) and argv[3:] in ([], ["--apply"]):
         import json
         import re

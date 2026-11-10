@@ -32,7 +32,8 @@ On first installation the menu opens by itself if a terminal is present. Without
 | Tests | `.venv/bin/python -m pytest -q tests -p no:cacheprovider` (`.venv`: scikit-learn, cryptography, pyyaml, numpy) |
 | Debian package | `deploy/debian/build.sh` |
 | RPM package | `deploy/rpm/build.sh` (builds in a Fedora container if `rpmbuild` is missing) |
-| Release | `deploy/release.sh --gh`: builds both packages, signs `SHA256SUMS` (key outside the repo, `VI_MCP_RELEASE_KEY`, old name `VI_MCP_RELEASE_SCHLUESSEL`), checks and publishes |
+| Windows MSI | `deploy/windows/build.sh` (wixl/msitools in a Fedora container; `install.ps1` does Python, venv, PyPI and the scheduled task) |
+| Release | `deploy/release.sh --gh`: builds .deb, .rpm and .msi, signs `SHA256SUMS` (key outside the repo, `VI_MCP_RELEASE_KEY`, old name `VI_MCP_RELEASE_SCHLUESSEL`), checks and publishes |
 | Check a release | `deploy/pruefe-release.sh <directory>` |
 
 Modules (`vi_mcp/`): `memory` (objects, search), `intuition` (before/after), `session`, `sleep_cycle`, `main_loop` (the loop), `scorer`, `learning`, `bandit`, `vector`, `reflection`, `skills`, `reflexes`, `sandbox`,

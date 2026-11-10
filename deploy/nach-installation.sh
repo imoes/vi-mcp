@@ -7,11 +7,15 @@ system)
     install -d -o vi-p2p -g vi-p2p -m 0700 /var/lib/vi-p2p
     install -d -o root -g vi-p2p -m 0750 /etc/vi-p2p
     if [ ! -e /etc/vi-mcp/config.json ]; then
+        # port at first installation: VI_MCP_PORT=9000 apt install ./vi-mcp_….deb (later: vi-mcp port 9000)
+        port="${VI_MCP_PORT:-8765}"
+        case "$port" in ''|*[!0-9]*) port=8765 ;; esac
+        if [ "$port" -lt 1024 ] || [ "$port" -gt 65535 ]; then port=8765; fi
         umask 027
-        cat > /etc/vi-mcp/config.json <<'JSON'
+        cat > /etc/vi-mcp/config.json <<JSON
 {
   "bind": "127.0.0.1",
-  "port": 8765,
+  "port": $port,
   "db": "/var/lib/vi-mcp/vi.db",
   "instanzen": {},
   "ttl": {},

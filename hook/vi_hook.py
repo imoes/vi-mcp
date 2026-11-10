@@ -39,6 +39,23 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+def _hook_config() -> None:
+    """0.27.0: without VI_MCP_URL in the environment, take URL and token files from ~/.config/vi-mcp/hook.json (written by vi-mcp setup on
+    Windows, where cmd.exe knows no "VAR=value command"). The environment always wins; an empty token file means: no token."""
+    if "VI_MCP_URL" in os.environ:
+        return
+    try:
+        c = json.loads((Path.home() / ".config" / "vi-mcp" / "hook.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if c.get("url"):
+        os.environ["VI_MCP_URL"] = c["url"]
+        os.environ.setdefault("VI_MCP_TOKEN_FILE", c.get("token_file") or os.devnull)
+        if c.get("signal_token_file"):
+            os.environ.setdefault("VI_MCP_SIGNAL_TOKEN_FILE", c["signal_token_file"])
+
+
+_hook_config()
 URL = os.environ.get("VI_MCP_URL", "http://127.0.0.1:8765/mcp")
 TOKEN_FILE = Path(os.environ.get("VI_MCP_TOKEN_FILE", f"~/.config/vi-mcp/token-{getpass.getuser()}")).expanduser()
 STATE = Path(os.environ.get("VI_HOOK_STATE", "~/.cache/vi-mcp/hook")).expanduser()
