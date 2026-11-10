@@ -19,6 +19,13 @@ arXiv 2510.08601. Taken over: WeightLoop's utility gate and SLEEP's downstream c
   reason named); `test_router_learns_which_hint_helps` now also requires the gap (> 30 points for a 90 % vs 20 % hint).
 - **`alter:neu` router feature**: the hint was at most 7 days old when shown (same threshold as the cold-start observation point).
   *Proof:* `test_hint_age_is_a_feature`.
+- **`vi_set_visibility` / `vi-mcp visibility FILTER shared|internal REASON [--apply]`** — switch objects between shared and internal
+  afterwards, e.g. company knowledge learned as shared before `internal` existed (0.20.0). Dry run by default; your own objects, or any with
+  the release right (the CLI goes through the running service with the release token, so there stays one writer); private objects are
+  never switched; every change goes into the object's history with its reason. A filter without a kind:value condition is refused.
+  Internal stops further sharing with the network; copies already published are recalled with `vi_net_forget`.
+  *Proof:* `tests/test_visibility.py` (dry run changes nothing, apply records history, private and foreign objects counted, release right,
+  refusals name their reason, open access no longer sees internal, CLI arguments).
 - **Weight audit: group contradiction.** A meaning-group weight (`inhalt:<c>`) against the pooled measured usefulness of the group's hints
   is reported as `contradicts`. *Proof:* `test_group_weight_against_measured_hints`.
 

@@ -135,6 +135,10 @@ sudo -u vi-mcp vi-mcp merge-repeats <instance> '— Filter:\s*(.+)$' --apply
 sudo systemctl start vi-mcp
 ```
 
+**Switch visibility afterwards** (0.30.0): `sudo vi-mcp visibility "art_wissen:handbuch" internal "company host names"` counts what would
+change; add `--apply` to switch. It calls the running service with the release token (`/etc/vi-mcp/freigabe-token`), only `shared` ↔
+`internal`, private objects never; each change is in the object's history. Copies already on the network: `vi_net_forget`.
+
 ## Own embedding service (vectors)
 
 Semantic search, near-duplicate detection and the meaning features of the router need vectors. Until 0.27.0 they came only from an

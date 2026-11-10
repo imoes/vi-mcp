@@ -14,6 +14,9 @@
                                           network service (vi-p2p) follows. Clients and proxies (nginx) keep their URL: adjust them.
   python3 -m vi_mcp embed setup|status|remove [--port N] [--cpu] [--model-file F] [--no-switch]
                                           own embedding service (llama.cpp + bge-m3, Vulkan or CPU) for the vectors
+  python3 -m vi_mcp visibility FILTER shared|internal REASON [--apply]
+                                          switch the objects of FILTER between shared and internal (through the running service, release
+                                          token); without --apply it only counts. Private objects are never switched.
   python3 -m vi_mcp merge-repeats INSTANCE REGEX [--apply]
                                           merge the instance's insights whose text gives the same key (REGEX group 1) into one object
                                           per key, earlier texts in its history; without --apply it only counts. Stop the service first.
@@ -29,7 +32,11 @@ _ALIASES = {de: en for en, de in COMMANDS.items()}
 
 
 def _approve(oid: str, reason: str) -> int:
-    """Own HTTP call to the running service: there stays one writer."""
+    return _local_tool("vi_release", {"id": oid, "reason": reason})
+
+
+def _local_tool(tool: str, arguments: dict) -> int:
+    """Own HTTP call to the running service with the release token: there stays one writer."""
     import json
     import os
     import urllib.request
@@ -45,7 +52,7 @@ def _approve(oid: str, reason: str) -> int:
         with op.open(urllib.request.Request(url, data=json.dumps(req_body).encode(), headers=header), timeout=30) as a:
             return a.headers.get("Mcp-Session-Id"), json.loads(a.read() or b"{}")
     sid, _ = post({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"clientInfo": {"name": "vi-mcp-freigeben"}}})
-    _, a = post({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "vi_release", "arguments": {"id": oid, "reason": reason}}}, sid)
+    _, a = post({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": tool, "arguments": arguments}}, sid)
     print(a["result"]["content"][0]["text"])
     return 1 if a["result"]["isError"] else 0
 
@@ -122,6 +129,8 @@ def _cli(argv: list[str]) -> int:
             g.close_db()
         print(t or f"Instance {argv[1]} has no network token")
         return 0 if t else 1
+    if command == "visibility" and len(argv) in (4, 5) and argv[2] in ("shared", "internal") and argv[4:] in ([], ["--apply"]):
+        return _local_tool("vi_set_visibility", {"filter": argv[1], "visibility": argv[2], "reason": argv[3], "apply": "--apply" in argv})
     if command == "release" and len(argv) == 3:
         return _approve(argv[1], argv[2])
     if command == "delete-instance" and len(argv) >= 3:

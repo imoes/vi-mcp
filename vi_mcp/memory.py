@@ -461,6 +461,25 @@ def repeat(o: MemoryObject, text: str, hashtags: list[str], data: dict, importan
     return o
 
 
+#: 0.30.0: visibilities that may be switched afterwards. "privat" belongs to its instance and is never switched by anyone else.
+SWITCHABLE_VISIBILITY = ("geteilt", "intern")
+
+
+def set_visibility(o: "MemoryObject", new: str, who: str, reason: str) -> bool:
+    """Switch an object between geteilt and intern, recorded with reason in its history. False if it already has that visibility.
+    intern stops further sharing with the network; copies already published are recalled with vi_net_forget."""
+    if new not in SWITCHABLE_VISIBILITY:
+        raise ValueError(f"visibility {new!r}: only shared or internal can be set")
+    if o.visibility not in SWITCHABLE_VISIBILITY:
+        raise ValueError(f"{o.id} is {o.visibility} — a private object stays with its instance")
+    if o.visibility == new:
+        return False
+    o.change(who, f"visibility {o.visibility} → {new}", reason)
+    o.visibility = new
+    save(o)
+    return True
+
+
 def merge_by_key(instance: str, key_of, who: str, reason: str, apply: bool = False) -> dict:
     """One-time clean-up: group the insights of `instance` by key_of(text) (None = no key) and merge each group into its oldest object.
     The oldest keeps its id and gets the newest text; all earlier states go into its history; the others get mode MERGED

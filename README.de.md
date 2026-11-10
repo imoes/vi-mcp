@@ -308,7 +308,7 @@ Empfänger löschen sie samt Suchindex und Vektor und merken sich nur einen Grab
 | `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | Lösungswege |
 | `vi_reflex_learn` · `vi_reflex_list` · `vi_reflex_switch` | Code im Gedächtnis |
 | `vi_self` · `vi_self_propose` · `vi_sleep` | Selbstbild und Konsolidierung |
-| `vi_scorer` · `vi_model` · `vi_why` · `vi_experience` · `vi_status` | Noten, gelerntes Modell, warum ein Hinweis kam, Messwerte, Stand |
+| `vi_scorer` · `vi_model` · `vi_why` · `vi_set_visibility` · `vi_experience` · `vi_status` | Noten, gelerntes Modell, warum ein Hinweis kam, geteilt/intern umstellen, Messwerte, Stand |
 | `vi_conversation` · `vi_delete_conversation` · `vi_archive` · `vi_archive_restore` | Gespräche und Langzeitlager |
 | `vi_net_outbox` · `vi_net_inbox` · `vi_quarantine` · `vi_release` · `vi_net_status` | Schnittstelle des Netzdienstes, Prüfung, Nutzen je Herausgeber |
 | `vi_net_token` · `vi_net_forget` · `vi_net_preview` | Löschtoken, Recht auf Vergessen, Vorschau |

@@ -205,6 +205,14 @@ TOOLS = [
      "description": "VI: drill-down — search, add the most distinctive hashtag of the hits, search again (up to 3 levels). filter = "
                     "filter text OR id of a learned search (suche:…) / of an object (its hashtags become the filter).",
      "inputSchema": _schema({"filter": {"type": "string", "description": "e.g. (thema:oom OR thema:disk-full) !ok:ja"}, "levels": {"type": "integer"}}, ["filter"])},
+    {"name": "vi_set_visibility",
+     "description": "VI: switch objects between shared and internal (e.g. company knowledge learned as shared). filter selects them "
+                    "(at least one kind:value condition); without apply=true it only counts. Your own objects, or any with the release right; "
+                    "private objects are never switched. Every change goes into the object's history with the reason. internal stops "
+                    "further sharing with the network; copies already published are recalled with vi_net_forget.",
+     "inputSchema": _schema({"filter": {"type": "string", "description": "e.g. art_wissen:handbuch"},
+                             "visibility": {"type": "string", "enum": ["shared", "internal"]}, "reason": _S,
+                             "apply": {"type": "boolean", "description": "false (default): only count"}}, ["filter", "visibility", "reason"])},
     {"name": "vi_why",
      "description": "VI: why was this hint shown? From the stored decision of your own last action with it (last 7 days): position, router "
                     "(model/bandit/heuristic), exploration, fitting triggers, measured usefulness, and the router weights that carry it. "
@@ -695,6 +703,33 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         probe = [o2 for _, o2, _g in g.recall(o.data["filter"], limit=3) if o2.id != o.id]
         return (f"search “{n}” learned ({o.id}) — runs before actions with {', '.join(rz)}; "
                 f"now {len(probe)} hits: " + "; ".join(f"[{x.id}] {x.text[:80]}" for x in probe))
+    if name == "vi_set_visibility":
+        filt, new, reason = (args.get("filter") or "").strip(), args.get("visibility"), (args.get("reason") or "").strip()
+        if not any(":" in t for t in filt.split()):
+            raise Rejected("filter needs at least one kind:value condition — switching everything at once is not offered")
+        if new not in g.SWITCHABLE_VISIBILITY:
+            raise Rejected("visibility: shared or internal")
+        if not reason:
+            raise Rejected("reason is required")
+        apply = bool(args.get("apply"))
+        c = {"matched": 0, "changed": 0, "already": 0, "private": 0, "not_yours": 0}
+        for _, o, _g in g.recall(filt, limit=5000, viewer=instance):
+            c["matched"] += 1
+            if o.visibility == new:
+                c["already"] += 1
+            elif o.visibility not in g.SWITCHABLE_VISIBILITY:
+                c["private"] += 1
+            elif o.instance != instance and not release_permission:
+                c["not_yours"] += 1
+            else:
+                c["changed"] += 1
+                if apply:
+                    g.set_visibility(o, new, f"ki@{instance}", reason)
+        label = {"geteilt": "shared", "intern": "internal"}[new]
+        return (f"{c['matched']} object(s) for “{filt}” · {c['changed']} {'switched' if apply else 'would be switched'} to {label} · "
+                f"{c['already']} already {label} · {c['private']} private (never switched) · {c['not_yours']} of other instances "
+                f"(need the release right)" + ("" if apply else " — dry run, nothing changed; apply=true to switch")
+                + (" · internal stops further sharing; copies already on the network: vi_net_forget" if new == "intern" and c["changed"] else ""))
     if name == "vi_why":
         o = _visible(args.get("id"), instance)
         t = args.get("triggers")

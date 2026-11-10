@@ -302,7 +302,7 @@ receivers delete them along with search index and vector, and keep only a tombst
 | `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | solutions |
 | `vi_reflex_learn` · `vi_reflex_list` · `vi_reflex_switch` | code in memory |
 | `vi_self` · `vi_self_propose` · `vi_sleep` | self-image and consolidation |
-| `vi_scorer` · `vi_model` · `vi_why` · `vi_experience` · `vi_status` | scores, learned model, why a hint was shown, metrics, state |
+| `vi_scorer` · `vi_model` · `vi_why` · `vi_set_visibility` · `vi_experience` · `vi_status` | scores, learned model, why a hint was shown, switch shared/internal, metrics, state |
 | `vi_conversation` · `vi_delete_conversation` · `vi_archive` · `vi_archive_restore` | conversations and long-term storage |
 | `vi_net_outbox` · `vi_net_inbox` · `vi_quarantine` · `vi_release` · `vi_net_status` | network service interface, review, usefulness per publisher |
 | `vi_net_token` · `vi_net_forget` · `vi_net_preview` | deletion token, right to be forgotten, preview |
