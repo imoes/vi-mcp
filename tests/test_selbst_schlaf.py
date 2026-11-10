@@ -146,7 +146,7 @@ def test_self_proposal_can_replace_a_sentence(gd):
                      for i in range(3)]
     _age(evidence_list[0], 2)
     old = self_model.core().data["soll"]["stil"][0]["satz"]
-    new = "Write in English, concise; numbers with unit, period and origin."
+    new = "Write in English and keep answers short; numbers with unit, period and origin."
     with session.on_behalf(a), pytest.raises(tools.Rejected, match="replaces: no sentence"):
         tools.call_tool("vi_self_propose", {"area": "style", "sentence": new, "reason": "user decision", "evidence": evidence_list,
                                             "replaces": "a sentence that is not there"}, "a", True)
