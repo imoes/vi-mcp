@@ -17,6 +17,8 @@ if [ "${1:-}" = "--gh" ]; then
     git fetch -q origin main
     [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || { echo "HEAD is not origin/main — push first, then release" >&2; exit 2; }
     ! git ls-remote --exit-code --tags origin "v$version" >/dev/null || { echo "tag v$version already exists on origin" >&2; exit 2; }
+    # 0.30.1: the CHANGELOG entry must exist and carry a date (v0.30.1 was released with "unreleased" in its heading)
+    grep -qE "^## $version — [0-9]{4}-[0-9]{2}-[0-9]{2}" CHANGELOG.md || { echo "CHANGELOG.md has no dated entry \"## $version — YYYY-MM-DD\"" >&2; exit 2; }
 fi
 deb=$(deploy/debian/build.sh)
 rpm=$(deploy/rpm/build.sh | tail -1)
