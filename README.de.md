@@ -126,7 +126,10 @@ wahr ist:
 - **Der Router** ist eine logistische Regression (scikit-learn). Jede Handlung ist eine Beobachtung: die Reize der Lage × die gezeigten
   Hinweise, und das Label ist, ob die Handlung danach gelang. Die Gewichte sagen etwa: „Dieser Hinweis vor `tool:Bash` auf jenem Host erhöht
   die Erfolgschance.“ Sie liegen als lesbares JSON im Gedächtnisobjekt `modell:router` — jedes Gewicht gehört zu einem benannten Merkmal und
-  ist mit `vi_model` einsehbar.
+  ist mit `vi_model` einsehbar. `vi_why` zeigt für einen Hinweis, warum er gezeigt wurde: die gespeicherte Entscheidung und die Gewichte,
+  die ihn getragen haben. Der Router lernt über die Labels (Urteile des Scorers, deine Rückmeldung zu einem Hinweis), nie dadurch, dass
+  jemand Gewichte schreibt; nach jedem Training prüfen feste Regeln die Gewichte und benennen, was falsch aussieht (ein Merkmal dominiert,
+  ein Gewicht gegen den gemessenen Nutzen, ein unbestätigter Hinweis aus dem Netz, die Uhrzeit als Ursache).
 - **Der Bandit** zählt je Hinweis, wie oft eine Handlung danach gelang, verglichen mit der Grundrate (Thompson Sampling) — der Rückfall,
   solange der Router zu wenig Daten hat.
 - **Bedeutung** kommt aus einem vortrainierten Embedding-Modell (bge-m3): Vektoren für die Bedeutungssuche und um ähnliches Wissen zu
@@ -305,7 +308,7 @@ Empfänger löschen sie samt Suchindex und Vektor und merken sich nur einen Grab
 | `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | Lösungswege |
 | `vi_reflex_learn` · `vi_reflex_list` · `vi_reflex_switch` | Code im Gedächtnis |
 | `vi_self` · `vi_self_propose` · `vi_sleep` | Selbstbild und Konsolidierung |
-| `vi_scorer` · `vi_model` · `vi_experience` · `vi_status` | Noten, gelerntes Modell, Messwerte, Stand |
+| `vi_scorer` · `vi_model` · `vi_why` · `vi_experience` · `vi_status` | Noten, gelerntes Modell, warum ein Hinweis kam, Messwerte, Stand |
 | `vi_conversation` · `vi_delete_conversation` · `vi_archive` · `vi_archive_restore` | Gespräche und Langzeitlager |
 | `vi_net_outbox` · `vi_net_inbox` · `vi_quarantine` · `vi_release` · `vi_net_status` | Schnittstelle des Netzdienstes, Prüfung, Nutzen je Herausgeber |
 | `vi_net_token` · `vi_net_forget` · `vi_net_preview` | Löschtoken, Recht auf Vergessen, Vorschau |

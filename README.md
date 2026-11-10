@@ -123,7 +123,10 @@ vi-mcp never trains the language model. The only weights it learns decide **whic
 - **The router** is a logistic regression (scikit-learn). Every action is one observation: the triggers of the situation × the hints that
   were shown, and the label is whether the action then succeeded. The weights say, for example, "this hint before `tool:Bash` on that host
   raises the chance of success". They are stored as readable JSON in the memory object `modell:router` — every weight belongs to a named
-  feature and can be inspected with `vi_model`.
+  feature and can be inspected with `vi_model`. `vi_why` shows, for one hint, why it was shown: the stored decision and the weights that
+  carried it. The router is taught through the labels (the scorer's verdicts, your feedback on a hint), never by writing weights; after
+  each training fixed rules check the weights and name what looks wrong (one feature dominating, a weight against the measured
+  usefulness, an unconfirmed hint from the network, time of day as a cause).
 - **The bandit** counts per hint how often an action succeeded after it was shown, compared with the base rate (Thompson sampling) — the
   fallback while the router has too little data.
 - **Meaning** comes from a pre-trained embedding model (bge-m3): vectors for semantic search and for linking similar knowledge. vi-mcp
@@ -299,7 +302,7 @@ receivers delete them along with search index and vector, and keep only a tombst
 | `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | solutions |
 | `vi_reflex_learn` · `vi_reflex_list` · `vi_reflex_switch` | code in memory |
 | `vi_self` · `vi_self_propose` · `vi_sleep` | self-image and consolidation |
-| `vi_scorer` · `vi_model` · `vi_experience` · `vi_status` | scores, learned model, metrics, state |
+| `vi_scorer` · `vi_model` · `vi_why` · `vi_experience` · `vi_status` | scores, learned model, why a hint was shown, metrics, state |
 | `vi_conversation` · `vi_delete_conversation` · `vi_archive` · `vi_archive_restore` | conversations and long-term storage |
 | `vi_net_outbox` · `vi_net_inbox` · `vi_quarantine` · `vi_release` · `vi_net_status` | network service interface, review, usefulness per publisher |
 | `vi_net_token` · `vi_net_forget` · `vi_net_preview` | deletion token, right to be forgotten, preview |

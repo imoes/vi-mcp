@@ -302,4 +302,6 @@ def explanation(limit: int = 12) -> str:
     if CONTENT:
         from . import content
         z.append(f"  Content: {content.line()}")
+    from . import weight_audit
+    z.append("  " + weight_audit.line(weight_audit.audit(m)))
     return "\n".join(z)

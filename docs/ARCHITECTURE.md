@@ -301,6 +301,14 @@ which context — docs/TRAINING.md 4a/4b.
   almost every command via `skill:` and pushed experience knowledge (warnings, pitfalls) out of the budget.
 - *Observation point:* hint lift (`vi_experience`) before/after `router: modell`. If it does not rise, the model is not
   better than the heuristic → back to `test`.
+- **Taught through labels, never through weights** (0.29.0). The teacher is already there: the scorer's verdicts (language model) and the
+  direct feedback on a shown hint are the labels. Writing weights from outside (as in "weight space programming") would not survive the
+  next training (scikit-learn regularises towards 0) and would replace measurement with opinion. Weights are read: `vi_why` lays open one
+  decision (contributions weight × value; they plus the intercept are the logit), and after training the sleep step `8b_gewichte_pruefen`
+  (`weight_audit.py`) applies fixed rules — `dominant`, `contradicts` (weight against the bandit's measured lift), `network` (unconfirmed
+  hint from the network with a strong weight), `hour` (time of day among the strongest weights, post hoc). It reports, it never changes.
+- *Observation point for cold start:* `metrics.lift_by_age` in `vi_stats` — advantage over the tool's base rate for new (≤ 7 d) against
+  older hints. Only a measured gap justifies teaching new hints (e.g. weighted pseudo-observations); not built.
 
 **Stage 2 — Thompson sampling (`bandit.py`)**, effective from the first action, without sklearn: every hint keeps
 `daten.nuetzlich = {ja, nein}` (actions after display succeeded / failed; atomically via `json_set`). If no

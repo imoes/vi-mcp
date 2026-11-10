@@ -19,6 +19,13 @@ Linked from [README.md](README.md).
   age when it was shown (≤ 7 days = new). It answers whether new knowledge is weaker until it has a history — before anything is built
   for it. Hints that no longer exist are counted separately, not dropped. *Proof:* `test_lift_by_age_splits_new_and_old_hints`.
 
+- **Weight audit after every training** (sleep step `8b_gewichte_pruefen`, `weight_audit.py`; also the last line of `vi_model`): fixed rules
+  read the router weights and name four classes — `dominant` (one feature carries the model), `contradicts` (a hint weight against the
+  hint's measured usefulness over ≥ 20 showings), `network` (a hint from the network with a strong weight that no other instance
+  confirmed), `hour` (time of day among the 3 strongest weights). It only reports; no weight, mode or hint is changed. Fixed rules
+  rather than a language model, because a model reading the weights would also read the hint texts and could be steered by them.
+  *Proof:* `tests/test_weight_audit.py` (each class found, clean weights "ok", no model a named state, nothing changed, sleep runs it).
+
 ### What has changed
 
 - Decision recorded: the router is taught through labels (scorer verdicts, `vi_confirm`/`vi_refute` on a shown hint), never by writing

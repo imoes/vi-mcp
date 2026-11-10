@@ -142,6 +142,7 @@ def _run(reason: str) -> g.MemoryObject:
         step("7c_inhalt", lambda: _content_features())
         step("7d_hinweise", lambda: _hints_new())
         step("8_lernen", lambda: _learning())
+        step("8b_gewichte_pruefen", lambda: _weight_audit())  # 0.29.0: read the new weights, never write them
     duration = int((time.monotonic() - t0) * 1000)
     state = "fehler" if report["fehler"] else "fertig"
     text = (f"Sleep {'finished' if state == 'fertig' else 'finished with errors'} ({reason}): {len(new_items)} new experiences, {len(report.get('cluster', []))} clusters, "
@@ -328,6 +329,12 @@ def _learning() -> dict:
     from . import learning
     b = learning.train("sleep")
     return {k: b.get(k) for k in ("zustand", "n", "merkmale", "auc_holdout", "grund", "urteil") if k in b}
+
+
+def _weight_audit() -> dict:
+    from . import weight_audit
+    r = weight_audit.audit()
+    return {"zustand": r["zustand"], "je_klasse": r["je_klasse"], "befunde": r["befunde"][:10], **({"grund": r["grund"]} if "grund" in r else {})}
 
 
 def _self_actual() -> dict:
