@@ -155,32 +155,36 @@ class Server(ThreadingHTTPServer):
         super().handle_error(request, client_address)
 
 
-class LocalServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
-    """0.36.0: HTTP on a Unix socket; who connects is told by the kernel, not by a token. Mode 0666: everyone may knock, only users in
-    config `lokal` get in (Handler._check)."""
-    daemon_threads = True
-    request_queue_size = 64
-    local = True
+# 0.38.2: only where the platform has Unix sockets. On Windows socketserver has no UnixStreamServer, and defining the class at import
+# time broke `import vi_mcp.server` there — the MSI's server check failed and the installation rolled back (0.36.0–0.38.1).
+LocalServer = None
+if hasattr(socketserver, "UnixStreamServer"):
+    class LocalServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+        """0.36.0: HTTP on a Unix socket; who connects is told by the kernel, not by a token. Mode 0666: everyone may knock, only users in
+        config `lokal` get in (Handler._check)."""
+        daemon_threads = True
+        request_queue_size = 64
+        local = True
 
-    def __init__(self, path: str, handler):
-        p = Path(path)
-        if p.is_socket():
-            p.unlink()  # left over from a crash; a running second server would hold the port and fail before this
-        super().__init__(path, handler)
-        os.chmod(path, 0o666)
+        def __init__(self, path: str, handler):
+            p = Path(path)
+            if p.is_socket():
+                p.unlink()  # left over from a crash; a running second server would hold the port and fail before this
+            super().__init__(path, handler)
+            os.chmod(path, 0o666)
 
-    def get_request(self):
-        conn, _ = self.socket.accept()
-        return conn, ("local", 0)  # BaseHTTPRequestHandler logs client_address[0]
+        def get_request(self):
+            conn, _ = self.socket.accept()
+            return conn, ("local", 0)  # BaseHTTPRequestHandler logs client_address[0]
 
-    def server_close(self):
-        super().server_close()
-        try:
-            Path(self.server_address).unlink()
-        except OSError:
-            pass
+        def server_close(self):
+            super().server_close()
+            try:
+                Path(self.server_address).unlink()
+            except OSError:
+                pass
 
-    handle_error = Server.handle_error
+        handle_error = Server.handle_error
 
 
 def peer_user(conn) -> str:
@@ -344,7 +348,7 @@ def build(k: config.Config) -> list[Server]:
     srvs = [Server((addr, k.port), handler) for addr in k.bind]
     addresses = ", ".join(f"http://{s.server_address[0]}:{s.server_address[1]}/mcp" for s in srvs)
     if k.socket:  # 0.36.0
-        if sys.platform != "linux" or not hasattr(socket, "SO_PEERCRED"):
+        if sys.platform != "linux" or not hasattr(socket, "SO_PEERCRED") or LocalServer is None:
             log(f"local socket {k.socket} not opened: it needs Linux (the user is taken from SO_PEERCRED)")
         else:
             try:

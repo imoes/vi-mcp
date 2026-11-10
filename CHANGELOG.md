@@ -3,6 +3,23 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.38.2 — 2026-11-10 — The Windows MSI works again
+
+### What was fixed
+
+- **On Windows the server did not start since 0.36.0** (MSI 0.36.0–0.38.0). The local socket for `vi-mcp stdio` was defined with
+  `socketserver.UnixStreamServer` when the module was imported, and Windows has no such class: `import vi_mcp.server` raised
+  `AttributeError`, the scheduled task died at every start. The class is now defined only where the platform has Unix sockets.
+  *Proof* (Windows 11 test VM, 10.11.2026): MSI 0.38.0 over 0.34.3 → msiexec exit 0, `/gesund` "Unable to connect", `server.log`:
+  `AttributeError: module 'socketserver' has no attribute 'UnixStreamServer'`; MSI 0.38.2 over 0.38.0 → `ok vi-mcp 0.38.2`.
+  Test: `test_server_imports_without_unix_sockets` (imports the server with `UnixStreamServer` removed, as on Windows).
+- **The MSI reported success with a server that could not start.** Its import check covered only the package; it now imports
+  `vi_mcp.server` and `vi_mcp.tools` too and aborts otherwise, so the installation rolls back to the previous version (transactional
+  since 0.34.0) instead of leaving a dead server. *Proof:* `test_install_checks_that_the_server_imports`; test VM run below.
+- **The memory index showed too few own entries** (production, 10.11.2026: 3 of 6 lines under "Learned by claude-code recently"):
+  imports were filtered after taking the 200 newest objects, which were nearly all imported manual sections. They are now left out in
+  the query. *Proof:* `test_many_new_imports_do_not_crowd_out_own_entries`.
+
 ## 0.38.0 — 2026-11-10 — A memory index in every session, like a MEMORY.md
 
 ### What is new

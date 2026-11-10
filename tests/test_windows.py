@@ -177,3 +177,23 @@ def test_msi_update_is_transactional_and_remembers_options():
     ps = (root / "install.ps1").read_text()
     assert "install-options.json" in ps and "$previous.proxy" in ps and "$previous.server" in ps
     assert "Invoke-Logged $vpy ($pipArgs + $Packages)" in ps and "& $vpy @pipArgs" not in ps
+
+
+def test_server_imports_without_unix_sockets():
+    """0.38.2: Windows has no socketserver.UnixStreamServer — the server must import and run without it (the MSI rolled back on
+    0.36.0–0.38.1 because `import vi_mcp.server` raised AttributeError)."""
+    import subprocess, sys
+    code = ("import socketserver, socket\n"
+            "del socketserver.UnixStreamServer\n"
+            "import vi_mcp.server as s\n"
+            "assert s.LocalServer is None\n"
+            "print('ok')")
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=Path(__file__).resolve().parent.parent)
+    assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr
+
+
+def test_install_checks_that_the_server_imports():
+    """0.38.2: the MSI's import check covers vi_mcp.server — a server that cannot start must roll the installation back."""
+    ps = (Path(__file__).resolve().parent.parent / "deploy/windows/install.ps1").read_text()
+    assert "import vi_mcp, vi_mcp.server, vi_mcp.tools" in ps and 'throw "vi_mcp (server) is not importable' in ps
+    assert ps.isascii()

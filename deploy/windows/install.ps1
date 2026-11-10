@@ -132,8 +132,11 @@ try {
     # vi_mcp lives next to the venv: a .pth file puts the install directory on sys.path (also with python -I)
     $site = & $vpy -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
     Set-Content -Path (Join-Path $site "vi-mcp.pth") -Value $InstallDir -Encoding ascii
-    & $vpy -I -c "import vi_mcp, sklearn, numpy, cryptography, yaml; print(vi_mcp.__version__)" | ForEach-Object { Log "vi_mcp $_ importable" }
-    if ($LASTEXITCODE -ne 0) { throw "vi_mcp is not importable in the venv" }
+    # 0.38.2: import the server module too, so code that cannot run on Windows fails HERE and the MSI rolls back to the previous version.
+    # 0.36.0-0.38.1 passed this check (only the package was imported), then the server died at start: socketserver has no UnixStreamServer
+    # on Windows (test VM 10.11.2026: msiexec exit 0, /gesund unreachable, AttributeError in server.log).
+    & $vpy -I -c "import vi_mcp, vi_mcp.server, vi_mcp.tools, sklearn, numpy, cryptography, yaml; print(vi_mcp.__version__)" | ForEach-Object { Log "vi_mcp $_ importable" }
+    if ($LASTEXITCODE -ne 0) { throw "vi_mcp (server) is not importable in the venv - see $Log" }
 
     $path = [Environment]::GetEnvironmentVariable("Path", "Machine")
     if (($path -split ";") -notcontains $InstallDir) {

@@ -25,6 +25,13 @@ IMPORT_PREFIXES = ("quelle_art:", "art_wissen:", "doku:")
 IMPORT_TAGS = {"herkunft:skills-ordner", "herkunft:p2p", "herkunft:offen", "herkunft:schlaf-llm", "herkunft:log-ueberwachung", "herkunft:schlaf"}
 
 
+#: 0.38.1: imports are left out in SQL already — an instance that imported thousands of manual sections today otherwise found only a few
+#: own entries among its 200 newest objects (production, 10.11.2026: 3 of 6 lines)
+_NOT_IMPORTED = ("NOT EXISTS (SELECT 1 FROM tag x WHERE x.objekt_id = o.id AND ("
+                 + " OR ".join(f"x.tag LIKE '{p}%'" for p in IMPORT_PREFIXES)
+                 + " OR x.tag IN (" + ", ".join(f"'{t}'" for t in sorted(IMPORT_TAGS)) + ")))")
+
+
 def _imported(o) -> bool:
     return any(t.startswith(IMPORT_PREFIXES) or t in IMPORT_TAGS for t in o.hashtags)
 
@@ -55,10 +62,10 @@ def sections(instance: str) -> dict[str, list]:
     req = _pick(_ids(f"SELECT o.id FROM objekt o JOIN tag t ON t.objekt_id = o.id AND t.tag = 'thema:vorgabe' "
                      f"WHERE o.art IN ({kinds}) AND o.modus = 'aktiv' ORDER BY o.zeit DESC LIMIT 60", KINDS), instance, PER_SECTION["vorgaben"], taken,
                 imports_ok=True)
-    proven = _pick(_ids(f"SELECT id FROM objekt WHERE art IN ({kinds}) AND modus = 'aktiv' AND (bestaetigt > 0 OR zugriffe > 0) "
-                        "ORDER BY bestaetigt DESC, zugriffe DESC LIMIT 200", KINDS), instance, PER_SECTION["bewaehrt"], taken)
-    here = _pick(_ids(f"SELECT id FROM objekt WHERE art IN ({kinds}) AND modus = 'aktiv' AND instanz = ? ORDER BY zeit DESC LIMIT 200",
-                      (*KINDS, instance)), instance, PER_SECTION["hier"], taken)
+    proven = _pick(_ids(f"SELECT o.id FROM objekt o WHERE o.art IN ({kinds}) AND o.modus = 'aktiv' AND (o.bestaetigt > 0 OR o.zugriffe > 0) "
+                        f"AND {_NOT_IMPORTED} ORDER BY o.bestaetigt DESC, o.zugriffe DESC LIMIT 200", KINDS), instance, PER_SECTION["bewaehrt"], taken)
+    here = _pick(_ids(f"SELECT o.id FROM objekt o WHERE o.art IN ({kinds}) AND o.modus = 'aktiv' AND o.instanz = ? AND {_NOT_IMPORTED} "
+                      "ORDER BY o.zeit DESC LIMIT 200", (*KINDS, instance)), instance, PER_SECTION["hier"], taken)
     return {"vorgaben": req, "bewaehrt": proven, "hier": here}
 
 

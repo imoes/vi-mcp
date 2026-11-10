@@ -84,3 +84,11 @@ def test_initialize_carries_the_index_after_the_rules(srv):
     ins = a["result"]["instructions"]
     assert "[Index] Memory index for instance anna" in ins and o.id in ins
     assert ins.index("Rules for the VI") < ins.index("[Index]")  # rules first: a client that cuts loses the index, not the rules
+
+
+def test_many_new_imports_do_not_crowd_out_own_entries(gd):
+    """0.38.1: production had 3 of 6 lines — the 200 newest objects were nearly all imports, filtered only afterwards."""
+    own = [_k(f"Own finding number {i} about the deploy", ["thema:deploy"]) for i in range(6)]
+    for i in range(250):
+        _k(f"Imported manual section {i}", ["quelle_art:stibodx"])
+    assert {o.id for o in index.sections("anna")["hier"]} == {o.id for o in own}
