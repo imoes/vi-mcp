@@ -20,6 +20,10 @@ Linked from [README.md](README.md).
 - Company documentation (`art_wissen:firmendoku`) and manuals (`art_wissen:handbuch`) count as reference material like vendor docs:
   before an action at most one documentation hint is shown, further ones only via exploration — so the new triggers cannot flood the hints.
 
+### What was fixed
+
+- **A colon in a question no longer empties the search.** Every word with a colon was read as a hashtag condition, so `vi_recall("Welche Server gibt es in der Range Hosts: 62.153.216.33 …")` found nothing — also in semantic search ("0 of 0 candidates"). Reported by the AIKB benchmark session, 10.11.2026. Now a word is a condition only in the form `kind:value` with a kind that occurs in the memory; anything else ("Hosts:", "10:30", unknown kinds) is searched as text and named in the answer ("searched as text, no hashtag kind: Hosts:"). *Proof:* `test_colon_words_without_known_kind_are_free_text`.
+
 ### What is still missing
 
 - Triggers are derived once per object (version 1); a host or topic learned later is not added to already processed documentation.

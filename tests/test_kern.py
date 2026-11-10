@@ -317,3 +317,15 @@ def test_state_dependent_tools_are_never_remembered(gd):
         assert intuition.before(tool, args, "a", True)["antwort"] is None, tool
     for tool in ("netbox_get_devices", "checkmk_get_hosts", "Read"):
         assert not intuition.state_dependent(tool), tool
+
+
+def test_colon_words_without_known_kind_are_free_text(gd):
+    """0.26.0: "Hosts: 62.153.216.33" emptied the search silently — a colon word is a condition only as kind:value with a known kind."""
+    o = g.new_object("erkenntnis", "Die Hosts der Range 62.153.216.33 bis 62.153.216.46 sind Mailrelays", ["thema:netz"], {"quelle": "x"})
+    assert g.parse_filter("Hosts: 62.153.216.33", frozenset({"thema", "art"})) == ([], [], ["Hosts:", "62.153.216.33"])
+    assert g.parse_filter("um 10:30 thema:netz", frozenset({"thema"})) == ([["thema:netz"]], [], ["um", "10:30"])
+    assert g.parse_filter("foo:bar thema:netz", frozenset({"thema"})) == ([["thema:netz"]], [], ["foo:bar"])  # unknown kind
+    assert [x.id for _, x, _g in g.recall("Hosts: 62.153.216.33", viewer=None)] == [o.id]
+    from vi_mcp import tools
+    out = tools.call_tool("vi_recall", {"filter": "Hosts: 62.153.216.33"}, "a", True)
+    assert o.id in out and "searched as text, no hashtag kind: Hosts:" in out

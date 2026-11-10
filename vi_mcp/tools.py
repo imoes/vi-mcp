@@ -538,13 +538,14 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                 + (" · visibility internal (instances with a token only, never the network)" if o.visibility == "intern" else ""))
     if name == "vi_recall":
         f = args.get("filter") or ""
+        as_text = g.as_text_tokens(f)  # 0.26.0: named in the answer instead of emptying the search silently
         hits = g.recall(f, limit=min(int(args.get("limit") or 10), 50), or_fallback=True)
         if not args.get("semantic") and g.word_search.get() == "oder":
             f += " · OR search: no or too few objects contain all words, filled up by number of matching words (BM25)"
         if args.get("semantic"):
             if not vector.available():
                 raise Rejected("semantic: no embedding service configured (config: embed)")
-            groups, remove, words = g.parse_filter(f)
+            groups, remove, words = g.parse_filter(f, g.known_kinds())
             if not words:
                 raise Rejected("semantic needs free text in the filter (words without kind:)")
             # candidates: only the hashtag conditions (without free text), then order by closeness of meaning
@@ -572,6 +573,8 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                   + (f"; {text_only} hits via full text only" if text_only else "") + ")")
         for _, o, _g in hits:
             o.access()
+        if as_text:
+            f += f" · searched as text, no hashtag kind: {', '.join(as_text[:5])}"
         return (f"{len(hits)} object{'' if len(hits) == 1 else 's'} for “{f}” (R relevance · A recency · W importance):\n"
                 + "\n".join(_line(o, gw) for _, o, gw in hits)) if hits else f"nothing in memory for “{f}”"
     if name == "vi_object":
@@ -673,7 +676,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         rz = [t.strip() for t in args.get("triggers") or [] if t and t.strip()]
         if not rz:
             raise Rejected("at least one trigger (hashtag) at which the search applies")
-        groups, _removed, words = g.parse_filter(args.get("filter") or "")
+        groups, _removed, words = g.parse_filter(args.get("filter") or "", g.known_kinds())
         if not groups and not words:
             raise Rejected("filter needs at least one hashtag or one word")
         oid = f"suche:{re.sub(r'[^a-z0-9_-]', '-', n.lower())[:40]}"

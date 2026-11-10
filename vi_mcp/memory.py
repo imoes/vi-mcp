@@ -59,6 +59,8 @@ ADMIN_PREFIXES = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zusta
               "modus:", "herkunft:", "konflikt:", "selbst:", "selbstbereich:", "modell:", "fusion:", "dublette:", "scorer:", "ziel:", "note:")
 
 lock = threading.RLock()
+_KINDS_CACHE: dict = {"t": float("-inf"), "kinds": frozenset()}
+KINDS_TTL_S = 300
 CONTENT_MAX = 200_000
 _db: sqlite3.Connection | None = None
 fts = False
@@ -92,6 +94,7 @@ def open_db(fpath: Path) -> None:
     """Open or create the database. File and companion files readable only by the owner (0600):
     the memory contains conversation histories and tool results, which may contain credentials."""
     global _db, fts, fpath_active, archive_path
+    _KINDS_CACHE.update(t=float("-inf"), kinds=frozenset())  # another database: other kinds
     fpath.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     old_umask = os.umask(0o077)
     try:
@@ -364,6 +367,10 @@ def save(o: MemoryObject) -> MemoryObject:
             db().execute("INSERT INTO objekt_fts (id, text) VALUES (?, ?)", (o.id, (o.text + "\n" + str(o.data.get("inhalt") or ""))[:300000]))
         db().commit()
     o.hashtags = tags
+    if _KINDS_CACHE["t"] != float("-inf"):  # cache loaded: a new kind counts at once, not only after KINDS_TTL_S
+        new = {t.split(":", 1)[0] for t in tags} - _KINDS_CACHE["kinds"]
+        if new:
+            _KINDS_CACHE["kinds"] = _KINDS_CACHE["kinds"] | new
     return o
 
 
@@ -514,8 +521,38 @@ def link_similar(o: MemoryObject, at_least: int = 2, limit: int = 5) -> None:
 
 # ── Recall: filter language + weighting ──────────────────────────────────────
 
-def parse_filter(text: str) -> tuple[list[list[str]], list[str], list[str]]:
-    """Filter text → (AND groups of OR tags, exclusion tags, free words). `(a OR b) c !d word`. Pure."""
+
+
+def known_kinds() -> frozenset[str]:
+    """Hashtag kinds that occur in the memory (cached KINDS_TTL_S)."""
+    import time as _t
+    if _t.monotonic() - _KINDS_CACHE["t"] > KINDS_TTL_S:
+        with lock:
+            rows = db().execute("SELECT DISTINCT substr(tag, 1, instr(tag, ':') - 1) FROM tag").fetchall()
+        _KINDS_CACHE.update(t=_t.monotonic(), kinds=frozenset(r[0] for r in rows if r[0]))
+    return _KINDS_CACHE["kinds"]
+
+
+def as_text_tokens(text: str, kinds: frozenset[str] | None = None) -> list[str]:
+    """0.26.0: words with a colon that are no hashtag condition (wrong form or unknown kind) — searched as free text, named in answers."""
+    kinds = known_kinds() if kinds is None else kinds
+    out = []
+    for m in re.finditer(r"\(([^()]*)\)|(!?\S+)", text or ""):
+        tok = m.group(2)
+        if tok and ":" in tok and not tok.startswith("!") and not _is_condition(tok, kinds):
+            out.append(tok)
+    return out
+
+
+def _is_condition(tok: str, kinds: frozenset[str] | None) -> bool:
+    return bool(TAG.match(tok)) and (kinds is None or tok.split(":", 1)[0] in kinds)
+
+
+def parse_filter(text: str, kinds: frozenset[str] | None = None) -> tuple[list[list[str]], list[str], list[str]]:
+    """Filter text → (AND groups of OR tags, exclusion tags, free words). `(a OR b) c !d word`. Pure when `kinds` is given or None.
+    0.26.0: a word with a colon is a hashtag condition only in the form kind:value (TAG) and, if `kinds` is given, with a kind that occurs
+    in the memory — otherwise it is free text. Before, "Hosts: 62.153.216.33" in a question emptied the whole search silently (reported by
+    the AIKB benchmark session, 10.11.2026)."""
     groups, remove, words = [], [], []
     for m in re.finditer(r"\(([^()]*)\)|(!?\S+)", text or ""):
         if m.group(1) is not None:
@@ -528,7 +565,7 @@ def parse_filter(text: str) -> tuple[list[list[str]], list[str], list[str]]:
             continue
         if tok.startswith("!"):
             remove.append(tok[1:])
-        elif ":" in tok:
+        elif ":" in tok and _is_condition(tok, kinds):
             groups.append([tok])
         else:
             words.append(tok)
@@ -567,7 +604,7 @@ def ids_for_filter(filter_text: str, kinds: tuple[str, ...] = (), viewer: str | 
     """All visible ids for the filter's hashtag conditions, without an upper limit (candidates of the semantic search)."""
     if viewer == "aktuell":
         viewer = current_instance.get()
-    groups, remove, _w = parse_filter(filter_text)
+    groups, remove, _w = parse_filter(filter_text, known_kinds())
     if kinds:
         groups.append([f"art:{a}" for a in kinds])
     sql, par = _filter_sql(groups, remove, viewer)
@@ -588,7 +625,7 @@ def recall(filter_text: str, limit: int = 10, kinds: tuple[str, ...] = (), viewe
     filled up with an OR search (BM25 ranks objects with more words first); `word_search` then says which one ran."""
     if viewer == "aktuell":
         viewer = current_instance.get()
-    groups, remove, words = parse_filter(filter_text)
+    groups, remove, words = parse_filter(filter_text, known_kinds())
     if kinds:
         groups.append([f"art:{a}" for a in kinds])
     sql, par = _filter_sql(groups, remove, viewer)
