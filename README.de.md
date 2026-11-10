@@ -126,7 +126,7 @@ wahr ist:
 - **Der Router** ist eine logistische Regression (scikit-learn). Jede Handlung ist eine Beobachtung: die Reize der Lage × die gezeigten
   Hinweise, und das Label ist, ob die Handlung danach gelang. Die Gewichte sagen etwa: „Dieser Hinweis vor `tool:Bash` auf jenem Host erhöht
   die Erfolgschance.“ Sie liegen als lesbares JSON im Gedächtnisobjekt `modell:router` — jedes Gewicht gehört zu einem benannten Merkmal und
-  ist mit `vi_model` einsehbar. Produktiv, 10.11.2026: 8.232 Beobachtungen, 279 Merkmale, Holdout-AUC 0,798.
+  ist mit `vi_model` einsehbar.
 - **Der Bandit** zählt je Hinweis, wie oft eine Handlung danach gelang, verglichen mit der Grundrate (Thompson Sampling) — der Rückfall,
   solange der Router zu wenig Daten hat.
 - **Bedeutung** kommt aus einem vortrainierten Embedding-Modell (bge-m3): Vektoren für die Bedeutungssuche und um ähnliches Wissen zu
@@ -139,8 +139,9 @@ wahr ist:
   neuen Erfahrungen — und jede Entscheidung lässt sich über die Gewichte benannter Merkmale erklären.
 - **Gewichte können keine Fakten erfinden.** Sie ordnen nur Erinnerungen, die es gibt und die eine Quelle haben. Ein falsches Gewicht zeigt
   einen weniger hilfreichen Hinweis — eine falsche Aussage kann es nicht erzeugen.
-- **Es schaltet sich ab, wenn es nicht hilft.** Unter 50 Fehlschlägen oder bei einer Holdout-AUC ≤ 0,6 bleibt das Modell im Testmodus, und die
-  Heuristik entscheidet; 10 % der Hinweise sind Erkundung, damit das Modell auch über das lernt, was es selbst nicht gezeigt hätte.
+- **Es schaltet sich ab, wenn es nicht hilft.** Bei zu wenig Daten oder schwachem Ergebnis auf zurückgehaltenen Daten bleibt das Modell im
+  Testmodus, und die Heuristik entscheidet; ein kleiner Teil der Hinweise ist Erkundung, damit das Modell auch über das lernt, was es selbst
+  nicht gezeigt hätte.
 
 ## Installieren
 

@@ -123,7 +123,7 @@ vi-mcp never trains the language model. The only weights it learns decide **whic
 - **The router** is a logistic regression (scikit-learn). Every action is one observation: the triggers of the situation × the hints that
   were shown, and the label is whether the action then succeeded. The weights say, for example, "this hint before `tool:Bash` on that host
   raises the chance of success". They are stored as readable JSON in the memory object `modell:router` — every weight belongs to a named
-  feature and can be inspected with `vi_model`. Production, 10.11.2026: 8,232 observations, 279 features, holdout AUC 0.798.
+  feature and can be inspected with `vi_model`.
 - **The bandit** counts per hint how often an action succeeded after it was shown, compared with the base rate (Thompson sampling) — the
   fallback while the router has too little data.
 - **Meaning** comes from a pre-trained embedding model (bge-m3): vectors for semantic search and for linking similar knowledge. vi-mcp
@@ -136,8 +136,8 @@ vi-mcp never trains the language model. The only weights it learns decide **whic
   and every decision can be explained by the weights of named features.
 - **Weights cannot invent facts.** They only order memories that exist and have a source. A wrong weight shows a less helpful hint; it
   cannot create a false statement.
-- **It switches itself off when it does not help.** Below 50 failures or at a holdout AUC ≤ 0.6 the model stays in test mode and the
-  heuristic decides; 10 % of the hints are exploration, so the model also learns about what it would not have shown.
+- **It switches itself off when it does not help.** With too little data or a weak result on held-back data the model stays in test mode
+  and the heuristic decides; a small share of the hints is exploration, so the model also learns about what it would not have shown.
 
 ## Install
 
