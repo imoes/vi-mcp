@@ -12,6 +12,8 @@
                                           stop a running service first (one writer)
   python3 -m vi_mcp port [PORT]           show the server port, or set it (1024–65535) and restart the service; the local
                                           network service (vi-p2p) follows. Clients and proxies (nginx) keep their URL: adjust them.
+  python3 -m vi_mcp embed setup|status|remove [--port N] [--cpu] [--model-file F] [--no-switch]
+                                          own embedding service (llama.cpp + bge-m3, Vulkan or CPU) for the vectors
   python3 -m vi_mcp merge-repeats INSTANCE REGEX [--apply]
                                           merge the instance's insights whose text gives the same key (REGEX group 1) into one object
                                           per key, earlier texts in its history; without --apply it only counts. Stop the service first.
@@ -132,6 +134,9 @@ def _cli(argv: list[str]) -> int:
             g.close_db()
         print(f"Instance {argv[1]}: {r['gespraeche']} conversations → tombstones, {r['objekte']} private objects deleted. Shared knowledge stays.")
         return 0
+    if command == "embed":
+        from . import embed_service
+        return embed_service.main(argv[1:])
     if command == "port" and len(argv) in (1, 2):
         return _port(argv[1] if len(argv) == 2 else None)
     if command == "merge-repeats" and len(argv) in (3, 4) and argv[3:] in ([], ["--apply"]):

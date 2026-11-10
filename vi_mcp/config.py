@@ -118,6 +118,17 @@ def set_port(port: int, p: Path | None = None) -> int:
     return old
 
 
+def set_embed(embed: dict | None, p: Path | None = None) -> None:
+    """0.28.0: set or clear the embedding service ({"url": ...}); the service reads it at start."""
+    p = p or fpath()
+    raw = json.loads(p.read_text()) if p.exists() else {}
+    if embed:
+        raw["embed"] = embed
+    else:
+        raw.pop("embed", None)
+    _save_raw(raw, p)
+
+
 def _save_raw(raw: dict, p: Path) -> None:
     """Atomic write of the configuration; keeps owner and permissions of an existing file, a new one is 0600."""
     p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)

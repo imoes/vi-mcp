@@ -3,6 +3,25 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.28.0 — 2026-11-10 — Own embedding service
+
+### What is new
+
+- **`vi-mcp embed setup|compare|status|remove`** — vectors without a foreign stack. Until now semantic search depended on an external
+  service shared with other applications (on the production host the container of the LLM stack, where batch jobs made live searches
+  wait ~20 s). The command installs llama.cpp `llama-server` (b11938, Vulkan build, CPU build as fallback) and bge-m3 Q4_K_M, both checked
+  by SHA256, as a service of its own (systemd `vi-embed` / scheduled task `vi-embed`) on 127.0.0.1:8767 and points `embed.url` to it.
+  *Proof:* the pinned model file `gpustack/bge-m3-GGUF/bge-m3-Q4_K_M.gguf` has the same SHA256 (`6d39681b…`) as the file the existing
+  23,000 vectors were made with (checked 10.11.2026); the server parameters are the same (mean pooling, context 8192) —
+  `test_server_parameters_match_the_vectors`. `vi-mcp embed compare` re-embeds stored texts and reports the cosine before switching.
+  Tests: `tests/test_embed_service.py` (wrong hash refused, archive escaping its directory refused, Vulkan→CPU fallback, `--no-switch`).
+- Windows MSI: `EMBED=1` sets the service up during installation.
+
+### What is still missing
+
+- The service has not run on a real host yet: the first `vi-mcp embed setup --no-switch` and `vi-mcp embed compare` on the production host
+  is the acceptance test.
+
 ## 0.27.0 — 2026-11-10 — Windows package (client and server), configurable port
 
 ### What is new

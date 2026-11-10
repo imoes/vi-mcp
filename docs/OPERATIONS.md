@@ -135,6 +135,27 @@ sudo -u vi-mcp vi-mcp merge-repeats <instance> '— Filter:\s*(.+)$' --apply
 sudo systemctl start vi-mcp
 ```
 
+## Own embedding service (vectors)
+
+Semantic search, near-duplicate detection and the meaning features of the router need vectors. Until 0.27.0 they came only from an
+external OpenAI-compatible service (`embed.url`). Since 0.28.0 vi-mcp brings its own, installable at any time, on Linux and Windows:
+
+```bash
+sudo vi-mcp embed setup                 # download, check, start the service vi-embed on 127.0.0.1:8767, switch embed.url, restart vi-mcp
+sudo vi-mcp embed setup --no-switch     # install and start only — compare first:
+sudo -u vi-mcp vi-mcp embed compare     # re-embeds 30 stored texts and compares (cosine); "same vectors" → switch with `embed setup`
+vi-mcp embed status · sudo vi-mcp embed remove
+```
+
+- **What it installs**: llama.cpp `llama-server` (release b11938, Vulkan build; the CPU build if Vulkan does not start) and the model
+  bge-m3 Q4_K_M from `gpustack/bge-m3-GGUF` — both checked by SHA256. The model file is byte-identical with the one the existing vectors
+  were made with, and the server runs with the same parameters (mean pooling, context 8192), so stored vectors stay valid.
+  `--model-file PATH` uses a local copy (accepted only with the same hash), `--cpu` skips Vulkan, `--port` chooses the port.
+- **Where**: Linux `/var/lib/vi-mcp/embed`, systemd unit `vi-embed` (user `vi-mcp`, groups `render video` for the GPU);
+  Windows `%ProgramData%\vi-mcp\embed`, scheduled task `vi-embed` (`msiexec … EMBED=1` sets it up during installation).
+- **Why a process of its own**: embedding a backlog takes minutes; in the vi-mcp process it would block answers. An external service can
+  still be used — set `embed.url` by hand.
+
 ## Changing the port
 
 The server listens on `port` from its configuration (default 8765, bound to 127.0.0.1).

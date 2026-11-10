@@ -3,7 +3,8 @@
 # The MSI copies vi_mcp, the hook and the scripts to %ProgramFiles%\vi-mcp and then runs install.ps1 (Python, venv, PyPI packages,
 # optionally the server as scheduled task). Public properties: SERVER=1|0 (default 1), PROXY=http://host:port (default none).
 # PORT=9000 sets the server port (default: keep an existing one, 8765 for a new installation).
-#   msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [PROXY=http://proxy:3128] /l*v install.log
+# EMBED=1 also sets up the own embedding service (vi-mcp embed setup).
+#   msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [EMBED=1] [PROXY=http://proxy:3128] /l*v install.log
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 version=$(python3 -c "import vi_mcp; print(vi_mcp.__version__)")
@@ -56,7 +57,7 @@ wxs = f'''<?xml version="1.0" encoding="utf-8"?>
     <Feature Id="Main" Level="1">{"".join(refs)}</Feature>
     <CustomAction Id="SetPwsh" Property="PWSH" Value="[System64Folder]WindowsPowerShell\\v1.0\\powershell.exe"/>
     <CustomAction Id="RunInstall" Property="PWSH" Execute="deferred" Impersonate="no" Return="check"
-      ExeCommand='{ps} "[INSTALLDIR]install.ps1" -InstallDir "[INSTALLDIR]." -Server "[SERVER]" -Port "[PORT]" -Proxy "[PROXY]"'/>
+      ExeCommand='{ps} "[INSTALLDIR]install.ps1" -InstallDir "[INSTALLDIR]." -Server "[SERVER]" -Port "[PORT]" -Embed "[EMBED]" -Proxy "[PROXY]"'/>
     <CustomAction Id="RunUninstall" Property="PWSH" Execute="deferred" Impersonate="no" Return="ignore"
       ExeCommand='{ps} "[INSTALLDIR]uninstall.ps1" -InstallDir "[INSTALLDIR]."'/>
     <InstallExecuteSequence>

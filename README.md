@@ -159,7 +159,8 @@ msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [PROXY=http://proxy:3
 vi-mcp setup --claude --hook --url http://127.0.0.1:8765/mcp --token-file <file>
 ```
 
-The port can be changed later on Linux and Windows with `vi-mcp port 9000` (restarts the service). On Windows there is no interactive setup
+The port can be changed later on Linux and Windows with `vi-mcp port 9000` (restarts the service). Vectors for semantic search come from
+vi-mcp's own embedding service, installable at any time: `sudo vi-mcp embed setup` (llama.cpp + bge-m3, Vulkan or CPU; on Windows `EMBED=1`). On Windows there is no interactive setup
 menu, no reflex sandbox (reflex code does not run) and no network service (P2P) — see [docs/OPERATIONS.md](docs/OPERATIONS.md#windows).
 
 **Check a release before installing.** From v0.15.0 on, `SHA256SUMS` is signed with the release key (Ed25519, `SHA256SUMS.sig`). Keep your own copy of
