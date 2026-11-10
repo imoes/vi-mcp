@@ -3,6 +3,20 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.31.0 — 2026-11-10 — Read-only search for measurements
+
+### What is new
+
+- **`vi_recall(..., reinforce=false)`** — read only: the hits are not reinforced (access count and last use stay unchanged), and the
+  answer says so. For benchmarks, evaluations and probes. Before, every recall reinforced its hits; the A/B benchmark of 10.11.2026
+  (49 questions, 15 hits each) reinforced 733 objects once each, so they looked more used and more recent than real use justifies —
+  in the recency/importance ranking of filter searches and for the archive. Default stays `true` (a recall by a working session is use).
+  *Proof:* `test_recall_without_reinforcement`.
+
+### What is still missing
+
+- The 733 reinforcements of 10.11.2026 stay: the access counts could be lowered again, but the previous last-use times are overwritten.
+
 ## 0.30.1 — 2026-11-10 — Wording fixes
 
 ### What was fixed

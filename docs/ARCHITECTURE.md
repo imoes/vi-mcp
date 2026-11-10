@@ -141,7 +141,8 @@ Weight = **relevance** (FTS rank normalised, otherwise 1) + **recency** `(1 + ho
 Wixted & Ebbesen 1991 / ACT-R — docs/FORSCHUNG.md A9; exponential up to 0.3.0, see correction below) + **importance**
 `importance/3·0.6 + log1p(2·confirmed + accesses)/6 − 0.5·refuted` (capped at 1) + **collective bonus**
 0.2 per *other* confirming instance (at most 0.6). After Park et al. 2023, "Generative Agents" (arXiv 2304.03442).
-Every hit is **reinforced** (`zugriffe + 1` atomically, `zuletzt = now`).
+Every hit of `vi_recall` is **reinforced** (`zugriffe + 1` atomically, `zuletzt = now`) — except with `reinforce=false` (0.31.0), the
+read-only search for measurements and probes: a benchmark of 49 questions had reinforced 733 objects once each.
 
 > **Correction 2 (0.4.0):** The exponential decay made everything older than two weeks practically disappear (30 d: 0.03).
 > Now a power law; `memory.DECAY_D = 0.3` is a starting value: 1 h 0.81 · 1 d 0.38 · 7 d 0.21 · 30 d 0.14 · 1 y 0.07.
@@ -184,7 +185,8 @@ CLAUDE.md rule 5). Since 0.2.1, `vi_after` with `ok=true` reinforces the objects
 **assumption** ("the hint helped"; testing effect: only successful retrieval strengthens, docs/FORSCHUNG.md A10).
 *Observation point:* **hint lift** (`metrics.py`, in `vi_experience` per tool and in `vi_status` overall):
 success rate of actions with a hint versus without; under 10 cases per side "too little data"; lift < −5 points means
-"hints do harm — assumption refuted". Deliberate looking up (`vi_recall`, `vi_object`, `vi_drilldown`) still reinforces immediately.
+"hints do harm — assumption refuted". Deliberate searching still reinforces immediately: the hits of `vi_recall` (unless `reinforce=false`) and a learned search used by
+`vi_drilldown`. `vi_object` reads without reinforcing (corrected 0.31.0; this line said otherwise before).
 
 **Read-only or writing?** If the client states `read_only`, its statement applies; otherwise the name pattern
 `intuition.WRITING` (create, update, delete, send, …). Writing tools are **never** answered from

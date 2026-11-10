@@ -329,3 +329,16 @@ def test_colon_words_without_known_kind_are_free_text(gd):
     from vi_mcp import tools
     out = tools.call_tool("vi_recall", {"filter": "Hosts: 62.153.216.33"}, "a", True)
     assert o.id in out and "searched as text, no hashtag kind: Hosts:" in out
+
+
+def test_recall_without_reinforcement(gd):
+    """0.31.0: reinforce=false for measurements — access count and last use stay as they were, and the answer says so."""
+    from vi_mcp import tools
+    o = g.new_object("erkenntnis", "nginx reload only after nginx -t", ["thema:nginx"], {"quelle": "x"}, reason="T")
+    before = g.load(o.id)
+    out = tools.call_tool("vi_recall", {"filter": "thema:nginx", "reinforce": False}, "a", False)
+    after = g.load(o.id)
+    assert o.id in out and "read only (reinforce=false)" in out
+    assert (after.accesses, after.last_at) == (before.accesses, before.last_at)
+    tools.call_tool("vi_recall", {"filter": "thema:nginx"}, "a", False)  # default: reinforced as before
+    assert g.load(o.id).accesses == before.accesses + 1

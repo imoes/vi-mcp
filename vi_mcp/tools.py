@@ -165,8 +165,11 @@ TOOLS = [
      "description": "VI: search memory. When: before starting any task, before changing actions on systems, on errors, for questions "
                     "about internal systems (rules 1–4). Syntax: kind:value, !kind:value, (a OR b), prefix kind:value*, free text (full "
                     "text). Ranked by relevance, recency and importance; every hit is reinforced. semantic=true searches hybrid: meaning "
-                    "(embedding — takes a few seconds, is reported) plus full text, merged by rank fusion.",
-     "inputSchema": _schema({"filter": {"type": "string", "description": "e.g. (thema:oom OR thema:disk-full) !ok:ja"}, "limit": {"type": "integer"}, "semantic": {"type": "boolean"}}, ["filter"])},
+                    "(embedding — takes a few seconds, is reported) plus full text, merged by rank fusion. reinforce=false for measurements "
+                    "and probes (benchmarks, evaluations): read only, the hits are not reinforced.",
+     "inputSchema": _schema({"filter": {"type": "string", "description": "e.g. (thema:oom OR thema:disk-full) !ok:ja"}, "limit": {"type": "integer"},
+                             "semantic": {"type": "boolean"},
+                             "reinforce": {"type": "boolean", "description": "default true; false = read only (access count and last use stay unchanged)"}}, ["filter"])},
     {"name": "vi_object",
      "description": "VI: one object with fields, hashtags, edges and change history.",
      "inputSchema": _schema({"id": _S}, ["id"])},
@@ -585,8 +588,14 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             text_only = sum(1 for i in best_ids if i not in cos)
             f += (f" · semantic hybrid (embedding {ms} ms, {with_vector} of {len(cand)} candidates with a vector; meaning and full text by rank fusion"
                   + (f"; {text_only} hits via full text only" if text_only else "") + ")")
-        for _, o, _g in hits:
-            o.access()
+        # 0.31.0: a measurement must not change what it measures — a benchmark of 49 questions reinforced 733 objects once each
+        # (10.11.2026), making them look more used and more recent than real use justifies. reinforce=false only reads.
+        reinforce = args.get("reinforce", True) is not False
+        if reinforce:
+            for _, o, _g in hits:
+                o.access()
+        else:
+            f += " · read only (reinforce=false): hits not reinforced"
         if as_text:
             f += f" · searched as text, no hashtag kind: {', '.join(as_text[:5])}"
         return (f"{len(hits)} object{'' if len(hits) == 1 else 's'} for “{f}” (R relevance · A recency · W importance):\n"
