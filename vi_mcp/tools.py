@@ -205,6 +205,12 @@ TOOLS = [
      "description": "VI: drill-down — search, add the most distinctive hashtag of the hits, search again (up to 3 levels). filter = "
                     "filter text OR id of a learned search (suche:…) / of an object (its hashtags become the filter).",
      "inputSchema": _schema({"filter": {"type": "string", "description": "e.g. (thema:oom OR thema:disk-full) !ok:ja"}, "levels": {"type": "integer"}}, ["filter"])},
+    {"name": "vi_why",
+     "description": "VI: why was this hint shown? From the stored decision of your own last action with it (last 7 days): position, router "
+                    "(model/bandit/heuristic), exploration, fitting triggers, measured usefulness, and the router weights that carry it. "
+                    "With triggers: for that situation instead. Read only.",
+     "inputSchema": _schema({"id": {"type": "string", "description": "id of the hint, e.g. erkenntnis:…"},
+                             "triggers": {"type": "array", "items": {"type": "string"}, "description": "optional, e.g. [\"tool:Bash\", \"host:web1\"]"}}, ["id"])},
     {"name": "vi_reflex_learn",
      "description": "VI: write Python code into memory (reflex). kind=tool: TOOL = {description, inputSchema} + def run(args) -> str → "
                     "tool vi_reflex_<name>. kind=before: def run(tool, args) -> None | {'hinweis'} | {'args'}. kind=after: def run(tool, "
@@ -242,7 +248,7 @@ class Rejected(Exception):
 
 #: Without a token: read, report own actions, propose knowledge. Everything that could slip something to others
 #: (confirm, refute, questions, reflexes, releases, network) needs an instance with a token.
-OPEN_ALLOWED = {"vi_before", "vi_after", "vi_learn", "vi_recall", "vi_drilldown", "vi_object", "vi_status", "vi_experience", "vi_skills", "vi_skill",
+OPEN_ALLOWED = {"vi_before", "vi_after", "vi_learn", "vi_recall", "vi_drilldown", "vi_why", "vi_object", "vi_status", "vi_experience", "vi_skills", "vi_skill",
                  "vi_model", "vi_scorer", "vi_self", "vi_sleep", "vi_archive", "vi_quarantine", "vi_net_status", "vi_questions", "vi_reflex_list"}
 
 
@@ -689,6 +695,12 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         probe = [o2 for _, o2, _g in g.recall(o.data["filter"], limit=3) if o2.id != o.id]
         return (f"search “{n}” learned ({o.id}) — runs before actions with {', '.join(rz)}; "
                 f"now {len(probe)} hits: " + "; ".join(f"[{x.id}] {x.text[:80]}" for x in probe))
+    if name == "vi_why":
+        o = _visible(args.get("id"), instance)
+        t = args.get("triggers")
+        if t is not None and (not isinstance(t, list) or not all(isinstance(x, str) and ":" in x for x in t)):
+            raise Rejected("triggers: a list of kind:value, e.g. [\"tool:Bash\", \"host:web1\"]")
+        return intuition.explain(o, instance, t or None)
     if name == "vi_drilldown":
         filt = (args.get("filter") or "").strip()
         if filt.startswith("suche:"):

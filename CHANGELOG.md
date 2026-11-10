@@ -3,6 +3,31 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.29.0 — unreleased — Why a hint was shown; is a new hint weaker?
+
+### What is new
+
+- **`vi_why(id, [triggers])`** — why was this hint shown? Read from the stored decision of your own most recent action with it
+  (first the open one — `vi_before` without `vi_after` yet —, then the experiences of the last 7 days): time, tool, position, router
+  (`modell`/`bandit`/`heuristik`), whether the slot was ε-exploration, which triggers match the hint's hashtags, measured usefulness, and
+  the router weights that carry it: P(ok) without and with the hint, the lift, the contribution of each feature (weight × value). With
+  `triggers` it answers for that situation instead. A hint never shown to the asking instance gets a named answer, not an invented reason.
+  *Proof:* `test_contributions_add_up_to_the_prediction` (contributions + intercept = logit of the router's prediction, and the lift equals
+  the router's ranking value), `test_vi_why_explains_the_stored_decision`, and the trained-router test now asks `vi_why` about the
+  decision it just made.
+- **Cold-start observation point** in `vi_stats` (section C): success after a shown hint minus the tool's base rate, split by the hint's
+  age when it was shown (≤ 7 days = new). It answers whether new knowledge is weaker until it has a history — before anything is built
+  for it. Hints that no longer exist are counted separately, not dropped. *Proof:* `test_lift_by_age_splits_new_and_old_hints`.
+
+### What has changed
+
+- Decision recorded: the router is taught through labels (scorer verdicts, `vi_confirm`/`vi_refute` on a shown hint), never by writing
+  weights. Weights are read (`vi_why`, `vi_model`), not set by a language model.
+
+### What is still missing
+
+- The age split cannot separate "new hint" from "new kind of work" (both arrive together); it removes only the tool mix.
+
 ## 0.28.1 — 2026-11-10 — Windows installer works
 
 ### What was fixed

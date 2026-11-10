@@ -287,6 +287,67 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
 
 #: 0.20.9: confirming/refuting a shown hint within this period counts as feedback on the action
 FEEDBACK_MIN = 60
+WHY_DAYS = 7
+
+
+def _last_shown(instance: str, hint_id: str) -> tuple[str, str, dict, str] | None:
+    """(time, tool, decision, where) of the instance's most recent decision that showed this hint: first the open ones (vi_before
+    without vi_after yet — what was just shown), then the stored experiences of the last WHY_DAYS days."""
+    with _open_lock:
+        pending = [(t, tool, acc) for t, tool, _a, acc, inst, _ro, _c in _open.values() if inst == instance and hint_id in acc.get("gezeigt", [])]
+    if pending:
+        t, tool, acc = max(pending, key=lambda x: x[0])
+        ts = (datetime.now(timezone.utc) - timedelta(seconds=time.monotonic() - t)).isoformat(timespec="seconds")
+        return ts, tool, acc, "open action, not reported yet"
+    since = (datetime.now(timezone.utc) - timedelta(days=WHY_DAYS)).isoformat(timespec="milliseconds")
+    with g.lock:
+        rows = g.db().execute("SELECT id FROM objekt WHERE art = 'erfahrung' AND instanz = ? AND zeit >= ? AND daten LIKE ? ORDER BY zeit DESC LIMIT 50",
+                              (instance, since, f"%{hint_id}%")).fetchall()
+    for (eid,) in rows:
+        e = g.load(eid)
+        if e and hint_id in ((e.data.get("vorher") or {}).get("gezeigt") or []):
+            return e.ts, next((t[5:] for t in e.hashtags if t.startswith("tool:")), "?"), e.data["vorher"], f"experience {e.id}"
+    return None
+
+
+def explain(hint: g.MemoryObject, instance: str, triggers: list[str] | None = None) -> str:
+    """0.29.0 (vi_why): why this hint was shown — from the stored decision (triggers, router, exploration), not reconstructed.
+    With `triggers` it answers for that situation instead. Read only; the weights are read, never written."""
+    from . import bandit, learning
+    z = []
+    e = None if triggers else _last_shown(instance, hint.id)
+    ts = e[0] if e is not None else None
+    if triggers is None and e is None:
+        return (f"{hint.id} was not shown to {instance} in the last {WHY_DAYS} days — pass triggers (e.g. [\"tool:Bash\", \"host:web1\"]) "
+                f"to ask for a situation")
+    if e is not None:
+        _ts, tool, v, where = e
+        triggers, router = v.get("reize", []), v.get("router", "—")
+        pos = v.get("gezeigt", []).index(hint.id) + 1
+        z.append(f"Shown {ts[:16]} before {tool} ({where}), "
+                 f"position {pos} of {len(v.get('gezeigt', []))}, router {router}"
+                 + (" — this slot was ε-exploration (a random candidate from further back)" if v.get("exploration") and pos == len(v.get("gezeigt", [])) else ""))
+    else:
+        router = "modell" if learning.active() else "bandit" if bandit.has_counter([hint]) else "heuristik"
+        z.append(f"Situation given: {', '.join(triggers)} · router now {router}")
+    match = sorted(set(triggers) & set(hint.hashtags))
+    z.append(f"  Fit: {len(match)} trigger(s) match the hint's hashtags" + (f" ({', '.join(match)})" if match else " — it came in through search or content, not a hashtag"))
+    z.append(f"  Hint: {hint.kind} from {hint.instance}, mode {hint.mode}, importance {hint.importance}, confirmed by {hint.foreign_confirmations()} foreign instance(s)")
+    z.append(f"  Measured usefulness: {bandit.line(hint)}")
+    m = learning.model()
+    if m is not None and m.data.get("gewichte"):
+        w = learning.why(m, hint.id, triggers, ts)
+        z.append(f"  Router model ({m.mode}, trained {str(m.data.get('trainiert', '—'))[:16]}; today's weights, the decision may have used an older version): "
+                 f"P(ok) without hint {w['p_without'] * 100:.0f} %, with {w['p_with'] * 100:.0f} % → lift {w['lift'] * 100:+.1f} points")
+        z += [f"    {k:46} {c:+.3f}" for k, c in w["hint"][:8]]
+        if w["hint_unknown"]:
+            z.append(f"    not in the model (fewer than {learning.MIN_PER_FEATURE} observations): {', '.join(w['hint_unknown'][:6])}")
+        if w["situation"]:
+            z.append("    situation (raises or lowers P with and without the hint alike): "
+                     + ", ".join(f"{k} {c:+.2f}" for k, c in w["situation"][:4]))
+    else:
+        z.append("  Router model: none yet — order by fit, importance and recency (heuristic) or measured usefulness (bandit)")
+    return "\n".join(z)
 
 
 def feedback(instance: str, hint_id: str, value: int) -> str | None:

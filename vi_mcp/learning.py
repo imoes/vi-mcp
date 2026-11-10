@@ -107,6 +107,24 @@ def prediction(m: g.MemoryObject, features: dict) -> float:
     return _sigmoid(m.data["achsenabschnitt"] + sum(w.get(k, 0.0) * v for k, v in features.items()))
 
 
+def contributions(m: g.MemoryObject, features: dict) -> list[tuple[str, float]]:
+    """0.29.0: weight × value per feature the model knows, largest effect first. Sum + intercept = logit of prediction()."""
+    w = m.data["gewichte"]
+    return sorted(((k, w[k] * v) for k, v in features.items() if k in w), key=lambda kv: -abs(kv[1]))
+
+
+def why(m: g.MemoryObject, hint_id: str, triggers: list[str], ts: str | None = None) -> dict:
+    """0.29.0: the same arithmetic as ranking() for one hint, laid open: P(ok) without and with the hint, the lift, and which
+    features carry it. Situation features cancel out in the lift; the hint's own features and hinweis_n decide."""
+    base = action_features(triggers, ts or g.now())
+    hint = hint_features(hint_id, triggers)
+    p0 = prediction(m, {**base, "hinweis_n:0": 1.0})
+    p1 = prediction(m, {**base, "hinweis_n:1": 1.0, **hint})
+    return {"p_without": p0, "p_with": p1, "lift": p1 - p0, "intercept": m.data["achsenabschnitt"],
+            "hint": contributions(m, {"hinweis_n:1": 1.0, **hint}), "hint_unknown": [k for k in hint if k not in m.data["gewichte"]],
+            "situation": contributions(m, base)}
+
+
 def ranking(m: g.MemoryObject, triggers: list[str], candidates: list[str], ts: str | None = None) -> list[tuple[str, float]]:
     """Candidates by expected lift (descending). Unknown hints have lift 0 (only their kind counts)."""
     base = action_features(triggers, ts or g.now())

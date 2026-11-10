@@ -57,3 +57,58 @@ def line(l: dict) -> str:
     return (f"Hint lift {l['stunden']:g} h: with hint {l['mit']['ok']}/{l['mit']['n']} ok ({f(l['quote_mit'])}), "
             f"without {l['ohne']['ok']}/{l['ohne']['n']} ok ({f(l['quote_ohne'])})"
             + (f", lift {l['lift'] * 100:+.0f} points" if l["lift"] is not None else "") + f" → {l['urteil']}")
+
+
+NEW_DAYS = 7
+
+
+def lift_by_age(hours: float = 24 * 7, viewer: str | None = None, new_days: float = NEW_DAYS) -> dict:
+    """0.29.0: cold-start observation point — is a hint weaker while it is new? Per shown hint (pair): success minus the base rate of
+    the tool (bandit.base_rate: success without a hint), split by the hint's age at the time it was shown (≤ new_days = "neu").
+    The base rate removes the tool mix; what it cannot remove: new hints may come with new kinds of work (named, not hidden).
+    A hint that no longer exists is counted as "unbekannt", not dropped."""
+    from . import bandit
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
+    acc = {k: {"n": 0, "ok": 0, "vorteil": 0.0} for k in ("neu", "alt", "unbekannt")}
+    born: dict[str, str | None] = {}
+    for _, o, _g in g.recall("art:erfahrung (ok:ja OR ok:nein)", limit=5000, viewer=viewer):
+        v = o.data.get("vorher") or {}
+        if o.ts < since or v.get("aus_gedaechtnis"):
+            continue
+        shown = [h for h in v.get("gezeigt", []) if h.startswith(bandit.HINT_KINDS)]
+        if not shown:
+            continue
+        tool = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
+        s = o.data.get("score")
+        ok = (s["note"] >= 0.5) if s else "ok:ja" in o.hashtags
+        p = bandit.base_rate(tool)
+        for h in shown:
+            if h not in born:
+                hint = g.load(h)
+                born[h] = hint.ts if hint else None
+            if born[h] is None:
+                k = "unbekannt"
+            else:
+                k = "neu" if (datetime.fromisoformat(o.ts) - datetime.fromisoformat(born[h])).total_seconds() <= new_days * 86400 else "alt"
+            acc[k]["n"] += 1
+            acc[k]["ok"] += 1 if ok else 0
+            acc[k]["vorteil"] += (1 if ok else 0) - p
+    for d in acc.values():
+        d["vorteil"] = d["vorteil"] / d["n"] if d["n"] else None
+    a, b = acc["neu"], acc["alt"]
+    if a["n"] < AT_LEAST or b["n"] < AT_LEAST:
+        verdict = f"too little data (at least {AT_LEAST} shown hints per age group)"
+    elif a["vorteil"] < b["vorteil"] - 0.05:
+        verdict = "new hints weaker — cold start is a real gap"
+    elif a["vorteil"] > b["vorteil"] + 0.05:
+        verdict = "new hints stronger"
+    else:
+        verdict = "no measurable cold-start gap"
+    return {**acc, "urteil": verdict, "stunden": hours, "neu_tage": new_days}
+
+
+def age_line(l: dict) -> str:
+    f = lambda d: "—" if d["vorteil"] is None else f"{d['vorteil'] * 100:+.0f} points"
+    return (f"Hints by age {l['stunden'] / 24:g} d: new (≤ {l['neu_tage']:g} d) {l['neu']['n']} shown, advantage over the tool's base rate "
+            f"{f(l['neu'])}; older {l['alt']['n']} shown, {f(l['alt'])}"
+            + (f"; {l['unbekannt']['n']} of hints that no longer exist" if l["unbekannt"]["n"] else "") + f" → {l['urteil']}")

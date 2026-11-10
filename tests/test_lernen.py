@@ -114,6 +114,8 @@ def test_router_learns_which_hint_helps(gd):
     v = intuition.before("graylog_search", {"q": "neu"}, "a")
     assert v["zugriff"]["router"] == "modell" and v["zugriff"]["gezeigt"][0] == r.id
     assert "Router model (aktiv)" in tools.call_tool("vi_modell", {}, "a", True)
+    why = tools.call_tool("vi_why", {"id": r.id}, "a", False)  # 0.29.0: the decision just made (open, no vi_after yet), laid open
+    assert "open action, not reported yet" in why and "router modell" in why and f"hinweis:{r.id}" in why and "lift +" in why
     assert sleep_cycle.run("Test").data["schritte"]["8_lernen"]["zustand"] == "aktiv"
 
 
@@ -202,3 +204,59 @@ def test_holdout_grows_until_enough_failures():
     n = learning._holdout_size(y)
     assert n == 500 and len(y[-n:]) - sum(y[-n:]) >= 5  # grows up to HOLDOUT_MAX because enough failures lie only at the very front
     assert learning._holdout_size([1, 0] * 500) == 200  # enough failures: stays at 20 %
+
+
+def test_contributions_add_up_to_the_prediction(gd):
+    """0.29.0: vi_why lays open the same arithmetic as the router — the contributions plus intercept are the logit."""
+    import math
+    m = g.new_object("modell", "Testmodell", ["modell:router"],
+                     {"zustand": "aktiv", "gewichte": {"hinweis:regel:gut": 1.5, "hinweisart:regel": 0.25, "hinweis_n:1": -0.2, "skill:x": 0.5},
+                      "achsenabschnitt": -0.3}, oid=learning.MODEL, reason="T", instance=g.SERVER_INSTANCE)
+    f = {"skill:x": 1.0, "hinweis_n:1": 1.0, "hinweis:regel:gut": 1.0, "hinweisart:regel": 1.0, "unbekannt:y": 1.0}
+    c = learning.contributions(m, f)
+    assert c[0] == ("hinweis:regel:gut", 1.5) and "unbekannt:y" not in dict(c)
+    p = learning.prediction(m, f)
+    assert abs(math.log(p / (1 - p)) - (m.data["achsenabschnitt"] + sum(v for _, v in c))) < 1e-9
+    w = learning.why(m, "regel:gut", ["skill:x"])
+    assert w["lift"] > 0 and dict(w["hint"])["hinweis:regel:gut"] == 1.5 and dict(w["situation"]) == {"skill:x": 0.5}
+    assert w["p_with"] == learning.ranking(m, ["skill:x"], ["regel:gut"])[0][1] + w["p_without"]
+
+
+def test_vi_why_explains_the_stored_decision(gd):
+    h = g.new_object("erkenntnis", "web1 braucht Proxy", ["host:web1"], {"quelle": "x"}, reason="T", instance="b")
+    action("checkmk_get_host", "web1", True)
+    out = tools.call_tool("vi_why", {"id": h.id}, "a", False)
+    assert "position 1 of 1, router heuristik" in out and "1 trigger(s) match" in out and "host:web1" in out and "Router model: none yet" in out
+    # another instance never saw it: no invented reason, a named state instead
+    assert "was not shown to c" in tools.call_tool("vi_why", {"id": h.id}, "c", False)
+    assert "Situation given: host:web1" in tools.call_tool("vi_why", {"id": h.id, "triggers": ["host:web1"]}, "c", False)
+    with pytest.raises(tools.Rejected, match="kind:value"):
+        tools.call_tool("vi_why", {"id": h.id, "triggers": ["web1"]}, "a", False)
+    with pytest.raises(tools.Rejected, match="unknown"):
+        tools.call_tool("vi_why", {"id": "erkenntnis:gibtsnicht"}, "a", False)
+
+
+def test_lift_by_age_splits_new_and_old_hints(gd, monkeypatch):
+    """0.29.0: cold-start observation point — advantage over the tool's base rate, by the hint's age when shown."""
+    from datetime import datetime, timedelta, timezone
+    from vi_mcp import bandit, metrics
+    monkeypatch.setattr(bandit, "base_rate", lambda tool: 0.5)
+    old = g.new_object("erkenntnis", "web1 braucht Proxy", ["host:web1"], {"quelle": "x"}, reason="T", instance="b")
+    new = g.new_object("erkenntnis", "web1 hat neues Zertifikat", ["host:web1"], {"quelle": "y"}, reason="T", instance="b")
+    gone = g.new_object("erkenntnis", "web1 alt", ["host:web1"], {"quelle": "z"}, reason="T", instance="b")
+    long_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(timespec="milliseconds")
+    with g.lock:
+        g.db().execute("UPDATE objekt SET zeit = ? WHERE id = ?", (long_ago, old.id))
+        g.db().commit()
+    for i in range(24):
+        ok = i % 4 != 0  # 75 % ok
+        e = g.new_object("erfahrung", f"checkmk_get_host {i}", ["tool:checkmk_get_host", "ok:ja" if ok else "ok:nein"],
+                         {"vorher": {"gezeigt": [old.id, new.id if i % 2 else gone.id]}}, reason="T", instance="a")
+    with g.lock:
+        g.db().execute("DELETE FROM objekt WHERE id = ?", (gone.id,))
+        g.db().commit()
+    r = metrics.lift_by_age(24)
+    assert r["alt"]["n"] == 24 and r["neu"]["n"] == 12 and r["unbekannt"]["n"] == 12  # nothing vanishes silently
+    # the new hint was only shown before odd i, which all succeeded: +0.5 against +0.25 for the old one
+    assert abs(r["alt"]["vorteil"] - 0.25) < 1e-9 and abs(r["neu"]["vorteil"] - 0.5) < 1e-9 and r["urteil"] == "new hints stronger"
+    assert "new (≤ 7 d) 12 shown" in metrics.age_line(r) and "12 of hints that no longer exist" in metrics.age_line(r)

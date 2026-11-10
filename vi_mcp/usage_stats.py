@@ -216,6 +216,7 @@ def report(days: float = 7) -> str:
     lift = metrics.hint_lift(24 * days, viewer=None)
     z.append(f"C Hints: {h['gezeigt']} shown · {metrics.line(lift)} · warnings {h['warnung']['n']} (succeeded afterwards "
              f"{_pct(h['warnung']['ok'], h['warnung']['n'])}; without warning {_pct(h['ohne_warnung']['ok'], h['ohne_warnung']['n'])})")
+    z.append("    " + metrics.age_line(metrics.lift_by_age(24 * days, viewer=None)))  # 0.29.0: cold-start observation point
     z.append(f"D Knowledge: {w['neu']} new (" + ", ".join(f"{k} {v}" for k, v in w["neu_je_art"].items()) + "; visibility "
              + ", ".join(f"{k} {v}" for k, v in w["neu_je_sicht"].items()) + "; origin " + ", ".join(f"{k} {v}" for k, v in list(w["neu_je_quelle"].items())[:5])
              + f") · of these ever recalled {_pct(w['neu_abgerufen'], w['neu'])} · total {w['gesamt']}, ever recalled {w['je_abgerufen']} ({_pct(w['je_abgerufen'], w['gesamt'])})")
