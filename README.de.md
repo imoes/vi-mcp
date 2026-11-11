@@ -195,13 +195,14 @@ Befehl `vi-mcp` und — außer bei `SERVER=0` — den Server als geplante Aufgab
 bleiben; ein fehlgeschlagenes Update rollt zurück). Während der Installation braucht es Internetzugang:
 
 ```bat
-msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [PROXY=http://proxy:3128] /l*v install.log
+msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [WIKI=0] [PROXY=http://proxy:3128] /l*v install.log
 vi-mcp setup --claude --hook --url http://127.0.0.1:8765/mcp --token-file <datei>
 ```
 
 Den Port ändert `vi-mcp port 9000` später unter Linux und Windows (startet den Dienst neu). Vektoren für die semantische Suche liefert
-ein Embedding-Modell — siehe [Embedding-Modell](#embedding-modell-semantische-suche) unten. Unter Windows gibt es kein interaktives Einrichtungsmenü, keine Reflex-Sandbox (Reflex-Code läuft nicht) und keinen
-Netzdienst (P2P) — siehe [docs/OPERATIONS.md](docs/OPERATIONS.md#windows).
+ein Embedding-Modell — siehe [Embedding-Modell](#embedding-modell-semantische-suche) unten. Seit 0.54.0 tritt die MSI wie die Linux-Pakete dem öffentlichen Wiki-Netz vi-wiki.org bei (Netzdienst als geplante
+Aufgabe `vi-p2p-wiki`; `WIKI=0` lässt es aus, `vi-mcp net wiki off` hält ihn an). Unter Windows gibt es kein interaktives Einrichtungsmenü
+und keine Reflex-Sandbox (Reflex-Code läuft nicht) — siehe [docs/OPERATIONS.md](docs/OPERATIONS.md#windows).
 
 ### Embedding-Modell (semantische Suche)
 

@@ -14,6 +14,11 @@ if (Get-ScheduledTask -TaskName "vi-mcp" -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskName "vi-mcp" -Confirm:$false
     Log "scheduled task vi-mcp removed"
 }
+foreach ($t in @(Get-ScheduledTask -TaskName "vi-p2p*" -ErrorAction SilentlyContinue)) {  # 0.54.0: network services
+    Stop-ScheduledTask -TaskName $t.TaskName -ErrorAction SilentlyContinue
+    Unregister-ScheduledTask -TaskName $t.TaskName -Confirm:$false
+    Log "scheduled task $($t.TaskName) removed"
+}
 Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.ExecutablePath -like "$InstallDir\venv\*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Remove-Item -Recurse -Force (Join-Path $InstallDir "venv") -ErrorAction SilentlyContinue

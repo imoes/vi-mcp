@@ -7,7 +7,6 @@ import hashlib
 import ipaddress
 import json
 import os
-import pwd
 import secrets
 import shutil
 import subprocess
@@ -18,15 +17,25 @@ from pathlib import Path
 
 from . import config, logbook as lb, net_service as nd
 
+try:
+    import pwd
+except ImportError:  # Windows (0.54.0): no service user, the data folder is for SYSTEM and administrators only
+    pwd = None
+
 SERVICE_USER = "vi-p2p"
 #: 0.39.0: systemd unit of the network being worked on — vi-p2p for the network standard, vi-p2p@<netz> for a further one
 SERVICE = "vi-p2p"
 NETWORK: str | None = None
 
 
+def _root() -> bool:
+    """True as root on Linux. On Windows never: there is no separate service user to switch to (0.54.0)."""
+    return hasattr(os, "geteuid") and os.geteuid() == 0
+
+
 def _as_service_user() -> None:
     """Database and companion files must belong to the service."""
-    if os.geteuid() != 0:
+    if not _root() or pwd is None:
         return
     try:
         p = pwd.getpwnam(SERVICE_USER)
@@ -115,7 +124,7 @@ def _logbook(k: nd.NetConfig) -> lb.Logbook:
 
 def _as_service(fn) -> int:
     """Run fn with the rights of the service user. As root in a child process, otherwise directly."""
-    if os.geteuid() != 0:
+    if not _root():
         return fn()
     sys.stdout.flush()  # otherwise buffered text of the parent appears only after the child's
     sys.stderr.flush()
@@ -154,9 +163,57 @@ def _create_certificate(address: str, cert: Path, key: Path) -> None:
     cert.write_bytes(c.public_bytes(serialization.Encoding.PEM))
 
 
+def task_name(unit: str) -> str:
+    """Pure. systemd unit → Windows scheduled task: vi-p2p@wiki → vi-p2p-wiki, vi-p2p and vi-mcp keep their names (0.54.0)."""
+    return unit.replace("@", "-")
+
+
+#: 0.54.0: the systemd verbs used here, as PowerShell on a scheduled task ({t} task name, {cmd} the task's command file, {net} the network)
+_TASK_PS = {
+    "enable": "if (-not (Get-ScheduledTask -TaskName '{t}' -ErrorAction SilentlyContinue)) {{"
+              " $a = New-ScheduledTaskAction -Execute '{cmd}' -Argument '{net}' -WorkingDirectory $env:ProgramData;"
+              " $p = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest;"
+              " $s = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)"
+              " -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -StartWhenAvailable;"
+              " Register-ScheduledTask -TaskName '{t}' -Action $a -Trigger (New-ScheduledTaskTrigger -AtStartup) -Principal $p -Settings $s"
+              " -Description 'vi-mcp network service ({net})' | Out-Null }} else {{ Enable-ScheduledTask -TaskName '{t}' | Out-Null }}",
+    "restart": "Stop-ScheduledTask -TaskName '{t}' -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1; Start-ScheduledTask -TaskName '{t}'",
+    "disable": "Stop-ScheduledTask -TaskName '{t}' -ErrorAction SilentlyContinue; Disable-ScheduledTask -TaskName '{t}' | Out-Null",
+    "is-active": "$x = Get-ScheduledTask -TaskName '{t}' -ErrorAction SilentlyContinue; if ($x) {{ \"$($x.State)\".ToLower() }} else {{ 'not set up' }}",
+}
+
+
+def _task(*command: str) -> tuple[str | None, str]:
+    """Windows: the systemctl verbs on scheduled tasks. Returns (error or None, output)."""
+    verb, unit = command[0], command[-1]
+    t = task_name(unit)
+    net = unit.split("@", 1)[1] if "@" in unit else "standard"
+    cmd = Path(sys.prefix).parent / "vi-p2p.cmd"  # install dir: the venv lives in <install dir>\venv
+    if verb == "enable" and not cmd.exists():
+        return f"{cmd} missing (installed by the MSI)", ""
+    ps = _TASK_PS[verb].format(t=t, cmd=str(cmd).replace("'", "''"), net=net)
+    r = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps], capture_output=True, text=True)
+    return (None if r.returncode == 0 and not r.stderr.strip() else (r.stderr.strip() or f"exit {r.returncode}")[:200]), r.stdout.strip()
+
+
+def service_state(unit: str) -> str:
+    """active / inactive / … from systemd, on Windows the state of the scheduled task (running, ready, disabled); 'not checked' without either."""
+    if os.environ.get("VI_MCP_KEIN_DIENST"):
+        return "not checked"
+    if nd.WINDOWS:
+        return _task("is-active", unit)[1] or "unknown"
+    if not shutil.which("systemctl"):
+        return "not checked"
+    return subprocess.run(["systemctl", "is-active", unit], capture_output=True, text=True).stdout.strip() or "unknown"
+
+
 def _service(*command: str) -> str | None:
     if os.environ.get("VI_MCP_KEIN_DIENST"):
         return "service control switched off (VI_MCP_KEIN_DIENST)"
+    if nd.WINDOWS:  # 0.54.0: scheduled tasks instead of systemd
+        if command[0] == "disable" and "--now" not in command:
+            command = ("disable", command[-1])
+        return _task(*command)[0]
     if not shutil.which("systemctl"):
         return "systemctl missing"
     r = subprocess.run(["systemctl", *command], capture_output=True, text=True)
@@ -168,7 +225,7 @@ def _write(p: Path, raw: dict) -> None:
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640)
     with os.fdopen(fd, "w") as f:
         f.write(json.dumps(raw, indent=2, ensure_ascii=False) + "\n")
-    if os.geteuid() == 0:
+    if _root():
         try:
             shutil.chown(tmp, "root", SERVICE_USER)
         except (LookupError, PermissionError):
@@ -210,13 +267,16 @@ def setup(o) -> int:
             print(f"Network {NETWORK} is {raw['kind']}; the kind is not changed afterwards", file=sys.stderr)
             return 2
         raw.update(net=NETWORK, kind=kind)
-        raw.setdefault("db", f"/var/lib/vi-p2p/{NETWORK}/netz.db")
-        raw.setdefault("seed", f"/var/lib/vi-p2p/{NETWORK}/schluessel")
-        raw.setdefault("mcp_token_file", f"/etc/vi-p2p/{NETWORK}-mcp-token")
+        raw.setdefault("db", str(nd.var_dir() / NETWORK / "netz.db"))
+        raw.setdefault("seed", str(nd.var_dir() / NETWORK / "schluessel"))
+        raw.setdefault("mcp_token_file", str(nd.etc_dir() / f"{NETWORK}-mcp-token"))
     elif config.net_kind(getattr(o, "kind", None)) == "company":
         print("The network standard is open (anonymised); a company network gets its own name: vi-mcp net --network NAME setup --kind company …", file=sys.stderr)
         return 2
     seed = Path(raw.get("seed") or k_old.seed)
+    if not seed.exists() and not _root():  # Windows, or a test as a normal user: no service user to switch to
+        seed.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        lb.generate_keys(seed)
     if not seed.exists():
         child_pid = os.fork()
         if child_pid == 0:
@@ -278,7 +338,7 @@ def setup(o) -> int:
         fd = os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640)
         with os.fdopen(fd, "w") as f:
             f.write(token + "\n")
-        if os.geteuid() == 0:
+        if _root():
             shutil.chown(token_file, "root", SERVICE_USER)
         if reason := _service("restart", "vi-mcp"):
             print(f"Hint: vi-mcp not restarted: {reason}")
@@ -291,6 +351,11 @@ def setup(o) -> int:
             config.set_net_local(NETWORK or "standard", f"http://127.0.0.1:{raw['local_port']}", local_token)
         except (OSError, ValueError) as ex:
             print(f"Hint: live search not wired into the memory config: {ex}")
+    if "mcp_url" not in raw:  # 0.54.0: the memory's own port (an MSI with PORT=, a package with another port), not always 8765
+        try:
+            raw["mcp_url"] = f"http://127.0.0.1:{int(config.read_raw(config.fpath()).get('port') or 8765)}/mcp"
+        except (OSError, ValueError, TypeError):
+            pass
     _write(p, raw)
     if reason := _service("enable", SERVICE):
         print(f"Hint: {reason}")
@@ -386,6 +451,7 @@ def _parser() -> argparse.ArgumentParser:
     bt.add_argument("--kind", "--art", dest="kind", type=config.net_kind, choices=("company", "open"))
     wk = cmd("wiki", help="the public wiki network vi-wiki.org: on (join: free network, outgoing, start vi-wiki.org) · off (stop the service) · status")
     wk.add_argument("action", choices=("on", "off", "status"), nargs="?", default="status")
+    wk.add_argument("--proxy", default=None, help="HTTP(S) proxy for the service's outgoing connections, e.g. http://proxy:3128 (0.54.0)")
     cmd("peers")
     for name, alias in (("block", "sperren"), ("unblock", "entsperren")):  # 0.45.0: local block list (public key or address)
         x = cmd(name, alias)
@@ -408,23 +474,22 @@ def main(argv: list[str]) -> int:
             print("network name: a-z, 0-9, -, 2–31 characters; 'standard' is the network without --network", file=sys.stderr)
             return 2
         NETWORK, SERVICE = o.network, f"vi-p2p@{o.network}"
-        os.environ["VI_P2P_CONFIG"] = str(nd.fpath().parent / f"{o.network}.json") if os.environ.get("VI_P2P_CONFIG") else f"/etc/vi-p2p/{o.network}.json"
+        os.environ["VI_P2P_CONFIG"] = str((nd.fpath().parent if os.environ.get("VI_P2P_CONFIG") else nd.etc_dir()) / f"{o.network}.json")
     if o.command == "wiki":  # 0.47.0
         from . import p2p
         NETWORK, SERVICE = p2p.WIKI_NET, f"vi-p2p@{p2p.WIKI_NET}"
         if not os.environ.get("VI_P2P_CONFIG"):
-            os.environ["VI_P2P_CONFIG"] = f"/etc/vi-p2p/{p2p.WIKI_NET}.json"
+            os.environ["VI_P2P_CONFIG"] = str(nd.etc_dir() / f"{p2p.WIKI_NET}.json")
         p = nd.fpath()
         if o.action == "status":
-            state = (subprocess.run(["systemctl", "is-active", SERVICE], capture_output=True, text=True).stdout.strip() or "unknown") \
-                if shutil.which("systemctl") and not os.environ.get("VI_MCP_KEIN_DIENST") else "not checked"
+            state = service_state(SERVICE)
             print(f"wiki network ({p2p.WIKI_START}): {'configured' if p.exists() else 'not set up'}; service {SERVICE}: {state}")
             return 0
         if o.action == "off":
             print(_service("disable", "--now", SERVICE) or f"{SERVICE} stopped and disabled; config and logbook are kept (vi-mcp net wiki on resumes)")
             return 0
         e = argparse.Namespace(mode="peer", address=None, bind=None, port=None, tls_cert=None, tls_key=None, ca_file=None, found=False, founders=[],
-                               start=[p2p.WIKI_START], http_allowed=False, torrent=False, tls_self=False, proxy=None, no_proxy=[], quiet=True,
+                               start=[p2p.WIKI_START], http_allowed=False, torrent=False, tls_self=False, proxy=o.proxy, no_proxy=[], quiet=True,
                                kind="free", public=None)
         return setup(e)
     if o.command == "setup":

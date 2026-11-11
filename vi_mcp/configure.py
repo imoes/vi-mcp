@@ -153,7 +153,7 @@ def current() -> dict[str, str]:
     p = config.fpath()
     raw = config.read_raw(p)
     b = raw.get("bind", "127.0.0.1")
-    wiki = Path(os.environ.get("VI_P2P_DIR", "/etc/vi-p2p")) / "wiki.json"
+    wiki = _net_dir() / "wiki.json"
     db = str(raw.get("db") or "")
     return {"port": str(raw.get("port", 8765)), "bind": ",".join([b] if isinstance(b, str) else b), "open": _b(raw.get("open", False)),
             "db": db if db.startswith(("postgresql://", "postgres://")) else "",
@@ -161,6 +161,11 @@ def current() -> dict[str, str]:
             "llm_url": (raw.get("llm") or {}).get("url", ""), "llm_model": (raw.get("llm") or {}).get("model", ""),
             "reviewer_prompt": raw.get("reviewer_prompt") or "", "embed_url": (raw.get("embed") or {}).get("url", ""),
             **{q.key: q.default for q in QUESTIONS if q.once}}
+
+
+def _net_dir() -> Path:
+    from . import net_service
+    return net_service.etc_dir()
 
 
 def _b(v) -> str:
@@ -260,7 +265,7 @@ def migrate_configs() -> list[str]:
     notes = config.migrate_file()
     if notes:
         out.append(f"{config.fpath()}: keys in English ({len(notes)} renamed: {', '.join(notes[:6])}{' …' if len(notes) > 6 else ''})")
-    d = Path(os.environ.get("VI_P2P_DIR", "/etc/vi-p2p"))
+    d = _net_dir()
     for f in sorted(d.glob("*.json")) if d.is_dir() else []:
         try:
             old = json.loads(f.read_text(encoding="utf-8-sig"))

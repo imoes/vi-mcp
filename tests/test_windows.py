@@ -198,3 +198,61 @@ def test_install_checks_that_the_server_imports():
     ps = (Path(__file__).resolve().parent.parent / "deploy/windows/install.ps1").read_text()
     assert "import vi_mcp, vi_mcp.server, vi_mcp.tools" in ps and 'throw "vi_mcp (server) is not importable' in ps
     assert ps.isascii()
+
+
+# ---- 0.54.0: the network services on Windows (the MSI joins the wiki network like the Linux packages)
+
+def test_net_cli_imports_without_pwd():
+    code = "import sys; sys.modules['pwd'] = None\nimport vi_mcp.net_cli as n; print(n.pwd is None and n._root() in (True, False))"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=Path(__file__).resolve().parents[1])
+    assert out.returncode == 0 and out.stdout.strip() == "True", out.stderr[-500:]
+
+
+def test_network_paths_on_windows(monkeypatch):
+    from vi_mcp import net_service as nd
+    monkeypatch.delenv("VI_P2P_DIR", raising=False)
+    monkeypatch.setenv("ProgramData", "/ProgramData")
+    monkeypatch.setattr(nd, "WINDOWS", True)
+    try:
+        assert nd.etc_dir() == Path("/ProgramData") / "vi-mcp" / "p2p" == nd.var_dir()
+        k = nd.NetConfig()
+        assert Path(k.db).parent == nd.etc_dir() and Path(k.mcp_token_file) == nd.etc_dir() / "mcp-token"
+    finally:
+        monkeypatch.setattr(nd, "WINDOWS", False)
+    assert nd.etc_dir() == Path("/etc/vi-p2p") and nd.var_dir() == Path("/var/lib/vi-p2p")
+
+
+def test_service_control_on_windows_uses_scheduled_tasks(tmp_path, monkeypatch):
+    from vi_mcp import net_cli
+    assert net_cli.task_name("vi-p2p@wiki") == "vi-p2p-wiki" and net_cli.task_name("vi-mcp") == "vi-mcp"
+    calls = []
+    monkeypatch.delenv("VI_MCP_KEIN_DIENST", raising=False)
+    monkeypatch.setattr(net_cli.subprocess, "run", lambda argv, **kw: calls.append(argv) or subprocess.CompletedProcess(argv, 0, "running\n", ""))
+    monkeypatch.setattr(net_cli.sys, "prefix", str(tmp_path / "venv"))
+    monkeypatch.setattr(net_cli.nd, "WINDOWS", True)
+    try:
+        assert net_cli._service("enable", "vi-p2p@wiki") == f"{tmp_path / 'vi-p2p.cmd'} missing (installed by the MSI)" and not calls
+        (tmp_path / "vi-p2p.cmd").write_text("@echo off\n")
+        assert net_cli._service("enable", "vi-p2p@wiki") is None
+        assert net_cli._service("restart", "vi-mcp") is None
+        assert net_cli._service("disable", "--now", "vi-p2p@wiki") is None
+        assert net_cli.service_state("vi-p2p@wiki") == "running"
+    finally:
+        monkeypatch.setattr(net_cli.nd, "WINDOWS", False)
+    enable, restart, disable, state = (c[-1] for c in calls)
+    assert all(c[0] == "powershell.exe" for c in calls)
+    assert "Register-ScheduledTask -TaskName 'vi-p2p-wiki'" in enable and f"-Execute '{tmp_path / 'vi-p2p.cmd'}' -Argument 'wiki'" in enable
+    assert "S-1-5-18" in enable and "-AtStartup" in enable
+    assert "Start-ScheduledTask -TaskName 'vi-mcp'" in restart
+    assert "Disable-ScheduledTask -TaskName 'vi-p2p-wiki'" in disable and "Get-ScheduledTask -TaskName 'vi-p2p-wiki'" in state
+
+
+def test_msi_carries_the_network_service():
+    root = Path(__file__).resolve().parents[1] / "deploy" / "windows"
+    build, ps, un = ((root / f).read_text() for f in ("build.sh", "install.ps1", "uninstall.ps1"))
+    assert "deploy/windows/vi-p2p.cmd" in build and "wiki=[WIKI]" in build and "WIKI" in (root / "patch-msi.sh").read_text()
+    assert '"net", "wiki", "on"' in ps and '"wiki" { if ($v) { $Wiki = $v } }' in ps and 'Get-ScheduledTask -TaskName "vi-p2p*"' in un
+    cmd = (root / "vi-p2p.cmd").read_text()
+    assert "-m vi_mcp net run" in cmd and r"%ProgramData%\vi-mcp\p2p\%N%.json" in cmd
+    for text in (ps, un, cmd):
+        assert text.isascii()  # Windows PowerShell 5.1 reads a file without BOM as ANSI

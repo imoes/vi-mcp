@@ -326,7 +326,7 @@ The server listens on `port` from its configuration (default 8765, bound to 127.
 
 Since 0.27.0 there is `vi-mcp-<version>-x64.msi` (built on Linux with `deploy/windows/build.sh`, wixl in a Fedora container).
 
-- **Install**: `msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [PROXY=http://proxy:3128] /l*v install.log` in an elevated shell.
+- **Install**: `msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [WIKI=0] [PROXY=http://proxy:3128] /l*v install.log` in an elevated shell.
 - **Setup dialog** (0.34.0, double-click on the MSI): **Install** with an optional proxy field; **Update** when an earlier vi-mcp is
   installed (configuration, database, tokens and port are kept); **Repair / Remove** when this version is installed. Silent installs
   (`/qn`) show none of it. Server mode and proxy of the previous installation are remembered (`%ProgramData%\vi-mcp\install-options.json`,
@@ -342,10 +342,17 @@ Since 0.27.0 there is `vi-mcp-<version>-x64.msi` (built on Linux with `deploy/wi
   output in `%ProgramData%\vi-mcp\server.log`. The command line finds that configuration by default (since 0.28.1; `VI_MCP_CONFIG` still overrides it).
 - **Client**: `vi-mcp setup --claude --hook --url URL --token-file FILE` (no interactive menu on Windows). The hook entry is
   `"<venv python>" -I "<install dir>\hook\vi_hook.py"`; URL and token files are in `%USERPROFILE%\.config\vi-mcp\hook.json`.
-- **Not on Windows**: reflex code never runs (no Landlock/seccomp sandbox — it is refused with that reason), no network service
-  (`vi-mcp net` says so), no interactive setup menu.
+- **Networks** (0.54.0): a new server installation joins the public wiki network vi-wiki.org, as the Linux packages do (`WIKI=0` skips
+  it; the proxy given with `PROXY=` is also the network service's). Each network service is a scheduled task `vi-p2p-<network>` (SYSTEM,
+  at system start, restarted after a failure) running `vi-p2p.cmd <network>`; config, key and logbook in `%ProgramData%\vi-mcp\p2p`
+  (`<network>.json`, `<network>\netz.db`, `<network>\schluessel`), output in `%ProgramData%\vi-mcp\p2p-<network>.log`. `vi-mcp net …`
+  works as on Linux in an elevated shell (`net wiki on|off|status`, `--network NAME setup …`); an update restarts the services that are
+  not switched off. Configuration files with German keys are rewritten in English at install, as on Linux.
+- **Not on Windows**: reflex code never runs (no Landlock/seccomp sandbox — it is refused with that reason), no interactive setup menu.
 - **Upgrade**: install the newer MSI over it; the venv stays and is updated. **Uninstall**: Apps & Features or `msiexec /x …` removes the
-  task, the venv and the PATH entry; `%ProgramData%\vi-mcp` (data, configuration) stays.
+  tasks (`vi-mcp`, `vi-p2p-*`), the venv and the PATH entry; `%ProgramData%\vi-mcp` (data, configuration, network keys) stays.
+  Some older MSIs cannot be uninstalled (error 1603; of the builds checked 0.27.0, 0.30.0–0.33.0, 0.38.2, 0.46.0 — CHANGELOG 0.54.0):
+  update to 0.54.0 first, then uninstall.
 
 ## Backup
 

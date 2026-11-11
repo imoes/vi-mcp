@@ -9,6 +9,7 @@ param(
     [string]$Proxy = "",
     [string]$Port = "",  # empty: keep the port of an existing configuration, 8765 for a new one
     [string]$Embed = "0", # 1: own embedding service (llama.cpp + bge-m3) for the vectors, see `vi-mcp embed`
+    [string]$Wiki = "",   # 0.54.0: empty or 1 = join the public wiki network vi-wiki.org on a new installation (as the Linux packages); 0 = not
     # From the MSI: all options in ONE argument "server=1;port=;embed=;proxy=...". Windows PowerShell 5.1 drops empty arguments of -File
     # (-Port "" became -Port -Embed ..., the binding failed and the MSI ended with error 1722 - found in a Windows 11 test VM, 10.11.2026).
     [string]$Options = ""
@@ -20,6 +21,7 @@ foreach ($pair in ($Options -split ";")) {
         "port" { $Port = "$v" }
         "embed" { if ($v) { $Embed = $v } }
         "proxy" { $Proxy = "$v" }
+        "wiki" { if ($v) { $Wiki = $v } }
     }
 }
 $ErrorActionPreference = "Stop"
@@ -158,6 +160,9 @@ try {
         }
         [Environment]::SetEnvironmentVariable("VI_MCP_CONFIG", $cfg, "Machine")
         $env:VI_MCP_CONFIG = $cfg
+        # 0.54.0: as the Linux packages since 0.51.0 - configuration files with German keys are rewritten in English (a copy stays next to them)
+        try { Invoke-Py -c "from vi_mcp import configure; [print(l) for l in configure.migrate_configs()]" | ForEach-Object { Log "configure: $_" } }
+        catch { Log "WARNING: config files not rewritten in English ($($_.Exception.Message)); the German keys are still read" }
         if ($Port) {
             Invoke-Py -c "import sys; from vi_mcp import config; config.set_port(int(sys.argv[1]))" $Port | Out-Null
         }
@@ -196,6 +201,29 @@ try {
             $code = Invoke-Logged $vpy @("-I", "-m", "vi_mcp", "embed", "setup")
             if ($code -ne 0) { Log "WARNING: vi-mcp embed setup failed - the server runs without vectors; see $Log" }
         }
+        # 0.54.0: the network services (scheduled tasks vi-p2p-<network>, run by vi-p2p.cmd). Before, the MSI had no network at all.
+        $P2p = Join-Path $Data "p2p"
+        if (-not (Test-Path (Join-Path $P2p "wiki.json"))) {
+            if ($Wiki -eq "0") {
+                Log "wiki network not joined (WIKI=0); later, in an elevated shell: vi-mcp net wiki on"
+            } else {
+                Log "joining the public wiki network vi-wiki.org (free network, outgoing connections only; off: vi-mcp net wiki off)"
+                $netArgs = @("-I", "-X", "utf8", "-m", "vi_mcp", "net", "wiki", "on")
+                if ($Proxy) { $netArgs += @("--proxy", $Proxy) }
+                $code = Invoke-Logged $vpy $netArgs
+                if ($code -ne 0) { Log "WARNING: joining the wiki network failed (exit $code) - later: vi-mcp net wiki on; see $Log" }
+            }
+        } else {
+            # an update: the services run the new code only after a restart; a service switched off (Disabled) stays off
+            foreach ($t in @(Get-ScheduledTask -TaskName "vi-p2p*" -ErrorAction SilentlyContinue)) {
+                if ("$($t.State)" -ne "Disabled") {
+                    Stop-ScheduledTask -TaskName $t.TaskName -ErrorAction SilentlyContinue
+                    Start-ScheduledTask -TaskName $t.TaskName
+                    Log "restarted network service $($t.TaskName)"
+                }
+            }
+        }
+        foreach ($t in @(Get-ScheduledTask -TaskName "vi-p2p*" -ErrorAction SilentlyContinue)) { Log "network service $($t.TaskName): $($t.State)" }
     }
     $json = @{ server = $Server; proxy = $Proxy } | ConvertTo-Json
     [IO.File]::WriteAllText($Saved, $json, (New-Object Text.UTF8Encoding($false)))

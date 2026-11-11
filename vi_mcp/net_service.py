@@ -31,7 +31,28 @@ from . import __version__
 from . import logbook as lb
 from .log_output import log
 
-DEFAULT_PATH = "/etc/vi-p2p/config.json"
+#: 0.54.0: the network services also run on Windows (scheduled tasks, %ProgramData%); a flag so tests can switch it
+WINDOWS = os.name == "nt"
+
+
+def etc_dir() -> Path:
+    """Directory of the network services' config files: /etc/vi-p2p, on Windows %ProgramData%\\vi-mcp\\p2p (0.54.0); VI_P2P_DIR overrides."""
+    if os.environ.get("VI_P2P_DIR"):
+        return Path(os.environ["VI_P2P_DIR"])
+    if WINDOWS:
+        return Path(os.environ.get("ProgramData") or r"C:\ProgramData") / "vi-mcp" / "p2p"
+    return Path("/etc/vi-p2p")
+
+
+def var_dir() -> Path:
+    """Directory of the logbooks and keys: /var/lib/vi-p2p, on Windows the same folder as the config files (0.54.0) — %ProgramData%\\vi-mcp
+    is readable by SYSTEM and administrators only (install.ps1)."""
+    if WINDOWS or os.environ.get("VI_P2P_DIR"):
+        return etc_dir()
+    return Path("/var/lib/vi-p2p")
+
+
+DEFAULT_PATH = str(etc_dir() / "config.json")
 MODES = ("standalone", "peer", "peerhost")
 TIME_WINDOW = 300
 MAX_BODY = 1024 * 1024
@@ -65,8 +86,8 @@ class NetConfig:
     #: 0.39.0: name of the network (shown in reports) and its kind: offen (anonymised) or firma (internal names allowed in relayed objects)
     net: str = "standard"
     kind: str = "open"  # free, open or company (0.51.0; frei, offen, firma in older files)
-    db: str = "/var/lib/vi-p2p/netz.db"
-    seed: str = "/var/lib/vi-p2p/schluessel"
+    db: str = field(default_factory=lambda: str(var_dir() / "netz.db"))
+    seed: str = field(default_factory=lambda: str(var_dir() / "schluessel"))
     bind: str = "0.0.0.0"
     port: int = 8766
     address: str | None = None
@@ -81,7 +102,7 @@ class NetConfig:
     http_allowed: bool = False
     believe: list = field(default_factory=lambda: ["*"])
     mcp_url: str = "http://127.0.0.1:8765/mcp"
-    mcp_token_file: str = "/etc/vi-p2p/mcp-token"
+    mcp_token_file: str = field(default_factory=lambda: str(etc_dir() / "mcp-token"))
     torrent: dict = field(default_factory=dict)
     proxy: str | None = None
     no_proxy: list = field(default_factory=list)
@@ -102,7 +123,7 @@ class NetConfig:
             self.torrent = english_file({"torrent": self.torrent})["torrent"]
 
 def fpath() -> Path:
-    return Path(os.environ.get("VI_P2P_CONFIG") or DEFAULT_PATH)
+    return Path(os.environ.get("VI_P2P_CONFIG") or etc_dir() / "config.json")
 
 
 #: German keys of config files written before 0.51.0 → NetConfig field. Since 0.51.0 the file uses the field names (English); the German
@@ -1078,7 +1099,8 @@ def main() -> int:
     if k.local_token_sha256:  # 0.42.0: live search for the memory
         log(f"network: local search listener on 127.0.0.1:{d.start_local_server()}")
     import signal
-    signal.signal(signal.SIGUSR1, lambda *_: d.awake.set())  # systemctl kill -s USR1 vi-p2p: round now
+    if hasattr(signal, "SIGUSR1"):  # not on Windows (0.54.0)
+        signal.signal(signal.SIGUSR1, lambda *_: d.awake.set())  # systemctl kill -s USR1 vi-p2p: round now
     log(f"network: mode {k.mode}, pseudonym {lb.pseudonym(d.log.pub)}, {len(d.log.members())} members known")
     if k.mode == "peer":  # 0.52.0: behind a firewall — keep a long poll open at a peerhost, news arrive in seconds
         threading.Thread(target=d.wait_loop, name="vi-p2p-wait", daemon=True).start()

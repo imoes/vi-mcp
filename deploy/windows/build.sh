@@ -3,8 +3,9 @@
 # The MSI copies vi_mcp, the hook and the scripts to %ProgramFiles%\vi-mcp and then runs install.ps1 (Python, venv, PyPI packages,
 # optionally the server as scheduled task). Public properties: SERVER=1|0 (default 1), PROXY=http://host:port (default none).
 # PORT=9000 sets the server port (default: keep an existing one, 8765 for a new installation).
-# EMBED=1 also sets up the own embedding service (vi-mcp embed setup).
-#   msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [EMBED=1] [PROXY=http://proxy:3128] /l*v install.log
+# EMBED=1 also sets up the own embedding service (vi-mcp embed setup). WIKI=0: do not join the public wiki network vi-wiki.org (0.54.0;
+# default: join it on a new installation, as the Linux packages do).
+#   msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [EMBED=1] [WIKI=0] [PROXY=http://proxy:3128] /l*v install.log
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 version=$(python3 -c "import vi_mcp; print(vi_mcp.__version__)")
@@ -14,7 +15,7 @@ trap 'rm -rf "$work"' EXIT
 mkdir -p dist "$work/src/vi_mcp" "$work/src/hook"
 cp vi_mcp/*.py "$work/src/vi_mcp/"
 cp hook/vi_hook.py "$work/src/hook/"
-cp deploy/windows/install.ps1 deploy/windows/uninstall.ps1 deploy/windows/vi-mcp.cmd deploy/windows/vi-mcp-server.cmd LICENSE "$work/src/"
+cp deploy/windows/install.ps1 deploy/windows/uninstall.ps1 deploy/windows/vi-mcp.cmd deploy/windows/vi-mcp-server.cmd deploy/windows/vi-p2p.cmd LICENSE "$work/src/"
 python3 - "$version" "$work" <<'PY'
 import sys, uuid
 from pathlib import Path
@@ -56,7 +57,7 @@ wxs = f'''<?xml version="1.0" encoding="utf-8"?>
     <Feature Id="Main" Level="1">{"".join(refs)}</Feature>
     <CustomAction Id="SetPwsh" Property="PWSH" Value="[System64Folder]WindowsPowerShell\\v1.0\\powershell.exe"/>
     <CustomAction Id="RunInstall" Property="PWSH" Execute="deferred" Impersonate="no" Return="check"
-      ExeCommand='{ps} "[INSTALLDIR]install.ps1" -InstallDir "[INSTALLDIR]." -Options "server=[SERVER];port=[PORT];embed=[EMBED];proxy=[PROXY]"'/>
+      ExeCommand='{ps} "[INSTALLDIR]install.ps1" -InstallDir "[INSTALLDIR]." -Options "server=[SERVER];port=[PORT];embed=[EMBED];wiki=[WIKI];proxy=[PROXY]"'/>
     <CustomAction Id="RunUninstall" Property="PWSH" Execute="deferred" Impersonate="no" Return="ignore"
       ExeCommand='{ps} "[INSTALLDIR]uninstall.ps1" -InstallDir "[INSTALLDIR]."'/>
     <InstallExecuteSequence>

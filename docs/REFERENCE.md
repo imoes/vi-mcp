@@ -692,13 +692,15 @@ options:
 #### `vi-mcp net wiki`
 
 ```text
-usage: vi-mcp net wiki [-h] [{on,off,status}]
+usage: vi-mcp net wiki [-h] [--proxy PROXY] [{on,off,status}]
 
 positional arguments:
   {on,off,status}
 
 options:
   -h, --help       show this help message and exit
+  --proxy PROXY    HTTP(S) proxy for the service's outgoing connections, e.g.
+                   http://proxy:3128 (0.54.0)
 ```
 
 #### `vi-mcp net peers`

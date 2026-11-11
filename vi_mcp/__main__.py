@@ -118,9 +118,9 @@ def _cli(argv: list[str]) -> int:
         server.main()
         return 0
     command = _ALIASES.get(argv[0], argv[0])
-    if command == "net":
-        if sys.platform != "linux":  # 0.27.0
-            print("The network service (vi-p2p) needs Linux with systemd; it is not available on this system.", file=sys.stderr)
+    if command == "net":  # Linux (systemd) and since 0.54.0 Windows (scheduled tasks vi-p2p-<network>)
+        if sys.platform not in ("linux", "win32"):
+            print("The network service (vi-p2p) needs Linux with systemd or Windows; it is not available on this system.", file=sys.stderr)
             return 2
         from . import net_cli
         return net_cli.main(argv[1:])

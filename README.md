@@ -190,13 +190,14 @@ from the official NuGet package of the Python Software Foundation (SHA256 and si
 installed (configuration and memory are kept; a failed update rolls back). It needs internet access during installation:
 
 ```bat
-msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [PROXY=http://proxy:3128] /l*v install.log
+msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [WIKI=0] [PROXY=http://proxy:3128] /l*v install.log
 vi-mcp setup --claude --hook --url http://127.0.0.1:8765/mcp --token-file <file>
 ```
 
 The port can be changed later on Linux and Windows with `vi-mcp port 9000` (restarts the service). Vectors for semantic search come from
-an embedding model — see [Embedding model](#embedding-model-semantic-search) below. On Windows there is no interactive setup
-menu, no reflex sandbox (reflex code does not run) and no network service (P2P) — see [docs/OPERATIONS.md](docs/OPERATIONS.md#windows).
+an embedding model — see [Embedding model](#embedding-model-semantic-search) below. Since 0.54.0 the MSI joins the public wiki network
+vi-wiki.org like the Linux packages (network service as scheduled task `vi-p2p-wiki`; `WIKI=0` skips it, `vi-mcp net wiki off` stops it).
+On Windows there is no interactive setup menu and no reflex sandbox (reflex code does not run) — see [docs/OPERATIONS.md](docs/OPERATIONS.md#windows).
 
 ### Embedding model (semantic search)
 

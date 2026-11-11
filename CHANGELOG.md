@@ -35,6 +35,36 @@ Linked from [README.md](README.md).
 - **vi-wiki.org is online** — the start server of the default wiki network (0.47.0). Checked 11.11.2026 ~15:50 UTC:
   `https://vi-wiki.org/vi-p2p/wiki/netz/gesund` answers `{"zustand": "ok", "version": "0.50.1"}`, `https://vi-wiki.org/` leads to the
   read-only web page `/web/` with the networks `standard` and `wiki` (1 member, no content yet). README (English and German) says so.
+- **Windows joins the wiki network too**, as the user reported ("Bei der msi Installation fehlt der vi-wiki Server"). Since 0.47.0 the
+  Linux packages joined vi-wiki.org; the MSI had no network service at all (`vi-mcp net` refused on Windows, the code needed `pwd`,
+  `fork`, systemd and `/etc`). Now:
+  - the network service runs on Windows: each network is a scheduled task `vi-p2p-<network>` (SYSTEM, at system start, restarted after a
+    failure) running `vi-p2p.cmd <network>`; config, key and logbook in `%ProgramData%\vi-mcp\p2p`, readable by SYSTEM and
+    administrators only; `vi-mcp net …` works as on Linux (`net wiki on|off|status`, further networks);
+  - a new server installation joins the wiki network, `WIKI=0` skips it, the proxy given with `PROXY=` is used by the service as well
+    (`vi-mcp net wiki on --proxy URL`, new); an update restarts the network services that are not switched off; uninstalling removes them;
+  - the MSI rewrites configuration files with German keys in English at install, as the Linux packages do since 0.51.0;
+  - the network service's `mcp_url` follows the memory's port (an installation with `PORT=` reached the memory on 8765 before).
+
+  *Proof (Windows 11 test VM, 11.11.2026, behind a test proxy that refuses vi-wiki.org so the VM never joined the public network):*
+  update 0.38.2 → 0.54.0 `msiexec exit 0`; after a reinstall `task vi-p2p-wiki: Running`, `vi-mcp net wiki status` → "configured; service
+  vi-p2p@wiki: running", instance `netz-wiki` in the memory, ACL of `p2p` SYSTEM + Administrators; the service's log: "identity proof of
+  26 bits made in 60.3 s", "local search listener on 127.0.0.1:9766", then long poll and reconcile at `https://vi-wiki.org/vi-p2p/wiki`
+  refused by the proxy (proxy log `BLOCKED CONNECT vi-wiki.org:443`, 16:36:18). `tests/test_windows.py`: paths, scheduled-task commands,
+  import without `pwd`, MSI contents.
+
+### What was fixed
+
+- **The MSI could not be uninstalled** in some builds: wixl puts the uninstall action at sequence 1801 or, from one build to the next, at
+  1402 — before `InstallInitialize`, where Windows Installer refuses it (error 2762) and the uninstall ends with 1603, the product stays.
+  Of the MSIs in `dist/` 0.27.0, 0.30.0–0.33.0, 0.38.2 and 0.46.0 have 1402 (the published 0.50.x have 1801). `patch-msi.sh` now fixes it
+  at 3499, just before `RemoveFiles`, and fails the build otherwise. Such an old version: update to 0.54.0 first, then uninstall.
+  *Proof:* test VM: a 0.54.0 build before the fix `uninstall exit 1603` ("Error 2762 … must be scheduled between InstallInitialize and
+  InstallFinalize"); after the fix `install exit 0`, `uninstall exit 0`, tasks `vi-mcp` and `vi-p2p-wiki` gone, no Python from the install
+  folder running, venv removed, `%ProgramData%\vi-mcp` kept.
+
+### What has changed (documentation)
+
 - **Complete documentation**, as the user asked ("Wir brauchen eine komplette Doku des Projektes"). An audit found gaps: 45 of 144 tool
   parameters were described nowhere and 112 had no description in the schema the AI reads; the command `net-token` and `net id/peers/run/status`,
   the config keys `archive_days`, `local`, `reviewer_prompt`, `web_base`, 22 fields of the network service's file, 8 environment
