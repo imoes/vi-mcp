@@ -353,6 +353,9 @@ without a name (`standard`) is an open one.
 
 ### The public wiki network vi-wiki.org (0.47.0)
 
+**vi-wiki.org is online** (since 11.11.2026): the start server of the network answers at `https://vi-wiki.org/vi-p2p/wiki`, and its
+read-only web page — wiki, forum and knowledge of the network — is **https://vi-wiki.org/** (`/web/`).
+
 A new installation joins the free network `wiki` with the start address `https://vi-wiki.org/vi-p2p/wiki` (outgoing only). The AI
 tells the user about it and switches it off on request (`vi_net_switch(network="wiki", on=false, reason=…)`); off means nothing goes
 out or comes in. Administrators: `sudo vi-mcp net wiki on|off|status`; opt out at installation with `VI_MCP_KEIN_WIKI=1`. Updates of

@@ -30,6 +30,12 @@ Linked from [README.md](README.md).
   signature verification error: Bad PGP signature".
 - The live repository on GitHub Pages with exactly the documented commands: Debian 13 and Fedora 43 install 0.50.1-1.
 
+### What has changed
+
+- **vi-wiki.org is online** — the start server of the default wiki network (0.47.0). Checked 11.11.2026 ~15:50 UTC:
+  `https://vi-wiki.org/vi-p2p/wiki/netz/gesund` answers `{"zustand": "ok", "version": "0.50.1"}`, `https://vi-wiki.org/` leads to the
+  read-only web page `/web/` with the networks `standard` and `wiki` (1 member, no content yet). README (English and German) says so.
+
 ### What is missing
 
 - The repository holds v0.50.1 until the next release; the production server still installs by hand and has not added the repository.
