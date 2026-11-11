@@ -414,13 +414,19 @@ def opened(instance: str, hint_id: str) -> str | None:
     return None
 
 
-def feedback(instance: str, hint_id: str, value: int) -> str | None:
+def feedback(instance: str, hint_id: str, value: int, before_id: str | None = None) -> str | None:
     """Assigns a vi_confirm (+1) / vi_refute (−1) to this instance's most recent action before which exactly this hint was shown
-    (at most FEEDBACK_MIN minutes back). Returns the id of the experience or None (then it stays a normal confirmation)."""
+    (at most FEEDBACK_MIN minutes back). Returns the id of the experience or None (then it stays a normal confirmation).
+    before_id (0.50.1): exactly the action of that vi_before — several agents sharing one instance in parallel otherwise may hit a
+    neighbour's action with the same hint. With before_id there is no fallback to the most recent action."""
     since = (datetime.now(timezone.utc) - timedelta(minutes=FEEDBACK_MIN)).isoformat(timespec="milliseconds")
     with g.lock:
-        rows = g.db().execute("SELECT id FROM objekt WHERE art = 'erfahrung' AND instanz = ? AND zeit >= ? ORDER BY zeit DESC LIMIT 200",
-                              (instance, since)).fetchall()
+        if before_id:
+            rows = g.db().execute("SELECT id FROM objekt WHERE art = 'erfahrung' AND instanz = ? AND zeit >= ? AND json_extract(daten, '$.vorher.id') = ?",
+                                  (instance, since, before_id)).fetchall()
+        else:
+            rows = g.db().execute("SELECT id FROM objekt WHERE art = 'erfahrung' AND instanz = ? AND zeit >= ? ORDER BY zeit DESC LIMIT 200",
+                                  (instance, since)).fetchall()
     for (eid,) in rows:
         e = g.load(eid)
         if e and hint_id in ((e.data.get("vorher") or {}).get("gezeigt") or []):
@@ -437,6 +443,8 @@ def after(tool: str, args: dict, ok: bool, duration_ms: int, error: str | None, 
         open_ = _open.pop(before_id, None) if before_id else None
     access = open_[3] if open_ else {"reize": triggers(tool, args or {}), "gefunden": [], "suchen": [],
                                       "aus_gedaechtnis": False, "ohne_vorher": True}
+    if before_id:  # 0.50.1: the experience knows its vi_before — vi_feedback(before_id=…) books exactly here, not on a parallel neighbour
+        access = {**access, "id": before_id}
     o = experience(tool, args or {}, ok, duration_ms, error, result, access, instance, is_read_only)
     from . import bandit
     rated = bandit.book_entry(access.get("gezeigt", []), ok, tool)  # counter pair per shown hint (stage 2)

@@ -3,6 +3,20 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.50.1 — 2026-11-11 — vi_feedback books exactly on its own action
+
+### What has changed
+
+- **`vi_feedback(…, before_id=VORHER_ID)`**: with the `vorher_id` that `vi_before` returned, the feedback lands exactly on that action.
+  Reported by the CentralStation session: several fleet agents share the instance `centralstation`, and without the id the feedback
+  books on the instance's most recent action with that hint — with parallel analyses possibly a neighbour's. With `before_id` there is
+  no fallback; an id without a matching action is named in the answer. Without `before_id` nothing changes. Every experience now keeps
+  its `vi_before` id (`daten.vorher.id`).
+
+*Proof:* `tests/test_hint_quality.py::test_feedback_with_before_id_books_exactly_that_action` — two parallel actions of one instance with
+the same hint: the feedback with `before_id` marks only the first, an unknown id is named and books nothing, without `before_id` the most
+recent one. Full suite on SQLite and on PostgreSQL 16.
+
 ## 0.50.0 — 2026-11-11 — Optional PostgreSQL: set the database URL, move the data with one command
 
 ### What is new

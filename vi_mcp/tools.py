@@ -232,7 +232,9 @@ TOOLS = [
      "description": "VI: tell the memory which of the hints shown to you helped and which misled you — ids from the hint lines. One call, no "
                     "reason needed. This is the signal the VI learns from which hint to show; it does not change the knowledge itself (vi_confirm / "
                     "vi_refute do that).",
-     "inputSchema": _schema({"helped": _TAGS, "wrong": _TAGS, "note": {"type": "string", "description": "optional"}})},
+     "inputSchema": _schema({"helped": _TAGS, "wrong": _TAGS, "note": {"type": "string", "description": "optional"},
+                             "before_id": {"type": "string", "description": "optional: the vorher_id vi_before returned for the action — books "
+                                           "exactly on it (needed when several agents share one instance in parallel)"}})},
     {"name": "vi_confirm",
      "description": "VI: confirm an object (it becomes more important) — with a reason. Counts as feedback if it was just shown as a "
                     "hint. Weight comes from independent lines: confirmations of one model family count once, and a confirmation citing the "
@@ -813,11 +815,13 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         wrong = [str(x) for x in (args.get("wrong") or []) if x][:20]
         if not helped and not wrong:
             raise Rejected("give helped=[ids] and/or wrong=[ids] — the ids of the hint lines")
+        before_id = str(args.get("before_id") or "").strip() or None
         booked, unknown = [], []
         for hid, value in [(h, 1) for h in helped] + [(w, -1) for w in wrong]:
-            (booked if intuition.feedback(instance, hid, value) else unknown).append(hid)
-        return (f"feedback recorded for {len(booked)} hint(s)" + (f"; not shown to {instance} in the last {intuition.FEEDBACK_MIN} min: {', '.join(unknown)}"
-                                                                     if unknown else "") + " — thanks, this is what the VI learns from")
+            (booked if intuition.feedback(instance, hid, value, before_id) else unknown).append(hid)
+        where = f"before the action {before_id}" if before_id else f"to {instance} in the last {intuition.FEEDBACK_MIN} min"
+        return (f"feedback recorded for {len(booked)} hint(s)" + (f"; not shown {where}: {', '.join(unknown)}" if unknown else "")
+                + " — thanks, this is what the VI learns from")
     if name == "vi_object":
         o = _visible(args.get("id"), instance)
         s_now = session.current()

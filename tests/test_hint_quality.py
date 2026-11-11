@@ -102,3 +102,24 @@ def test_measured_useful_hints_and_warnings_are_not_capped(gd):
         with session.on_behalf(s):
             shown = intuition.before("Bash", {"command": "uptime"}, "a", False)["zugriff"]["gezeigt"]
         assert useful.id in shown and warning.id in shown
+
+
+def test_feedback_with_before_id_books_exactly_that_action(gd):
+    """0.50.1: two agents of one instance run in parallel with the same hint (CentralStation fleet, 11.11.2026). Without before_id the
+    feedback lands on the most recent action — possibly the neighbour's; with before_id exactly on its own."""
+    k = _k("uptime on the build host lies after a suspend", ["tool:Bash", "thema:uptime"])
+    ids = []
+    for t in ("agent-1", "agent-2"):
+        s = session.begin("cs", t)
+        with session.on_behalf(s):
+            v = intuition.before("Bash", {"command": "uptime"}, "cs", False)
+        ids.append((v["vorher_id"], intuition.after("Bash", {"command": "uptime"}, True, 5, None, None, v["vorher_id"], "cs", False)["erfahrung"]))
+    (first_before, first_exp), (_second_before, second_exp) = ids
+    assert g.load(first_exp).data["vorher"]["id"] == first_before
+    out = tools.call_tool("vi_feedback", {"helped": [k.id], "before_id": first_before}, "cs", False)
+    assert "recorded for 1 hint" in out
+    assert g.load(first_exp).data["rueckmeldung"] == {k.id: 1} and "rueckmeldung" not in g.load(second_exp).data
+    out = tools.call_tool("vi_feedback", {"wrong": [k.id], "before_id": "vorher:gibt-es-nicht"}, "cs", False)
+    assert "not shown before the action vorher:gibt-es-nicht" in out  # no fallback to the most recent action
+    tools.call_tool("vi_feedback", {"wrong": [k.id]}, "cs", False)  # without before_id: the most recent action, as before
+    assert g.load(second_exp).data["rueckmeldung"] == {k.id: -1}
