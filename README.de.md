@@ -75,7 +75,7 @@ Seit 0.22.0 sind Werkzeuge, Parameter und feste Werte englisch. Die vorher genut
                            vi.db (SQLite, WAL, FTS5, 0600)
 ```
 
-- **Objekte statt Notizen.** Alles ist ein Objekt mit Hashtags (`art:wert`), Urheber und Sicht (privat, geteilt oder intern: nur mit Token, nie im Netz): Erfahrung, Erkenntnis, Regel, Skill, Bewertung.
+- **Objekte statt Notizen.** Alles ist ein Objekt mit Hashtags (`art:wert`), Urheber und Sicht (privat, geteilt oder intern: nur mit Token, nie in ein offenes Netz — nur in ein Firmennetz): Erfahrung, Erkenntnis, Regel, Skill, Bewertung.
 - **Vor jeder Handlung** (`vi_before`) bekommt die Sitzung höchstens vier Hinweise. Verstärkt wird ein Hinweis erst, wenn die Handlung gelingt.
 - **Schlaf.** Sobald genug Wichtiges zusammenkommt (nachts nur, wenn seit 24 Stunden keiner lief), verdichtet der Server Erfahrungen, vergleicht sie mit dem Bekannten und lagert Ungenutztes ein.
 - **Scorer.** Code-Regeln, das lokale Sprachmodell und du bewerten, ob Arbeit gelungen ist. „Das Werkzeug ist nicht abgestürzt“ allein sagt das nicht.
@@ -347,6 +347,7 @@ Empfänger löschen sie samt Suchindex und Vektor und merken sich nur einen Grab
 | `vi_net_token` · `vi_net_forget` · `vi_net_preview` | Löschtoken, Recht auf Vergessen, Vorschau |
 | `vi_page_read` · `vi_page_write` · `vi_page_history` · `vi_page_forget` | Netz-Wiki: lesen, bearbeiten, Verlauf, Revision zurückrufen |
 | `vi_net_search` | Live-Suche in einem Netz; Treffer zur Prüfung übernehmen |
+| `vi_prompt_context` | Wissen zur Nutzerfrage — vom Hook aufgerufen, auch bei Folgefragen |
 
 ## Entwicklung
 

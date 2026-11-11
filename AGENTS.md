@@ -8,8 +8,25 @@ One server process with one memory for many AI sessions over MCP (Streamable HTT
 Before every action the session asks `vi_before` and gets at most four hints from the memory; afterwards it reports `vi_after`.
 When an AI consults the VI and when it learns is defined in `tools.RULES` and goes to every client with the `instructions` (since 0.20.7).
 Sleep (when enough important things have accumulated; at night only after 24 h without sleep) condenses experiences into insights and skills and rates the work (scorer). Router, bandit and vectors
-learn on demand (`on_demand`), about a minute after new experiences or new knowledge. Visibilities: private, shared, internal (only with a token, never on the network).
+learn on demand (`on_demand`), about a minute after new experiences or new knowledge. Visibilities: private, shared, internal (only with a token; never an open network, only a company network).
 Everything is an object in SQLite with hashtags (`art:wert`, kind:value), owning instance and visibility (stored as `privat`/`geteilt`/`intern`). The language model is never trained.
+
+Since 0.44.0 the hook also searches before every user prompt (`vi_prompt_context`: Claude Code `UserPromptSubmit`, Hermes shell hook
+`pre_llm_call` with `vi_hook.py --hermes`), so follow-up questions in a conversation get the memory too; the prompt is masked and not stored.
+
+**The network** (since 0.39.0, `docs/ARCHITECTURE.md` from "P2P import" on). Servers form networks without a master: every server appends
+signed entries to its own logbook, the network service (`vi-p2p`, `vi-p2p@<netz>`) exchanges them, the memory checks them again.
+- Networks: `standard` (open, anonymised) and further ones with `vi-mcp net --network NAME setup --kind firma|offen`; a company network
+  (`firma`) carries internal knowledge to members of one organisation. Published on 443 behind the reverse proxy (`--public https://HOST`,
+  `vi-mcp net proxy-config`).
+- Same meaning on several servers = one object with several holders (content hash), rated by every server's own measurements → network
+  score (`net_score`); a content that keeps failing is no longer a hint.
+- Network wiki (`wiki`, `wiki_merge`): `vi_page_read/write/history/forget`, revisions with parents, paragraph merge, named conflicts.
+- Live search: `vi_net_search` asks the members now; hits are unreviewed until taken (`take`).
+- Conversations between AIs (`forum`): `vi_ask(to="netz")`, answers come back reviewed; `vi_confirm` on an answer rates it.
+- Everything foreign counts only after review (fixed rules → quarantine → reviewer → release); `vi_stats` section W counts all of it.
+- Logbook entry types: objekt, widerruf, einladung, ausschluss, adresse, bewertung, seite, beitrag. A new type needs every peer ≥ 0.39.0
+  (`Logbook.peers_below(lb.RELAY_MIN)`): older peers would reject it and stop the publisher's whole chain.
 
 The MCP interface is English since 0.22.0 (tools, parameters, enum values); the German names remain valid as aliases (`vi_mcp/api_en.py`).
 Stored formats (database, hashtags, object data, P2P wire format, config keys) keep their German names.

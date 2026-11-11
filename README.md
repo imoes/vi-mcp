@@ -76,7 +76,7 @@ Since 0.23.0 the command line, all output and the documentation are English too;
                            vi.db (SQLite, WAL, FTS5, 0600)
 ```
 
-- **Objects, not notes.** Everything is an object with hashtags (`kind:value`), an author and a visibility (private, shared, or internal: token holders only, never the network): experience, insight, rule, skill, score.
+- **Objects, not notes.** Everything is an object with hashtags (`kind:value`), an author and a visibility (private, shared, or internal: token holders only, never an open network — only a company network): experience, insight, rule, skill, score.
 - **Before every action** (`vi_before`) a session receives at most four hints. A hint is only reinforced once the action succeeds.
 - **Sleep.** Once enough important events pile up (at night only if none ran in the last 24 hours), the server condenses experiences, compares them with what it knows and archives what goes unused.
 - **Scorer.** Code rules, the local language model and you judge whether work succeeded. "The tool did not crash" alone does not say that.
@@ -339,6 +339,7 @@ receivers delete them along with search index and vector, and keep only a tombst
 | `vi_net_token` · `vi_net_forget` · `vi_net_preview` | deletion token, right to be forgotten, preview |
 | `vi_page_read` · `vi_page_write` · `vi_page_history` · `vi_page_forget` | network wiki: read, edit, history, revoke a revision |
 | `vi_net_search` | live search in a network; take a hit into review |
+| `vi_prompt_context` | knowledge for a user prompt — called by the hook, follow-up questions included |
 
 ## Development
 

@@ -81,6 +81,15 @@ nginx -t && systemctl reload nginx  # in a container: docker exec nginx nginx -t
 - Torrent for large backlogs uses its own port and is off unless switched on; for a network on 443 only, leave it off.
 - Check: `curl -s https://<host>/vi-p2p/firma/netz/gesund` → `{"zustand": "ok", "version": "…"}`.
 
+### Memory for every prompt (0.44.0)
+
+- Claude Code: `vi-mcp setup --hook` registers `UserPromptSubmit` (besides Pre/PostToolUse and SessionEnd). Clients that write their own
+  hook list (e.g. a console that mixes `settings.json` itself) must add `UserPromptSubmit` there.
+- Hermes: `vi-mcp setup --hermes` adds the shell hook `pre_llm_call` (`python3 -I …/vi_hook.py --hermes`) and
+  `~/.config/vi-mcp/hook-hermes.json` + `token-hermes`. Hermes asks once for consent; without a terminal: `hooks_auto_accept: true`,
+  `--accept-hooks` or `HERMES_ACCEPT_HOOKS=1`. Test: `hermes hooks test pre_llm_call --payload-file p.json`.
+- Outage: the hook goes on without memory and names the reason in `~/.cache/vi-mcp/hook/hook.log`.
+
 ## User service (development)
 
 ```bash

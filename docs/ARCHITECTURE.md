@@ -284,8 +284,9 @@ Sleep remains responsible for what needs a language model or condenses experienc
 
 ## Visibilities
 
-`privat` (private: only the owning instance), `geteilt` (shared: everyone, including the tokenless instance `offen`, and the P2P network), `intern`
-(internal, since 0.20.0: all instances with a token, never `offen`, never the network — `p2p._collect` only takes `geteilt`). For company knowledge
+`privat` (private: only the owning instance), `geteilt` (shared: everyone, including the tokenless instance `offen`, and every network), `intern`
+(internal, since 0.20.0: all instances with a token, never `offen`; never an open network — since 0.39.0 a company network (`art: firma`)
+carries it to its members, `p2p._collect` takes `intern` only there). For company knowledge
 such as Confluence: in open-wiki mode it would otherwise be readable without login, including what has read protection in Confluence. Set via
 `vi_learn(visibility="internal")`; checked in `memory.visible_to` and `memory._filter_sql` (one place for search, hints, semantic search).
 

@@ -187,8 +187,9 @@ def _migrate(con: sqlite3.Connection) -> None:
     con.commit()
 
 
-#: Visibilities: privat (only the author instance), geteilt (all, also without a token in open-wiki mode, and the network),
-#: intern (since 0.20.0: all instances with a token, never the tokenless instance and never the network — for company knowledge like Confluence).
+#: Visibilities: privat (only the author instance), geteilt (all, also without a token in open-wiki mode, and every network),
+#: intern (since 0.20.0: all instances with a token, never the tokenless instance — for company knowledge like Confluence; since 0.39.0 a
+#: company network (art firma) carries it to its members, an open network never).
 VISIBILITIES = ("privat", "geteilt", "intern")
 #: name of the tokenless instance in open-wiki mode (= config.OPEN; repeated here because config does not know this module).
 OPEN_INSTANCE = "offen"

@@ -3,6 +3,27 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.44.2 — 2026-11-11 — Instructions and documentation follow the network
+
+### What was fixed
+
+- **"Internal: never the network" was wrong since 0.39.0** and stood where every AI reads it: in the description of `vi_learn`'s
+  `visibility` and in its answer.
+  - It now reads "never an open network, only a company network". A company network (`art: firma`) carries internal knowledge to the
+    members of one organisation.
+  - Corrected as well in README, README.de, AGENTS.md, ARCHITECTURE and the code comment of `memory.VISIBILITIES`.
+
+### What has changed
+
+- The rules in the instructions name the network question: if nobody here knows it, `vi_ask(to="netz")`, then confirm the answer that
+  helped.
+- AGENTS.md describes the network (networks and kinds, 443, content hash and network score, wiki, live search, conversations, review)
+  and the prompt hook.
+- OPERATIONS describes the prompt hook for Claude Code and Hermes, including Hermes' consent and clients with their own hook list.
+- The README tool table lists `vi_prompt_context`.
+
+*Proof:* `test_rule_names_the_network_question`; the full suite.
+
 ## 0.44.1 — 2026-11-11 — Prompt context: the best match first
 
 ### What was fixed

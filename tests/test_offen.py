@@ -135,7 +135,7 @@ def test_hook_without_token(open_, monkeypatch, tmp_path):
 
 
 def test_internal_visible_only_with_token(open_):
-    """0.20.0: company knowledge (Confluence) with visibility internal — visible to every instance with a token, never without one, and never on the network."""
+    """0.20.0: company knowledge (Confluence) with visibility internal — visible to every instance with a token, never without one, and never on the open network."""
     port, tok = open_
     assert g.OPEN_INSTANCE == config.OPEN
     _, sa, _ = _init(port, tok)

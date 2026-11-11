@@ -69,3 +69,12 @@ def test_rule_one_covers_follow_up_questions():
     starting any task" literally — every new question in a conversation counts."""
     from vi_mcp import tools
     assert "follow-up questions too, not only the first message" in tools.RULES and "Once before starting" not in tools.RULES
+
+
+def test_rule_names_the_network_question():
+    import json
+    """0.44.2: the instructions name the question to the network and no longer claim that internal knowledge never reaches a network."""
+    from vi_mcp import tools
+    assert 'vi_ask(to="netz")' in tools.RULES
+    learn = next(t for t in tools.TOOLS if t["name"] == "vi_learn")
+    assert "never the network" not in json.dumps(learn) and "only a company network" in json.dumps(learn)
