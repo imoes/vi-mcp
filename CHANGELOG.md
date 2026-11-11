@@ -91,7 +91,7 @@ the matched lift positive. Four older tests that relied on tool-only hints now u
 
 - The effect on production is not measured yet: how many shown hints the specificity filter removes and whether feedback rises. After a
   deploy, `vi_stats` B (feedback, opened) and C (matched lift) show it.
-- The generated debconf script with the fd-4 fix has not yet run in a container; only the hand-applied form has.
+- ~~The generated debconf script with the fd-4 fix has not yet run in a container.~~ Proven with the release package v0.50.0 (CentralStation session, 11.11.2026, debian:13, signature of SHA256SUMS verified): unattended installation, then `VI_MCP_PORT=9400 DEBIAN_FRONTEND=noninteractive dpkg-reconfigure vi-mcp` exit 0 with "port 9300 → 9400" in config.json and debconf; token file byte-identical, token 0× in the apt and reconfigure logs and the debconf files; a second reconfigure without a variable: "nothing changed".
 - Observations of the container test, not changed: keys without a variable count as answered at the first installation (they took
   their default, so an update does not ask them again); `instance_family` stays empty in debconf when no instance is created; the
   dependency on `python3-sklearn` pulls about 175 packages on Debian 13, including gcc.
