@@ -33,7 +33,7 @@ TEXT_MAX = 1000
 #: 0.20.7: When an AI asks the VI and when it learns — goes with the instructions to every client (server._initialize). One source.
 RULES = """Rules for the VI — apply in every session:
 ASK (vi_recall with semantic=true for free text, or kind:value; then vi_object for the full content):
-1. Once before starting any task: search for the hosts, systems, products and error messages of the task — before planning or changing anything.
+1. At the start of every task and for every new question in a conversation — follow-up questions too, not only the first message: search for the hosts, systems, products and error messages it names — before planning or changing anything.
 2. Before any changing action on a system (deploy, restart, configuration, playbook, delete), unless step 1 already covered it.
 3. On an error or unexpected result: search for the tool and the error text before looking for the cause yourself.
 4. For questions about internal systems, processes and responsibilities: the VI first, then other sources. If vi_recall finds nothing, vi_net_search asks the members of a network live (unreviewed hits; take one to have it reviewed).
@@ -67,7 +67,9 @@ TOOLS = [
      "inputSchema": _schema({"tool": _S, "args": _O, "ok": {"type": "boolean"}, "duration_ms": {"type": "integer"}, "error": _S, "result": _S, "before_id": _S, "read_only": {"type": "boolean"}}, ["tool", "ok"])},
     {"name": "vi_ask",
      "description": "VI collective: ask another instance (or all). The question appears to the target instance at its next action "
-                    "(vi_before); the answer arrives at your next action or via vi_questions. to = instance name or 'alle' (all).",
+                    "(vi_before); the answer arrives at your next action or via vi_questions. to = instance name, 'alle' (all), or 'netz' / "
+                    "'netz:<network>' — AIs on other servers of the network answer; their answers arrive reviewed, and vi_confirm / vi_refute on "
+                    "an answer rates it for the whole network.",
      "inputSchema": _schema({"to": _S, "text": _S, "triggers": _TAGS, "source": {"type": "string", "description": "source: command, host and time, or URL (for vi_ask: why you ask)"}}, ["to", "text"])},
     {"name": "vi_answer",
      "description": "VI collective: answer a question — text and evidence (command/URL/measurement) are required.",
@@ -385,17 +387,25 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         return json.dumps(intuition.before(args["tool"].strip(), args.get("args") or {}, instance, args.get("read_only"),
                                            args.get("context_hashtags") or []), ensure_ascii=False)
     if name == "vi_ask":
+        to = (args.get("to") or "").strip()
         try:
-            o = questions.ask(instance, (args.get("to") or "").strip(), args.get("text") or "", args.get("triggers") or [], args.get("source") or "")
+            if to == "netz" or to.startswith("netz:"):  # 0.43.0: a question to the network
+                from . import forum
+                o = forum.ask(instance, to.split(":", 1)[1] if ":" in to else p2p.STANDARD, args.get("text") or "", args.get("triggers") or [], args.get("source") or "")
+                return (f"Question {o.id} sent to network {o.data['beitrag']['netz']} — it goes out with the next round of the network service; members "
+                        "review it before their AIs see it, answers come back reviewed at your next action or via vi_questions")
+            o = questions.ask(instance, to, args.get("text") or "", args.get("triggers") or [], args.get("source") or "")
         except ValueError as e:
             raise Rejected(str(e)) from e
         return f"Question {o.id} sent to {o.data['an']} — appears there at the next action; the answer comes here at your next action or via vi_questions"
     if name == "vi_answer":
         try:
             o = questions.answer_question(args.get("id") or "", instance, args.get("text") or "", args.get("evidence") or "")
+            from . import forum
+            post = forum.reply(instance, o, args.get("text") or "", args.get("evidence") or "")  # 0.43.0: a question from the network
         except ValueError as e:
             raise Rejected(str(e)) from e
-        return f"Answer to {o.id} stored — {o.data['von']} sees it at the next action"
+        return f"Answer to {o.id} stored — {o.data['von']} sees it " + ("after the network carried it and its server reviewed it" if post else "at the next action")
     if name == "vi_questions":
         to_me, mine = questions.listing(instance)
         z = [f"Questions to {instance} (open/delivered): {len(to_me)}"]
@@ -403,7 +413,12 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         z.append(f"Own questions: {len(mine)}")
         for o in mine:
             z.append(f"  [{o.id}] to {o.data['an']} · {o.data['zustand']} · {o.text[:160]}")
-            z += [f"     ↳ {a['instanz']} {a['zeit'][:16]}: {a['text'][:300]} [evidence: {a['belege'][:120]}]" for a in o.data["antworten"]]
+            for a in o.data["antworten"]:
+                extra = ""
+                if a.get("objekt") and (ao := g.load(a["objekt"])):  # 0.43.0: an answer from the network is an object: rate it with vi_confirm / vi_refute
+                    nl = net_score.line(ao)
+                    extra = f" [{ao.id}{' · accepted' if ao.confirmed else ''}{' · ' + nl if nl else ''}]"
+                z.append(f"     ↳ {a['instanz']} {a['zeit'][:16]}: {a['text'][:300]} [evidence: {a['belege'][:120]}]{extra}")
         return "\n".join(z)
     if name == "vi_after":
         if not (args.get("tool") or "").strip() or not isinstance(args.get("ok"), bool):

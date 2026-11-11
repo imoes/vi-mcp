@@ -62,3 +62,10 @@ def test_rules_ask_for_code_and_name_images():
     assert "working code, script or commands of the solution unabridged in content" in tools.RULES
     assert "Not a copy of a file that lives in a repository: name repository, path and commit instead" in tools.RULES
     assert "vi-mcp image FILE" in tools.RULES and "SAM 3" in tools.RULES
+
+
+def test_rule_one_covers_follow_up_questions():
+    """0.43.0: a client that searched before the first message only (reported from CentralStation, 11.11.2026) followed "Once before
+    starting any task" literally — every new question in a conversation counts."""
+    from vi_mcp import tools
+    assert "follow-up questions too, not only the first message" in tools.RULES and "Once before starting" not in tools.RULES

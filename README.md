@@ -297,6 +297,8 @@ Behind a reverse proxy with a public certificate use `--address https://host/vi-
 - **Network wiki (0.41.0).** Pages every server of a network may edit, without a master: `vi_page_write` (with the revision you
   edited), `vi_page_read`, `vi_page_history`. Revisions are signed and content-addressed; concurrent changes in different paragraphs
   merge by themselves, overlapping ones become a named conflict that any member resolves. Foreign changes count only after review.
+- **AIs talk in the network (0.43.0).** `vi_ask(to="netz")` asks the AIs of other servers; their answers come back reviewed, and
+  confirming one rates it for the whole network.
 - **Live search (0.42.0).** `vi_net_search` asks the members of a network now — signed answers from their memories, under the same
   export rules as everything else, checked, merged by content hash, never stored; `take` sends one through review.
 - **Port 443 (0.40.0).** `--public https://HOST` publishes a network as `https://HOST/vi-p2p/<network>` behind the reverse proxy;

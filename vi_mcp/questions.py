@@ -26,8 +26,9 @@ def _set_state(o: g.MemoryObject, state: str) -> None:
 def ask(from_: str, to: str, text: str, triggers: list[str], source: str) -> g.MemoryObject:
     if len((text or "").strip()) < 10:
         raise ValueError("text (the question, one sentence) is required")
-    if not to or not all(c.isalnum() or c in "-_." for c in to):
-        raise ValueError("an: name of an instance or 'alle'")
+    import re
+    if not to or not (all(c.isalnum() or c in "-_." for c in to) or re.fullmatch(r"netz:[a-z][a-z0-9-]{1,30}", to)):
+        raise ValueError("an: name of an instance, 'alle', or netz:<network> (0.43.0: a question to the network)")
     if to == from_:
         raise ValueError("a question to yourself is not a question to another instance — use vi_recall")
     tags = [t.strip() for t in triggers or [] if isinstance(t, str) and g.TAG.match(t.strip()) and not t.startswith(g.ADMIN_PREFIXES)]
@@ -46,6 +47,7 @@ def deliver(instance: str | None) -> list[str]:
     with g.lock:
         ids = [r[0] for r in g.db().execute(
             "SELECT id FROM objekt WHERE art = 'frage' AND json_extract(daten, '$.zustand') IN ('offen', 'zugestellt', 'beantwortet') "
+            "AND modus NOT IN ('quarantaene', 'widerlegt') "  # 0.43.0: a question from the network only after review
             "AND (json_extract(daten, '$.an') IN (?, 'alle') OR json_extract(daten, '$.von') = ?) ORDER BY zeit", (instance, instance))]
         for oid in ids:
             o = g.load(oid)
@@ -89,7 +91,7 @@ def listing(instance: str) -> tuple[list[g.MemoryObject], list[g.MemoryObject]]:
     """(questions to me, offen/zugestellt), (my questions, all states)."""
     with g.lock:
         to_me = [r[0] for r in g.db().execute(
-            "SELECT id FROM objekt WHERE art = 'frage' AND json_extract(daten, '$.zustand') IN ('offen', 'zugestellt') "
+            "SELECT id FROM objekt WHERE art = 'frage' AND json_extract(daten, '$.zustand') IN ('offen', 'zugestellt') AND modus NOT IN ('quarantaene', 'widerlegt') "
             "AND json_extract(daten, '$.an') IN (?, 'alle') AND json_extract(daten, '$.von') <> ? ORDER BY zeit DESC LIMIT 50", (instance, instance))]
         mine = [r[0] for r in g.db().execute(
             "SELECT id FROM objekt WHERE art = 'frage' AND json_extract(daten, '$.von') = ? ORDER BY zeit DESC LIMIT 50", (instance,))]

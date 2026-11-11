@@ -153,6 +153,53 @@ def check_page(raw, internal_ok: bool = False) -> Finding:
     return b
 
 
+#: 0.43.0: a post in a conversation between AIs (logbook type beitrag)
+POST_FIELDS = {"faden", "eltern", "art", "text", "inhalt", "hashtags", "reize", "autor", "netz_id", "loesch_hash", "zeit"}
+_AUTHOR = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")
+
+
+def check_post(raw, internal_ok: bool = False) -> Finding:
+    """One post against the fixed rules — like a page revision: instructions and commands are findings for the reviewer, binary content,
+    invisible characters and (in an open network) internals are refused."""
+    b = Finding()
+    if not isinstance(raw, dict) or set(raw) != POST_FIELDS:
+        return b.reject("post has wrong fields")
+    o = dict(raw)
+    if o["art"] not in ("frage", "antwort"):
+        return b.reject("art must be frage or antwort")
+    for k in ("faden", "eltern"):
+        if o[k] is not None and not (isinstance(o[k], str) and _HEX64.match(o[k])):
+            return b.reject(f"{k} must be a post id or null")
+    if o["art"] == "frage" and (o["faden"] or o["eltern"]) or o["art"] == "antwort" and not (o["faden"] and o["eltern"]):
+        return b.reject("a question opens a thread (no faden, no eltern); an answer names both")
+    if not isinstance(o["text"], str) or not TEXT_MIN <= len(o["text"].strip()) <= 2000:
+        return b.reject(f"text must have {TEXT_MIN}–2000 characters")
+    if not isinstance(o["inhalt"], str) or len(o["inhalt"]) > 20000:
+        return b.reject("inhalt up to 20,000 characters")
+    if not isinstance(o["autor"], str) or not _AUTHOR.match(o["autor"]):
+        return b.reject("autor: 1–40 characters a-z, 0-9, . _ -")
+    if not _HEX32.match(str(o["netz_id"])) or not _HEX64.match(str(o["loesch_hash"])):
+        return b.reject("netz_id or loesch_hash missing: without them the post could never be deleted again")
+    if not isinstance(o["zeit"], str) or not _DATE.match(o["zeit"]):
+        return b.reject("zeit must be a date")
+    for k in ("hashtags", "reize"):
+        ts = o[k]
+        if not isinstance(ts, list) or len(ts) > 20 or not all(isinstance(t, str) and g.TAG.match(t) and not t.startswith(FIXED_HASHTAGS) for t in ts):
+            return b.reject(f"{k}: up to 20 of the form kind:value, no reserved ones")
+        if not internal_ok and any(t.startswith(anonymize.LOCATION_REF[:-3]) for t in ts):
+            return b.reject(f"internals in {k}: site, host or person")
+    _check_text(b, "text", o["text"])
+    _check_text(b, "inhalt", o["inhalt"], url_allowed=True)
+    if b.verdict == "ablehnen":
+        return b
+    if not internal_ok:
+        for name in ("text", "inhalt"):
+            if hits := anonymize.categories(o[name]):
+                return b.reject(f"internals in {name}: {', '.join(hits)}")
+    b.mem_object = o
+    return b
+
+
 def check(raw, may_reflex: bool = False, internal_ok: bool = False) -> Finding:
     """One object against the fixed rules. Unknown fields (counters, mode, confirmations) are discarded.
 

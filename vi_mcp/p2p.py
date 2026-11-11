@@ -403,9 +403,9 @@ def search_stats(days: float = 7) -> dict:
 def outbox(net: str = STANDARD) -> dict:
     """What may go to the network, unsigned: signing is the network service's job, which keeps its key to itself."""
     mem_objects, withdrawn = _collect(None, net)
-    from . import wiki
+    from . import forum, wiki
     return {"objekte": [r for _o, r in mem_objects], "widerrufe": _revocations(net) + wiki.revocations(net), "zurueckgehalten": withdrawn,
-            "bewertungen": net_score.outgoing(net), "seiten": wiki.outgoing(net)}
+            "bewertungen": net_score.outgoing(net), "seiten": wiki.outgoing(net), "beitraege": forum.outgoing(net)}
 
 
 def record_state(net: str, state) -> None:
@@ -456,7 +456,8 @@ def _apply_forget(revocations) -> int:
             continue  # wrong token: nothing happens
         else:
             from . import wiki
-            n += wiki.forget(net_id, evidence)  # 0.41.0: a page revision — its text goes, its place in the graph stays
+            from . import forum
+            n += wiki.forget(net_id, evidence) or forum.forget(net_id, evidence)  # a page revision (0.41.0) or a post (0.43.0)
         if not known:
             with g.lock:
                 g.db().execute("INSERT OR IGNORE INTO p2p_grab (netz_id, token_sha, zeit) VALUES (?,?,?)", (net_id, evidence, g.now()[:10]))
@@ -515,6 +516,16 @@ def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
             if r == "neu":
                 report["seiten"] = report.get("seiten", 0) + 1
             elif r == "bekannt":
+                report["bekannt"] += 1
+            else:
+                from_seq(r)
+            continue
+        if header["typ"] == "beitrag":  # 0.43.0
+            from . import forum
+            r = forum.ingest(raw, header, net)
+            if r == "neu":
+                report["beitraege"] = report.get("beitraege", 0) + 1
+            elif r in ("bekannt", "fremd"):
                 report["bekannt"] += 1
             else:
                 from_seq(r)
@@ -581,7 +592,7 @@ def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
             g.db().commit()
         report["quarantaene"] += 1
     report["gruende"] = report["gruende"][:20]
-    if in_background and (report["quarantaene"] or report.get("seiten")) and reviewer.available():
+    if in_background and (report["quarantaene"] or report.get("seiten") or report.get("beitraege")) and reviewer.available():
         threading.Thread(target=reviewer.work_off, args=(MAX_OBJECTS,), name="vi-pruefer", daemon=True).start()
     return report
 
@@ -689,6 +700,9 @@ def approve(o: g.MemoryObject, instance: str, reflex_permission: bool, release_p
     if o.kind == "seite":  # 0.41.0: a wiki revision counts from now on; its object is merged into the page
         from . import wiki
         wiki.on_release(o, True)
+    if o.data.get("beitrag"):  # 0.43.0: a question is delivered, an answer reaches the asker
+        from . import forum
+        forum.on_release(o, True)
     return o
 
 
@@ -704,6 +718,9 @@ def discard(o: g.MemoryObject, instance: str, reason: str) -> g.MemoryObject:
     if o.kind == "seite":
         from . import wiki
         wiki.on_release(o, False)
+    if o.data.get("beitrag"):
+        from . import forum
+        forum.on_release(o, False)
     return o
 
 

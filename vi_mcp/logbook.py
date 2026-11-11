@@ -26,9 +26,9 @@ from pathlib import Path
 from . import checks
 
 VERSION = 1
-TYPE_NAMES = ("objekt", "widerruf", "einladung", "ausschluss", "adresse", "bewertung", "seite")
+TYPE_NAMES = ("objekt", "widerruf", "einladung", "ausschluss", "adresse", "bewertung", "seite", "beitrag")
 #: types whose content can be forgotten by the author (netz_id + loesch_hash in the header)
-FORGETTABLE = ("objekt", "seite")
+FORGETTABLE = ("objekt", "seite", "beitrag")
 #: 0.40.0: a rating names a content hash and five non-negative numbers (net_score.py); peers before 0.39.0 would reject the type
 RATING_FIELDS = ("gezeigt", "ja", "nein", "bestaetigt", "widerlegt")
 RELAY_MIN = "0.39.0"
@@ -132,7 +132,7 @@ def header_form(header) -> str | None:
         return "header: number or predecessor unusable"
     if not isinstance(header["zeit"], str) or not _DATE.match(header["zeit"]) or not isinstance(header["sha"], str) or not _HEX64.match(header["sha"]):
         return "header: date or checksum unusable"
-    if header["typ"] in ("objekt", "widerruf", "seite") and not (isinstance(header.get("netz_id"), str) and _HEX32.match(header["netz_id"])):
+    if header["typ"] in ("objekt", "widerruf", "seite", "beitrag") and not (isinstance(header.get("netz_id"), str) and _HEX32.match(header["netz_id"])):
         return "header: netz_id missing"
     if header["typ"] in FORGETTABLE and not (isinstance(header.get("loesch_hash"), str) and _HEX64.match(header["loesch_hash"])):
         return "header: loesch_hash missing"
@@ -244,7 +244,7 @@ class Logbook:
         """Delete the content if the proof matches; remember a tombstone. Returns (pub, seq) of the deleted entries."""
         evidence = hashlib.sha256(token.encode()).hexdigest()
         with self.lock:
-            lines = self.db.execute("SELECT pub, seq, sha, loesch_hash FROM eintrag WHERE netz_id = ? AND typ IN ('objekt', 'seite')", (net_id,)).fetchall()
+            lines = self.db.execute("SELECT pub, seq, sha, loesch_hash FROM eintrag WHERE netz_id = ? AND typ IN ('objekt', 'seite', 'beitrag')", (net_id,)).fetchall()
             if lines and not any(hmac.compare_digest(z[3], evidence) for z in lines):
                 return []  # wrong proof
             remove = []
@@ -309,7 +309,7 @@ class Logbook:
         if sha256(content) != header["sha"] or len(canonical(content)) > MAX_CONTENT or not isinstance(content, dict) or content.get("netz_id") != header["netz_id"] or content.get("loesch_hash") != header["loesch_hash"]:
             self._violation(header["pub"])
             return None
-        rules = checks.check_page if header["typ"] == "seite" else (lambda c, internal_ok: checks.check(c, may_reflex=True, internal_ok=internal_ok))
+        rules = {"seite": checks.check_page, "beitrag": checks.check_post}.get(header["typ"]) or (lambda c, internal_ok: checks.check(c, may_reflex=True, internal_ok=internal_ok))
         if rules(content, internal_ok=self.internal_ok).verdict == "ablehnen":
             self._violation(header["pub"])
             return None

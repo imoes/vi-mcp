@@ -240,6 +240,14 @@ def network_lines(days: float = 7) -> list[str]:
                f"(merged silently {ws['still_zusammengefuehrt']}, open conflicts {ws['offene_konflikte']}"
                + (": oldest " + ", ".join(f"{pg} since {ts[:16]}" for ts, pg in ws["aelteste_konflikte"]) if ws["aelteste_konflikte"] else "")
                + ") (source: table seite_rev, usage log)")
+    from . import forum  # 0.43.0
+    fs = forum.stats(days)
+    nz0 = lambda v: "not recorded" if v is None else v  # noqa: E731
+    out.append(f"    conversations: in {days:g} d sent " + (", ".join(f"{k} {v}" for k, v in fs["gesendet"].items()) or "nothing") + ", received "
+               + (", ".join(f"{k} {v}" for k, v in fs["empfangen"].items()) or "nothing") + f" from {fs['partner']} partner(s), {fs['in_pruefung']} waiting for review · "
+               f"questions to the network {fs['fragen']}, answered {fs['beantwortet']} ({_pct(fs['beantwortet'], fs['fragen'])}), answers per question median "
+               f"{nz0(fs['antworten_median'])}, first answer after median {nz0(fs['erste_antwort_h_median'])} h (90th percentile {nz0(fs['erste_antwort_h_p90'])} h), "
+               f"accepted (confirmed) {fs['angenommen']}, expired {fs['abgelaufen']} (source: tables beitrag_aus, beitrag_ein)")
     ls = p2p.search_stats(days)  # 0.42.0
     tr = [(st.get(n) or {}).get("daten", {}).get("transport") or {} for n in nets]
     nz = lambda v: "not recorded" if v is None else v  # noqa: E731
