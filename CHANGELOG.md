@@ -3,6 +3,41 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.44.0 — 2026-11-11 — Memory for every question, follow-ups included (Claude Code and Hermes)
+
+### What is new
+
+- **Every user prompt brings the knowledge that fits it**, as the user decided on 11.11.2026.
+  - The new tool `vi_prompt_context` takes the prompt and returns up to 4 hints: knowledge whose text or hashtags share at least two of
+    the prompt's words (one if it has only one), without stop words.
+  - Disputed, unconfirmed sleep hypotheses, quarantine and blocked publishers are left out. Hints already shown in the conversation
+    are not repeated.
+  - Claude Code: the hook answers `UserPromptSubmit` with `additionalContext`. `vi-mcp setup --hook` now always registers the event;
+    before, only with the signal token.
+  - Hermes: `vi-mcp setup --hermes` adds a shell hook `pre_llm_call` (`vi_hook.py --hermes`, own `hook-hermes.json` and token file,
+    because Hermes runs hook commands without a shell). It only adds or removes its own entry and keeps comments and other hooks.
+    Hermes asks once for consent.
+  - Reason: measured in CentralStation (11.11.2026), the AI searched the VI in 4 of 10 first turns but in only 2 of 80 follow-up
+    turns. The tool hook searches by the tool, not by the question.
+
+  *Proof:* `tests/test_prompt_context.py` (12): a follow-up question finds the knowledge, no repetition, no noise, disputed and others'
+  private items stay out. **Through Hermes itself** (`hermes hooks test pre_llm_call` in a throwaway `HERMES_HOME` against a real
+  server, 11.11.2026), the hook answered in 0.18 s with the matching knowledge, parsed by Hermes as `{"context": …}`.
+- **Privacy:** the prompt goes to the VI server, masked like tool arguments (passwords, tokens, URLs with logins), and at most 4,000
+  characters. The server does not store it; usage keeps tool, outcome, duration and hit count. *Proof:*
+  `test_prompt_is_masked_and_not_stored`.
+
+### What was fixed
+
+- Hermes passes the event fields of a shell hook under `extra` (`extra.user_message`), not at the top as its documentation describes.
+  Found by running the hook through Hermes; the hook accepts both shapes.
+
+### What is missing
+
+- The search is lexical, not semantic, because a prompt hook must answer within a few seconds: a question worded with other words
+  finds nothing.
+- CentralStation registers the hook events itself (`vi_konsole.py`); `UserPromptSubmit` has to be added there.
+
 ## 0.43.0 — 2026-11-11 — AIs talk in the network; follow-up questions search the memory too
 
 ### What is new

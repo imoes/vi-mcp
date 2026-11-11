@@ -237,7 +237,8 @@ def _hook_on(z: TargetUser, url: str, token: str, signal: str | None) -> str:
     h = d.setdefault("hooks", {})
     for e in HOOK_EVENTS:
         h.setdefault(e, []).append({"matcher": "*", "hooks": [{"type": "command", "command": command, "timeout": 5}]})
-    for e in ("SessionEnd", *(("UserPromptSubmit",) if signal else ())):
+    # UserPromptSubmit always since 0.44.0: memory for every question, follow-ups included (the user decided, 11.11.2026)
+    for e in ("SessionEnd", "UserPromptSubmit"):
         h.setdefault(e, []).append({"hooks": [{"type": "command", "command": command, "timeout": 5}]})
     text = _write(p, json.dumps(d, indent=2, ensure_ascii=False) + "\n")
     return text + ("" if signal else "; without correction detection (no signal token)")
@@ -406,19 +407,128 @@ def env_set(text: str, token: str | None) -> str:
     return "\n".join(lines) + "\n" if lines else ""
 
 
+# 0.44.0: Hermes shell hook pre_llm_call — memory for every user prompt (the user decided, 11.11.2026)
+HERMES_HOOK_EVENT = "pre_llm_call"
+
+
+def _hook_items(lines: list[str], start: int, end: int) -> list[tuple[int, int]]:
+    """(first, end) of every list item between start and end at the item indentation of the first '- '."""
+    idx = [i for i in range(start, end) if lines[i].lstrip().startswith("- ")]
+    if not idx:
+        return []
+    depth = _indent(lines[idx[0]])
+    idx = [i for i in idx if _indent(lines[i]) == depth]
+    out = []
+    for n, i in enumerate(idx):
+        stop = idx[n + 1] if n + 1 < len(idx) else next((j for j in range(i + 1, end) if _content(lines[j]) and _indent(lines[j]) <= depth and not lines[j].lstrip().startswith("- ")), end)
+        out.append((i, stop))
+    return out
+
+
+def _top_section(lines: list[str], key: str) -> tuple[int, int] | None:
+    for i, z in enumerate(lines):
+        if re.match(rf"^{re.escape(key)}:\s*(#.*)?$", z):
+            end = next((j for j in range(i + 1, len(lines)) if _content(lines[j]) and _indent(lines[j]) == 0), len(lines))
+            while end > i + 1 and not _content(lines[end - 1]):
+                end -= 1
+            return i, end
+    return None
+
+
+def _without_hermes_hook(lines: list[str]) -> list[str]:
+    sec = _top_section(lines, "hooks")
+    if not sec:
+        return lines
+    h, end = sec
+    ev = next((i for i in range(h + 1, end) if re.match(rf"^\s+{HERMES_HOOK_EVENT}:\s*(#.*)?$", lines[i])), None)
+    if ev is None:
+        return lines
+    depth = _indent(lines[ev])
+    ev_end = next((j for j in range(ev + 1, end) if _content(lines[j]) and _indent(lines[j]) <= depth and not lines[j].lstrip().startswith("- ")), end)
+    drop = [(a, b) for a, b in _hook_items(lines, ev + 1, ev_end) if any("vi_hook.py" in lines[k] for k in range(a, b))]
+    for a, b in reversed(drop):
+        lines = lines[:a] + lines[b:]
+        ev_end -= b - a
+    if not any(_content(lines[k]) for k in range(ev + 1, ev_end)):  # nothing left under the event: remove the key
+        lines = lines[:ev] + lines[ev_end:]
+        sec = _top_section(lines, "hooks")
+        if sec and not any(_content(lines[k]) for k in range(sec[0] + 1, sec[1])):
+            lines = lines[:sec[0]] + lines[sec[1]:]
+    return lines
+
+
+def hermes_hook_set(text: str, command: str, p: Path = Path("config.yaml")) -> str:
+    """Pure. Adds (or replaces) our pre_llm_call shell hook; everything else stays as it is, comments included."""
+    old = _yaml(text, p)
+    present = [x for x in ((old.get("hooks") or {}).get(HERMES_HOOK_EVENT) or []) if "vi_hook.py" in str((x or {}).get("command", ""))]
+    if present == [{"command": command, "timeout": 10}]:
+        return text if text.endswith("\n") else text + "\n"  # already there: unchanged
+    lines = text.splitlines()
+    for i, z in enumerate(lines):
+        if m := re.match(r"^hooks:\s*(\S.*)$", z):
+            if m[1].split("#")[0].strip() in ("{}", "null", "~", ""):
+                lines[i] = "hooks:"
+            elif not m[1].startswith("#"):
+                raise Refused(f"{p}: hooks is in inline notation; please add the hook by hand, nothing changed")
+    lines = _without_hermes_hook(lines)
+    item = [f"- command: {json.dumps(command)}", "  timeout: 10"]
+    sec = _top_section(lines, "hooks")
+    if not sec:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += ([""] if lines else []) + ["hooks:", f"  {HERMES_HOOK_EVENT}:"] + [f"    {x}" for x in item]
+    else:
+        h, end = sec
+        ev = next((i for i in range(h + 1, end) if re.match(rf"^\s+{HERMES_HOOK_EVENT}:\s*(#.*)?$", lines[i])), None)
+        if ev is None:
+            depth = next((_indent(lines[i]) for i in range(h + 1, end) if _content(lines[i])), 2)
+            lines = lines[:end] + [" " * depth + f"{HERMES_HOOK_EVENT}:"] + [" " * (depth + 2) + x for x in item] + lines[end:]
+        else:
+            depth = _indent(lines[ev])
+            ev_end = next((j for j in range(ev + 1, end) if _content(lines[j]) and _indent(lines[j]) <= depth and not lines[j].lstrip().startswith("- ")), end)
+            items = _hook_items(lines, ev + 1, ev_end)
+            ind = _indent(lines[items[0][0]]) if items else depth + 2
+            lines = lines[:ev_end] + [" " * ind + x for x in item] + lines[ev_end:]
+    new = "\n".join(lines) + "\n"
+    d_old, d_new = dict(old), _yaml(new, p)
+    ours = [x for x in ((d_new.get("hooks") or {}).get(HERMES_HOOK_EVENT) or []) if "vi_hook.py" in str((x or {}).get("command", ""))]
+    strip = lambda d: {**d, "hooks": {k: [x for x in (v or []) if "vi_hook.py" not in str((x or {}).get("command", ""))] if k == HERMES_HOOK_EVENT else v
+                                       for k, v in (d.get("hooks") or {}).items()}}  # noqa: E731
+    clean = lambda d: {k: v for k, v in strip(d).items() if not (k == "hooks" and not any(v.values()))}  # noqa: E731
+    if ours != [{"command": command, "timeout": 10}] or clean(d_old) != clean(d_new):
+        raise Refused(f"{p}: the change would have touched more than our hook; nothing changed")
+    return new
+
+
+def hermes_hook_remove(text: str, p: Path = Path("config.yaml")) -> str:
+    _yaml(text, p)
+    return "\n".join(_without_hermes_hook(text.splitlines())) + "\n"
+
+
+def _hermes_hook_command() -> str:
+    return f"python3 -I {_hook_script()} --hermes"
+
+
 def _hermes_on(z: TargetUser, url: str, token: str) -> str:
     v = _hermes_dir(z)
     p = v / "config.yaml"
     new = hermes_set(_text(p), url, p, with_token=bool(token))
+    new = hermes_hook_set(new, _hermes_hook_command(), p)
     _write(v / ".env", env_set(_text(v / ".env"), token or None))
-    return _write(p, new)
+    dir_path = z.home / ".config" / "vi-mcp"  # the hook runs without a shell: URL and token file from its own config
+    if token:
+        _write(dir_path / "token-hermes", token + "\n")
+    _write(dir_path / "hook-hermes.json", json.dumps({"url": url, "token_file": str(dir_path / "token-hermes") if token else ""}, indent=2) + "\n")
+    return _write(p, new) + ("; hook pre_llm_call: Hermes asks once for consent at the next start (or hermes --accept-hooks)")
 
 
 def _hermes_off(z: TargetUser) -> str:
     v = _hermes_dir(z)
     p = v / "config.yaml"
-    new = hermes_remove(_text(p), p)
+    new = hermes_hook_remove(hermes_remove(_text(p), p), p)
     _write(v / ".env", env_set(_text(v / ".env"), None))
+    for name in ("token-hermes", "hook-hermes.json"):
+        (z.home / ".config" / "vi-mcp" / name).unlink(missing_ok=True)
     return _write(p, new)
 
 

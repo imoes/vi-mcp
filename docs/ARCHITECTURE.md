@@ -594,6 +594,20 @@ names both.
 
 **Bounds.** `MAX_OPEN_PER_INSTANCE` = 20, `net_service.POSTS_PER_DAY` = 200; written only while `peers_below("0.39.0")` is empty.
 
+## Memory for every prompt (0.44.0)
+
+`intuition.prompt_hints` behind the tool `vi_prompt_context`:
+- `prompt_words` takes up to 20 words of at least three characters, without stop words (German, English) and pure numbers.
+- `g.recall` over the knowledge kinds runs with the OR fallback (BM25), with the asking instance as viewer.
+- Lexical gate: at least two prompt words (one if there is only one) must appear in text or hashtags.
+- Left out: disputed and refuted items, unconfirmed sleep hypotheses, quarantine, blocked publishers, ids already shown (the hook keeps
+  them per session, at most 200).
+- Hits are not reinforced. The server keeps nothing of the prompt; the usage row has no arguments.
+
+Clients:
+- Claude Code: `UserPromptSubmit` → `hookSpecificOutput.additionalContext`.
+- Hermes: shell hook `pre_llm_call` → `{"context": …}`; it reads the message from `extra.user_message`.
+
 ## Housekeeping — the long-term archive
 
 `archive.py`, sleep step 5. Entries no longer in use move to a separate file (`<db>-lager.db`, 0600), so that

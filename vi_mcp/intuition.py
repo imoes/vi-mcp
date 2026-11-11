@@ -488,3 +488,59 @@ def experience(tool: str, args: dict, ok: bool | None, duration_ms: int, error: 
         s.turn({"zeit": g.now(), "tool": tool, "args": args, "ok": ok, "dauer_ms": duration_ms, "fehler": error,
                "vorher": access, "erfahrung": o.id})
     return o
+
+
+# ---- 0.44.0: memory for every user prompt (hook UserPromptSubmit in Claude Code, pre_llm_call in Hermes) ----
+# Measured 11.11.2026 in CentralStation: the AI searched the VI in 4 of 10 first turns, in 2 of 80 follow-up turns. The tool hook
+# searches by the tool, not by the topic of the question; this searches by the question. The prompt is not stored (usage keeps tool,
+# outcome, duration and hit count only); hits are not reinforced (an automatic look is no use).
+PROMPT_HINTS = 4
+PROMPT_KINDS = ("erkenntnis", "regel", "skill", "suche", "bild", "seite")
+_STOP = set("""der die das den dem des ein eine einen einem einer und oder aber nicht noch auch nur wie was wer wo wann warum wieso
+weshalb ist sind war waren wird werden wurde hat haben hatte kann können konnte muss müssen soll sollen mit ohne für von vom zum zur
+bei beim auf aus nach über unter vor hinter neben zwischen durch gegen ich du er sie es wir ihr mich mir dich dir uns euch sich mein
+dein sein unser euer ihre ihren ihrem ihres dieser diese dieses jetzt dann schon mal bitte danke gibt geht machen mache macht sag sage
+the and or but not also only how what who where when why is are was were will would can could must should with without for from
+into onto about over under before after this that these those there here have has had please thanks you your we our they them it
+its just then than does did done make made get got let lets""".split())
+_WORD = re.compile(r"[\wäöüÄÖÜß][\wäöüÄÖÜß.:/_-]{2,}")
+
+
+def prompt_words(text: str) -> list[str]:
+    """Pure. The words of a prompt worth searching for: no stop words, no pure numbers, at most 20, in order."""
+    out, seen = [], set()
+    for w in _WORD.findall(text or ""):
+        w = w.strip(".:/-_")
+        lw = w.lower()
+        if len(lw) < 3 or lw in _STOP or lw.isdigit() or lw in seen:
+            continue
+        seen.add(lw)
+        out.append(w)
+    return out[:20]
+
+
+def prompt_hints(text: str, instance: str | None, shown: list[str] | None = None) -> dict:
+    """Hints for a user prompt: knowledge whose text or hashtags share at least two of its words (one if it has only one)."""
+    from . import p2p
+    words = prompt_words(text)
+    if not words:
+        return {"hinweise": [], "woerter": 0}
+    need = 1 if len(words) == 1 else 2
+    skip = set(shown or [])
+    hits = g.recall(" ".join(words), limit=PROMPT_HINTS * 6, kinds=PROMPT_KINDS, viewer=instance, or_fallback=True)
+    cand = [o for _s, o, _g in hits if o.id not in skip and o.mode not in ("strittig", "quarantaene", "widerlegt", "archiviert")
+            and not ("herkunft:schlaf-llm" in o.hashtags and not o.foreign_confirmations())]
+    cand = p2p.without_blocked(cand)
+    lw = [w.lower() for w in words]
+    out = []
+    for o in cand:
+        hay = (o.text + " " + " ".join(o.hashtags)).lower()
+        if sum(1 for w in lw if w in hay) < need:
+            continue
+        provenance = f"from {o.instance}" if o.instance else "from the server"
+        label = {"regel": "Rule", "skill": "Skill", "bild": "Image", "seite": "Wiki page", "suche": "Search"}.get(o.kind, "Learned")
+        out.append({"id": o.id, "zeile": f"{label} [{o.id}] ({provenance}): {o.text[:300]} — vi_object {o.id} for the complete content "
+                                         f"[Source: {str(o.data.get('quelle', '—'))[:120]}]"})
+        if len(out) >= PROMPT_HINTS:
+            break
+    return {"hinweise": [h["zeile"] for h in out], "ids": [h["id"] for h in out], "woerter": len(words)}

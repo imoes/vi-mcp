@@ -8,8 +8,13 @@ Claude Code calls the script as a hook (event from stdin: `hook_event_name`):
   PostToolUse         → vi_after with ok=true, result, duration.
   PostToolUseFailure  → vi_after with ok=false, error.
   SessionEnd          → end the conversation in vi-mcp (DELETE).
-  UserPromptSubmit    → detects locally a correction ("nein, …", "no, …") or a grade (#gut, #schlecht, #note 0.8). Only this
-                        result is sent, never the text.
+  UserPromptSubmit    → 0.44.0: vi_prompt_context with the prompt (secrets masked, at most 4,000 characters) — knowledge that
+                        fits the question goes to the model as context, for follow-up questions too; the server does not store
+                        the prompt. Besides, detects locally a correction ("nein, …", "no, …") or a grade (#gut, #schlecht,
+                        #note 0.8); only that result goes to /signal.
+Hermes Agent (0.44.0) calls the same script as a shell hook `pre_llm_call` with `--hermes`: payload {hook_event_name, session_id,
+cwd, extra: {user_message, …}} on stdin, answer {"context": …}. URL and token file come from ~/.config/vi-mcp/hook-hermes.json (Hermes runs hook
+commands without a shell, so no "VAR=value command").
 Every Claude session (`session_id`) is exactly one conversation in vi-mcp; the Mcp-Session-Id is kept in a state file.
 
 Outage: if vi-mcp is unreachable or answers wrongly, the call goes through (exit 0, no output) — and the
@@ -40,6 +45,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 def _hook_config() -> None:
+    if "--hermes" in sys.argv:  # 0.44.0: Hermes has its own instance and token
+        try:
+            c = json.loads((Path.home() / ".config" / "vi-mcp" / "hook-hermes.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            c = {}
+        if c.get("url"):
+            os.environ["VI_MCP_URL"] = c["url"]
+            os.environ["VI_MCP_TOKEN_FILE"] = c.get("token_file") or os.devnull
+        return
+    _hook_config_claude()
+
+
+def _hook_config_claude() -> None:
     """0.27.0: without VI_MCP_URL in the environment, take URL and token files from ~/.config/vi-mcp/hook.json (written by vi-mcp setup on
     Windows, where cmd.exe knows no "VAR=value command"). The environment always wins; an empty token file means: no token."""
     if "VI_MCP_URL" in os.environ:
@@ -319,6 +337,35 @@ def after_tool(e: dict, ok: bool) -> dict | None:
     return None
 
 
+MAX_PROMPT = 4000
+PROMPT_SHOWN_MAX = 200
+
+
+def prompt_context(session: str, cwd: str | None, prompt: str) -> str | None:
+    """0.44.0: hints for the user's question. Ids already shown in this session are not repeated."""
+    text = (prompt or "").strip()
+    if not text or text.startswith(("/", "<")):
+        return None
+    state = read("prompt", session) or {"gezeigt": []}
+    v = call_tool(session, cwd, "vi_prompt_context", {"prompt": mask(text)[:MAX_PROMPT], "shown": state["gezeigt"][-PROMPT_SHOWN_MAX:]})
+    hints = v.get("hinweise") or []
+    if not hints:
+        return None
+    write("prompt", session, {"gezeigt": (state["gezeigt"] + list(v.get("ids") or []))[-PROMPT_SHOWN_MAX:]})
+    return "[VI memory for this question — read and follow, or contradict with a reason]\n" + "\n".join(hints)
+
+
+def hermes(e: dict) -> dict | None:
+    """Hermes shell hook pre_llm_call: {"context": …} or nothing."""
+    if e.get("hook_event_name") != "pre_llm_call" or not e.get("session_id"):
+        return None
+    # Hermes shell hooks get the event fields under "extra" (seen 11.11.2026: {hook_event_name, tool_name, tool_input, session_id,
+    # cwd, extra: {user_message, …}}); plugin hooks get them at the top — both are accepted
+    message = e.get("user_message") or (e.get("extra") or {}).get("user_message") or ""
+    ctx = prompt_context("hermes-" + str(e["session_id"]), e.get("cwd"), message)
+    return {"context": ctx} if ctx else None
+
+
 def process(e: dict) -> dict | None:
     event = e.get("hook_event_name")
     if not e.get("session_id"):
@@ -333,8 +380,12 @@ def process(e: dict) -> dict | None:
     if event == "PostToolUseFailure":
         return after_tool(e, ok=False)
     if event == "UserPromptSubmit":
-        notify_signal(e["session_id"], e.get("prompt") or "")
-        return None
+        ctx = prompt_context(e["session_id"], e.get("cwd"), e.get("prompt") or "")
+        try:
+            notify_signal(e["session_id"], e.get("prompt") or "")
+        except Outage as ex:  # a missing signal token must not cost the context
+            log_output(f"UserPromptSubmit signal: {ex}")
+        return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": ctx}} if ctx else None
     if event == "SessionEnd":
         finish(e["session_id"])
         return None
@@ -348,7 +399,7 @@ def main() -> int:
         log_output(f"no JSON on stdin: {ex}")
         return 0
     try:
-        outputs = process(e)
+        outputs = hermes(e) if "--hermes" in sys.argv else process(e)
     except Outage as ex:
         log_output(f"{e.get('hook_event_name')} {e.get('tool_name', '')}: continuing without memory — {ex}")
         return 0

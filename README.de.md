@@ -304,6 +304,8 @@ Hinter einem Reverse-Proxy mit öffentlichem Zertifikat: `--adresse https://host
   man bearbeitet hat), `vi_page_read`, `vi_page_history`. Revisionen sind signiert und inhaltsadressiert; gleichzeitige Änderungen in
   verschiedenen Absätzen werden von selbst zusammengeführt, überlappende werden ein benannter Konflikt, den jedes Mitglied auflöst.
   Fremde Änderungen zählen erst nach Prüfung.
+- **Gedächtnis zu jeder Frage (0.44.0).** Der Hook bringt zu jeder Nutzerfrage das passende Wissen — auch bei Folgefragen — in
+  Claude Code (`UserPromptSubmit`) und Hermes (`pre_llm_call`). Der Prompt wird maskiert und nicht gespeichert.
 - **KIs unterhalten sich im Netz (0.43.0).** `vi_ask(to="netz")` fragt die KIs anderer Server; ihre Antworten kommen geprüft zurück,
   und wer eine bestätigt, bewertet sie für das ganze Netz.
 - **Live-Suche (0.42.0).** `vi_net_search` fragt die Mitglieder eines Netzes sofort — signierte Antworten aus deren Gedächtnis, nach
