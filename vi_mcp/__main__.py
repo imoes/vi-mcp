@@ -27,6 +27,8 @@
   python3 -m vi_mcp image FILE --text T --hashtags a:b,c:d --source S [--content-file F|-] [--regions F.json] [--visibility shared|internal]
                                           put an image with its description (and regions in SAM 3 format) into memory, through the
                                           server the clients use; "image get ID OUTFILE" fetches it back
+  python3 -m vi_mcp configure [--new]       ANSI menu: server, networks, web page and instances, language model (Debian: dpkg-reconfigure
+                                          vi-mcp); --set KEY=VALUE …, --env (VI_MCP_<KEY> from the environment, as at installation)
   python3 -m vi_mcp web [on|off] [--base PATH]
                                           the read-only web page of the free and open networks (search, wiki, forum, knowledge) under
                                           /web; --base = the path the browser sees behind the reverse proxy (e.g. /vi-mcp/web); restarts
@@ -40,7 +42,8 @@ from . import config, server
 
 #: English command → German alias (accepted as well)
 COMMANDS = {"setup": "einrichten", "image": "bild", "local": "lokal", "net": "netz", "instance": "instanz", "net-token": "netz-token", "p2p-key": "p2p-schluessel",
-            "release": "freigeben", "delete-instance": "loesche-instanz", "web": "webseite"}
+            "release": "freigeben", "delete-instance": "loesche-instanz", "web": "webseite",
+            "configure": "konfigurieren"}
 _ALIASES = {de: en for en, de in COMMANDS.items()}
 
 
@@ -190,6 +193,9 @@ def _cli(argv: list[str]) -> int:
         from . import setup
         setup._restart()
         return 0
+    if command == "configure":  # 0.48.0
+        from . import configure
+        return configure.main(argv[1:])
     if command == "web" and len(argv) in (1, 2, 4) and argv[1:2] in ([], ["on"], ["off"]) and (len(argv) < 4 or argv[2] == "--base"):  # 0.46.0
         k = config.load()
         if len(argv) == 1:

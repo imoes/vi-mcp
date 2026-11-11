@@ -39,8 +39,13 @@ exit 0
 %posttrans
 if [ -e /var/lib/vi-mcp/.erstinstallation ]; then
     rm -f /var/lib/vi-mcp/.erstinstallation
-    /usr/share/vi-mcp/nach-installation.sh wiki
+    # 0.48.0: VI_MCP_<KEY> from the environment, then the ANSI menu for the rest (without a terminal: the defaults)
+    if (: </dev/tty) 2>/dev/null; then /usr/bin/vi-mcp configure --package first </dev/tty >/dev/tty 2>&1 || true
+    else /usr/bin/vi-mcp configure --package first || true; fi
     /usr/share/vi-mcp/nach-installation.sh menue
+else
+    if (: </dev/tty) 2>/dev/null; then /usr/bin/vi-mcp configure --package upgrade </dev/tty >/dev/tty 2>&1 || true
+    else /usr/bin/vi-mcp configure --package upgrade || true; fi
 fi
 exit 0
 

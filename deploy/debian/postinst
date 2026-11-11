@@ -1,6 +1,7 @@
 #!/bin/sh
-# vi-mcp postinst: system user, then the shared part; the menu on first installation.
+# vi-mcp postinst: system user, then the shared part; debconf answers (0.48.0); the client menu on first installation.
 set -e
+. /usr/share/debconf/confmodule
 if [ "$1" = "configure" ]; then
     if ! getent passwd vi-mcp >/dev/null; then
         adduser --system --group --home /var/lib/vi-mcp --no-create-home --gecos "vi-mcp VI-Gedaechtnis" vi-mcp
@@ -9,8 +10,17 @@ if [ "$1" = "configure" ]; then
         adduser --system --group --home /var/lib/vi-p2p --no-create-home --gecos "vi-mcp Netzdienst" vi-p2p
     fi
     /usr/share/vi-mcp/nach-installation.sh system
+    # 0.48.0: the answers of the dialogs (or of VI_MCP_<KEY>, or the defaults) — read all, reset the one-time actions, then leave
+    # debconf before anything prints (stdout belongs to debconf while the confmodule is loaded)
+    answers=$(mktemp)
+    for key in port bind open wiki net_name net_kind net_mode net_public net_start web web_base instance instance_family llm_url llm_model reviewer_prompt embed_url; do
+        if db_get "vi-mcp/$key"; then printf '%s %s\n' "$key" "$RET" >> "$answers"; fi
+    done
+    for key in net_name net_kind net_mode net_public net_start instance instance_family; do db_set "vi-mcp/$key" "" || true; done
+    db_stop
+    /usr/bin/vi-mcp configure --apply-pairs "$answers" || echo "vi-mcp: configuration not applied completely — sudo dpkg-reconfigure vi-mcp"
+    rm -f "$answers"
     if [ -z "$2" ]; then
-        /usr/share/vi-mcp/nach-installation.sh wiki
         /usr/share/vi-mcp/nach-installation.sh menue
     fi
 fi

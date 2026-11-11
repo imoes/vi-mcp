@@ -47,7 +47,10 @@ sudo dnf install ./vi-mcp-<version>-1.noarch.rpm     # Fedora, AlmaLinux/RHEL 10
 sudo vi-mcp setup                                    # ANSI menu: Claude Code, Codex CLI, Hermes Agent
 ```
 
-On first installation the menu opens by itself if a terminal is present. Without the menu:
+0.48.0: the package first asks for the server configuration (Debian: debconf, `dpkg-reconfigure vi-mcp`; RPM and everywhere:
+`vi-mcp configure`, ANSI menu; catalogue in `vi_mcp/configure.py`, the Debian build generates `DEBIAN/templates` and `DEBIAN/config`
+from it). Unattended: `VI_MCP_<KEY>` environment variables (e.g. `VI_MCP_PORT`, `VI_MCP_WIKI`, `VI_MCP_INSTANCE`). Then the client
+menu below. On first installation the menu opens by itself if a terminal is present. Without the menu:
 `vi-mcp setup --claude --codex --hermes --hook --url URL --token-file FILE`. The German command names (`einrichten`, `--token-datei`, …) remain valid as aliases.
 
 ## Working on the code
@@ -62,7 +65,7 @@ On first installation the menu opens by itself if a terminal is present. Without
 | Check a release | `deploy/pruefe-release.sh <directory>` |
 
 Modules (`vi_mcp/`): `memory` (objects, search), `intuition` (before/after), `session`, `sleep_cycle`, `main_loop` (the loop), `scorer`, `learning`, `bandit`, `vector`, `reflection`, `skills`, `reflexes`, `sandbox`,
-`content` (meaning as a router feature), `on_demand` (training on demand), `usage_stats` (usage statistics, `vi_stats`), `metrics` (hint lift, by hint age), `images` (images with description and SAM 3 regions), `image_cli` (`vi-mcp image`), `stdio_bridge` (`vi-mcp stdio`, MCP over stdio through the local socket), `index` (memory index in the instructions), `weight_audit` (fixed rules over the router weights), `archive`, `self_model`, `questions`, `p2p` (memory on the network), `net_score` (content hash, holders, network score), `wiki` + `wiki_merge` (network wiki pages, merge), `forum` (questions and answers between AIs in the network), `web` (read-only web page of the free and open networks), `logbook`, `net_service` (separate process `vi-p2p`), `net_torrent`, `net_cli`, `anonymize`, `checks`, `reviewer`, `setup`, `config`, `server`, `tools`, `api_en` (German aliases), `log_output`.
+`content` (meaning as a router feature), `on_demand` (training on demand), `usage_stats` (usage statistics, `vi_stats`), `metrics` (hint lift, by hint age), `images` (images with description and SAM 3 regions), `image_cli` (`vi-mcp image`), `stdio_bridge` (`vi-mcp stdio`, MCP over stdio through the local socket), `index` (memory index in the instructions), `weight_audit` (fixed rules over the router weights), `archive`, `self_model`, `questions`, `p2p` (memory on the network), `net_score` (content hash, holders, network score), `wiki` + `wiki_merge` (network wiki pages, merge), `forum` (questions and answers between AIs in the network), `web` (read-only web page of the free and open networks), `configure` (package configuration: debconf, menu, VI_MCP_ variables), `logbook`, `net_service` (separate process `vi-p2p`), `net_torrent`, `net_cli`, `anonymize`, `checks`, `reviewer`, `setup`, `config`, `server`, `tools`, `api_en` (German aliases), `log_output`.
 
 ## Rules
 

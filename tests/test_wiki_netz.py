@@ -114,10 +114,11 @@ def test_cli_wiki_on_sets_up_the_free_network(tmp_path, monkeypatch, capsys):
 
 
 def test_install_scripts_join_on_new_installations_only():
+    # 0.48.0: Debian asks through debconf (question vi-mcp/wiki, default true, false on an update); RPM through vi-mcp configure --package
     post = (ROOT / "deploy/debian/postinst").read_text()
-    assert 'if [ -z "$2" ]; then\n        /usr/share/vi-mcp/nach-installation.sh wiki' in post  # only the first configure has no old version
+    assert "configure --apply-pairs" in post and "db_get" in post
     spec = (ROOT / "deploy/rpm/vi-mcp.spec").read_text()
-    assert ".erstinstallation" in spec and "nach-installation.sh wiki" in spec
+    assert ".erstinstallation" in spec and "configure --package first" in spec and "configure --package upgrade" in spec
     sh = (ROOT / "deploy/nach-installation.sh").read_text()
     assert "VI_MCP_KEIN_WIKI" in sh and "vi-mcp net wiki on" in sh and "[ ! -e /etc/vi-p2p/wiki.json ]" in sh
     r = subprocess.run(["sh", "-n", str(ROOT / "deploy/nach-installation.sh")], capture_output=True)

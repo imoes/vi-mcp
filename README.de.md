@@ -205,6 +205,24 @@ claude mcp add --transport http -s user vi-mcp https://<server>/vi-mcp/mcp
 vi-mcp einrichten --claude --codex --hermes --hook --url https://<server>/vi-mcp/mcp     # erkennt den offenen Server selbst
 ```
 
+## Konfigurieren (0.48.0)
+
+Das Paket fragt bei der Erstinstallation nach seiner Konfiguration, wie postfix: unter Debian über debconf
+(später `sudo dpkg-reconfigure vi-mcp`), unter Fedora/RHEL über ein ANSI-Menü (`sudo vi-mcp configure`). Es umfasst Port, Adressen,
+Zugriff ohne Token, das Wiki-Netz, ein weiteres Netz, die Webseite, eine neue Instanz (ihr Token landet in `/root/vi-mcp-token-<name>`),
+Sprachmodell, Prüfer und Embedding. Ein Update fragt nur neue Fragen.
+
+Unbeaufsichtigt, wie beim Wazuh-Agenten — jede Einstellung ist eine Umgebungsvariable `VI_MCP_<SCHLÜSSEL>`:
+
+```bash
+sudo VI_MCP_PORT=9000 VI_MCP_WIKI=false VI_MCP_WEB=true VI_MCP_INSTANCE=claude-code VI_MCP_INSTANCE_FAMILY=claude \
+     DEBIAN_FRONTEND=noninteractive apt-get install -y ./vi-mcp_<version>-1_all.deb
+sudo VI_MCP_NET_NAME=firma VI_MCP_NET_KIND=firma VI_MCP_NET_START=vinetz1.… dnf install -y ./vi-mcp-<version>-1.noarch.rpm
+```
+
+Schlüssel: `PORT BIND OPEN WIKI NET_NAME NET_KIND NET_MODE NET_PUBLIC NET_START WEB WEB_BASE INSTANCE INSTANCE_FAMILY LLM_URL LLM_MODEL
+REVIEWER_PROMPT EMBED_URL` (jeweils mit Präfix `VI_MCP_`).
+
 ## Einrichten
 
 Bei der Erstinstallation öffnet sich dieses Menü von selbst, sonst mit `sudo vi-mcp einrichten`:

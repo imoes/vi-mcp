@@ -7,6 +7,7 @@ if [ "$1" = "remove" ]; then
     systemctl daemon-reload >/dev/null 2>&1 || true
 fi
 if [ "$1" = "purge" ]; then
+    if [ -e /usr/share/debconf/confmodule ]; then . /usr/share/debconf/confmodule; db_purge || true; db_stop || true; fi
     rm -rf /etc/vi-mcp /var/lib/vi-mcp /etc/vi-p2p /var/lib/vi-p2p
     getent passwd vi-p2p >/dev/null && deluser --system vi-p2p >/dev/null 2>&1 || true
     getent passwd vi-mcp >/dev/null && deluser --system vi-mcp >/dev/null 2>&1 || true

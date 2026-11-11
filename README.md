@@ -199,6 +199,24 @@ claude mcp add --transport http -s user vi-mcp https://<server>/vi-mcp/mcp
 vi-mcp setup --claude --codex --hermes --hook --url https://<server>/vi-mcp/mcp     # detects the open server by itself
 ```
 
+## Configure (0.48.0)
+
+The package asks for its configuration at the first installation, like postfix: on Debian through debconf
+(`sudo dpkg-reconfigure vi-mcp` later), on Fedora/RHEL through an ANSI menu (`sudo vi-mcp configure`). It covers port, addresses, access
+without a token, the wiki network, a further network, the web page, a new instance (its token goes to `/root/vi-mcp-token-<name>`),
+language model, reviewer and embedding. An update asks only new questions.
+
+Unattended, like the Wazuh agent — every setting is an environment variable `VI_MCP_<KEY>`:
+
+```bash
+sudo VI_MCP_PORT=9000 VI_MCP_WIKI=false VI_MCP_WEB=true VI_MCP_INSTANCE=claude-code VI_MCP_INSTANCE_FAMILY=claude \
+     DEBIAN_FRONTEND=noninteractive apt-get install -y ./vi-mcp_<version>-1_all.deb
+sudo VI_MCP_NET_NAME=firma VI_MCP_NET_KIND=firma VI_MCP_NET_START=vinetz1.… dnf install -y ./vi-mcp-<version>-1.noarch.rpm
+```
+
+Keys: `PORT BIND OPEN WIKI NET_NAME NET_KIND NET_MODE NET_PUBLIC NET_START WEB WEB_BASE INSTANCE INSTANCE_FAMILY LLM_URL LLM_MODEL
+REVIEWER_PROMPT EMBED_URL` (each with the prefix `VI_MCP_`).
+
 ## Set up
 
 On first install this menu opens by itself; otherwise run `sudo vi-mcp setup`:

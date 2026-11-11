@@ -3,6 +3,43 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.48.0 — 2026-11-11 — Configuring after installation: debconf on Debian, an ANSI menu on RPM, unattended via VI_MCP_ variables
+
+### What is new
+
+- **The packages ask for their configuration, like postfix**, as the user decided.
+  - Debian uses real debconf: dialogs at installation, `sudo dpkg-reconfigure vi-mcp`, preseeding with `debconf-set-selections`.
+  - RPM uses an own ANSI menu (arrow keys, Enter, Esc).
+  - `sudo vi-mcp configure` opens the menu everywhere.
+- **What can be set:**
+  - server: port, addresses, access without a token;
+  - networks: the wiki network vi-wiki.org, a further network with kind, mode, public address and start address or join code;
+  - web page and its path;
+  - a new instance with model family;
+  - language model URL and model name, reviewer prompt, embedding service.
+- **When:** at the first installation; on an update only questions that were never answered. Servers configured before 0.48.0 are
+  not asked again. On an update the wiki network is never joined by default.
+- **Unattended, like the Wazuh agent:** every setting has an environment variable `VI_MCP_<KEY>` that is taken without asking, e.g.
+  `sudo VI_MCP_PORT=9000 VI_MCP_WIKI=false VI_MCP_INSTANCE=claude-code DEBIAN_FRONTEND=noninteractive apt-get install ./vi-mcp_….deb`.
+  - Without a terminal, or with `DEBIAN_FRONTEND=noninteractive`, everything not set takes its default.
+  - Booleans accept 1/0, true/false, yes/no, on/off, ja/nein.
+- **Tokens are never shown or stored in debconf.** A new instance's token goes to `/root/vi-mcp-token-<name>` (0600); only the path is
+  named. An existing instance is never renewed by the menu, because a new token would lock its clients out.
+- One catalogue (`vi_mcp/configure.py`) for both front ends:
+  - the Debian build writes `DEBIAN/templates` and `DEBIAN/config` from it;
+  - postinst reads the answers with `db_get`, leaves debconf and applies them;
+  - only what differs from the running configuration changes, and the service restarts once.
+
+*Proof:* `tests/test_configure.py` (12): catalogue; environment like an unattended agent install; checks with reasons; apply only
+changes and restart once; the token file never reaches the screen and is not renewed; wiki and networks through `vi-mcp net`; first
+installation without a terminal; update of an older server asks nothing and never joins; menu logic; generated debconf files pass
+`sh -n`; postinst pairs; the package files.
+
+### What is missing
+
+- A real installation of the package in a fresh Debian container with `VI_MCP_` variables is handed to the CentralStation session.
+  Until its result is in, debconf and the variables are proven by unit tests and `sh -n`, not by `apt-get install`.
+
 ## 0.47.0 — 2026-11-11 — The public wiki network vi-wiki.org by default; the AI tells the user and switches it on request
 
 ### What is new
