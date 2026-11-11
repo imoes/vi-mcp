@@ -27,6 +27,22 @@ JSON
     fi
     systemctl daemon-reload >/dev/null 2>&1 || true
     systemctl enable vi-mcp.service >/dev/null 2>&1 || true
+    # 0.53.1: the memory first, then the network services (they ask the memory at their first round). The key is "instances" since
+    # 0.51.0 ("instanzen" before): checking only the old name left vi-mcp stopped after the update to 0.53.0 (production, 11.11.2026).
+    if python3 -c "import json,sys; c=json.load(open('/etc/vi-mcp/config.json')); sys.exit(0 if c.get('instances') or c.get('instanzen') else 1)"; then
+        systemctl restart vi-mcp.service >/dev/null 2>&1 || true
+        # wait until it answers (at most 20 s): the network services ask it at their first round
+        python3 - <<'PY' || true
+import json, time, urllib.request
+port = json.load(open("/etc/vi-mcp/config.json")).get("port", 8765)
+for _ in range(40):
+    try:
+        urllib.request.build_opener(urllib.request.ProxyHandler({})).open(f"http://127.0.0.1:{port}/gesund", timeout=1).close()
+        break
+    except OSError:
+        time.sleep(0.5)
+PY
+    fi
     # prerm stops the network service during an upgrade; try-restart would not start it again
     if systemctl is-enabled --quiet vi-p2p.service 2>/dev/null; then systemctl restart vi-p2p.service >/dev/null 2>&1 || true; fi
     # 0.39.0: further networks (vi-p2p@<netz>), each with /etc/vi-p2p/<netz>.json
@@ -34,9 +50,6 @@ JSON
         n=$(basename "$f" .json); [ "$n" = config ] && continue
         if systemctl is-enabled --quiet "vi-p2p@$n.service" 2>/dev/null; then systemctl restart "vi-p2p@$n.service" >/dev/null 2>&1 || true; fi
     done
-    if python3 -c "import json,sys; sys.exit(0 if json.load(open('/etc/vi-mcp/config.json')).get('instanzen') else 1)"; then
-        systemctl restart vi-mcp.service >/dev/null 2>&1 || true
-    fi
     ;;
 wiki)
     # 0.47.0: a new installation joins the public wiki network vi-wiki.org (free network, outgoing only). Opt out: VI_MCP_KEIN_WIKI=1.

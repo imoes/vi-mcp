@@ -23,6 +23,15 @@ import re
 from . import memory as g
 
 BAD_FROM = 3
+#: 0.53.1: at most this many versions are kept (the first and the newest); measured on production 11.11.2026: one automatic skill collected
+#: 221 versions in one conversation, its data passed 400,000 characters and was replaced — sleep then failed on it six times
+VERSIONS_MAX = 30
+
+
+def usable(o: g.MemoryObject) -> bool:
+    """A skill whose problem and solution are readable. A damaged one (e.g. data replaced for size before 0.53.1) is skipped, named."""
+    p, s = o.data.get("problem"), o.data.get("loesung")
+    return isinstance(p, dict) and isinstance(p.get("reize"), list) and isinstance(s, dict) and isinstance(s.get("schritte"), list)
 BAD_RATIO = 0.3
 
 #: Tools that occur in almost every conversation. A solution path made only of them says nothing about what solved the problem.
@@ -90,17 +99,33 @@ def evolve(o: g.MemoryObject, steps, instructions: str, reason: str, evidence_li
     0.20.11: New triggers replace the old ones (before, they stayed — a too general trigger like tool:Bash could never be removed again);
     the old ones are kept in the version."""
     st = _steps_ok(steps)
+    if not usable(o):
+        raise ValueError(f"{o.id} is damaged (no readable problem or solution) — not evolved")
     triggers_before = list(o.data["problem"]["reize"])
+    present = {s["tool"] for s in o.data["loesung"]["schritte"]}
+    new_steps = [s for s in st if s["tool"] not in present]
+    new_text = (instructions or "").strip()[:600]
+    same_reason = any(v.get("grund") == (reason or "").strip()[:300] for v in o.data.get("versionen", []))
+    if same_reason and not new_steps and (not triggers or sorted(triggers) == sorted(triggers_before)) and (not new_text or new_text == o.data["loesung"]["text"]):
+        # 0.53.1: nothing changed and this reason (for a recovery: the same conversation) is already a version — the evidence counts, but no
+        # new version. One version per recovery made 221 versions in one conversation. Another conversation is independent: a version.
+        o.data["belege"] = (o.data.get("belege", []) + [b for b in evidence_list or [] if b not in o.data.get("belege", [])])[-200:]
+        o.data["bestaetigt_ohne_aenderung"] = int(o.data.get("bestaetigt_ohne_aenderung") or 0) + 1
+        g.save(o)
+        return o
     if triggers and sorted(triggers) != sorted(triggers_before):
         base = [t for t in o.hashtags if t not in triggers_before]
         o.hashtags = base + [t for t in triggers if t not in base]  # check against the cleaned list, otherwise remaining triggers get lost (0.20.12)
         o.data["problem"]["reize"] = list(triggers)
-    present = {s["tool"] for s in o.data["loesung"]["schritte"]}
-    o.data["loesung"]["schritte"] += [s for s in st if s["tool"] not in present]
+    o.data["loesung"]["schritte"] += new_steps
     o.data["versionen"].append({"version": o.data["version"] + 1, "zeit": g.now(), "wer": who or f"ki@{instance}", "grund": reason.strip()[:300],
                                  "belege": list(evidence_list or [])[:50], "vorher_text": o.data["loesung"]["text"],
                                  **({"reize_vorher": triggers_before} if o.data["problem"]["reize"] != triggers_before else {})})
     o.data["version"] += 1
+    if len(o.data["versionen"]) > VERSIONS_MAX:  # the first version and the newest stay; how many went is named
+        cut = len(o.data["versionen"]) - VERSIONS_MAX
+        o.data["versionen"] = o.data["versionen"][:1] + o.data["versionen"][1 + cut:]
+        o.data["versionen_gekuerzt"] = int(o.data.get("versionen_gekuerzt") or 0) + cut
     if (instructions or "").strip():
         o.data["loesung"]["text"] = instructions.strip()[:600]
         o.text = o.data["loesung"]["text"]
@@ -157,6 +182,7 @@ def line(o: g.MemoryObject) -> str:
 def from_recovery(since: str) -> dict:
     """4c: success after errors of the same tool in the same conversation → skill (test) or new version."""
     new_n = evolved_n = 0
+    damaged: set[str] = set()
     with g.lock:
         recovered = g.db().execute(
             "SELECT o.id FROM objekt o JOIN tag t ON t.objekt_id = o.id AND t.tag = 'ueberraschung:erholt' "
@@ -186,6 +212,9 @@ def from_recovery(since: str) -> dict:
         instructions = (f"{tool} failed ({sig[7:] if sig else 'error'}) and then succeeded in the same conversation — solution path: "
                      + " → ".join(steps))
         before = g.load(f"skill:{name}")
+        if before is not None and not usable(before):
+            damaged.add(before.id)  # 0.53.1: skipped and named instead of failing the whole sleep step
+            continue
         o = new(name, triggers, steps, instructions, f"sleep: recovery in conversation {e.conversation}", [x.id for x in remove], g.SERVER_INSTANCE,
                 source=f"sleep: experiences {remove[0].id} … {e.id}", who="vi")
         if before is None:
@@ -193,7 +222,7 @@ def from_recovery(since: str) -> dict:
         else:
             evolved_n += 1
         o.link(e.id, "recovery (sleep)")
-    return {"neu": new_n, "weiterentwickelt": evolved_n}
+    return {"neu": new_n, "weiterentwickelt": evolved_n, **({"beschaedigt": sorted(damaged)} if damaged else {})}
 
 
 def _has_content(tool: str, steps) -> bool:
@@ -237,6 +266,8 @@ def fusion_proposals() -> dict:
     skills = [o for _, o, _g in g.recall("art:skill !modus:aufgegangen", limit=500, viewer=None)]
     by_key: dict[tuple, list[g.MemoryObject]] = {}
     for o in skills:
+        if not usable(o):
+            continue
         tools = tuple(sorted(t for t in o.data["problem"]["reize"] if t.startswith("tool:")))
         error = tuple(sorted(t for t in o.data["problem"]["reize"] if t.startswith("fehler:")))
         if tools:

@@ -379,13 +379,39 @@ def load(oid: str) -> MemoryObject | None:
         return _object_from_row(row) if row else None
 
 
+def _longest_list(d: dict) -> tuple[list | None, str]:
+    """The list in daten (top level or one level down) with the longest JSON — the first candidate for shortening."""
+    best, path, size = None, "", -1
+    for k, v in d.items():
+        for p, x in ([(k, v)] + ([(f"{k}.{k2}", v2) for k2, v2 in v.items()] if isinstance(v, dict) else [])):
+            if isinstance(x, list) and len(x) > 1:
+                n = len(json.dumps(x, ensure_ascii=False))
+                if n > size:
+                    best, path, size = x, p, n
+    return best, path
+
+
 def _data_json(o: MemoryObject) -> str:
-    """Data that is too large is replaced, named. Truncating the JSON text made the object unreadable."""
+    """Data that is too large is shortened, named: 0.53.1 drops the oldest half of the longest lists first (histories, evidence), so
+    problem, solution and content stay; only if that is not enough the data is replaced. Truncating the JSON text made the object unreadable."""
     js = json.dumps(o.data, ensure_ascii=False)
     if len(js) <= DATA_MAX:
         return js
-    log(f"{o.id}: daten with {len(js)} chars over limit {DATA_MAX} — replaced")
-    return json.dumps({"gekuerzt_zeichen": len(js), "grund": f"daten over {DATA_MAX} chars"})
+    size_before = len(js)
+    for _ in range(40):
+        lst, path = _longest_list(o.data)
+        if lst is None:
+            break
+        drop = len(lst) // 2
+        del lst[:drop]
+        cut = o.data.setdefault("gekuerzt", {})
+        cut[path] = int(cut.get(path) or 0) + drop
+        js = json.dumps(o.data, ensure_ascii=False)
+        if len(js) <= DATA_MAX:
+            log(f"{o.id}: daten with {size_before} chars over limit {DATA_MAX} — oldest entries of long lists dropped ({cut})")
+            return js
+    log(f"{o.id}: daten with {size_before} chars over limit {DATA_MAX} — replaced")
+    return json.dumps({"gekuerzt_zeichen": size_before, "grund": f"daten over {DATA_MAX} chars"})
 
 
 def load_many(oids: list[str]) -> dict[str, MemoryObject]:

@@ -221,6 +221,9 @@ def _export_form(o: g.MemoryObject, token: str, known_set: frozenset[str], net: 
         if anonymize.categories(o.data["filter"], known_set) or "host:" in o.data["filter"]:
             return None, "filter contains internals"
     if o.kind == "skill":
+        from . import skills
+        if not skills.usable(o):  # 0.53.1
+            return None, "skill damaged (no readable problem or solution)"
         triggers = sorted({r2 for r in o.data["problem"]["reize"] if not r.startswith(anonymize.LOCATION_REF + ("instanz:",)) and not anonymize.categories((r2 := anonymize.tool_parts(r)).split(":", 1)[-1], known_set)})
         outputs.update(name=anonymize.replace(o.data["name"], known_set), reize=triggers, schritte=[anonymize.tool_parts(s["tool"]) for s in o.data["loesung"]["schritte"]])
         if any(anonymize.categories(s, known_set) for s in outputs["schritte"]):
@@ -255,6 +258,9 @@ def _company_form(o: g.MemoryObject, token: str, net: str) -> tuple[dict | None,
     if o.kind == "suche":
         outputs.update(name=o.data["name"], filter=o.data["filter"], reize=[t for t in outputs["hashtags"] if not t.startswith("suche:")])
     if o.kind == "skill":
+        from . import skills
+        if not skills.usable(o):  # 0.53.1
+            return None, "skill damaged (no readable problem or solution)"
         outputs.update(name=o.data["name"], reize=sorted(set(o.data["problem"]["reize"])), schritte=[s["tool"] for s in o.data["loesung"]["schritte"]])
     probe = checks.check(outputs, internal_ok=True)
     if probe.verdict == "ablehnen":

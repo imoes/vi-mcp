@@ -529,6 +529,8 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         o = _visible(args.get("id"), instance)
         if o.kind != "skill":
             raise Rejected(f"{o.id} is not a skill")
+        if not skills.usable(o):  # 0.53.1
+            raise Rejected(f"{o.id} is damaged: its problem and solution are no longer readable ({', '.join(sorted(o.data))})")
         d = o.data
         z = [skills.line(o), f"  Problem: {' '.join(d['problem']['reize'])}", "  Steps: " + " → ".join(f"{s['tool']}" + (f" ({s['hinweis']})" if s.get("hinweis") else "") for s in d["loesung"]["schritte"])]
         if d.get("fusion_aus"):

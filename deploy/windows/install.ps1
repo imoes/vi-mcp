@@ -164,7 +164,8 @@ try {
         $ServerPort = [int](Invoke-Py -c "from vi_mcp import config; print(config.load().port)" | Select-Object -Last 1)
         Log "server port: $ServerPort"
         $raw = Get-Content $cfg -Raw | ConvertFrom-Json
-        if (-not $raw.instanzen) {
+        # "instances" since 0.51.0, "instanzen" before - checking only one would renew the admin token at every update
+        if (-not ($raw.instances -or $raw.instanzen)) {
             # the server needs at least one instance; the token is stored for administrators only
             $out = Invoke-Py -m vi_mcp instance admin
             Set-Content -Path (Join-Path $Data "token-admin") -Value ($out | Select-Object -Last 1) -Encoding ascii

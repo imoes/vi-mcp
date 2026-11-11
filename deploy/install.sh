@@ -6,7 +6,8 @@ cd "$(dirname "$0")/.."
 name="${1:-$USER}"
 cfg="${VI_MCP_CONFIG:-$HOME/.config/vi-mcp/config.json}"
 tokdatei="$HOME/.config/vi-mcp/token-$name"
-if ! python3 -c "import json,sys; sys.exit(0 if '$name' in json.load(open('$cfg')).get('instanzen',{}) else 1)" 2>/dev/null; then
+# "instances" since 0.51.0, "instanzen" before — checking only one would renew an existing instance's token and lock its clients out
+if ! python3 -c "import json,sys; c=json.load(open('$cfg')); sys.exit(0 if '$name' in (c.get('instances') or c.get('instanzen') or {}) else 1)" 2>/dev/null; then
   umask 077
   python3 -m vi_mcp instance "$name" --reflexes | tail -1 > "$tokdatei"
   chmod 600 "$tokdatei"

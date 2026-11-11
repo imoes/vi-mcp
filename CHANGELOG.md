@@ -3,6 +3,36 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.53.1 — 2026-11-11 — The update no longer leaves vi-mcp stopped; sleep survives a damaged skill
+
+### What was fixed
+
+- **After the update to 0.53.0 vi-mcp stayed stopped on production** (11.11.2026, 14:39:36–14:39:55 UTC, about 19 s until it was started by
+  hand). `nach-installation.sh` restarted vi-mcp only if `config.json` had the key `instanzen` — English (`instances`) since 0.51.0. The
+  update to 0.51.0 itself still worked because the check ran before the file was rewritten. Now both names count, vi-mcp starts first and
+  the network services only after it answers `/gesund` (at most 20 s) — before, `vi-p2p` reported "memory not reachable" after every update.
+- **Two more checks only knew `instanzen`** and would have renewed tokens, locking clients out: `deploy/install.sh` (user service) and the
+  Windows `install.ps1` (the instance `admin` at every update). Not shipped yet: the last release (v0.50.1) predates the English keys.
+- **Sleep failed on a damaged skill** (step 4c, `KeyError: 'problem'`, six sleeps since 10.11.2026). One automatic skill had collected 221
+  versions in one conversation — one per recovery — until its data passed 400,000 characters and was replaced by a size stub.
+  - The same recovery again (same reason, i.e. the same conversation, nothing changed) adds its evidence but no version; another
+    conversation still makes a version (an independent confirmation).
+  - At most 30 versions are kept — the first and the newest; how many went is named (`versionen_gekuerzt`).
+  - Data over the limit loses the oldest half of its longest lists first (named in `gekuerzt`), so problem and solution stay; only if
+    that is not enough is it replaced as before.
+  - A damaged skill is skipped and named (`beschaedigt` in the sleep report), never exported, and `vi_skill` says it is damaged.
+- `postinst` now reads the debconf answer `db` (0.50.0) too.
+
+*Proof:* `tests/test_skill_repair.py` (5): the same recovery five times → version 1 with the evidence, another conversation → version 2;
+versions capped with the first kept; oversized data keeps a usable skill; a damaged skill is skipped by sleep, fusion proposals, `vi_skill`
+and `evolve`; the deploy scripts read both key names, start the memory first and wait for it. The existing skill tests pass unchanged.
+Full suite on SQLite and PostgreSQL 16.
+
+### What is missing
+
+- The damaged skill on production stays as it is (refuted already, its content was lost on 10.11.); sleep now skips it.
+- The deploy-script fix is checked by tests on the scripts' text and `sh -n`, not by an install on a test machine.
+
 ## 0.53.0 — 2026-11-11 — After an error the VI says what it knows; every session starts with the skill table
 
 Proposed by a Claude Code session (cue-print) after a day next to the right manuals without opening them; the user approved A and B
