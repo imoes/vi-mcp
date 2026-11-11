@@ -22,8 +22,13 @@ Linked from [README.md](README.md).
     that is not enough is it replaced as before.
   - A damaged skill is skipped and named (`beschaedigt` in the sleep report), never exported, and `vi_skill` says it is damaged.
 - `postinst` now reads the debconf answer `db` (0.50.0) too.
+- **The hint after an error finds the specific knowledge** (tested by the cue-print session on 0.53.0): `pkill -f …` failing with "Exit
+  code 144" brought only the generic loop rule "Bash failed 3× the same way", not the knowledge that `pkill -f` kills its own shell
+  (exit 144). Exit and HTTP codes now count as words, the failing program of a shell command counts like a shared tag, and machine-made
+  generic rules rank behind specific knowledge.
 
-*Proof:* `tests/test_skill_repair.py` (5): the same recovery five times → version 1 with the evidence, another conversation → version 2;
+*Proof:* `tests/test_error_hints_and_skills.py::test_the_failing_program_and_the_exit_code_find_the_specific_knowledge` (the reported
+case: the pkill knowledge first, the generic rule second). `tests/test_skill_repair.py` (5): the same recovery five times → version 1 with the evidence, another conversation → version 2;
 versions capped with the first kept; oversized data keeps a usable skill; a damaged skill is skipped by sleep, fusion proposals, `vi_skill`
 and `evolve`; the deploy scripts read both key names, start the memory first and wait for it. The existing skill tests pass unchanged.
 Full suite on SQLite and PostgreSQL 16.

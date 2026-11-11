@@ -188,14 +188,23 @@ def _error_words(error: str) -> list[str]:
 
 
 def error_hints(tool: str, args: dict, error: str, instance: str | None) -> list[str]:
-    """Knowledge about this error: objects that share the tool's skill or a host with the action and at least two words of the error text,
-    or carry its fehler: tag. Lines like the hints before an action, with the id to read in full."""
+    """Knowledge about this error. A hit carries the error's fehler: tag, or shares words with the error text — exit and HTTP codes count
+    as words — together with the skill, a host or (for a shell) the failing program, e.g. pkill. Measured 11.11.2026 (a Claude Code session):
+    `pkill -f …` failing with "Exit code 144" brought only the generic loop rule "Bash failed 3× the same way", not the knowledge that
+    pkill -f kills its own shell (exit 144) — the error text had no word besides the code, and the program was not looked at.
+    Machine-made generic rules (instance vi, kind regel) rank behind specific knowledge."""
     words = _error_words(error)
+    codes = list(dict.fromkeys(re.findall(r"(?i)\b(?:exit(?:\s+code)?|status|code|http)[\s:=]*(\d{1,3})\b", error or "")))
     trig = set(triggers(tool, args or {}))
+    programs: list[str] = []
+    if tool in SHELL_TOOLS:
+        cmd = str((args or {}).get("command") or (args or {}).get("cmd") or "")
+        programs = [b for b in _commands(cmd) if b not in SHELL_EVERYDAY and b not in GENERIC_SHELL_WORDS and re.fullmatch(r"[a-z][a-z0-9._+-]{1,40}", b)]
     sig = "fehler:" + error_signature(error)[:60].replace(" ", "_").replace("(", "_").replace(")", "_")
     generic = {f"tool:{tool}", f"skill:{tool.split('_')[0]}"} if tool in SHELL_TOOLS else set()  # a shell says nothing specific
     found: dict[str, tuple[float, g.MemoryObject]] = {}
-    queries = ([sig] if g.TAG.match(sig) else []) + ([" ".join(words[:6])] if words else [])
+    text_query = " ".join(programs[:3] + words[:6] + codes[:2])
+    queries = ([sig] if g.TAG.match(sig) else []) + ([text_query] if text_query else [])
     for q in queries:
         try:
             hits = g.recall(q, limit=12, kinds=ERROR_KINDS, viewer=instance, or_fallback=True)
@@ -205,10 +214,12 @@ def error_hints(tool: str, args: dict, error: str, instance: str | None) -> list
             if o.mode not in ("aktiv", "test") or o.id in found:
                 continue
             body = (o.text + " " + str(o.data.get("inhalt") or "")[:4000]).lower()
-            shared_words = sum(1 for w in words if w in body)
-            shared_tags = len((trig - generic) & set(o.hashtags))
-            if sig in o.hashtags or (shared_words >= 2 and (shared_tags or shared_words >= 3)):
-                found[o.id] = (shared_words + 2 * shared_tags + (5 if sig in o.hashtags else 0), o)
+            shared_words = sum(1 for w in words if w in body) + sum(1 for c in codes if re.search(rf"\b{c}\b", body))
+            shared_tags = len((trig - generic) & set(o.hashtags)) + sum(1 for b in programs if re.search(rf"(?<![\w-]){re.escape(b)}(?![\w-])", body))
+            tagged = sig in o.hashtags
+            if tagged or (shared_words >= 2 and (shared_tags or shared_words >= 3)) or (shared_tags and shared_words >= 1):
+                weight = shared_words + 2 * shared_tags + (3 if tagged else 0) - (4 if o.instance == g.SERVER_INSTANCE and o.kind == "regel" else 0)
+                found[o.id] = (weight, o)
     best = sorted(found.values(), key=lambda x: -x[0])[:ERROR_HINTS]
     if not best:
         return []

@@ -87,3 +87,14 @@ def test_tool_and_index_line(gd):
         o.mode = "widerlegt"
         g.save(o)
     assert tools.call_tool("vi_capabilities", {}, "a", True).startswith("no skill manuals")
+
+
+def test_the_failing_program_and_the_exit_code_find_the_specific_knowledge(gd):
+    """Reported by a Claude Code session on 0.53.0 (11.11.2026): `pkill -f …` → "Exit code 144" brought only the generic loop rule."""
+    k = g.new_object("erkenntnis", "pkill -f <pattern> also kills the own shell when its command line contains the pattern (Exit 144). "
+                     "Remedy: a character class in the pattern or pgrep and kill by PID.", [], {"quelle": "seen 09.11.2026"}, instance="b")
+    rule = g.new_object("regel", "Bash failed 3× in 24 h the same way (Exit_code_#) — check arguments or reachability first",
+                        ["skill:Bash", "fehler:Exit_code_#"], {"quelle": "loop"}, instance=g.SERVER_INSTANCE)
+    hints = _fail("Bash", {"command": 'pkill -f "zz-vi-hooktest-marker-7731"'}, "Exit code 144")
+    assert k.id in hints[0]  # the specific knowledge first
+    assert len(hints) == 2 and rule.id in hints[1]  # the generic rule behind it
