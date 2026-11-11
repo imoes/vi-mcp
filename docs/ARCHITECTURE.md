@@ -609,6 +609,26 @@ Clients:
 - Claude Code: `UserPromptSubmit` → `hookSpecificOutput.additionalContext`.
 - Hermes: shell hook `pre_llm_call` → `{"context": …}`; it reads the message from `extra.user_message`.
 
+## Free network (0.45.0)
+
+`art: frei` in the service config and in `p2p.netze`. `Logbook(free_bits=…)`:
+- Membership = the keys whose entry 1 is a valid `identitaet` with at least `free_bits` (`lb.pow_ok`: SHA-256(pub ‖ nonce as 8 bytes)
+  starts with that many zero bits), minus `Logbook.blocked`. No founders, no invitations, no exclusions for everyone.
+- `ingest` lets entry 1 of an unknown key through only if it is that identity; everything else of a key without one is "no identity
+  proof known".
+- Daily quota per publisher from `quota_of`: `NetService._quota` gives `quote_neu` (100) to unknown publishers and `MAX_PER_DAY` to
+  those in `trusted`.
+- `trusted` and the blocked keys come from the memory (`p2p.trust`: at least 20 judgements and mean ≥ 0.6, or blocked by
+  `publisher_value`) plus `sperren` in the config.
+
+Requests:
+- Signed as always, but no membership needed. Limited per key (240/min) and per client address (600/min), refused for blocked keys.
+- `reconcile` fetches every key not blocked; its entry 1 is checked on arrival. Afterwards `exchange_peers` asks `GET /netz/peers`
+  (addresses reached in 7 days, own address first) and remembers new ones (at most `PEERS_MAX`).
+- `_public_target` refuses targets resolving to private, loopback, link-local, reserved or multicast addresses unless `privat_erlaubt`.
+
+`ensure_identity` makes the identity entry 1 at the first start (refuses on a logbook that already has entries).
+
 ## Housekeeping — the long-term archive
 
 `archive.py`, sleep step 5. Entries no longer in use move to a separate file (`<db>-lager.db`, 0600), so that

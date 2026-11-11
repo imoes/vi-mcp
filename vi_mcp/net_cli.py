@@ -189,8 +189,9 @@ def setup(o) -> int:
         return 0
     if NETWORK:  # 0.39.0: own directory, key, logbook and memory instance per network
         kind = getattr(o, "kind", None) or raw.get("art")
-        if kind not in ("firma", "offen"):
-            print("A further network needs --kind firma (one organisation, internal names allowed) or --kind offen (anonymised)", file=sys.stderr)
+        if kind not in ("firma", "offen", "frei"):
+            print("A further network needs --kind frei (anyone may join, no invitation, anonymised), offen (anonymised, by invitation) or firma "
+                  "(one organisation, internal names allowed, by invitation)", file=sys.stderr)
             return 2
         if raw.get("art") and raw["art"] != kind:
             print(f"Network {NETWORK} is {raw['art']}; the kind is not changed afterwards", file=sys.stderr)
@@ -217,7 +218,12 @@ def setup(o) -> int:
         raw["gruender"] = sorted(set(raw.get("gruender", [])) | {pub})
     if o.founders:
         raw["gruender"] = sorted(set(raw.get("gruender", [])) | set(o.founders))
-    if not raw.get("gruender"):
+    if raw.get("art") == "frei":  # 0.45.0: no founders, no invitation — the identity proof is computed at the first start of the service
+        raw.setdefault("arbeit_bits", lb.DEFAULT_POW_BITS)
+        if not o.start and not raw.get("startpeers") and o.mode != "peerhost":
+            print("A free network needs --start https://<a server of the network> (or this server is a peerhost others start from)", file=sys.stderr)
+            return 2
+    elif not raw.get("gruender"):
         print("Founder missing: --found for a new network or --founder KEY to join", file=sys.stderr)
         return 2
     if getattr(o, "public", None):  # 0.40.0: published on 443 behind the reverse proxy
@@ -278,7 +284,10 @@ def setup(o) -> int:
     if reason := _service("restart", SERVICE):
         print(f"Hint: {reason}")
     print(f"Network {raw.get('netz', 'standard')} ({raw.get('art', 'offen')}) · mode {o.mode}. Key of this server: {pub}\nPseudonym: {lb.pseudonym(pub)}")
-    if not o.found and pub not in raw["gruender"] and not getattr(o, "quiet", False):
+    if raw.get("art") == "frei":
+        print(f"Free network: no invitation needed. The service computes its identity proof ({raw.get('arbeit_bits')} bits) at its first start, "
+              "then finds the other servers through the start address.")
+    elif not o.found and pub not in raw["gruender"] and not getattr(o, "quiet", False):
         print("To join: a member runs:  vi-mcp net invite " + pub)
     return 0
 
@@ -344,7 +353,7 @@ def main(argv: list[str]) -> int:
     e.add_argument("--no-proxy", "--kein-proxy", dest="no_proxy", action="append", default=[], help="domain for which no proxy applies")
     e.add_argument("--public", "--oeffentlich", dest="public", help="publish this network on 443: https://HOST — reachable as "
                    "https://HOST/vi-p2p/<network> through the reverse proxy (vi-mcp net proxy-config prints its configuration)")
-    e.add_argument("--kind", "--art", dest="kind", choices=("firma", "offen"), help="with --network: firma = one organisation, internal names allowed, "
+    e.add_argument("--kind", "--art", dest="kind", choices=("firma", "offen", "frei"), help="with --network: firma = one organisation, internal names allowed, "
                    "knowledge stays internal; offen = anonymised")
     for name, alias in (("invite", "einladen"), ("exclude", "ausschliessen")):
         x = cmd(name, alias)
@@ -363,6 +372,9 @@ def main(argv: list[str]) -> int:
     bt.add_argument("--public", "--oeffentlich", dest="public")
     bt.add_argument("--kind", "--art", dest="kind", choices=("firma", "offen"))
     cmd("peers")
+    for name, alias in (("block", "sperren"), ("unblock", "entsperren")):  # 0.45.0: local block list (public key or address)
+        x = cmd(name, alias)
+        x.add_argument("target", help="public key (64 hex) or address https://…")
     cmd("proxy-config", help="nginx configuration for every network published on 443 (setup --public)")
     cmd("id")
     cmd("status")
@@ -410,6 +422,21 @@ def main(argv: list[str]) -> int:
         for p in log.peers():
             progress = "reachable" if p["fehler"] == 0 and p["zuletzt"] else "never reached" if not p["zuletzt"] else f"{p['fehler']} errors in a row"
             print(f"{p['adresse']:45} {p['quelle']:9} {'Pin ' + p['pin'][:12] if p['pin'] else 'CA':16} {progress}")
+        return 0
+    if o.command in ("block", "unblock"):
+        t = o.target.strip().rstrip("/")
+        if not (lb._HEX64.match(t) or lb._ADDRESS.match(t)):
+            print("give a public key (64 hex) or an address https://…", file=sys.stderr)
+            return 2
+        p = nd.fpath()
+        raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+        s = set(raw.get("sperren") or [])
+        s = s | {t} if o.command == "block" else s - {t}
+        raw["sperren"] = sorted(s)
+        _write(p, raw)
+        if reason := _service("restart", SERVICE):
+            print(f"Hint: {reason}")
+        print(f"{'Blocked' if o.command == 'block' else 'Unblocked'} on this server: {t} — other servers decide for themselves.")
         return 0
     if o.command in ("invite", "exclude"):
         try:

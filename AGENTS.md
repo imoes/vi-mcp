@@ -16,8 +16,9 @@ Since 0.44.0 the hook also searches before every user prompt (`vi_prompt_context
 
 **The network** (since 0.39.0, `docs/ARCHITECTURE.md` from "P2P import" on). Servers form networks without a master: every server appends
 signed entries to its own logbook, the network service (`vi-p2p`, `vi-p2p@<netz>`) exchanges them, the memory checks them again.
-- Networks: `standard` (open, anonymised) and further ones with `vi-mcp net --network NAME setup --kind firma|offen`; a company network
-  (`firma`) carries internal knowledge to members of one organisation. Published on 443 behind the reverse proxy (`--public https://HOST`,
+- Networks: `standard` (open, anonymised, by invitation) and further ones with `vi-mcp net --network NAME setup --kind frei|offen|firma`.
+  `frei` (0.45.0): anyone may join without invitation — identity proof of work as entry 1, quotas growing with measured benefit, local
+  block lists, peer exchange from a start address. `firma` carries internal knowledge to members of one organisation, by invitation. Published on 443 behind the reverse proxy (`--public https://HOST`,
   `vi-mcp net proxy-config`).
 - Same meaning on several servers = one object with several holders (content hash), rated by every server's own measurements → network
   score (`net_score`); a content that keeps failing is no longer a hint.

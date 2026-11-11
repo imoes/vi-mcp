@@ -81,6 +81,21 @@ nginx -t && systemctl reload nginx  # in a container: docker exec nginx nginx -t
 - Torrent for large backlogs uses its own port and is off unless switched on; for a network on 443 only, leave it off.
 - Check: `curl -s https://<host>/vi-p2p/firma/netz/gesund` → `{"zustand": "ok", "version": "…"}`.
 
+### Free network (0.45.0)
+
+```bash
+# the first server (reachable on 443 behind nginx)
+sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<host>
+# every further server: only a start address, no invitation
+sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<own host> --start https://<host>/vi-p2p/welt
+sudo vi-mcp net --network welt block <key|address>     # local; unblock to undo
+```
+
+- The first start computes the identity proof (`arbeit_bits`, default 26: about 30 s, on slow hardware a minute or two); the log
+  names the time.
+- All servers of a free network need 0.45.0 or newer, and the same `arbeit_bits` or less.
+- `quote_neu` (default 100) limits entries per day of publishers this server has not measured as useful.
+
 ### Memory for every prompt (0.44.0)
 
 - Claude Code: `vi-mcp setup --hook` registers `UserPromptSubmit` (besides Pre/PostToolUse and SessionEnd). Clients that write their own

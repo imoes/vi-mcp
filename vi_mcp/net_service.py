@@ -36,6 +36,8 @@ MODES = ("standalone", "peer", "peerhost")
 TIME_WINDOW = 300
 MAX_BODY = 1024 * 1024
 REQUESTS_PER_MIN = 240
+REQUESTS_PER_MIN_IP = 600  # 0.45.0: in a free network keys cost little to make — the address is limited as well
+PEERS_MAX = 500
 JOINS_PER_MIN = 10
 CODE_PREFIX = "vinetz1."
 PER_FETCH = 500
@@ -78,7 +80,12 @@ class NetConfig:
     #: 0.42.0: local listener for the memory's live searches (127.0.0.1 only); the memory holds the token, this file only its SHA-256
     local_port: int = 0
     local_token_sha256: str | None = None
-
+    #: 0.45.0 free network (art frei): no invitation — identity proof of pow_bits, quota for unknown publishers per day, local blocks
+    #: (public keys or addresses), and no connections to private addresses learned from others unless private_ok (a lab network)
+    pow_bits: int = 26
+    new_quota: int = 100
+    blocked: list = field(default_factory=list)
+    private_ok: bool = False
 
 def fpath() -> Path:
     return Path(os.environ.get("VI_P2P_CONFIG") or DEFAULT_PATH)
@@ -88,7 +95,8 @@ def fpath() -> Path:
 #: Keys not listed here have the same name in file and dataclass.
 FILE_KEYS = {"modus": "mode", "adresse": "address", "ca_datei": "ca_file", "gruender": "founders", "takt_s": "tick_s",
              "min_runde_s": "min_round_s", "nachbarn": "neighbors", "http_erlaubt": "http_allowed", "glauben": "believe",
-             "mcp_token_datei": "mcp_token_file", "kein_proxy": "no_proxy", "netz": "net", "art": "kind", "lokal_port": "local_port", "lokal_token_sha256": "local_token_sha256"}
+             "mcp_token_datei": "mcp_token_file", "kein_proxy": "no_proxy", "netz": "net", "art": "kind", "lokal_port": "local_port", "lokal_token_sha256": "local_token_sha256",
+             "arbeit_bits": "pow_bits", "quote_neu": "new_quota", "sperren": "blocked", "privat_erlaubt": "private_ok"}
 
 
 def from_file(d: dict) -> NetConfig:
@@ -113,8 +121,10 @@ def load(p: Path | None = None) -> NetConfig:
     k = from_file(d)
     if k.mode not in MODES:
         raise ValueError(f"modus must be {', '.join(MODES)}")
-    if k.kind not in ("offen", "firma"):
-        raise ValueError("art must be offen or firma")
+    if k.kind not in ("offen", "firma", "frei"):
+        raise ValueError("art must be offen, firma or frei")
+    if k.kind == "frei" and not lb.MIN_POW_BITS <= int(k.pow_bits) <= 40:
+        raise ValueError(f"arbeit_bits must be {lb.MIN_POW_BITS}–40")
     return k
 
 
@@ -171,7 +181,16 @@ class McpClient:
 class NetService:
     def __init__(self, k: NetConfig, mcp=None):
         self.k = k
-        self.log = lb.Logbook(Path(k.db), Path(k.seed), k.founders, internal_ok=k.kind == "firma")
+        self.free = k.kind == "frei"
+        self.trusted: set[str] = set()  # 0.45.0: publishers the memory measured as useful — full quota in a free network
+        self.blocked_addresses = {b.rstrip("/") for b in k.blocked if "://" in str(b)}
+        self.log = lb.Logbook(Path(k.db), Path(k.seed), k.founders, internal_ok=k.kind == "firma", free_bits=int(k.pow_bits) if self.free else None,
+                              blocked={b for b in k.blocked if lb._HEX64.match(str(b))}, quota_of=self._quota if self.free else None)
+        self.config_blocked = set(self.log.blocked)
+        if self.free:
+            took = self.log.ensure_identity(int(k.pow_bits))
+            if took is not None:
+                log(f"network {k.net}: identity proof of {k.pow_bits} bits made in {took} s")
         self.mcp = mcp
         for a in k.startpeers:
             self.log.peer_remember(a, "start")
@@ -193,6 +212,53 @@ class NetService:
             else:
                 log("network: torrent configured, but python3-libtorrent is missing; staying with HTTPS")
 
+    def _quota(self, pub: str) -> int:
+        """Free network: unknown publishers get new_quota entries a day, those the memory measured as useful the full quota."""
+        return lb.MAX_PER_DAY if pub in self.trusted or pub == self.log.pub else int(self.k.new_quota)
+
+    def _trust(self, v) -> None:
+        """From the memory (outbox): {"bewaehrt": [pub], "gesperrt": [pub]} — measured benefit decides, never a founder."""
+        if not isinstance(v, dict):
+            return
+        self.trusted = {p for p in v.get("bewaehrt") or [] if isinstance(p, str) and lb._HEX64.match(p)}
+        blocked = self.config_blocked | {p for p in v.get("gesperrt") or [] if isinstance(p, str) and lb._HEX64.match(p)}
+        if blocked != self.log.blocked:
+            self.log.blocked = blocked
+            self.log._members = None
+
+    def _public_target(self, host: str) -> None:
+        """Free network: never connect to a private, loopback or link-local address learned from others (no reaching into the own LAN)."""
+        if not self.free or self.k.private_ok:
+            return
+        import ipaddress
+        import socket as _socket
+        try:
+            infos = _socket.getaddrinfo(host, None)
+        except OSError as e:
+            raise ValueError(f"cannot resolve {host}: {e}") from e
+        for info in infos:
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+                raise ValueError(f"{host} is not a public address — refused in a free network (privat_erlaubt for a lab)")
+
+    def exchange_peers(self, address: str) -> int:
+        """0.45.0: ask a peer for the addresses it reached recently; remember the new ones. Seeds are only the first contact."""
+        try:
+            got = self._request(address, "GET", "/netz/peers").get("peers") or []
+        except (urllib.error.URLError, OSError, ValueError, AttributeError, TypeError, http.client.HTTPException):
+            return 0
+        own = self.k.address.rstrip("/") if self.k.address else None
+        new = 0
+        for a in got[:100]:
+            if not isinstance(a, str) or not lb._ADDRESS.match(a.rstrip("/")) or a.rstrip("/") in (own, address) or a.rstrip("/") in self.blocked_addresses:
+                continue
+            if self.log.peer_count() >= PEERS_MAX:
+                break
+            if not self.log.pin(a) and a.rstrip("/") not in {p["adresse"] for p in self.log.peers()}:
+                self.log.peer_remember(a, "austausch")
+                new += 1
+        return new
+
     # ---- Client ----
 
     def _allowed(self, address: str) -> bool:
@@ -213,6 +279,7 @@ class NetService:
         h = {"Authorization": _sign(self.log.k, method, req_path, req_body), "Content-Type": "application/json"}
         u = urllib.parse.urlsplit(address)
         host, https = u.hostname or "", u.scheme == "https"
+        self._public_target(host)
         port = u.port or (443 if https else 80)
         proxy = self._proxy_for(host)
         pin = self.log.pin(address)
@@ -261,7 +328,9 @@ class NetService:
             for _ in range(4):
                 foreign = self._request(address, "POST", "/netz/koepfe", {"koepfe": self.log.headers()})["koepfe"]
                 own = self.log.headers()
-                open_ = [(p, s) for p, s in foreign.items() if isinstance(s, int) and s > own.get(p, 0) and self.log.is_member(p)]
+                # free network: any key not blocked here — its entry 1 (the identity) is checked on arrival
+                open_ = [(p, s) for p, s in foreign.items() if isinstance(s, int) and s > own.get(p, 0)
+                         and (self.log.is_member(p) or (self.free and isinstance(p, str) and lb._HEX64.match(p) and p not in self.log.blocked))]
                 if not open_:
                     break
                 before = new
@@ -277,6 +346,8 @@ class NetService:
                     self._push(address, pub, int(foreign.get(pub, 0)))
             self._record_backlog(address)
             self.log.peer_result(address, True)
+            if self.free:
+                self.exchange_peers(address)
         except (urllib.error.URLError, OSError, TimeoutError, ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
             log(f"network: reconcile with {address}: {type(e).__name__}: {str(e)[:120]}")
             self.log.peer_result(address, False)
@@ -300,7 +371,8 @@ class NetService:
         now = time.time()
         peers = [{"adresse": p["adresse"], "version": p["version"], "zuletzt_s": round(now - p["zuletzt"]) if p["zuletzt"] else None, "fehler": p["fehler"],
                   "erreichbar": bool(p["zuletzt"]) and p["fehler"] == 0, "fehlt_hier": p["fehlt_hier"], "fehlt_dort": p["fehlt_dort"]} for p in self.log.peers()]
-        return {"netz": self.k.net, "art": self.k.kind, "modus": self.k.mode, "pseudonym": lb.pseudonym(self.log.pub), "version": __version__,
+        return {"netz": self.k.net, "art": self.k.kind, "modus": self.k.mode, "identitaeten": st.get("identitaeten"), "gesperrt": st.get("gesperrt"),
+                "bewaehrt": len(self.trusted), "pseudonym": lb.pseudonym(self.log.pub), "version": __version__,
                 "mitglieder": st["mitglieder"], "eintraege": st["eintraege"], "unbekannte_typen": st["unbekannte_typen"], "gabelungen": st["gabelungen"],
                 "verstoesse": st["verstoesse"], "peers": peers, "transport": dict(self.usage_stats),
                 "eigene": {t: self.log.count_own(t) for t in ("objekt", "widerruf", "bewertung", "seite", "beitrag")}}
@@ -451,6 +523,7 @@ class NetService:
             return 0
         try:
             a = self.mcp.outbox(self.snapshot())
+            self._trust(a.get("vertrauen"))
         except (urllib.error.URLError, OSError, ValueError, KeyError, TimeoutError) as e:
             log(f"network: memory not reachable: {type(e).__name__}: {str(e)[:120]}")
             return 0
@@ -641,7 +714,11 @@ class NetService:
                 if not pub:
                     self._send(401, {"fehler": "request not signed or stale"})
                     return None
-                if not service.log.is_member(pub):
+                if service.free:  # 0.45.0: no membership needed — but not blocked here, and limited per key and per address
+                    if pub in service.log.blocked or service._limited(f"ip:{self.client_address[0]}", REQUESTS_PER_MIN_IP):
+                        self._send(403 if pub in service.log.blocked else 429, {"fehler": "blocked on this server" if pub in service.log.blocked else "too many requests"})
+                        return None
+                elif not service.log.is_member(pub):
                     self._send(403, {"fehler": "not a member of this network"})
                     return None
                 if service._limited(pub):
@@ -663,6 +740,9 @@ class NetService:
                     except ValueError:
                         return self._send(400, {"fehler": "ab and max must be numbers"})
                     return self._send(200, {"eintraege": service.log.read(parts[2], from_seq, min(n, PER_FETCH))})
+                if u.path == "/netz/peers":  # 0.45.0: peer exchange
+                    own = [service.k.address.rstrip("/")] if service.k.address and service.k.mode == "peerhost" else []
+                    return self._send(200, {"peers": own + [a for a in service.log.public_peers() if a not in own]})
                 if len(parts) == 3 and parts[:2] == ["netz", "segmente"]:
                     return self._send(200, {"segmente": service.log.segments(parts[2])})
                 return self._send(404, {"fehler": "unknown"})
@@ -766,7 +846,7 @@ def main() -> int:
     if k.mode == "standalone":
         log("network: mode standalone, nothing to do")
         return 0
-    if not k.founders:
+    if not k.founders and k.kind != "frei":
         log("network: no founders configured (vi-mcp net setup)")
         return 2
     d = NetService(k, McpClient(k.mcp_url, k.mcp_token_file))

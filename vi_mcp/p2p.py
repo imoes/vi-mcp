@@ -45,7 +45,8 @@ RELEASE_STATUS_OK = "zulassen"
 #:  "netze": {name: {"art": "firma"|"offen", "instanz": "netz-<name>"}}}
 config: dict = {}
 STANDARD = "standard"
-NET_KINDS = ("offen", "firma")
+#: frei (0.45.0): like offen (shared, anonymised), but anyone may join — no invitation; see logbook identity proof
+NET_KINDS = ("offen", "firma", "frei")
 NET_NAME = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
 
 
@@ -404,7 +405,7 @@ def outbox(net: str = STANDARD) -> dict:
     """What may go to the network, unsigned: signing is the network service's job, which keeps its key to itself."""
     mem_objects, withdrawn = _collect(None, net)
     from . import forum, wiki
-    return {"objekte": [r for _o, r in mem_objects], "widerrufe": _revocations(net) + wiki.revocations(net), "zurueckgehalten": withdrawn,
+    return {"vertrauen": trust(), "objekte": [r for _o, r in mem_objects], "widerrufe": _revocations(net) + wiki.revocations(net), "zurueckgehalten": withdrawn,
             "bewertungen": net_score.outgoing(net), "seiten": wiki.outgoing(net), "beitraege": forum.outgoing(net)}
 
 
@@ -614,6 +615,22 @@ def publisher_value(fresh: bool = False) -> dict[str, dict]:
         outputs[tag[12:]] = {"objekte": n, "ja": round(yes, 2), "nein": round(no, 2), "gezeigt": shown_flag, "mittel": round(mean, 3), "gesperrt": shown_flag >= VALUE_MIN_VERDICTS and mean < VALUE_BLOCK}
     _value_cache = (time.time(), outputs)
     return outputs
+
+
+TRUST_MIN_SHOWN = 20
+TRUST_MEAN = 0.6
+
+
+def trust() -> dict:
+    """0.45.0: for the network service of a free network — publishers measured as useful (full quota) and harmful (not relayed by
+    this server). Measured benefit decides (beta mean of the hint counters), never a founder."""
+    with g.lock:
+        keys = dict(g.db().execute("SELECT DISTINCT json_extract(daten, '$.herkunft.herausgeber'), json_extract(daten, '$.herkunft.pubkey') "
+                                   "FROM objekt WHERE json_extract(daten, '$.herkunft.pubkey') IS NOT NULL").fetchall())
+    value = publisher_value(fresh=True)  # once per round of the network service: always the current measurement
+    good = [keys[n] for n, v in value.items() if n in keys and v["gezeigt"] >= TRUST_MIN_SHOWN and v["mittel"] >= TRUST_MEAN and not v["gesperrt"]]
+    bad = [keys[n] for n, v in value.items() if n in keys and v["gesperrt"]]
+    return {"bewaehrt": sorted(good), "gesperrt": sorted(bad)}
 
 
 def without_blocked(mem_objects: list[g.MemoryObject]) -> list[g.MemoryObject]:

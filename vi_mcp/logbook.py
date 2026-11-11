@@ -26,7 +26,12 @@ from pathlib import Path
 from . import checks
 
 VERSION = 1
-TYPE_NAMES = ("objekt", "widerruf", "einladung", "ausschluss", "adresse", "bewertung", "seite", "beitrag")
+TYPE_NAMES = ("objekt", "widerruf", "einladung", "ausschluss", "adresse", "bewertung", "seite", "beitrag", "identitaet")
+#: 0.45.0: a free network (art frei) needs no invitation. Instead every key proves once that work went into it: entry 1 of its logbook is
+#: an `identitaet` {pub, nonce, bits} with SHA-256(pub ‖ nonce) starting with `bits` zero bits. Cheap to check, expensive in bulk —
+#: a server makes one identity in under a minute, a spammer who wants thousands pays thousands of minutes.
+DEFAULT_POW_BITS = 26  # measured 11.11.2026: 2.5 M hashes/s in Python on a workstation → ~26 s on average, about a minute on slower servers
+MIN_POW_BITS = 8
 #: types whose content can be forgotten by the author (netz_id + loesch_hash in the header)
 FORGETTABLE = ("objekt", "seite", "beitrag")
 #: 0.40.0: a rating names a content hash and five non-negative numbers (net_score.py); peers before 0.39.0 would reject the type
@@ -54,6 +59,26 @@ def version_tuple(v: str) -> tuple:
         digits = re.match(r"\d+", part)
         out.append(int(digits.group(0)) if digits else 0)
     return tuple(out + [0] * (3 - len(out)))
+
+
+def pow_ok(pub_hex: str, nonce: int, bits: int) -> bool:
+    """Pure. Does SHA-256(public key ‖ nonce as 8 bytes) start with `bits` zero bits?"""
+    if not (isinstance(nonce, int) and not isinstance(nonce, bool) and 0 <= nonce < 2 ** 64 and isinstance(bits, int) and 0 < bits <= 64):
+        return False
+    try:
+        h = int.from_bytes(hashlib.sha256(bytes.fromhex(pub_hex) + nonce.to_bytes(8, "big")).digest(), "big")
+    except ValueError:
+        return False
+    return h >> (256 - bits) == 0
+
+
+def solve_pow(pub_hex: str, bits: int, start: int = 0) -> int:
+    """The work: the first nonce whose hash has `bits` leading zero bits. ~2^bits hashes on average."""
+    key, nonce, shift = bytes.fromhex(pub_hex), start, 256 - bits
+    sha = hashlib.sha256
+    while int.from_bytes(sha(key + nonce.to_bytes(8, "big")).digest(), "big") >> shift:
+        nonce += 1
+    return nonce
 
 
 def canonical(value) -> bytes:
@@ -150,6 +175,9 @@ def valid_control_form(type_: str, content) -> bool:
         return False
     if type_ == "bewertung":
         return valid_rating(content)
+    if type_ == "identitaet":
+        return set(content) == {"pub", "nonce", "bits"} and isinstance(content["pub"], str) and bool(_HEX64.match(content["pub"])) \
+            and isinstance(content["bits"], int) and not isinstance(content["bits"], bool) and pow_ok(content["pub"], content["nonce"], content["bits"])
     if type_ == "widerruf":
         return set(content) == {"ziel", "token"} and isinstance(content["ziel"], str) and isinstance(content["token"], str) and len(content["token"]) <= 128
     if type_ in ("einladung", "ausschluss"):
@@ -165,7 +193,8 @@ def valid_control_form(type_: str, content) -> bool:
 
 
 class Logbook:
-    def __init__(self, fpath: Path, seed: Path, founders: list[str], internal_ok: bool = False):
+    def __init__(self, fpath: Path, seed: Path, founders: list[str], internal_ok: bool = False, free_bits: int | None = None,
+                 blocked: set[str] | None = None, quota_of=None):
         Path(fpath).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.lock = threading.RLock()
         old_umask_value = os.umask(0o077)
@@ -197,6 +226,11 @@ class Logbook:
         self.k = private(seed)
         self.pub = public_hex(self.k)
         self.founders = list(founders)
+        #: 0.45.0 free network: membership = a valid identity proof of at least free_bits; None = closed network (invitations)
+        self.free_bits = free_bits
+        self.blocked: set[str] = set(blocked or ())  # keys this server does not accept, relay or answer (local, never for others)
+        self.quota_of = quota_of  # pub → entries per day; None = MAX_PER_DAY for everyone
+        self.db.execute("CREATE TABLE IF NOT EXISTS identitaet (pub TEXT PRIMARY KEY, bits INTEGER NOT NULL, zeit TEXT NOT NULL)")
         self._members: set[str] | None = None
 
     # ---- own entries ----
@@ -231,7 +265,10 @@ class Logbook:
 
     def _apply_effects(self, header: dict, content) -> None:
         """What an entry causes, no matter where it came from."""
-        if header["typ"] in ("einladung", "ausschluss"):
+        if header["typ"] == "identitaet":
+            self.db.execute("INSERT OR IGNORE INTO identitaet (pub, bits, zeit) VALUES (?,?,?)", (header["pub"], content["bits"], header["zeit"]))
+            self._members = None
+        elif header["typ"] in ("einladung", "ausschluss"):
             self._members = None
         elif header["typ"] == "adresse" and header["pub"] != self.pub:
             self.peer_remember(content["adresse"], "logbuch", content.get("pin"))
@@ -262,6 +299,9 @@ class Logbook:
     def members(self) -> set[str]:
         with self.lock:
             if self._members is not None:
+                return set(self._members)
+            if self.free_bits is not None:  # free network: whoever proved the work, minus what this server blocks
+                self._members = {r[0] for r in self.db.execute("SELECT pub FROM identitaet WHERE bits >= ?", (self.free_bits,))} - self.blocked
                 return set(self._members)
             edges: dict[str, set[str]] = {}
             outputs = []
@@ -336,8 +376,12 @@ class Logbook:
                 if self.db.execute("SELECT 1 FROM gabelung WHERE pub = ?", (pub,)).fetchone():
                     stop(pub, "fork known")
                     continue
-                if not self.is_member(pub):
-                    stop(pub, "not a member")
+                if pub in self.blocked:
+                    stop(pub, "blocked on this server")
+                    continue
+                opens_identity = self.free_bits is not None and header["seq"] == 1 and header["typ"] == "identitaet"
+                if not opens_identity and not self.is_member(pub):
+                    stop(pub, "no identity proof known (free network: entry 1 must be the identity)" if self.free_bits is not None else "not a member")
                     continue
                 if not signature_valid(header):
                     stop(pub, "signature invalid")
@@ -357,7 +401,7 @@ class Logbook:
                 if header["seq"] != seq + 1 or header["vor"] != prev_hash:
                     stop(pub, f"chain broken at number {header['seq']}")
                     continue
-                if self.db.execute("SELECT COUNT(*) FROM eintrag WHERE pub = ? AND zeit = ?", (pub, header["zeit"])).fetchone()[0] >= MAX_PER_DAY:
+                if self.db.execute("SELECT COUNT(*) FROM eintrag WHERE pub = ? AND zeit = ?", (pub, header["zeit"])).fetchone()[0] >= (self.quota_of(pub) if self.quota_of else MAX_PER_DAY):
                     stop(pub, "daily quota exhausted")
                     continue
                 if header["typ"] in FORGETTABLE:
@@ -371,7 +415,8 @@ class Logbook:
                     to_save = content
                     report["unbekannt"] += 1
                 else:
-                    if not valid_control_form(header["typ"], content) or sha256(content) != header["sha"] or (header["typ"] == "widerruf" and content["ziel"] != header["netz_id"]):
+                    if not valid_control_form(header["typ"], content) or sha256(content) != header["sha"] or (header["typ"] == "widerruf" and content["ziel"] != header["netz_id"]) \
+                            or (header["typ"] == "identitaet" and (content["pub"] != pub or header["seq"] != 1 or (self.free_bits is not None and content["bits"] < self.free_bits))):
                         self._violation(pub)
                         stop(pub, f"content of type {header['typ']} unusable")
                         continue
@@ -470,9 +515,32 @@ class Logbook:
             self.attach("einladung", {"pub": pub})
         return None
 
+    def ensure_identity(self, bits: int) -> int | None:
+        """Free network: make entry 1 the identity proof. Returns the seconds of work, None if it existed. Refuses if the logbook already has
+        other entries (peers would reject them all, since they come before the proof)."""
+        with self.lock:
+            if self.db.execute("SELECT 1 FROM identitaet WHERE pub = ?", (self.pub,)).fetchone():
+                return None
+            if self._header_of(self.pub)[0]:
+                raise ValueError("this logbook already has entries: a free network needs the identity as entry 1 — set up a new network (own --network name)")
+        t0 = time.time()
+        nonce = solve_pow(self.pub, bits)
+        self.attach("identitaet", {"pub": self.pub, "nonce": nonce, "bits": bits})
+        return round(time.time() - t0, 1)
+
+    def public_peers(self, limit: int = 50) -> list[str]:
+        """0.45.0: addresses this server reached in the last 7 days — for the peer exchange."""
+        with self.lock:
+            return [r[0] for r in self.db.execute("SELECT adresse FROM peer WHERE fehler = 0 AND zuletzt >= ? ORDER BY zuletzt DESC LIMIT ?",
+                                                  (time.time() - 7 * 86400, limit))]
+
+    def peer_count(self) -> int:
+        with self.lock:
+            return self.db.execute("SELECT COUNT(*) FROM peer").fetchone()[0]
+
     def choose_peers(self, n: int, excluding: str | None = None) -> list[str]:
         with self.lock:
-            all_ = [r[0] for r in self.db.execute("SELECT adresse FROM peer WHERE naechster <= ?", (time.time(),)) if r[0] != excluding]
+            all_ = [r[0] for r in self.db.execute("SELECT adresse FROM peer WHERE naechster <= ?", (time.time(),)) if r[0] != excluding and r[0] not in self.blocked]
         random.shuffle(all_)
         return all_[:n]
 
@@ -533,7 +601,8 @@ class Logbook:
                  "verstoesse": self.db.execute("SELECT COALESCE(SUM(n), 0) FROM verstoss").fetchone()[0], "segmente": self.db.execute("SELECT COUNT(*) FROM segment").fetchone()[0],
                  "peers": self.db.execute("SELECT COUNT(*) FROM peer").fetchone()[0], "peers_erreichbar": self.db.execute("SELECT COUNT(*) FROM peer WHERE fehler = 0 AND zuletzt IS NOT NULL").fetchone()[0],
                  "unbekannte_typen": self.db.execute("SELECT COUNT(*) FROM eintrag WHERE typ NOT IN (%s)" % ",".join("?" * len(TYPE_NAMES)), TYPE_NAMES).fetchone()[0]}
-        return {**d, "mitglieder": len(self.members())}
+        d["identitaeten"] = self.db.execute("SELECT COUNT(*) FROM identitaet").fetchone()[0]
+        return {**d, "mitglieder": len(self.members()), "gesperrt": len(self.blocked)}
 
     def close(self) -> None:
         with self.lock:

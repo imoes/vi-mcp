@@ -3,6 +3,52 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.45.0 — 2026-11-11 — A free network: anyone may join, no invitation
+
+### What is new
+
+- **Network kind `frei`**: a server joins with nothing but the address of one server of the network. This is what the user asked for: a
+  free, open network of servers that synchronise asynchronously, without anyone admitting anyone. The company network stays closed
+  (invitation), because it carries internal knowledge.
+  `sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://HOST --start https://vinetz.org/vi-p2p/welt`.
+- **Identity proof instead of an invitation.** Entry 1 of every logbook in a free network is an `identitaet` {pub, nonce, bits}: SHA-256
+  of key and nonce must start with `arbeit_bits` zero bits (default 26).
+  - One server pays it once; a spammer who wants thousands of identities pays thousands of times. Checking it costs one hash.
+  - Measured: 2.5 million hashes per second in Python on a workstation, so 26 bits take about 26 s on average. In the end-to-end run
+    the two servers needed 4.4 s and 15.3 s.
+- **Quotas that grow with measured benefit.**
+  - An unknown publisher may write `quote_neu` entries a day (default 100).
+  - A publisher whose hints this memory measured as useful (at least 20 judgements, beta mean ≥ 0.6) gets the full 5,000.
+  - One measured as harmful (the existing block at < 0.3) is no longer accepted, relayed or answered by this server.
+  - The memory sends this assessment with every outbox call (`vertrauen`); measured benefit decides, never a founder.
+- **Local block lists**: `vi-mcp net --network NAME block <key|address>` / `unblock`. They apply to this server only; there is no
+  exclusion for everyone.
+- **Peer exchange**: `GET /netz/peers` lists the addresses a server reached in the last 7 days. After every reconciliation a server
+  asks for them, remembers the new ones (at most 500) and reconciles with random ones (gossip). The start server is only the first
+  contact: the network keeps running without it.
+- **No connections into private networks** in a free network: addresses learned from others that resolve to private, loopback or
+  link-local addresses are refused (`privat_erlaubt` for a lab).
+- Everything foreign still counts only after review (rules, quarantine, reviewer, release), as before.
+
+*Proof:* `tests/test_netz_frei.py` (11):
+- servers join without invitation and find each other through the exchange;
+- the mesh keeps running when the seed stops;
+- no entry without an identity proof, too little work refused;
+- quota for unknown publishers and the full quota for useful ones;
+- local block and block by measured harm;
+- private addresses refused; closed networks stay closed (403);
+- the identity must be entry 1; setup without a founder and the block commands.
+
+End to end with **two separate VI servers** (11.11.2026): identity proofs of 26 bits in 4.4 s and 15.3 s; B knew only A's address; a wiki
+page written on A was readable on B after review.
+
+### What is missing
+
+- Every server keeps every logbook (full replication): fine for dozens of servers, not for thousands.
+- Live search asks at most 20 members, without forwarding.
+- The work is fixed per network; a network needs all its servers at 0.45.0 or newer (older ones know no identity and would refuse the
+  new members' entries).
+
 ## 0.44.2 — 2026-11-11 — Instructions and documentation follow the network
 
 ### What was fixed

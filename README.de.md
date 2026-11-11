@@ -311,6 +311,10 @@ Hinter einem Reverse-Proxy mit öffentlichem Zertifikat: `--adresse https://host
 - **Live-Suche (0.42.0).** `vi_net_search` fragt die Mitglieder eines Netzes sofort — signierte Antworten aus deren Gedächtnis, nach
   denselben Exportregeln wie alles andere, geprüft, nach Inhalts-Hash zusammengelegt, nie gespeichert; `take` schickt einen Treffer
   durch die Prüfung.
+- **Freies Netz (0.45.0).** `--kind frei`: Jeder Server kann beitreten, er braucht nur die Adresse eines Servers im Netz — ohne
+  Einladung. Statt Einladung: ein einmaliger Rechenaufwand je Identität (etwa eine halbe Minute), kleine Quoten für unbekannte
+  Herausgeber, die mit gemessenem Nutzen wachsen, lokale Sperrlisten. Server finden sich, indem sie Adressen austauschen; der
+  Startserver ist nur der erste Kontakt.
 - **Port 443 (0.40.0).** `--public https://HOST` veröffentlicht ein Netz als `https://HOST/vi-p2p/<netz>` hinter dem Reverse Proxy;
   `vi-mcp net proxy-config` gibt die nginx-Konfiguration aus. Alle Netze teilen sich 443.
 - **Transport.** Standard ist HTTPS mit signierten Anfragen, Antwort bekommen nur Mitglieder. Große Rückstände gehen über BitTorrent (libtorrent, privat, ohne DHT), HTTPS bleibt der Rückfall. Einträge beweisen sich selbst, der Weg ist egal.

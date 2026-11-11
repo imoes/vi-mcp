@@ -303,6 +303,10 @@ Behind a reverse proxy with a public certificate use `--address https://host/vi-
   confirming one rates it for the whole network.
 - **Live search (0.42.0).** `vi_net_search` asks the members of a network now — signed answers from their memories, under the same
   export rules as everything else, checked, merged by content hash, never stored; `take` sends one through review.
+- **Free network (0.45.0).** `--kind frei`: any server may join with nothing but the address of one server of the network — no
+  invitation. Instead of an invitation: a one-time proof of work per identity (about half a minute), small quotas for unknown publishers
+  that grow with measured benefit, local block lists. Servers find each other by exchanging addresses; the start server is only the
+  first contact.
 - **Port 443 (0.40.0).** `--public https://HOST` publishes a network as `https://HOST/vi-p2p/<network>` behind the reverse proxy;
   `vi-mcp net proxy-config` prints the nginx configuration. All networks share 443.
 - **Transport.** HTTPS by default; signed requests, only members get answers. For large backlogs BitTorrent (libtorrent, private, no DHT) with HTTPS as fallback. Entries prove themselves, the path does not matter.

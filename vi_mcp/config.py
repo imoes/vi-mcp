@@ -180,7 +180,7 @@ def set_network(name: str, kind: str, p: Path | None = None) -> tuple[str, str |
     import re
     if not re.fullmatch(r"[a-z][a-z0-9-]{1,30}", name or "") or name in ("standard", "config"):
         raise ValueError("network name: a-z, 0-9, -, 2–31 characters, not 'standard' (that is the network without a name)")
-    if kind not in ("firma", "offen"):
+    if kind not in ("firma", "offen", "frei"):
         raise ValueError("network kind must be firma or offen")
     p = p or fpath()
     instance = f"netz-{name}"

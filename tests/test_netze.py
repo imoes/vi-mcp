@@ -206,5 +206,5 @@ def test_net_config_kind_is_checked(tmp_path):
     k = nd.load(p)
     assert k.net == "firma" and k.kind == "firma"
     p.write_text(json.dumps({"art": "geheim"}))
-    with pytest.raises(ValueError, match="offen or firma"):
+    with pytest.raises(ValueError, match="offen, firma or frei"):
         nd.load(p)
