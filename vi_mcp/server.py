@@ -245,10 +245,25 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/gesund":
             self._send(200, f"ok vi-mcp {__version__}\n")
+        elif self.k.web and (self.path == "/web" or self.path.startswith(("/web/", "/web?"))):  # 0.46.0: read-only web page
+            from . import web
+            try:
+                code, ctype, data, header = web.handle(self.path, self.client_address[0] if not self.headers.get("X-Forwarded-For")
+                                                       else self.headers["X-Forwarded-For"].split(",")[0].strip(), self.k.web_base)
+            except Exception as ex:  # noqa: BLE001 — a page error must not take the server down
+                log(f"web {self.path}: {type(ex).__name__}: {ex}")
+                code, ctype, data, header = 500, "text/plain; charset=utf-8", b"internal error (named in the server log)", {}
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            for hk, hv in header.items():
+                self.send_header(hk, hv)
+            self.end_headers()
+            self.wfile.write(data)
         elif self.path.rstrip("/") == "/mcp":
             self._send(405, "GET is not supported: the server sends nothing on its own", {"Allow": "POST, DELETE"})
         else:
-            self._send(404, "only /mcp and /gesund")
+            self._send(404, "only /mcp, /gesund" + (" and /web" if self.k.web else ""))
 
     def do_DELETE(self):
         if self.path.rstrip("/") != "/mcp":

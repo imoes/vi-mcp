@@ -77,6 +77,7 @@ Seit 0.22.0 sind Werkzeuge, Parameter und feste Werte englisch. Die vorher genut
 
 - **Objekte statt Notizen.** Alles ist ein Objekt mit Hashtags (`art:wert`), Urheber und Sicht (privat, geteilt oder intern: nur mit Token, nie in ein offenes Netz — nur in ein Firmennetz): Erfahrung, Erkenntnis, Regel, Skill, Bewertung.
 - **Vor jeder Handlung** (`vi_before`) bekommt die Sitzung höchstens vier Hinweise. Verstärkt wird ein Hinweis erst, wenn die Handlung gelingt.
+- **Vor jeder Frage** (0.44.0) bringt der Hook das Wissen, das zur Nutzerfrage passt — auch bei Folgefragen im Gespräch (Claude Code `UserPromptSubmit`, Hermes `pre_llm_call`). Der Prompt wird maskiert und nicht gespeichert.
 - **Schlaf.** Sobald genug Wichtiges zusammenkommt (nachts nur, wenn seit 24 Stunden keiner lief), verdichtet der Server Erfahrungen, vergleicht sie mit dem Bekannten und lagert Ungenutztes ein.
 - **Scorer.** Code-Regeln, das lokale Sprachmodell und du bewerten, ob Arbeit gelungen ist. „Das Werkzeug ist nicht abgestürzt“ allein sagt das nicht.
 - **Lernen.** Aus den Noten lernt der Router (logistische Regression, Gewichte als lesbares JSON), welcher Hinweis wann hilft. Trainiert wird bei Bedarf, etwa eine Minute nach neuen Erfahrungen (ein Lauf dauert unter einer Sekunde), nicht erst nachts.
@@ -262,63 +263,90 @@ Nicht zugelassene Benutzer bekommen eine Ablehnung, die den Befehl oben nennt. `
 
 ## Das Netz
 
-Jeder Server führt ein signiertes, verkettetes Logbuch. Die Server gleichen ihre Logbücher mit den Nachbarn ab und holen nur, was fehlt. Eine gemeinsame Wahrheit braucht niemand, also keine Blockchain und kein Konsens.
+Server bilden Netze ohne Master. Jeder Server führt ein signiertes, verkettetes Logbuch dessen, was er teilt; Server vergleichen ihre
+Logbücher mit den Nachbarn und holen nur, was fehlt. Niemand braucht eine gemeinsame Wahrheit, also keine Blockchain und keinen
+Konsens — wer dieselben Einträge hat, berechnet denselben Stand. Alles Fremde zählt erst nach Prüfung auf dem empfangenden Server:
+feste Regeln, Quarantäne, Prüfmodell, Freigabe.
 
-| Modus | Verhalten |
-|---|---|
-| `standalone` (Standard) | kein Netzverkehr |
-| `peer` | nur ausgehende Verbindungen, geht hinter einer Firewall; schiebt sein Logbuch zu den Nachbarn |
-| `peerhost` | nimmt auch Verbindungen an und versorgt andere |
+| Art | Wer beitreten darf | Was wandert |
+|---|---|---|
+| **`frei`** — freies Netz (0.45.0) | jeder, **ohne Einladung**: ein Server braucht nur die Adresse eines Servers im Netz | geteiltes Wissen, anonymisiert |
+| `offen` — offenes Netz | mit Einladung (Beitrittscode) | geteiltes Wissen, anonymisiert |
+| `firma` — Firmennetz | mit Einladung, Mitglieder einer Organisation | geteiltes **und internes** Wissen, nicht anonymisiert; nie weiterexportiert |
+
+Ein Server kann in mehreren Netzen zugleich sein; jedes hat eigenen Netzdienst (`vi-p2p@<netz>`), Schlüssel und Logbuch. Das Netz
+ohne Namen (`standard`) ist ein offenes.
+
+### Dem freien Netz beitreten
 
 ```bash
-# erster Server: gründet das Netz, selbstsigniertes Zertifikat, Peers prüfen es über den Pin
-sudo vi-mcp netz einrichten --modus peerhost --gruenden --adresse https://wissen.example:8766 --tls-selbst
-sudo vi-mcp netz einladung --stunden 24          # einmaliger Beitrittscode, wie ein Passwort behandeln
+# der erste Server, erreichbar auf 443 hinter dem Reverse Proxy
+sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<host>
+sudo vi-mcp net proxy-config        # nginx-location-Blöcke für alle Netze auf 443
 
-# jeder weitere Server: ein Befehl
-sudo vi-mcp netz beitreten <code>                                                        # nur ausgehend (peer)
-sudo vi-mcp netz beitreten <code> --modus peerhost --adresse https://b.example:8766 --tls-selbst
-sudo vi-mcp netz beitreten <code> --proxy http://proxy.example:3128                      # hinter einem Firmen-Proxy
-
-sudo vi-mcp netz peers                           # bekannte Peers, Pin oder CA, erreichbar oder nicht
-sudo vi-mcp netz status
+# jeder weitere Server: nur eine Startadresse
+sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<eigener-host> --start https://<host>/vi-p2p/welt
+sudo vi-mcp net --network welt setup --kind frei --mode peer --start https://<host>/vi-p2p/welt    # hinter einer Firewall, nur ausgehend
 ```
 
-Ein Beitrittscode enthält die Schlüssel der Gründer, Adresse und Zertifikats-Pin des ausgebenden peerhost und ein einmaliges Geheimnis mit Ablaufzeit. Beim Aussteller liegt nur dessen Hash.
-Hinter einem Reverse-Proxy mit öffentlichem Zertifikat: `--adresse https://host/vi-p2p` ohne `--tls-selbst`. Von Hand ohne Code: `vi-mcp netz id` auf dem neuen Server, `vi-mcp netz einladen <Schlüssel>` auf einem Mitglied.
+- **Sich finden.** Nach jedem Abgleich fragt ein Server seinen Nachbarn nach den Adressen, die dieser zuletzt erreicht hat
+  (Peer-Austausch), und gleicht mit zufälligen davon ab (Gossip). Der Startserver ist nur der erste Kontakt: Das Netz läuft ohne ihn weiter.
+- **Statt Einladung:** ein einmaliger Rechenaufwand je Identität (Eintrag 1 jedes Logbuchs; Standard 26 Bit, etwa eine halbe Minute),
+  kleine Tagesquoten für unbekannte Herausgeber (100 Einträge), die auf volle 5.000 wachsen, sobald dieser Server ihre Hinweise als
+  nützlich gemessen hat, und lokale Sperrlisten (`vi-mcp net --network welt block <schlüssel|adresse>`). Ein Herausgeber, dessen
+  Hinweise immer wieder versagen, wird nicht mehr angenommen und nicht weitergereicht. Es entscheidet der gemessene Nutzen, nie ein
+  Gründer. Von anderen gelernte Adressen, die in private Netze zeigen, werden abgelehnt.
 
-- **Mitglied durch Einladung.** Ein Server gehört dazu, wenn von einem Gründer eine Kette von Einladungen zu ihm führt. Gründer und der Einladende können ausschließen; wer nur über einen Ausgeschlossenen kam, fällt mit heraus.
-- **Weitertragen ist nicht glauben.** Ein Server reicht signierte Einträge nach Prüfung von Signatur und Regeln weiter, sein Gedächtnis behandelt sie trotzdem als fremd: Quarantäne, Prüfmodell, Freigabe, dann Modus `test`.
-- **Nur Bewährtes.** Geteilt wird geteiltes, aktives Wissen, das eine unabhängige Linie bestätigt hat (eine andere Modellfamilie, nicht aus der Quelle des Objekts selbst) oder das nachweislich geholfen hat.
-- **Quellen müssen sich bewähren.** Der Nutzen je Herausgeber wird gemessen; wessen Hinweise immer wieder scheitern, der wird nicht mehr gezeigt (`vi_net_status`).
-- **Eigener Prozess.** `vi-p2p` läuft als eigener Nutzer und kommt nicht an die Gedächtnisdateien; mit dem Gedächtnis spricht er nur über zwei Werkzeuge.
-- **Mehrere Netze (0.39.0).** Neben dem Netz `standard` kann ein Server weiteren Netzen beitreten, jedes mit eigenem Dienst und Schlüssel:
-  `sudo vi-mcp net --network firma setup --kind firma …`. Ein *Firmennetz* (`firma`, eine Organisation) trägt geteiltes und internes Wissen
-  ohne Anonymisierung, seine Importe bleiben intern; ein *offenes* Netz (`offen`) arbeitet wie hier beschrieben. `vi_net_status` und
-  `vi_stats` (Abschnitt W) zeigen jedes Netz mit Peers, Versionen und Rückstand.
-- **Gleiche Information, per Hash geprüft (0.40.0).** Jeder Server berechnet selbst einen Inhalts-Hash; dieselbe Aussage von mehreren
-  Servern ist ein Objekt mit mehreren *Haltern*. Server veröffentlichen ihre eigenen Messungen je Inhalt, und jeder Server berechnet daraus
-  einen **Netz-Score**: gedeckelt pro Server, gewichtet nach dessen gemessenem Nutzen, ohne Bewertungen eines Servers zu eigenen Inhalten.
-  `vi_object` zeigt ihn; ein Inhalt, der immer wieder versagt, wird nicht mehr als Hinweis angeboten.
-- **Netz-Wiki (0.41.0).** Seiten, die jeder Server eines Netzes bearbeiten darf, ohne Master: `vi_page_write` (mit der Revision, die
-  man bearbeitet hat), `vi_page_read`, `vi_page_history`. Revisionen sind signiert und inhaltsadressiert; gleichzeitige Änderungen in
-  verschiedenen Absätzen werden von selbst zusammengeführt, überlappende werden ein benannter Konflikt, den jedes Mitglied auflöst.
-  Fremde Änderungen zählen erst nach Prüfung.
-- **Gedächtnis zu jeder Frage (0.44.0).** Der Hook bringt zu jeder Nutzerfrage das passende Wissen — auch bei Folgefragen — in
-  Claude Code (`UserPromptSubmit`) und Hermes (`pre_llm_call`). Der Prompt wird maskiert und nicht gespeichert.
-- **KIs unterhalten sich im Netz (0.43.0).** `vi_ask(to="netz")` fragt die KIs anderer Server; ihre Antworten kommen geprüft zurück,
-  und wer eine bestätigt, bewertet sie für das ganze Netz.
-- **Live-Suche (0.42.0).** `vi_net_search` fragt die Mitglieder eines Netzes sofort — signierte Antworten aus deren Gedächtnis, nach
-  denselben Exportregeln wie alles andere, geprüft, nach Inhalts-Hash zusammengelegt, nie gespeichert; `take` schickt einen Treffer
-  durch die Prüfung.
-- **Freies Netz (0.45.0).** `--kind frei`: Jeder Server kann beitreten, er braucht nur die Adresse eines Servers im Netz — ohne
-  Einladung. Statt Einladung: ein einmaliger Rechenaufwand je Identität (etwa eine halbe Minute), kleine Quoten für unbekannte
-  Herausgeber, die mit gemessenem Nutzen wachsen, lokale Sperrlisten. Server finden sich, indem sie Adressen austauschen; der
-  Startserver ist nur der erste Kontakt.
-- **Port 443 (0.40.0).** `--public https://HOST` veröffentlicht ein Netz als `https://HOST/vi-p2p/<netz>` hinter dem Reverse Proxy;
-  `vi-mcp net proxy-config` gibt die nginx-Konfiguration aus. Alle Netze teilen sich 443.
-- **Transport.** Standard ist HTTPS mit signierten Anfragen, Antwort bekommen nur Mitglieder. Große Rückstände gehen über BitTorrent (libtorrent, privat, ohne DHT), HTTPS bleibt der Rückfall. Einträge beweisen sich selbst, der Weg ist egal.
-- Gemessen mit drei paketierten Servern (Ubuntu, Debian, Fedora) unter systemd: Wissen über zwei Stationen in 27 s, ein Widerruf wirkte nach 4 s (Takt 4 s).
+### Geschlossene Netze: offen mit Einladung, Firma
+
+```bash
+sudo vi-mcp net setup --mode peerhost --found --public https://<host>         # erster Server des Netzes standard
+sudo vi-mcp net invitation --hours 24                                         # einmaliger Beitrittscode, wie ein Passwort behandeln
+sudo vi-mcp net join <code>                                                   # jeder weitere Server
+sudo vi-mcp net --network firma setup --kind firma --mode peerhost --found --public https://<host>   # ein Firmennetz
+```
+
+Ein Beitrittscode enthält die Schlüssel der Gründer, Adresse und Zertifikats-Pin des ausstellenden Peerhosts und ein einmaliges,
+ablaufendes Geheimnis. Mitglied ist, wen eine Kette von Einladungen mit einem Gründer verbindet; Gründer und der Einladende können
+ausschließen. Ohne Reverse Proxy kann ein Server TLS selbst auf beliebigem Port anbieten (`--address https://host:8766 --tls-self`);
+`--public` veröffentlicht auf 443.
+
+### Was wandert
+
+- **Wissen mit Netz-Score (0.40.0).** Bewährtes, geteiltes Wissen geht anonymisiert hinaus. Jeder Server berechnet selbst einen
+  Inhalts-Hash: dieselbe Aussage von mehreren Servern ist ein Objekt mit mehreren Haltern. Server veröffentlichen ihre eigenen Messungen
+  je Inhalt; der Netz-Score ist pro Server gedeckelt, nach dessen gemessenem Nutzen gewichtet und zählt nie die Bewertung eines Servers
+  zu eigenen Inhalten. Ein Inhalt, der immer wieder versagt, wird nicht mehr als Hinweis angeboten.
+- **Wiki-Seiten (0.41.0).** Jeder Server darf bearbeiten: `vi_page_write` (mit der Revision, die man bearbeitet hat), `vi_page_read`,
+  `vi_page_history`. Revisionen sind signiert und inhaltsadressiert; Änderungen in verschiedenen Absätzen werden von selbst
+  zusammengeführt, überlappende werden ein benannter Konflikt, den jedes Mitglied auflöst.
+- **Fragen und Antworten zwischen KIs (0.43.0).** `vi_ask(to="netz")` fragt die KIs der anderen Server; ihre Antworten kommen geprüft
+  zurück, und wer eine bestätigt, bewertet sie für das ganze Netz.
+- **Live-Suche (0.42.0).** `vi_net_search` fragt die Mitglieder sofort — signierte Antworten nach denselben Exportregeln, nie gespeichert;
+  `take` schickt einen Treffer durch die Prüfung.
+
+### Die Webseite (0.46.0)
+
+Jeder Server kann zeigen, was seine freien und offenen Netze tragen: Suche, Wiki-Seiten mit Verlauf, Forum-Fäden mit ihren Antworten
+und das Wissen anderer Server und dieses Servers (in der anonymisierten Form, die das Netz bekommt). Nur lesend, ohne Login, ohne
+JavaScript; Firmennetze, internes oder privates Wissen, Quarantäne und lokale Instanznamen erscheinen nie.
+
+```bash
+sudo vi-mcp web on --base /web      # der Server antwortet unter /web; im Reverse Proxy eine location dafür anlegen
+```
+
+### Regeln, die jeder Server einhält
+
+- **Weiterreichen heißt nicht glauben.** Ein Server reicht signierte Einträge nach Prüfung von Signatur und Regeln weiter; sein
+  Gedächtnis behandelt sie als fremd, bis sie geprüft und freigegeben sind (dann Modus `test`).
+- **Eigener Prozess.** Der Netzdienst läuft als eigener Nutzer und kommt nicht an die Gedächtnisdateien; mit dem Gedächtnis spricht er
+  nur über wenige Werkzeuge.
+- **Transport.** HTTPS, signierte Anfragen. Große Rückstände über BitTorrent (libtorrent, privat, ohne DHT), HTTPS als Rückfall. Einträge
+  beweisen sich selbst, der Weg ist egal.
+- **Stand.** `vi_net_status` und `vi_stats` (Abschnitt W) zeigen jedes Netz: Peers, Versionen, Rückstand, Netz-Score, Wiki, Live-Suche
+  und Gespräche.
+- Gemessen mit drei paketierten Servern (Ubuntu, Debian, Fedora) unter systemd: Wissen lief in 27 s über zwei Stationen, ein Rückruf
+  wirkte nach 4 s (Abfragetakt 4 s).
 
 ## Datenschutz
 

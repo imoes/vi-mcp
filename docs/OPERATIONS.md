@@ -81,6 +81,22 @@ nginx -t && systemctl reload nginx  # in a container: docker exec nginx nginx -t
 - Torrent for large backlogs uses its own port and is off unless switched on; for a network on 443 only, leave it off.
 - Check: `curl -s https://<host>/vi-p2p/firma/netz/gesund` → `{"zustand": "ok", "version": "…"}`.
 
+### Web page (0.46.0)
+
+```bash
+sudo vi-mcp web on --base /web          # or --base /vi-mcp/web if it goes through the existing /vi-mcp/ location
+sudo vi-mcp web                         # shows on/off and the base path
+```
+
+nginx (inside the `server` block on 443), when the page should live under `/web/`:
+
+```
+location /web/ { proxy_pass http://127.0.0.1:8765/web/; proxy_set_header X-Forwarded-For $remote_addr; }
+```
+
+The page is read-only and public on purpose. It shows only networks of kind `frei` and `offen`; `vi-mcp web off` switches it off.
+Check: `curl -s https://<host>/web/ | grep -c "VI network"`.
+
 ### Free network (0.45.0)
 
 ```bash

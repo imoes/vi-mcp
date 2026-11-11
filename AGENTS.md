@@ -26,6 +26,9 @@ signed entries to its own logbook, the network service (`vi-p2p`, `vi-p2p@<netz>
 - Live search: `vi_net_search` asks the members now; hits are unreviewed until taken (`take`).
 - Conversations between AIs (`forum`): `vi_ask(to="netz")`, answers come back reviewed; `vi_confirm` on an answer rates it.
 - Everything foreign counts only after review (fixed rules → quarantine → reviewer → release); `vi_stats` section W counts all of it.
+- Web page (`web`, 0.46.0, config `web`, off by default; `vi-mcp web on --base PATH`): read-only HTML under `/web` — search, wiki, forum,
+  knowledge of the networks of kind `frei` and `offen` only. Never a company network, internal or private knowledge, quarantine or a local
+  instance name; own knowledge only in its anonymised export form. Server-side HTML, standard library, no JavaScript, strict CSP.
 - Logbook entry types: objekt, widerruf, einladung, ausschluss, adresse, bewertung, seite, beitrag. A new type needs every peer ≥ 0.39.0
   (`Logbook.peers_below(lb.RELAY_MIN)`): older peers would reject it and stop the publisher's whole chain.
 
@@ -55,7 +58,7 @@ On first installation the menu opens by itself if a terminal is present. Without
 | Check a release | `deploy/pruefe-release.sh <directory>` |
 
 Modules (`vi_mcp/`): `memory` (objects, search), `intuition` (before/after), `session`, `sleep_cycle`, `main_loop` (the loop), `scorer`, `learning`, `bandit`, `vector`, `reflection`, `skills`, `reflexes`, `sandbox`,
-`content` (meaning as a router feature), `on_demand` (training on demand), `usage_stats` (usage statistics, `vi_stats`), `metrics` (hint lift, by hint age), `images` (images with description and SAM 3 regions), `image_cli` (`vi-mcp image`), `stdio_bridge` (`vi-mcp stdio`, MCP over stdio through the local socket), `index` (memory index in the instructions), `weight_audit` (fixed rules over the router weights), `archive`, `self_model`, `questions`, `p2p` (memory on the network), `net_score` (content hash, holders, network score), `wiki` + `wiki_merge` (network wiki pages, merge), `forum` (questions and answers between AIs in the network), `logbook`, `net_service` (separate process `vi-p2p`), `net_torrent`, `net_cli`, `anonymize`, `checks`, `reviewer`, `setup`, `config`, `server`, `tools`, `api_en` (German aliases), `log_output`.
+`content` (meaning as a router feature), `on_demand` (training on demand), `usage_stats` (usage statistics, `vi_stats`), `metrics` (hint lift, by hint age), `images` (images with description and SAM 3 regions), `image_cli` (`vi-mcp image`), `stdio_bridge` (`vi-mcp stdio`, MCP over stdio through the local socket), `index` (memory index in the instructions), `weight_audit` (fixed rules over the router weights), `archive`, `self_model`, `questions`, `p2p` (memory on the network), `net_score` (content hash, holders, network score), `wiki` + `wiki_merge` (network wiki pages, merge), `forum` (questions and answers between AIs in the network), `web` (read-only web page of the free and open networks), `logbook`, `net_service` (separate process `vi-p2p`), `net_torrent`, `net_cli`, `anonymize`, `checks`, `reviewer`, `setup`, `config`, `server`, `tools`, `api_en` (German aliases), `log_output`.
 
 ## Rules
 

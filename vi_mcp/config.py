@@ -71,6 +71,10 @@ class Config:
     #: so no token is needed; only users listed here get in, each as its instance (with its visibility, internal included).
     socket: str | None = None
     local: dict[str, str] = field(default_factory=dict)
+    #: 0.46.0: read-only web page of the free and open networks under /web (config `web`, off by default); `web_basis` is the path the
+    #: browser sees, e.g. /vi-mcp/web behind the reverse proxy
+    web: bool = False
+    web_base: str = "/web"
 
     def instance_for(self, token: str | None) -> Instance | None:
         """Instance for the bearer token, or None. Constant-time comparison across all instances."""
@@ -106,6 +110,8 @@ def load(p: Path | None = None) -> Config:
     k.open_ = bool(raw.get("offen", False))
     k.socket = raw.get("socket") or os.environ.get("VI_MCP_SOCKET") or None
     k.local = {str(u): str(i) for u, i in (raw.get("lokal") or {}).items()}
+    k.web = bool(raw.get("web", False))
+    k.web_base = "/" + str(raw.get("web_basis") or "/web").strip("/")
     for n, d in (raw.get("instanzen") or {}).items():
         k.instances[n] = Instance(n, d["token_sha256"], bool(d.get("reflexe", False)), bool(d.get("freigabe", False)), bool(d.get("mensch", False)),
                                   (d.get("familie") or None))
@@ -207,6 +213,19 @@ def set_net_local(net: str, url: str, token: str, p: Path | None = None) -> None
         if net not in (p2p.get("netze") or {}):
             raise ValueError(f"network {net} is not registered — first: vi-mcp net --network {net} setup --kind …")
         p2p["netze"][net]["lokal"] = {"url": url, "token": token}
+    _save_raw(raw, p)
+
+
+def set_web(on: bool, base: str | None = None, p: Path | None = None) -> None:
+    """0.46.0: switch the read-only web page on or off; base = the path the browser sees (default /web)."""
+    import re
+    if base is not None and not re.fullmatch(r"(/[A-Za-z0-9._-]+)+", base.rstrip("/") or "/x"):
+        raise ValueError("web base: a path like /web or /vi-mcp/web")
+    p = p or fpath()
+    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    raw["web"] = bool(on)
+    if base is not None:
+        raw["web_basis"] = base.rstrip("/") or "/web"
     _save_raw(raw, p)
 
 

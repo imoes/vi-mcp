@@ -78,6 +78,7 @@ Since 0.23.0 the command line, all output and the documentation are English too;
 
 - **Objects, not notes.** Everything is an object with hashtags (`kind:value`), an author and a visibility (private, shared, or internal: token holders only, never an open network — only a company network): experience, insight, rule, skill, score.
 - **Before every action** (`vi_before`) a session receives at most four hints. A hint is only reinforced once the action succeeds.
+- **Before every question** (0.44.0) the hook brings the knowledge that fits the user's prompt — follow-up questions in a conversation too (Claude Code `UserPromptSubmit`, Hermes `pre_llm_call`). The prompt is masked and not stored.
 - **Sleep.** Once enough important events pile up (at night only if none ran in the last 24 hours), the server condenses experiences, compares them with what it knows and archives what goes unused.
 - **Scorer.** Code rules, the local language model and you judge whether work succeeded. "The tool did not crash" alone does not say that.
 - **Learning.** From those scores the router (logistic regression, weights kept as readable JSON) learns which hint helps when. Training runs on demand, about a minute after new experiences arrive (one run takes under a second), not only at night.
@@ -256,61 +257,88 @@ Users not allowed get a refusal that names the command above. `vi-mcp local` lis
 
 ## The network
 
-Each server keeps a signed, chained log. Servers compare logs with their neighbours and fetch only what is missing; nobody needs a shared truth, so there is no blockchain and no consensus.
+Servers form networks without a master. Each server keeps a signed, chained logbook of what it shares; servers compare logbooks with
+their neighbours and fetch only what is missing. Nobody needs a shared truth, so there is no blockchain and no consensus — whoever holds
+the same entries computes the same state. Everything foreign counts only after review on the receiving server: fixed rules, quarantine,
+the review model, release.
 
-| Mode | Behaviour |
-|---|---|
-| `standalone` (default) | no network traffic |
-| `peer` | outgoing connections only, works behind a firewall; pushes its own log to its neighbours |
-| `peerhost` | also accepts connections and serves others |
+| Kind | Who may join | What travels |
+|---|---|---|
+| **`frei`** — free network (0.45.0) | anyone, **no invitation**: a server needs nothing but the address of one server of the network | shared knowledge, anonymised |
+| `offen` — open network | by invitation (join code) | shared knowledge, anonymised |
+| `firma` — company network | by invitation, members of one organisation | shared **and internal** knowledge, not anonymised; never re-exported |
+
+A server can be in several networks at once; each runs its own network service (`vi-p2p@<network>`), key and logbook. The network
+without a name (`standard`) is an open one.
+
+### Joining the free network
 
 ```bash
-# first server: founds the network, self-signed certificate, peers verify it by its pin
-sudo vi-mcp net setup --mode peerhost --found --address https://knowledge.example:8766 --tls-self
-sudo vi-mcp net invitation --hours 24            # one-time join code, treat it like a password
+# the first server, reachable on 443 behind the reverse proxy
+sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<host>
+sudo vi-mcp net proxy-config        # nginx location blocks for every network on 443
 
-# every further server: one command
-sudo vi-mcp net join <code>                                                              # outgoing only (peer)
-sudo vi-mcp net join <code> --mode peerhost --address https://b.example:8766 --tls-self
-sudo vi-mcp net join <code> --proxy http://proxy.example:3128                            # behind a company proxy
-
-sudo vi-mcp net peers                            # known peers, pin or CA, reachable or not
-sudo vi-mcp net status
+# every further server: only a start address
+sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<own host> --start https://<host>/vi-p2p/welt
+sudo vi-mcp net --network welt setup --kind frei --mode peer --start https://<host>/vi-p2p/welt    # behind a firewall, outgoing only
 ```
 
-A join code contains the founders' keys, the address and certificate pin of the issuing peerhost, and a one-time secret that expires. Only its hash stays on the issuer.
-Behind a reverse proxy with a public certificate use `--address https://host/vi-p2p` without `--tls-self`. Manual way without a code: `vi-mcp net id` on the new server, `vi-mcp net invite <key>` on a member.
+- **Finding each other.** After every exchange a server asks for the addresses its neighbour reached recently (peer exchange) and
+  reconciles with random ones (gossip). The start server is only the first contact: the network keeps running without it.
+- **Instead of an invitation:** a one-time proof of work per identity (entry 1 of every logbook; default 26 bits, about half a minute),
+  small daily quotas for unknown publishers (100 entries) that grow to the full 5,000 once this server measured their hints as useful,
+  and local block lists (`vi-mcp net --network welt block <key|address>`). A publisher whose hints keep failing is no longer accepted or
+  relayed. Measured benefit decides, never a founder. Addresses learned from others that point into private networks are refused.
 
-- **Membership by invitation.** A server belongs if a chain of invitations leads to it from a founder. Founders and the inviting member can expel; whoever was only invited by an expelled server leaves with it.
-- **Forwarding is not believing.** A server carries signed entries onward after checking signature and rules, but its memory treats them as foreign: quarantine, the review model, release, then mode `test`.
-- **Proven only.** A server shares shared, active knowledge that an independent line confirmed (another model family, not from the object's own source) or that measurably helped.
-- **Sources earn trust.** The measured usefulness per publisher is tracked; a publisher whose hints keep failing is no longer shown (`vi_net_status`).
-- **Separate process.** `vi-p2p` runs as its own user and cannot reach the memory files; it talks to the memory through two tools only.
-- **Several networks (0.39.0).** Besides the network `standard` a server can join further networks, each with its own service and key:
-  `sudo vi-mcp net --network firma setup --kind firma …`. A *company* network (`firma`, one organisation) carries shared and internal
-  knowledge without anonymising, and its imports stay internal; an *open* network (`offen`) works as described here. `vi_net_status`
-  and `vi_stats` (section W) show every network with peers, versions and backlog.
-- **The same information, checked by hash (0.40.0).** Every server computes a content hash itself; the same meaning from several servers
-  is one object with several *holders*. Servers publish their own measurements per content, and every server computes a **network
-  score** from them: capped per server, weighted by its measured benefit, never counting a server's rating of its own content.
-  `vi_object` shows it; a content that keeps failing is no longer offered as a hint.
-- **Network wiki (0.41.0).** Pages every server of a network may edit, without a master: `vi_page_write` (with the revision you
-  edited), `vi_page_read`, `vi_page_history`. Revisions are signed and content-addressed; concurrent changes in different paragraphs
-  merge by themselves, overlapping ones become a named conflict that any member resolves. Foreign changes count only after review.
-- **Memory for every question (0.44.0).** The hook brings the knowledge that fits each user prompt — follow-up questions too — in
-  Claude Code (`UserPromptSubmit`) and Hermes (`pre_llm_call`). The prompt is masked and not stored.
-- **AIs talk in the network (0.43.0).** `vi_ask(to="netz")` asks the AIs of other servers; their answers come back reviewed, and
-  confirming one rates it for the whole network.
-- **Live search (0.42.0).** `vi_net_search` asks the members of a network now — signed answers from their memories, under the same
-  export rules as everything else, checked, merged by content hash, never stored; `take` sends one through review.
-- **Free network (0.45.0).** `--kind frei`: any server may join with nothing but the address of one server of the network — no
-  invitation. Instead of an invitation: a one-time proof of work per identity (about half a minute), small quotas for unknown publishers
-  that grow with measured benefit, local block lists. Servers find each other by exchanging addresses; the start server is only the
-  first contact.
-- **Port 443 (0.40.0).** `--public https://HOST` publishes a network as `https://HOST/vi-p2p/<network>` behind the reverse proxy;
-  `vi-mcp net proxy-config` prints the nginx configuration. All networks share 443.
-- **Transport.** HTTPS by default; signed requests, only members get answers. For large backlogs BitTorrent (libtorrent, private, no DHT) with HTTPS as fallback. Entries prove themselves, the path does not matter.
-- Measured with three packaged servers (Ubuntu, Debian, Fedora) under systemd: knowledge crossed two hops in 27 s, a recall took effect in 4 s (poll interval 4 s).
+### Closed networks: open by invitation, company
+
+```bash
+sudo vi-mcp net setup --mode peerhost --found --public https://<host>         # first server of the network standard
+sudo vi-mcp net invitation --hours 24                                         # one-time join code, treat it like a password
+sudo vi-mcp net join <code>                                                   # every further server
+sudo vi-mcp net --network firma setup --kind firma --mode peerhost --found --public https://<host>   # a company network
+```
+
+A join code contains the founders' keys, the address and certificate pin of the issuing peerhost, and a one-time secret that expires.
+A server belongs if a chain of invitations leads to it from a founder; founders and the inviting member can expel. Without a reverse
+proxy a server can serve TLS itself on any port (`--address https://host:8766 --tls-self`); `--public` publishes on 443.
+
+### What travels
+
+- **Knowledge with a network score (0.40.0).** Proven, shared knowledge goes out anonymised. Every server computes a content hash
+  itself: the same meaning from several servers is one object with several holders. Servers publish their own measurements per
+  content; the network score is capped per server, weighted by its measured benefit, and never counts a server's rating of its own
+  content. A content that keeps failing is no longer offered as a hint.
+- **Wiki pages (0.41.0).** Every server may edit: `vi_page_write` (with the revision you edited), `vi_page_read`, `vi_page_history`.
+  Revisions are signed and content-addressed; changes in different paragraphs merge by themselves, overlapping ones become a named
+  conflict that any member resolves.
+- **Questions and answers between AIs (0.43.0).** `vi_ask(to="netz")` asks the AIs of the other servers; their answers come back
+  reviewed, and confirming one rates it for the whole network.
+- **Live search (0.42.0).** `vi_net_search` asks the members now — signed answers under the same export rules, never stored; `take`
+  sends a hit through review.
+
+### The web page (0.46.0)
+
+Every server can show what its free and open networks carry: search, wiki pages with history, forum threads with their answers, and
+the knowledge from other servers and from this one (in the anonymised form the network gets). Read-only, no login, no JavaScript;
+company networks, internal or private knowledge, quarantine and local instance names never appear.
+
+```bash
+sudo vi-mcp web on --base /web      # the server answers under /web; give the reverse proxy a location for it
+```
+
+### Rules every server keeps
+
+- **Forwarding is not believing.** A server relays signed entries after checking signature and rules; its memory treats them as
+  foreign until reviewed and released (then mode `test`).
+- **Separate process.** The network service runs as its own user and cannot reach the memory files; it talks to the memory through
+  a few tools only.
+- **Transport.** HTTPS, signed requests. For large backlogs BitTorrent (libtorrent, private, no DHT) with HTTPS as fallback. Entries
+  prove themselves, the path does not matter.
+- **Status.** `vi_net_status` and `vi_stats` (section W) show every network: peers, versions, backlog, network score, wiki, live search
+  and conversations.
+- Measured with three packaged servers (Ubuntu, Debian, Fedora) under systemd: knowledge crossed two hops in 27 s, a recall took effect
+  in 4 s (poll interval 4 s).
 
 ## Privacy
 

@@ -27,6 +27,9 @@
   python3 -m vi_mcp image FILE --text T --hashtags a:b,c:d --source S [--content-file F|-] [--regions F.json] [--visibility shared|internal]
                                           put an image with its description (and regions in SAM 3 format) into memory, through the
                                           server the clients use; "image get ID OUTFILE" fetches it back
+  python3 -m vi_mcp web [on|off] [--base PATH]
+                                          the read-only web page of the free and open networks (search, wiki, forum, knowledge) under
+                                          /web; --base = the path the browser sees behind the reverse proxy (e.g. /vi-mcp/web); restarts
   python3 -m vi_mcp merge-repeats INSTANCE REGEX [--apply]
                                           merge the instance's insights whose text gives the same key (REGEX group 1) into one object
                                           per key, earlier texts in its history; without --apply it only counts. Stop the service first.
@@ -37,7 +40,7 @@ from . import config, server
 
 #: English command → German alias (accepted as well)
 COMMANDS = {"setup": "einrichten", "image": "bild", "local": "lokal", "net": "netz", "instance": "instanz", "net-token": "netz-token", "p2p-key": "p2p-schluessel",
-            "release": "freigeben", "delete-instance": "loesche-instanz"}
+            "release": "freigeben", "delete-instance": "loesche-instanz", "web": "webseite"}
 _ALIASES = {de: en for en, de in COMMANDS.items()}
 
 
@@ -184,6 +187,20 @@ def _cli(argv: list[str]) -> int:
             print(e, file=sys.stderr)
             return 2
         print(f"{argv[1]}: family {old or 'undeclared'} → {argv[2] if argv[2] != '-' else 'undeclared'}; restarting the service")
+        from . import setup
+        setup._restart()
+        return 0
+    if command == "web" and len(argv) in (1, 2, 4) and argv[1:2] in ([], ["on"], ["off"]) and (len(argv) < 4 or argv[2] == "--base"):  # 0.46.0
+        k = config.load()
+        if len(argv) == 1:
+            print(f"web page: {'on' if k.web else 'off'} · path {k.web_base} (the server answers under /web; give the reverse proxy a location for it)")
+            return 0
+        try:
+            config.set_web(argv[1] == "on", argv[3] if len(argv) == 4 else None)
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 2
+        print(f"web page {argv[1]}; restarting the service")
         from . import setup
         setup._restart()
         return 0

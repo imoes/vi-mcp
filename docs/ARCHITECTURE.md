@@ -629,6 +629,25 @@ Requests:
 
 `ensure_identity` makes the identity entry 1 at the first start (refuses on a logbook that already has entries).
 
+## Web page (0.46.0)
+
+`web.py`, served by the memory server under `/web` when the config says `web: true`; links use `web_basis` (the path the browser sees).
+- **What may appear** (decided by the user: read-only, only free and open networks):
+  - page views of networks of kind `frei`/`offen`;
+  - their forum threads (questions sent from here or received and released, with the answers this server holds);
+  - released imports of those networks (mode `test`/`aktiv`, visibility `geteilt`, not forum answers);
+  - this server's own knowledge in exactly the export form the network gets (`p2p._collect`, cached 300 s).
+- **What never appears:** company networks, internal or private objects, anything in quarantine. Local instance names never appear:
+  own wiki revisions say "this server", forum authors are the pseudonyms the posts carry, and an own answer appears only if it left as a
+  post.
+- **Rendering.** Every value goes through `html.escape`. Text is a small safe subset (paragraphs, headings, lists, fenced code, inline
+  code, http(s) links with `rel="nofollow noopener noreferrer"`). Conflict blocks are shown as two columns.
+- **Headers.** `Content-Security-Policy: default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none';
+  frame-ancestors 'none'` (no script at all), `nosniff`, `no-referrer`.
+- **Limits.** 120 requests per minute and client address (the first `X-Forwarded-For` behind the proxy).
+- **Routes:** `/`, `/suche`, `/netze`, `/wiki/<netz>[/<page>[?verlauf=1|?rev=…]]`, `/forum/<netz>[/<thread>]`, `/wissen/<netz>`,
+  `/eintrag/<id>`, `/eigen/<netz>/<netz_id>`, `/stil.css`.
+
 ## Housekeeping — the long-term archive
 
 `archive.py`, sleep step 5. Entries no longer in use move to a separate file (`<db>-lager.db`, 0600), so that
