@@ -459,7 +459,7 @@ proves that a file is unchanged, not who it comes from; that is what the Ed25519
 | Release | Inconspicuous items by an instance with reflex permission. Reflexes, write access, rule findings and everything without a positive review verdict only with release permission (`vi-mcp release` on the server, token readable only by root). Afterwards mode `test`. |
 | Effect | Imported items are text hints with visible origin, `herkunft:p2p` cannot be removed. Own namespace, no overwriting of local objects, no weight from foreign counters in training (0.40.0: foreign ratings get capped, aggregated weight in the network score — shown, and hiding a hint — see "Network score"). Imported code only runs in the sandbox, may only be `vorher` (before) and never change arguments. Imported items are not re-exported. |
 
-Limits: patterns and model do not recognise every attack. Whoever has root on the server can release. The reviewer instructions are deliberately not in the public repo (config `pruefer_prompt`).
+Limits: patterns and model do not recognise every attack. Whoever has root on the server can release. The reviewer instructions are deliberately not in the public repo (config `reviewer_prompt`).
 
 ## Network: anonymous and deletable
 
@@ -657,7 +657,7 @@ Requests:
 
 ## Web page (0.46.0)
 
-`web.py`, served by the memory server under `/web` when the config says `web: true`; links use `web_basis` (the path the browser sees).
+`web.py`, served by the memory server under `/web` when the config says `web: true`; links use `web_base` (the path the browser sees).
 - **What may appear** (decided by the user: read-only, only free and open networks):
   - page views of networks of kind `free`/`open`;
   - their forum threads (questions sent from here or received and released, with the answers this server holds);
@@ -690,7 +690,7 @@ reason required) is checked in `outbox` (returns `aus` and nothing), `inbox` (ta
 `archive.py`, sleep step 5. Entries no longer in use move to a separate file (`<db>-lager.db`, 0600), so that
 the active store stays small. A stub remains in the memory.
 
-| What | When (starting values, config `lager_tage`) |
+| What | When (starting values, config `archive_days`) |
 |---|---|
 | Experience | 30 days old, never retrieved, no evidence |
 | Sleep report | 90 days old |
@@ -750,7 +750,7 @@ Remaining limit: guests' actions flow into the hint counters and the router trai
 - A session belongs to its instance: foreign session id → 404.
 - **Local socket instead of a token (0.36.0, Linux):** the service also serves `/mcp` on a Unix socket (config `socket`, the package
   sets `/run/vi-mcp/mcp.sock`). The socket is open to everyone (0666), but the kernel names the connecting user (`SO_PEERCRED`), and
-  only users listed in config `lokal` (`vi-mcp local USER INSTANCE`) get in, each as its instance — with its visibility, internal
+  only users listed in config `local` (`vi-mcp local USER INSTANCE`) get in, each as its instance — with its visibility, internal
   knowledge included. Others get 403 with the command that would allow them. Whoever can log in to the server host as that user is
   trusted as that instance; that is the same trust as a token file readable by that user, without a token to copy around. Not on
   Windows (no `SO_PEERCRED`); not reachable from containers unless the socket is mounted.

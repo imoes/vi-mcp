@@ -35,11 +35,27 @@ Linked from [README.md](README.md).
 - **vi-wiki.org is online** — the start server of the default wiki network (0.47.0). Checked 11.11.2026 ~15:50 UTC:
   `https://vi-wiki.org/vi-p2p/wiki/netz/gesund` answers `{"zustand": "ok", "version": "0.50.1"}`, `https://vi-wiki.org/` leads to the
   read-only web page `/web/` with the networks `standard` and `wiki` (1 member, no content yet). README (English and German) says so.
+- **Complete documentation**, as the user asked ("Wir brauchen eine komplette Doku des Projektes"). An audit found gaps: 45 of 144 tool
+  parameters were described nowhere and 112 had no description in the schema the AI reads; the command `net-token` and `net id/peers/run/status`,
+  the config keys `archive_days`, `local`, `reviewer_prompt`, `web_base`, 22 fields of the network service's file, 8 environment
+  variables, 2 HTTP endpoints and 3 modules were undocumented.
+  - `docs/REFERENCE.md`, **generated from the code** (`scripts/gen_reference.py`): every MCP tool with every parameter, the command line
+    with all subcommands, both configuration files, the configuration catalogue (`VI_MCP_<KEY>`), environment variables, HTTP endpoints,
+    modules.
+  - Every tool parameter now has a description in its schema, so the AI sees what it means (0 of 144 without).
+  - `docs/README.md`: an index of all documents — who reads which and what it holds; linked from both READMEs.
+  - ARCHITECTURE and OPERATIONS named configuration keys by their pre-0.51.0 German names (`instanzen`, `lager_tage`, `web_basis`, `lokal`,
+    `pruefer_prompt`); now the English ones.
+  - `tests/test_reference.py` keeps it complete: it fails when the reference is out of date or the code has a tool parameter, config key,
+    network field, environment variable or endpoint without a description, or a document is missing from the index.
+
+  *Proof:* `scripts/gen_reference.py --check` exits 0; `tests/test_reference.py` 4 passed.
 
 ### What is missing
 
 - The repository holds v0.50.1 until the next release; the production server still installs by hand and has not added the repository.
 - No arm64 test (the package is `all`/`noarch`, the index for arm64 is there).
+- The reference is English only; TRAINING and FORSCHUNG (research notes) are German only.
 - Back up the private repository key (`~/.config/vi-mcp/repo-gnupg`, with its revocation certificate): without it no release can be
   published to the repository.
 

@@ -84,7 +84,7 @@ Since 0.23.0 the command line, all output and the documentation are English too;
 - **Learning.** From those scores the router (logistic regression, weights kept as readable JSON) learns which hint helps when. Training runs on demand, about a minute after new experiences arrive (one run takes under a second), not only at night.
 - **Reflexes and skills.** Proven solutions become skills; small checks run as code in a sandbox (Landlock, seccomp).
 
-In-depth: [architecture](docs/ARCHITECTURE.md) · [operations](docs/OPERATIONS.md) · [hook](docs/HOOK.md) · research (German): [memory research](docs/FORSCHUNG.md) · [training](docs/TRAINING.md)
+**All documentation: [docs/README.md](docs/README.md)** · reference (every tool, parameter, command, setting): [docs/REFERENCE.md](docs/REFERENCE.md) · in-depth: [architecture](docs/ARCHITECTURE.md) · [operations](docs/OPERATIONS.md) · [hook](docs/HOOK.md) · research (German): [memory research](docs/FORSCHUNG.md) · [training](docs/TRAINING.md)
 
 ## How the memory works — and why it is built this way
 

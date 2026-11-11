@@ -335,9 +335,8 @@ def join(o) -> int:
     return code
 
 
-def main(argv: list[str]) -> int:
-    global SERVICE, NETWORK
-    SERVICE, NETWORK = "vi-p2p", None  # per call: the network standard unless --network names another
+def _parser() -> argparse.ArgumentParser:
+    """The argument parser of `vi-mcp net` (also read by scripts/gen_reference.py for docs/REFERENCE.md)."""
     a = argparse.ArgumentParser(prog="vi-mcp net")
     a.add_argument("--network", "--netz", dest="network", help="a further network (0.39.0): config /etc/vi-p2p/NAME.json, service vi-p2p@NAME; "
                    "without it: the network standard")
@@ -395,6 +394,13 @@ def main(argv: list[str]) -> int:
     cmd("id")
     cmd("status")
     cmd("run", "lauf")
+    return a
+
+
+def main(argv: list[str]) -> int:
+    global SERVICE, NETWORK
+    SERVICE, NETWORK = "vi-p2p", None  # per call: the network standard unless --network names another
+    a = _parser()
     o = a.parse_args(argv)
     if o.network:
         import re

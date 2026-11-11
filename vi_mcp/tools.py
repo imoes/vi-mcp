@@ -307,6 +307,103 @@ TOOLS = [
                     "instances with the reflex right.",
      "inputSchema": _schema({"name": _S, "mode": {"type": "string", "enum": ["test", "active", "off"]}}, ["name", "mode"])},
 ]
+#: 0.54.0: every parameter has a description — the clients show it to the model, and docs/REFERENCE.md is generated from it.
+#: Common meanings first; (tool, parameter) where the same name means something else. tests/test_reference.py keeps it complete.
+_PARAM_DOCS = {
+    "reason": "why — required, stored in the object's history",
+    "id": "object id, e.g. erkenntnis:… (from a hint line or a search)",
+    "limit": "how many at most",
+    "network": "network name (default: standard)",
+    "tool": "tool name, e.g. Bash or graylog_search (without an MCP server prefix)",
+    "args": "the tool's arguments as an object",
+    "read_only": "true if the tool only reads (then a fresh remembered answer may come back)",
+    "context_hashtags": "hashtags of what you are working on (e.g. host:web1, thema:oom) — they select the hints",
+    "text": "the text — one concrete statement",
+    "triggers": "hashtags kind:value at which it appears (e.g. tool:ssh, host:web1, fehler:timeout)",
+    "evidence": "how it was checked: command, host and time, or URL",
+    "hashtags": "hashtags kind:value (host:, tool:, skill:, thema:, fehler:)",
+    "query": "search words",
+    "page": "page name (slug), e.g. backup/borg",
+    "serial": "conversation serial YYYYMMDDNNN",
+    "name": "name: letters, digits, -",
+    "code": "Python source",
+    "prompt": "the user's prompt (masked by the hook, at most 4,000 characters; not stored)",
+    "token": "the instance's network token (vi_net_token) — proves the entries are its own",
+}
+_TOOL_PARAM_DOCS = {
+    ("vi_after", "ok"): "did the action succeed",
+    ("vi_after", "duration_ms"): "duration of the action in milliseconds",
+    ("vi_after", "error"): "error text when ok=false (secrets are masked)",
+    ("vi_after", "result"): "result when ok=true — a remembered answer for read-only tools",
+    ("vi_after", "before_id"): "the vorher_id vi_before returned for this action",
+    ("vi_ask", "to"): "target: an instance name, alle (all instances here), netz or netz:<name> (the AIs of the other servers)",
+    ("vi_ask", "text"): "the question",
+    ("vi_answer", "text"): "the answer",
+    ("vi_answer", "evidence"): "evidence: command, URL or measurement (required)",
+    ("vi_self", "versions"): "true: also the history of the self-image's versions",
+    ("vi_self_propose", "area"): "values, goals, style or limits",
+    ("vi_self_propose", "sentence"): "the proposed sentence",
+    ("vi_self_propose", "evidence"): "at least 3 object ids from at least 2 days",
+    ("vi_sleep", "now"): "true: sleep now (trusted instance only); otherwise the last report",
+    ("vi_archive", "id"): "id of an archived entry: its full content",
+    ("vi_solved", "steps"): "the tools of the solution path, in order",
+    ("vi_solved", "instructions"): "the solution path in words (at least 10 characters)",
+    ("vi_skill_merge", "a"): "id of the first skill",
+    ("vi_skill_merge", "b"): "id of the second skill",
+    ("vi_skill_merge", "name"): "name of the merged skill",
+    ("vi_net_outbox", "state"): "the network service's snapshot (peers, versions, rounds) — shown by vi_net_status and vi_stats W",
+    ("vi_net_inbox", "entries"): "logbook entries from the network service",
+    ("vi_release", "action"): "release (default) or discard",
+    ("vi_net_forget", "ids"): "ids of own entries to recall",
+    ("vi_net_forget", "all"): "true: recall every own entry in this network",
+    ("vi_prompt_context", "shown"): "ids already shown in this conversation (not repeated)",
+    ("vi_net_switch", "on"): "true switches the network on, false off",
+    ("vi_net_answer_search", "max"): "how many hits at most",
+    ("vi_page_write", "text"): "the whole page text (Markdown)",
+    ("vi_page_write", "base_rev"): "the revision you edited (from vi_page_read); not needed for a new page",
+    ("vi_page_write", "also_parents"): "further heads this revision merges (resolves a conflict)",
+    ("vi_page_write", "title"): "page title",
+    ("vi_page_write", "note"): "what changed and why",
+    ("vi_page_write", "source"): "where the content comes from",
+    ("vi_page_write", "delete"): "true: delete the page (a revision; it can be restored)",
+    ("vi_page_forget", "rev"): "id of an own revision",
+    ("vi_learn", "text"): "one concrete key statement — shown as a hint before matching actions",
+    ("vi_stats", "days"): "period in days (default 7)",
+    ("vi_recall", "limit"): "how many hits at most (default 10)",
+    ("vi_recall", "semantic"): "true: hybrid search — meaning (embedding) plus full text",
+    ("vi_tag", "add"): "hashtags to add",
+    ("vi_tag", "remove"): "hashtags to remove",
+    ("vi_feedback", "helped"): "ids of hints that helped",
+    ("vi_feedback", "wrong"): "ids of hints that misled",
+    ("vi_forget", "tool"): "the tool whose remembered answers are discarded",
+    ("vi_experience", "tool"): "only this tool",
+    ("vi_experience", "hours"): "period in hours (default 24)",
+    ("vi_conversation", "search"): "full-text search in conversation logs",
+    ("vi_conversation", "limit"): "how many conversations at most (default 20)",
+    ("vi_learn_search", "story"): "why this search finds the thing — a mnemonic",
+    ("vi_drilldown", "levels"): "how many levels at most (default 3)",
+    ("vi_set_visibility", "visibility"): "shared or internal",
+    ("vi_reflex_learn", "kind"): "tool, before or after",
+    ("vi_reflex_learn", "description"): "what the reflex does",
+    ("vi_reflex_list", "code"): "true: also the source code",
+    ("vi_reflex_switch", "mode"): "test (hint only), active (takes effect) or off",
+    ("vi_tools_register", "tools"): "the tool names from the server's tools/list",
+}
+
+
+def _describe_params() -> None:
+    """Fill missing descriptions — on a copy: several parameters share one schema object (_S, _TAGS), and a description set on it would
+    appear at every other parameter that uses it."""
+    for t in TOOLS:
+        props = t["inputSchema"].get("properties", {})
+        for p, spec in list(props.items()):
+            if not spec.get("description"):
+                d = _TOOL_PARAM_DOCS.get((t["name"], p)) or _PARAM_DOCS.get(p)
+                if d:
+                    props[p] = {**spec, "description": d}
+
+
+_describe_params()
 _NAMES = {t["name"] for t in TOOLS}
 _SCHEMAS = {t["name"]: t["inputSchema"] for t in TOOLS}
 

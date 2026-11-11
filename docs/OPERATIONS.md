@@ -240,9 +240,13 @@ and rewritten in English at the next package install, a copy of the old file sta
 |---|---|---|
 | `bind`, `port` | where the server listens | `127.0.0.1`, `8765` |
 | `db` | memory file (local file system, **no** NFS/SMB), or since 0.50.0 a `postgresql://` URL (see below) | `~/.local/share/vi-mcp/vi.db` |
-| `instanzen` | who may access (instances); `reflexe: true` = may learn/switch reflexes | — (without an instance the server does not start) |
+| `instances` | who may access (instances); `reflexes: true` = may learn/switch reflexes | — (without an instance the server does not start) |
 | `ttl` | validity of remembered answers per tool in s (max 3600) | 120 s |
 | `origins` | allowed `Origin` headers (browser clients); requests without an Origin are allowed | localhost |
+
+Every other key (`open`, `local`, `web`, `web_base`, `archive_days`, `p2p` with the networks, `reviewer_prompt`, `embed` …) and every
+field of the network service's `/etc/vi-p2p/<network>.json` is listed with its meaning and default in the generated
+[reference](REFERENCE.md).
 
 Another instance (e.g. an agent on the same host, without reflex permission):
 
