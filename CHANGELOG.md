@@ -3,6 +3,18 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.44.1 — 2026-11-11 — Prompt context: the best match first
+
+### What was fixed
+
+- **Hints for a prompt are ordered by how many of its words they share.** Before, they kept the full-text order.
+  - Measured on production right after the deploy of 0.44.0: for "warum stirbt das große Modell auf <host> mit Exit 137?" the
+    answering note came second. Before it was an ssh note that shared only the host name, and after it two more of that kind.
+  - Now the note sharing most words comes first. Notes that share only the host name (score ≤ 2) are dropped when another one shares
+    more.
+
+  *Proof:* `test_most_shared_words_first_and_host_only_noise_dropped`.
+
 ## 0.44.0 — 2026-11-11 — Memory for every question, follow-ups included (Claude Code and Hermes)
 
 ### What is new

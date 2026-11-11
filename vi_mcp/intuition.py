@@ -540,12 +540,20 @@ def prompt_hints(text: str, instance: str | None, shown: list[str] | None = None
             and not ("herkunft:schlaf-llm" in o.hashtags and not o.foreign_confirmations())]
     cand = p2p.without_blocked(cand)
     lw = [w.lower() for w in words]
-    out = []
-    for o in cand:
+    scored = []
+    for rank, o in enumerate(cand):
         hay = (o.text + " " + " ".join(o.hashtags)).lower()
         values = {t.split(":", 1)[1].lower() for t in o.hashtags if ":" in t}
         score = sum((2 if (_specific(w) or w in values) else 1) for w in lw if w in hay)
-        if score < (1 if len(words) == 1 else need):
+        if score >= (1 if len(words) == 1 else need):
+            scored.append((-score, rank, o))
+    # 0.44.1: most shared words first (measured on production: a note sharing only the host name came before the one that answered
+    # "warum stirbt das große Modell auf <host> mit Exit 137"); the full-text rank breaks ties. A host name alone is enough only if
+    # nothing shares more.
+    best = -min((s for s, _r, _o in scored), default=0)
+    out = []
+    for s, _rank, o in sorted(scored, key=lambda x: (x[0], x[1])):
+        if -s < best and -s <= 2:
             continue
         provenance = f"from {o.instance}" if o.instance else "from the server"
         label = {"regel": "Rule", "skill": "Skill", "bild": "Image", "seite": "Wiki page", "suche": "Search"}.get(o.kind, "Learned")

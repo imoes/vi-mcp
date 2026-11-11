@@ -46,6 +46,15 @@ def test_a_host_name_alone_is_enough_and_compounds_are_split(gd):
     assert intuition.prompt_hints("Wie ist das Passwort-Prompt Verhalten bei Telnet?", "a")["ids"] == []  # one plain shared word is not enough
 
 
+def test_most_shared_words_first_and_host_only_noise_dropped(gd):
+    """0.44.1, measured on production: notes that shared only the host name ranked before the one that answered the question."""
+    noise = [_k(f"ssh to buildhost07 note number {i} about the login banner", ["host:buildhost07"]) for i in range(3)]
+    k = _k("buildhost07 kills large models with exit 137: mlock OOM, use load-mode mmap", ["host:buildhost07", "fehler:exit-137"])
+    r = intuition.prompt_hints("Und warum stirbt das große Modell auf buildhost07 mit Exit 137?", "a")
+    assert r["ids"][0] == k.id and not set(r["ids"]) & {n.id for n in noise}
+    assert set(intuition.prompt_hints("Was läuft auf buildhost07?", "a")["ids"]) <= {k.id, *[n.id for n in noise]}  # host alone still finds
+
+
 def test_disputed_and_private_of_others_stay_out(gd):
     d = _k("ssh build host needs agent forwarding always", ["tool:ssh"])
     d.mode = "strittig"
