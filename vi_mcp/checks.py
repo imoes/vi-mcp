@@ -28,7 +28,8 @@ FIELDS = {
 }
 _HEX32 = re.compile(r"^[0-9a-f]{32}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
-FIXED_HASHTAGS = g.ADMIN_PREFIXES + ("herausgeber:", "pruefer:", "sicht:")
+#: netz: (0.39.0) names the network an import came from — set by the memory, never by a publisher
+FIXED_HASHTAGS = g.ADMIN_PREFIXES + ("herausgeber:", "pruefer:", "sicht:", "netz:")
 
 _INSTRUCTION = [
     ("direktive", re.compile(r"ignor\w*\s+(alle\w*\s+|all\s+|die\s+|the\s+)*(vorherig\w*|bisherig\w*|previous|prior)|du bist (jetzt|ab sofort)|you are now|"
@@ -104,8 +105,12 @@ def _check_text(b: Finding, name: str, text: str, url_allowed: bool = False) -> 
         b.reasons.append(f"{name}: URL in text")
 
 
-def check(raw, may_reflex: bool = False) -> Finding:
-    """One object against the fixed rules. Unknown fields (counters, mode, confirmations) are discarded."""
+def check(raw, may_reflex: bool = False, internal_ok: bool = False) -> Finding:
+    """One object against the fixed rules. Unknown fields (counters, mode, confirmations) are discarded.
+
+    internal_ok (0.39.0, company network): host names, sites and internal domains are allowed — every member belongs to the same
+    organisation and the imported object stays internal. Everything else (instructions, binary content, invisible characters) applies as always.
+    """
     b = Finding()
     if not isinstance(raw, dict):
         return b.reject("object is not a JSON object")
@@ -115,7 +120,7 @@ def check(raw, may_reflex: bool = False) -> Finding:
     o = {k: v for k, v in raw.items() if k in FIELDS[kind]}
     if not _HEX32.match(str(o.get("netz_id"))) or not _HEX64.match(str(o.get("loesch_hash"))):
         return b.reject("netz_id or loesch_hash missing: without them the object could never be deleted again")
-    if isinstance(o.get("hashtags"), list) and any(isinstance(t, str) and t.startswith(anonymize.LOCATION_REF[:-3]) for t in o["hashtags"]):
+    if not internal_ok and isinstance(o.get("hashtags"), list) and any(isinstance(t, str) and t.startswith(anonymize.LOCATION_REF[:-3]) for t in o["hashtags"]):
         return b.reject("internals in hashtags: site, host or person")
     text, source = o.get("text"), o.get("quelle")
     if not isinstance(text, str) or not TEXT_MIN <= len(text.strip()) <= TEXT_MAX:
@@ -178,7 +183,7 @@ def check(raw, may_reflex: bool = False) -> Finding:
         if _INVISIBLE.search(code):
             b.reject("code: invisible or control characters")
         b.reasons.append("reflex: source code must be released by a human")
-    for field_name, value in _contents(raw, o):
+    for field_name, value in ([] if internal_ok else _contents(raw, o)):
         if hits := anonymize.categories(value):
             return b.reject(f"internals in {field_name}: {', '.join(hits)}")
     b.mem_object = o

@@ -4,6 +4,9 @@ Modes: standalone (nothing runs), peer (outgoing only), peerhost (also accepts c
 Round: own knowledge into the logbook → reconcile states with up to `nachbarn` peers and fetch what is missing → new entries to the memory → nudge neighbours.
 Peers are found via the start list and via `adresse` entries in the logbooks. Every request is signed with the key; only members get an answer.
 Entries verify themselves; HTTPS and torrent are interchangeable ways to get them. Unencrypted HTTP only on the own machine or with `http_erlaubt`.
+0.39.0: one service per network (systemd vi-p2p@<netz>, config /etc/vi-p2p/<netz>.json); `vi-p2p` without a name is the network `standard`.
+`art` firma relays internal names (the memory decides authoritatively, see p2p.networks). Every outbox call carries a snapshot of
+peers, versions and backlog for vi_net_status and vi_stats.
 """
 from __future__ import annotations
 
@@ -23,6 +26,7 @@ from hashlib import sha256 as _sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from . import __version__
 from . import logbook as lb
 from .log_output import log
 
@@ -40,6 +44,9 @@ LOCAL = ("127.0.0.1", "localhost", "::1")
 @dataclass
 class NetConfig:
     mode: str = "standalone"
+    #: 0.39.0: name of the network (shown in reports) and its kind: offen (anonymised) or firma (internal names allowed in relayed objects)
+    net: str = "standard"
+    kind: str = "offen"
     db: str = "/var/lib/vi-p2p/netz.db"
     seed: str = "/var/lib/vi-p2p/schluessel"
     bind: str = "0.0.0.0"
@@ -70,7 +77,7 @@ def fpath() -> Path:
 #: Keys not listed here have the same name in file and dataclass.
 FILE_KEYS = {"modus": "mode", "adresse": "address", "ca_datei": "ca_file", "gruender": "founders", "takt_s": "tick_s",
              "min_runde_s": "min_round_s", "nachbarn": "neighbors", "http_erlaubt": "http_allowed", "glauben": "believe",
-             "mcp_token_datei": "mcp_token_file", "kein_proxy": "no_proxy"}
+             "mcp_token_datei": "mcp_token_file", "kein_proxy": "no_proxy", "netz": "net", "art": "kind"}
 
 
 def from_file(d: dict) -> NetConfig:
@@ -95,6 +102,8 @@ def load(p: Path | None = None) -> NetConfig:
     k = from_file(d)
     if k.mode not in MODES:
         raise ValueError(f"modus must be {', '.join(MODES)}")
+    if k.kind not in ("offen", "firma"):
+        raise ValueError("art must be offen or firma")
     return k
 
 
@@ -138,8 +147,8 @@ class McpClient:
             raise ValueError(text[:200])
         return json.loads(text)
 
-    def outbox(self) -> dict:
-        return self._call_tool("vi_net_outbox", {})
+    def outbox(self, state: dict | None = None) -> dict:
+        return self._call_tool("vi_net_outbox", {"state": state} if state else {})
 
     def inbox(self, entries: list[dict]) -> dict:
         return self._call_tool("vi_net_inbox", {"entries": entries})
@@ -148,7 +157,7 @@ class McpClient:
 class NetService:
     def __init__(self, k: NetConfig, mcp=None):
         self.k = k
-        self.log = lb.Logbook(Path(k.db), Path(k.seed), k.founders)
+        self.log = lb.Logbook(Path(k.db), Path(k.seed), k.founders, internal_ok=k.kind == "firma")
         self.mcp = mcp
         for a in k.startpeers:
             self.log.peer_remember(a, "start")
@@ -229,6 +238,11 @@ class NetService:
         """With one peer: exchange states, fetch what is missing. New invitations can unlock further publishers, hence several passes."""
         new = 0
         try:
+            try:  # 0.39.0: the peer's version — a new entry type is only written once every peer understands it
+                h = self._request(address, "GET", "/netz/gesund")
+                self.log.peer_state(address, version=str((h or {}).get("version") or "?"))
+            except (ValueError, OSError, TypeError, AttributeError):
+                pass
             for _ in range(4):
                 foreign = self._request(address, "POST", "/netz/koepfe", {"koepfe": self.log.headers()})["koepfe"]
                 own = self.log.headers()
@@ -246,11 +260,34 @@ class NetService:
             for pub, s in self.log.headers().items():
                 if s > int(foreign.get(pub, 0)) and self.log.is_member(pub):
                     self._push(address, pub, int(foreign.get(pub, 0)))
+            self._record_backlog(address)
             self.log.peer_result(address, True)
         except (urllib.error.URLError, OSError, TimeoutError, ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
             log(f"network: reconcile with {address}: {type(e).__name__}: {str(e)[:120]}")
             self.log.peer_result(address, False)
         return new
+
+    def _record_backlog(self, address: str) -> None:
+        """Entries of members the peer has and we lack, and the other way round — after the exchange, so ideally both 0."""
+        try:
+            foreign = self._request(address, "POST", "/netz/koepfe", {"koepfe": self.log.headers()})["koepfe"]
+        except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError):
+            return
+        own = self.log.headers()
+        members = self.log.members()
+        here = sum(max(0, int(s) - own.get(p, 0)) for p, s in foreign.items() if p in members and isinstance(s, int))
+        there = sum(max(0, s - int(foreign.get(p, 0) or 0)) for p, s in own.items() if p in members)
+        self.log.peer_state(address, missing_here=here, missing_there=there)
+
+    def snapshot(self) -> dict:
+        """0.39.0: what the memory shows in vi_net_status and vi_stats. Addresses stay on this machine (the memory is local)."""
+        st = self.log.status()
+        now = time.time()
+        peers = [{"adresse": p["adresse"], "version": p["version"], "zuletzt_s": round(now - p["zuletzt"]) if p["zuletzt"] else None, "fehler": p["fehler"],
+                  "erreichbar": bool(p["zuletzt"]) and p["fehler"] == 0, "fehlt_hier": p["fehlt_hier"], "fehlt_dort": p["fehlt_dort"]} for p in self.log.peers()]
+        return {"netz": self.k.net, "art": self.k.kind, "modus": self.k.mode, "pseudonym": lb.pseudonym(self.log.pub), "version": __version__,
+                "mitglieder": st["mitglieder"], "eintraege": st["eintraege"], "unbekannte_typen": st["unbekannte_typen"], "gabelungen": st["gabelungen"],
+                "verstoesse": st["verstoesse"], "peers": peers, "transport": dict(self.usage_stats)}
 
     def _fetch(self, address: str, pub: str, target: int) -> int:
         new = 0
@@ -316,7 +353,7 @@ class NetService:
         if not self.mcp:
             return 0
         try:
-            a = self.mcp.outbox()
+            a = self.mcp.outbox(self.snapshot())
         except (urllib.error.URLError, OSError, ValueError, KeyError, TimeoutError) as e:
             log(f"network: memory not reachable: {type(e).__name__}: {str(e)[:120]}")
             return 0
@@ -458,8 +495,8 @@ class NetService:
 
             def do_GET(self):
                 u = urllib.parse.urlsplit(self.path)
-                if u.path == "/netz/gesund":
-                    return self._send(200, {"zustand": "ok"})
+                if u.path == "/netz/gesund":  # version since 0.39.0: peers gate new entry types on it
+                    return self._send(200, {"zustand": "ok", "version": __version__})
                 if not self._authenticate(b""):
                     return None
                 parts = u.path.strip("/").split("/")

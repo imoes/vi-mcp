@@ -32,10 +32,23 @@ HEADER_OPTIONAL = {"netz_id", "loesch_hash"}
 MAX_CONTENT = 128 * 1024
 MAX_PER_DAY = 5000
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
+#: 0.39.0: forward compatibility. A type or optional header field a newer version introduces is accepted, stored and relayed (signature,
+#: chain and quota are checked as always), but not interpreted. Before, an older peer stopped the whole chain of that publisher.
+_NAME = re.compile(r"^[a-z][a-z_]{1,19}$")
+EXTRA_HEADER_MAX = 4
 _HEX32 = re.compile(r"^[0-9a-f]{32}$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 #: behind a reverse proxy the service lives under a path, e.g. https://host/vi-p2p
 _ADDRESS = re.compile(r"^https?://[^/\s?#]+(?:/[A-Za-z0-9._~-]+)*$")
+
+
+def version_tuple(v: str) -> tuple:
+    """'0.39.0' → (0, 39, 0); unusable parts count as 0."""
+    out = []
+    for part in str(v).split(".")[:3]:
+        digits = re.match(r"\d+", part)
+        out.append(int(digits.group(0)) if digits else 0)
+    return tuple(out + [0] * (3 - len(out)))
 
 
 def canonical(value) -> bytes:
@@ -93,11 +106,22 @@ def signature_valid(header: dict) -> bool:
     return isinstance(header.get("sig"), str) and valid(header["pub"], header["sig"], canonical({k: v for k, v in header.items() if k != "sig"}))
 
 
+def known_type(type_) -> bool:
+    return type_ in TYPE_NAMES
+
+
+def _extra_ok(key, value) -> bool:
+    return bool(_NAME.match(key)) and (isinstance(value, str) and len(value) <= 200 or isinstance(value, int) and not isinstance(value, bool))
+
+
 def header_form(header) -> str | None:
     """Pure. Reason why a header is not in order, otherwise None."""
-    if not isinstance(header, dict) or not HEADER_REQUIRED <= set(header) or not set(header) <= HEADER_REQUIRED | HEADER_OPTIONAL:
+    if not isinstance(header, dict) or not HEADER_REQUIRED <= set(header):
         return "header has wrong fields"
-    if header["v"] != VERSION or header["typ"] not in TYPE_NAMES or not isinstance(header["pub"], str) or not _HEX64.match(header["pub"]):
+    extra = set(header) - HEADER_REQUIRED - HEADER_OPTIONAL
+    if len(extra) > EXTRA_HEADER_MAX or not all(_extra_ok(k, header[k]) for k in extra):
+        return "header has wrong fields"
+    if header["v"] != VERSION or not isinstance(header["typ"], str) or not _NAME.match(header["typ"]) or not isinstance(header["pub"], str) or not _HEX64.match(header["pub"]):
         return "header: version, type or key unusable"
     if isinstance(header["seq"], bool) or not isinstance(header["seq"], int) or header["seq"] < 1 or not (header["vor"] is None or (isinstance(header["vor"], str) and _HEX64.match(header["vor"]))):
         return "header: number or predecessor unusable"
@@ -118,14 +142,17 @@ def valid_control_form(type_: str, content) -> bool:
     if type_ in ("einladung", "ausschluss"):
         return set(content) == {"pub"} and isinstance(content["pub"], str) and bool(_HEX64.match(content["pub"]))
     if type_ == "adresse":
-        # pin: SHA-256 of the TLS certificate, for peerhosts without a public CA (since 0.15.0; older peers reject the field)
-        return set(content) in ({"adresse"}, {"adresse", "pin"}) and isinstance(content["adresse"], str) and bool(_ADDRESS.match(content["adresse"])) \
-            and ("pin" not in content or (isinstance(content["pin"], str) and bool(_HEX64.match(content["pin"]))))
+        # pin: SHA-256 of the TLS certificate, for peerhosts without a public CA (since 0.15.0). Since 0.39.0 further short fields of a newer
+        # version are tolerated (before, an older peer rejected the entry and with it the whole chain)
+        extra = set(content) - {"adresse", "pin"}
+        return "adresse" in content and isinstance(content["adresse"], str) and bool(_ADDRESS.match(content["adresse"])) \
+            and ("pin" not in content or (isinstance(content["pin"], str) and bool(_HEX64.match(content["pin"])))) \
+            and len(extra) <= EXTRA_HEADER_MAX and all(_NAME.match(k) and len(canonical(content[k])) <= 500 for k in extra)
     return False
 
 
 class Logbook:
-    def __init__(self, fpath: Path, seed: Path, founders: list[str]):
+    def __init__(self, fpath: Path, seed: Path, founders: list[str], internal_ok: bool = False):
         Path(fpath).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.lock = threading.RLock()
         old_umask_value = os.umask(0o077)
@@ -148,8 +175,12 @@ class Logbook:
             CREATE TABLE IF NOT EXISTS beitritt (nonce_sha TEXT PRIMARY KEY, ablauf REAL NOT NULL, benutzt TEXT);
             CREATE TABLE IF NOT EXISTS segment (sha256 TEXT PRIMARY KEY, pub TEXT NOT NULL, von INTEGER NOT NULL, bis INTEGER NOT NULL, torrent TEXT NOT NULL, port INTEGER NOT NULL, datei TEXT NOT NULL);
         """)
-        if "pin" not in [r[1] for r in self.db.execute("PRAGMA table_info(peer)")]:
-            self.db.execute("ALTER TABLE peer ADD COLUMN pin TEXT")
+        cols = [r[1] for r in self.db.execute("PRAGMA table_info(peer)")]
+        for col, typ in (("pin", "TEXT"), ("version", "TEXT"), ("version_zeit", "REAL"), ("fehlt_hier", "INTEGER"), ("fehlt_dort", "INTEGER")):
+            if col not in cols:  # 0.39.0: version and backlog per peer, for vi_net_status and vi_stats
+                self.db.execute(f"ALTER TABLE peer ADD COLUMN {col} {typ}")
+        #: 0.39.0: a company network relays internal names (its members belong to one organisation); the open network rejects them
+        self.internal_ok = internal_ok
         self.k = private(seed)
         self.pub = public_hex(self.k)
         self.founders = list(founders)
@@ -265,14 +296,14 @@ class Logbook:
         if sha256(content) != header["sha"] or len(canonical(content)) > MAX_CONTENT or not isinstance(content, dict) or content.get("netz_id") != header["netz_id"] or content.get("loesch_hash") != header["loesch_hash"]:
             self._violation(header["pub"])
             return None
-        if checks.check(content, may_reflex=True).verdict == "ablehnen":
+        if checks.check(content, may_reflex=True, internal_ok=self.internal_ok).verdict == "ablehnen":
             self._violation(header["pub"])
             return None
         return content
 
     def ingest(self, entries) -> dict:
         """Check and store foreign entries. An error only stops this publisher's logbook for this pass."""
-        report = {"neu": 0, "bekannt": 0, "abgelehnt": 0, "gruende": []}
+        report = {"neu": 0, "bekannt": 0, "abgelehnt": 0, "unbekannt": 0, "gruende": []}
         stopped: set[str] = set()
 
         def stop(pub, reason):
@@ -317,6 +348,14 @@ class Logbook:
                     continue
                 if header["typ"] == "objekt":
                     to_save = self._object_content(header, content)
+                elif not known_type(header["typ"]):
+                    # a type of a newer version: relayed, not interpreted; content only against checksum and size
+                    if content is not None and (sha256(content) != header["sha"] or len(canonical(content)) > MAX_CONTENT):
+                        self._violation(pub)
+                        stop(pub, f"content of type {header['typ']} unusable")
+                        continue
+                    to_save = content
+                    report["unbekannt"] += 1
                 else:
                     if not valid_control_form(header["typ"], content) or sha256(content) != header["sha"] or (header["typ"] == "widerruf" and content["ziel"] != header["netz_id"]):
                         self._violation(pub)
@@ -325,7 +364,7 @@ class Logbook:
                     to_save = content
                 self._insert(header, to_save)
                 report["neu"] += 1
-                if to_save is not None:
+                if to_save is not None and known_type(header["typ"]):
                     self._apply_effects(header, to_save)
         report["gruende"] = report["gruende"][:20]
         return report
@@ -370,8 +409,9 @@ class Logbook:
 
     def peers(self) -> list[dict]:
         with self.lock:
-            lines = self.db.execute("SELECT adresse, quelle, pin, zuletzt, fehler, naechster FROM peer ORDER BY adresse").fetchall()
-        return [{"adresse": a, "quelle": q, "pin": p, "zuletzt": z, "fehler": f, "naechster": n} for a, q, p, z, f, n in lines]
+            lines = self.db.execute("SELECT adresse, quelle, pin, zuletzt, fehler, naechster, version, fehlt_hier, fehlt_dort FROM peer ORDER BY adresse").fetchall()
+        return [{"adresse": a, "quelle": q, "pin": p, "zuletzt": z, "fehler": f, "naechster": n, "version": v, "fehlt_hier": fh, "fehlt_dort": fd}
+                for a, q, p, z, f, n, v, fh, fd in lines]
 
     # ---- Joining with a code: one-time, time-limited, only the hash is stored here ----
 
@@ -404,6 +444,20 @@ class Logbook:
             all_ = [r[0] for r in self.db.execute("SELECT adresse FROM peer WHERE naechster <= ?", (time.time(),)) if r[0] != excluding]
         random.shuffle(all_)
         return all_[:n]
+
+    def peer_state(self, address: str, version: str | None = None, missing_here: int | None = None, missing_there: int | None = None) -> None:
+        """0.39.0: what a peer reported at the last reconciliation (version from /netz/gesund, backlog in entries both ways)."""
+        with self.lock:
+            if version is not None:
+                self.db.execute("UPDATE peer SET version = ?, version_zeit = ? WHERE adresse = ?", (str(version)[:20], time.time(), address))
+            if missing_here is not None:
+                self.db.execute("UPDATE peer SET fehlt_hier = ?, fehlt_dort = ? WHERE adresse = ?", (missing_here, missing_there, address))
+
+    def peers_below(self, minimum: str, days: float = 7) -> list[str]:
+        """Peers seen in the last `days` whose reported version is older than `minimum` or unknown. Guards a new entry type."""
+        with self.lock:
+            lines = self.db.execute("SELECT adresse, version FROM peer WHERE zuletzt >= ?", (time.time() - days * 86400,)).fetchall()
+        return sorted(a for a, v in lines if not v or version_tuple(v) < version_tuple(minimum))
 
     def peer_result(self, address: str, ok: bool) -> None:
         with self.lock:
@@ -446,7 +500,8 @@ class Logbook:
             d = {"eintraege": self.db.execute("SELECT COUNT(*) FROM eintrag").fetchone()[0], "inhalte": self.db.execute("SELECT COUNT(*) FROM inhalt").fetchone()[0],
                  "grabsteine": self.db.execute("SELECT COUNT(*) FROM grab").fetchone()[0], "gabelungen": self.db.execute("SELECT COUNT(*) FROM gabelung").fetchone()[0],
                  "verstoesse": self.db.execute("SELECT COALESCE(SUM(n), 0) FROM verstoss").fetchone()[0], "segmente": self.db.execute("SELECT COUNT(*) FROM segment").fetchone()[0],
-                 "peers": self.db.execute("SELECT COUNT(*) FROM peer").fetchone()[0], "peers_erreichbar": self.db.execute("SELECT COUNT(*) FROM peer WHERE fehler = 0 AND zuletzt IS NOT NULL").fetchone()[0]}
+                 "peers": self.db.execute("SELECT COUNT(*) FROM peer").fetchone()[0], "peers_erreichbar": self.db.execute("SELECT COUNT(*) FROM peer WHERE fehler = 0 AND zuletzt IS NOT NULL").fetchone()[0],
+                 "unbekannte_typen": self.db.execute("SELECT COUNT(*) FROM eintrag WHERE typ NOT IN (%s)" % ",".join("?" * len(TYPE_NAMES)), TYPE_NAMES).fetchone()[0]}
         return {**d, "mitglieder": len(self.members())}
 
     def close(self) -> None:

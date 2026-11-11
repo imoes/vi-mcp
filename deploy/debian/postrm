@@ -3,6 +3,7 @@
 set -e
 if [ "$1" = "remove" ]; then
     systemctl disable vi-mcp.service vi-p2p.service >/dev/null 2>&1 || true
+    for u in $(systemctl list-unit-files 'vi-p2p@*.service' --no-legend 2>/dev/null | awk '{print $1}'); do systemctl disable "$u" >/dev/null 2>&1 || true; done
     systemctl daemon-reload >/dev/null 2>&1 || true
 fi
 if [ "$1" = "purge" ]; then

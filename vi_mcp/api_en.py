@@ -29,7 +29,7 @@ PARAM_ALIASES: dict[str, str] = {
     "aktion": "action", "alle": "all", "an": "to", "anleitung": "instructions", "art": "kind", "ausgang": "outcome", "belege": "evidence",
     "bereich": "area", "beschreibung": "description", "dauer_ms": "duration_ms", "eintraege": "entries", "ergebnis": "result", "fehler": "error",
     "geschichte": "story", "grund": "reason", "hinzu": "add", "inhalt": "content", "jetzt": "now", "kontext_hashtags": "context_hashtags",
-    "lesend": "read_only", "modus": "mode", "quelle": "source", "reize": "triggers", "satz": "sentence", "schritte": "steps", "semantisch": "semantic",
+    "lesend": "read_only", "modus": "mode", "netz": "network", "stand": "state", "quelle": "source", "reize": "triggers", "satz": "sentence", "schritte": "steps", "semantisch": "semantic",
     "sicht": "visibility", "stufen": "levels", "stunden": "hours", "suche": "search", "tage": "days", "versionen": "versions",
     "vorher_id": "before_id", "weg": "remove", "wichtigkeit": "importance",
 }

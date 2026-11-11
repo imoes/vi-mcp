@@ -29,6 +29,11 @@ JSON
     systemctl enable vi-mcp.service >/dev/null 2>&1 || true
     # prerm stops the network service during an upgrade; try-restart would not start it again
     if systemctl is-enabled --quiet vi-p2p.service 2>/dev/null; then systemctl restart vi-p2p.service >/dev/null 2>&1 || true; fi
+    # 0.39.0: further networks (vi-p2p@<netz>), each with /etc/vi-p2p/<netz>.json
+    for f in /etc/vi-p2p/*.json; do
+        n=$(basename "$f" .json); [ "$n" = config ] && continue
+        if systemctl is-enabled --quiet "vi-p2p@$n.service" 2>/dev/null; then systemctl restart "vi-p2p@$n.service" >/dev/null 2>&1 || true; fi
+    done
     if python3 -c "import json,sys; sys.exit(0 if json.load(open('/etc/vi-mcp/config.json')).get('instanzen') else 1)"; then
         systemctl restart vi-mcp.service >/dev/null 2>&1 || true
     fi

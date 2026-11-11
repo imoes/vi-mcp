@@ -305,3 +305,20 @@ def test_company_names_and_internal_paths_are_replaced():
     assert anonymize.companies({"x.github.com", "a.b"}) == set()  # public domains and too-short names are not companies
     # non-hosts from host: hashtags (file names, paths) yield no company names (seen in production: changelog, felder)
     assert anonymize.companies({"CHANGELOG.md", "felder.py", "app/services/stibodx", "docs/*", "web1.beispiel-firma.media"}) == {"beispiel-firma"}
+
+
+def test_company_network_export_keeps_the_open_network_clean(publisher, monkeypatch):
+    """0.39.0: the company export (no anonymising) is a new kind of export — it must never leak into the open network, and even there
+    images and credentials stay home."""
+    monkeypatch.setattr(p2p, "config", {**p2p.config, "netze": {"firma": {"art": "firma", "instanz": "netz-firma"}}})
+    p2p.generate_token("alice-laptop")
+    _mk_obj("Auf srv-alpha ist 10.9.1.5 der Gateway, gemeldet von alice-laptop", tags=("thema:netz", "host:srv-alpha"), instance="alice-laptop")
+    internal = _mk_obj("srv-beta hängt am Switch sw-07 im Keller, Port 12", tags=("thema:netz", "host:srv-beta"), instance="alice-laptop")
+    internal.visibility = "intern"
+    g.save(internal)
+    _mk_obj("Das Passwort für srv-gamma steht im Tresor unter Netz", tags=("thema:netz",), instance="alice-laptop")
+    company = json.dumps(p2p.outbox("firma"), ensure_ascii=False)
+    assert "srv-alpha" in company and "srv-beta" in company and "Passwort" not in company
+    open_ = json.dumps(p2p.outbox("standard"), ensure_ascii=False)
+    for forbidden in ("srv-alpha", "srv-beta", "10.9.1.5", "alice-laptop", "sw-07", "host:", "Passwort"):
+        assert forbidden not in open_, forbidden

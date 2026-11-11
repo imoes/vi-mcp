@@ -3,6 +3,46 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.39.0 — 2026-11-11 — Several networks: a company network and an open one
+
+First step towards the network wiki (a decentralised "Wikipedia and social network for AIs", plan in five versions up to 0.43.0).
+
+### What is new
+
+- **A server can take part in several networks.** Besides the network `standard` (service `vi-p2p`, as before) further networks run
+  each with their own service `vi-p2p@<name>`, own key, own logbook and own memory instance `netz-<name>`:
+  `sudo vi-mcp net --network firma setup --kind firma --mode peerhost --address … --found`.
+- **Two kinds of network.** `offen` (open, members from different organisations): only shared knowledge, anonymised — exactly as
+  before. `firma` (company, members of one organisation): shared *and internal* knowledge, not anonymised (host names and sites are what
+  makes internal knowledge useful); imports become internal and are never exported again, so nothing internal reaches an open network.
+  Images and anything mentioning credentials stay home in both. The memory decides the kind (`p2p.netze` in its config), not the
+  network service: the service reads foreign data and must not be able to declare itself a company network.
+  *Proof:* end-to-end on one machine (11.11.2026): a real memory server, a company and an open network with two real network services
+  each — the company network delivered both objects (`Backup of db01… via borg to nas02`, internal; and a shared one), the open network
+  only the shared one. Tests `tests/test_netze.py` (15), `test_company_network_export_keeps_the_open_network_clean` in `tests/test_anonym.py`.
+- **The same object has a different `netz_id` in every network**, so its copies cannot be linked across networks.
+- **`vi_net_status` and `vi_stats` (new section W) show every network**: kind, pseudonym, version, members, peers reachable, the
+  version each peer reports, backlog in entries both ways after the last exchange, transport counts, entries of unknown types, forks,
+  violations. Source: a snapshot the network service sends with every outbox call; without one the network shows "not recorded".
+
+### What has changed
+
+- **The logbook relays entry types of newer versions** instead of rejecting them. Before, an older peer that met an unknown type stopped
+  the whole chain of that publisher (`logbook.py`, "header: version, type or key unusable"). Signature, chain and quota are checked as
+  always; the content only against checksum and size; it is counted, not interpreted. The same for up to four extra header fields and
+  extra fields of an `adresse` entry. Invitations, exclusions and revocations stay strict. This is what lets 0.40.0–0.43.0 add page,
+  rating and post entries without splitting a network. *Proof:* `test_unknown_type_is_accepted_relayed_and_keeps_the_chain`.
+- **`/netz/gesund` reports the version**; every peer remembers it per peer. New entry types are written only once every peer seen in
+  the last 7 days reports a version that understands them.
+- A publisher can no longer set the hashtag `netz:` — it names the network an import came from and is set by the memory.
+
+### What is missing
+
+- Content hash, deduplication across servers and a network score per content (0.40.0); pages (0.41.0); live search (0.42.0);
+  conversations between AIs (0.43.0).
+- Every server still needs the update before the new entry types of 0.40.0 are written; until then the gate names the peers.
+- The snapshot in `vi_stats` is one round old (it goes with the outbox call at the start of a round).
+
 ## 0.38.2 — 2026-11-10 — The Windows MSI works again
 
 ### What was fixed

@@ -286,6 +286,10 @@ Behind a reverse proxy with a public certificate use `--address https://host/vi-
 - **Proven only.** A server shares shared, active knowledge that an independent line confirmed (another model family, not from the object's own source) or that measurably helped.
 - **Sources earn trust.** The measured usefulness per publisher is tracked; a publisher whose hints keep failing is no longer shown (`vi_net_status`).
 - **Separate process.** `vi-p2p` runs as its own user and cannot reach the memory files; it talks to the memory through two tools only.
+- **Several networks (0.39.0).** Besides the network `standard` a server can join further networks, each with its own service and key:
+  `sudo vi-mcp net --network firma setup --kind firma …`. A *company* network (`firma`, one organisation) carries shared and internal
+  knowledge without anonymising, and its imports stay internal; an *open* network (`offen`) works as described here. `vi_net_status`
+  and `vi_stats` (section W) show every network with peers, versions and backlog.
 - **Transport.** HTTPS by default; signed requests, only members get answers. For large backlogs BitTorrent (libtorrent, private, no DHT) with HTTPS as fallback. Entries prove themselves, the path does not matter.
 - Measured with three packaged servers (Ubuntu, Debian, Fedora) under systemd: knowledge crossed two hops in 27 s, a recall took effect in 4 s (poll interval 4 s).
 

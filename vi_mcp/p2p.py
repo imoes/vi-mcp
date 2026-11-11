@@ -10,6 +10,12 @@ Inbox flow: signature → fixed rules (checks.py) → quarantine → reviewer (r
 Only source text is distributed, as a JSON field. Imported content is a text hint and triggers nothing; code runs only in the sandbox.
 Release: unremarkable objects by an instance with reflex permission or, if `p2p.auto_freigabe` is set, automatically during sleep. Reflexes, write access,
 detected instructions and everything without a positive review verdict only by an instance with release permission, whose token stays on the server (vi-mcp release).
+
+0.39.0 — several networks. Every network has its own network service (own key, own logbook) and its own instance on this memory; the
+memory, not the service, decides what kind a network is (config `p2p.netze`), because the service reads foreign data:
+  offen (open)   members from different organisations: only shared knowledge, anonymised; imports are shared (as before 0.39.0)
+  firma (company) members of one organisation: shared and internal knowledge, not anonymised; imports are internal, never re-exported
+The network `standard` is the one that existed before 0.39.0: instance `p2p`, kind offen.
 """
 from __future__ import annotations
 
@@ -35,8 +41,34 @@ PROVEN_YES = 3
 EXPORT_KINDS = ("erkenntnis", "regel", "suche", "skill")
 RELEASE_STATUS_OK = "zulassen"
 
-#: {"reflexe_von": [pubkey], "auto_freigabe": bool, "oeffentliche_domains": [...], "interne_namen": [...]}
+#: {"reflexe_von": [pubkey], "auto_freigabe": bool, "oeffentliche_domains": [...], "interne_namen": [...],
+#:  "netze": {name: {"art": "firma"|"offen", "instanz": "netz-<name>"}}}
 config: dict = {}
+STANDARD = "standard"
+NET_KINDS = ("offen", "firma")
+NET_NAME = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
+
+
+def networks() -> dict[str, dict]:
+    """Every network this memory takes part in: name → {art, instanz}. Unusable entries are reported, not used."""
+    out = {STANDARD: {"art": "offen", "instanz": "p2p"}}
+    for name, d in (config.get("netze") or {}).items():
+        if not isinstance(d, dict) or not NET_NAME.match(str(name)) or name == STANDARD or d.get("art") not in NET_KINDS \
+                or not isinstance(d.get("instanz"), str) or d["instanz"] in ("p2p",):
+            from .log_output import log
+            log(f"p2p: network {name!r} ignored: needs a name a-z0-9-, art {' or '.join(NET_KINDS)} and its own instance")
+            continue
+        out[name] = {"art": d["art"], "instanz": d["instanz"]}
+    return out
+
+
+def network_of(instance: str) -> str | None:
+    """The network whose service authenticates as this instance, or None."""
+    return next((n for n, d in networks().items() if d["instanz"] == instance), None)
+
+
+def is_company(net: str) -> bool:
+    return networks().get(net, {}).get("art") == "firma"
 
 
 def _proven(o: g.MemoryObject) -> bool:
@@ -52,13 +84,17 @@ def _tables() -> None:
             CREATE TABLE IF NOT EXISTS netz_widerruf (oid TEXT PRIMARY KEY, instanz TEXT NOT NULL, netz_id TEXT NOT NULL, token TEXT NOT NULL, zeit TEXT NOT NULL, grund TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS p2p_netz (netz_id TEXT PRIMARY KEY, oid TEXT NOT NULL, loesch_hash TEXT NOT NULL, sha TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS p2p_grab (netz_id TEXT PRIMARY KEY, token_sha TEXT NOT NULL, zeit TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS netz_stand (netz TEXT PRIMARY KEY, zeit TEXT NOT NULL, daten TEXT NOT NULL);
         """)
         g.db().commit()
 
 
-def _object_token(token: str, oid: str) -> tuple[str, str]:
-    """(netz_id, object_token). Neither can be derived from the other, nor the instance token from either."""
-    return hmac.new(token.encode(), b"id|" + oid.encode(), hashlib.sha256).hexdigest()[:32], hmac.new(token.encode(), b"vergessen|" + oid.encode(), hashlib.sha256).hexdigest()
+def _object_token(token: str, oid: str, net: str = STANDARD) -> tuple[str, str]:
+    """(netz_id, object_token). Neither can be derived from the other, nor the instance token from either.
+    0.39.0: per network a different pair — the same object in two networks cannot be linked by its netz_id."""
+    scope = b"" if net == STANDARD else net.encode() + b"|"
+    return (hmac.new(token.encode(), b"id|" + scope + oid.encode(), hashlib.sha256).hexdigest()[:32],
+            hmac.new(token.encode(), b"vergessen|" + scope + oid.encode(), hashlib.sha256).hexdigest())
 
 
 def generate_token(instance: str) -> str:
@@ -93,8 +129,11 @@ def _known() -> frozenset[str]:
     return frozenset(n for n in names if n and len(n) >= 3 and n.lower() not in anonymize.GENERIC and not n.startswith("p2p-"))
 
 
-def _export_form(o: g.MemoryObject, token: str, known_set: frozenset[str]) -> tuple[dict | None, str | None]:
-    """The object as the network would see it, or (None, reason). The reason names only the class, never the value."""
+def _export_form(o: g.MemoryObject, token: str, known_set: frozenset[str], net: str = STANDARD) -> tuple[dict | None, str | None]:
+    """The object as the network would see it, or (None, reason). The reason names only the class, never the value.
+    In a company network (0.39.0) nothing is anonymised: host names and sites are what makes internal knowledge useful there."""
+    if is_company(net):
+        return _company_form(o, token, net)
     raw_content = str(o.data.get("inhalt") or "")
     if o.data.get("bild"):  # 0.35.0: the network carries text; an image (and what it shows) stays on this server
         return None, "has an image (images stay on this server)"
@@ -133,16 +172,46 @@ def _export_form(o: g.MemoryObject, token: str, known_set: frozenset[str]) -> tu
     return outputs, None
 
 
-def _collect(instance: str | None = None) -> tuple[list[tuple[g.MemoryObject, dict]], dict[str, int]]:
+def _company_form(o: g.MemoryObject, token: str, net: str) -> tuple[dict | None, str | None]:
+    """Export form for a company network: unchanged text, hashtags without the reserved ones; images and credentials still stay home."""
+    raw_content = str(o.data.get("inhalt") or "")
+    if o.data.get("bild"):
+        return None, "has an image (images stay on this server)"
+    if anonymize.CREDENTIAL_WORDS.search(o.text) or anonymize.CREDENTIAL_WORDS.search(raw_content):
+        return None, "mentions credentials"
+    if len(raw_content) > checks.CONTENT_MAX:
+        return None, "content too large for the network"
+    ts = o.ts[:10]
+    net_id, object_token = _object_token(token, o.id, net)
+    outputs = {"art": o.kind, "text": o.text, "hashtags": sorted({t for t in o.hashtags if not t.startswith(checks.FIXED_HASHTAGS)}),
+               "quelle": str(o.data.get("quelle") or f"geteilte Erfahrung vom {ts}")[:500], "wichtigkeit": o.importance, "zeit": ts,
+               "netz_id": net_id, "loesch_hash": hashlib.sha256(object_token.encode()).hexdigest()}
+    if raw_content:
+        outputs["inhalt"] = raw_content
+    if o.kind == "erkenntnis" and o.data.get("ausgang"):
+        outputs["ausgang"] = o.data["ausgang"]
+    if o.kind == "suche":
+        outputs.update(name=o.data["name"], filter=o.data["filter"], reize=[t for t in outputs["hashtags"] if not t.startswith("suche:")])
+    if o.kind == "skill":
+        outputs.update(name=o.data["name"], reize=sorted(set(o.data["problem"]["reize"])), schritte=[s["tool"] for s in o.data["loesung"]["schritte"]])
+    probe = checks.check(outputs, internal_ok=True)
+    if probe.verdict == "ablehnen":
+        return None, "own import rules: " + ", ".join(g_.split(":")[0] for g_ in probe.reasons)[:120]
+    return outputs, None
+
+
+def _collect(instance: str | None = None, net: str = STANDARD) -> tuple[list[tuple[g.MemoryObject, dict]], dict[str, int]]:
     _tables()
     with g.lock:
         withdrawn = {r[0] for r in g.db().execute("SELECT oid FROM netz_widerruf")}
         tokens = dict(g.db().execute("SELECT instanz, token FROM netz_token").fetchall())
     known_set = _known()
     outputs, reason = [], Counter()
+    # internal knowledge only into a company network; private never
+    visibilities = ("geteilt", "intern") if is_company(net) else ("geteilt",)
     for kind in EXPORT_KINDS:
         for _, o, _g in g.recall(f"art:{kind} !herkunft:p2p", limit=MAX_OBJECTS, viewer=None):
-            if o.visibility != "geteilt" or o.mode != "aktiv" or o.id in withdrawn or (instance and o.instance != instance):
+            if o.visibility not in visibilities or o.mode != "aktiv" or o.id in withdrawn or (instance and o.instance != instance):
                 continue
             if not _proven(o):
                 reason["not yet proven"] += 1
@@ -150,7 +219,7 @@ def _collect(instance: str | None = None) -> tuple[list[tuple[g.MemoryObject, di
             if o.instance not in tokens:
                 reason["instance has no network token"] += 1
                 continue
-            raw, g_ = _export_form(o, tokens[o.instance], known_set)
+            raw, g_ = _export_form(o, tokens[o.instance], known_set, net)
             if raw is None:
                 reason[g_] += 1
             else:
@@ -158,10 +227,12 @@ def _collect(instance: str | None = None) -> tuple[list[tuple[g.MemoryObject, di
     return outputs[:MAX_OBJECTS], dict(reason)
 
 
-def preview(instance: str, limit: int = 10) -> dict:
+def preview(instance: str, limit: int = 10, net: str = STANDARD) -> dict:
     """What would go out from this instance — exactly the form the network would see."""
-    mem_objects, withheld = _collect(instance)
-    return {"anzahl": len(mem_objects), "zurueckgehalten": withheld, "beispiele": [r for _o, r in mem_objects[:limit]]}
+    if net not in networks():
+        raise ValueError(f"unknown network {net!r} — known: {', '.join(networks())}")
+    mem_objects, withheld = _collect(instance, net)
+    return {"netz": net, "art": networks()[net]["art"], "anzahl": len(mem_objects), "zurueckgehalten": withheld, "beispiele": [r for _o, r in mem_objects[:limit]]}
 
 
 def net_forget(instance: str, token: str, ids: list[str] | None, reason: str) -> dict:
@@ -188,16 +259,47 @@ def net_forget(instance: str, token: str, ids: list[str] | None, reason: str) ->
     return {"zurueckgerufen": n, "unbekannt": unknown}
 
 
-def _revocations() -> list[dict]:
+def _revocations(net: str = STANDARD) -> list[dict]:
+    """Revocations in the form of this network: netz_id and object token are derived per network from the instance token."""
     _tables()
     with g.lock:
-        return [{"netz_id": a, "token": b} for a, b in g.db().execute("SELECT netz_id, token FROM netz_widerruf ORDER BY zeit")]
+        lines = g.db().execute("SELECT oid, instanz, netz_id, token FROM netz_widerruf ORDER BY zeit").fetchall()
+        tokens = dict(g.db().execute("SELECT instanz, token FROM netz_token").fetchall())
+    out = []
+    for oid, inst, net_id, token in lines:
+        if net == STANDARD:
+            out.append({"netz_id": net_id, "token": token})
+        elif inst in tokens:
+            nid, t = _object_token(tokens[inst], oid, net)
+            out.append({"netz_id": nid, "token": t})
+    return out
 
 
-def outbox() -> dict:
+def outbox(net: str = STANDARD) -> dict:
     """What may go to the network, unsigned: signing is the network service's job, which keeps its key to itself."""
-    mem_objects, withdrawn = _collect()
-    return {"objekte": [r for _o, r in mem_objects], "widerrufe": _revocations(), "zurueckgehalten": withdrawn}
+    mem_objects, withdrawn = _collect(None, net)
+    return {"objekte": [r for _o, r in mem_objects], "widerrufe": _revocations(net), "zurueckgehalten": withdrawn}
+
+
+def record_state(net: str, state) -> None:
+    """0.39.0: the network service's snapshot (peers, versions, backlog, transport), sent with every outbox call. Kept with its time:
+    an old snapshot is shown with its age, a missing one as 'not recorded'."""
+    if not isinstance(state, dict):
+        return
+    _tables()
+    raw = json.dumps(state, ensure_ascii=False)[:200_000]
+    with g.lock:
+        g.db().execute("INSERT INTO netz_stand (netz, zeit, daten) VALUES (?,?,?) ON CONFLICT(netz) DO UPDATE SET zeit = excluded.zeit, daten = excluded.daten",
+                       (net, g.now(), raw))
+        g.db().commit()
+
+
+def states() -> dict[str, dict]:
+    """net → {"zeit": …, "daten": {…}} of the last snapshot."""
+    _tables()
+    with g.lock:
+        lines = g.db().execute("SELECT netz, zeit, daten FROM netz_stand").fetchall()
+    return {n: {"zeit": z, "daten": json.loads(d)} for n, z, d in lines}
 
 
 def _apply_forget(revocations) -> int:
@@ -228,13 +330,13 @@ def _apply_forget(revocations) -> int:
     return n
 
 
-def _create(b: checks.Finding, header: dict, sha: str) -> g.MemoryObject:
+def _create(b: checks.Finding, header: dict, sha: str, net: str = STANDARD) -> g.MemoryObject:
     name = pseudonym(header["pub"])
     o, short = b.mem_object, sha[:16]
     instance = f"p2p-{name}"
-    data = {"quelle": o["quelle"], "herkunft": {"herausgeber": name, "pubkey": header["pub"], "seq": header["seq"], "sha256": sha, "netz_id": o["netz_id"]},
+    data = {"quelle": o["quelle"], "herkunft": {"herausgeber": name, "pubkey": header["pub"], "seq": header["seq"], "sha256": sha, "netz_id": o["netz_id"], "netz": net},
              "pruefung": {"regeln": b.reasons, "pruefer": None}, "fremd_text": o["text"], "fremd_hashtags": o["hashtags"]}
-    tags = o["hashtags"] + ["herkunft:p2p", f"herausgeber:{name}", "pruefer:ausstehend", "modus:quarantaene"]
+    tags = o["hashtags"] + ["herkunft:p2p", f"herausgeber:{name}", "pruefer:ausstehend", "modus:quarantaene", f"netz:{net}"]
     if o["art"] == "erkenntnis" and o.get("ausgang"):
         data["ausgang"] = o["ausgang"]
     if o.get("inhalt"):
@@ -253,11 +355,11 @@ def _create(b: checks.Finding, header: dict, sha: str) -> g.MemoryObject:
         data.update(name=f"p2p_{name.replace('-', '_')}_{o['name']}"[:40], art="vorher", code=o["code"], laeufe=0, fehler=0)
     oid = f"{o['art']}:p2p-{name}-{short}"
     return g.new_object(o["art"], o["text"], sorted(set(tags)), data, importance=o["wichtigkeit"], who=f"import@{name}", reason=f"import from {name}",
-                          oid=oid, mode="quarantaene", instance=instance)
+                          oid=oid, mode="quarantaene", instance=instance, visibility="intern" if is_company(net) else None)
 
 
-def inbox(entries, in_background: bool = True) -> dict:
-    """Check entries from the network and put them into quarantine."""
+def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
+    """Check entries from the network and put them into quarantine. In a company network imports become internal (0.39.0)."""
     _tables()
     report = {"quarantaene": 0, "abgelehnt": 0, "bekannt": 0, "gruende": [], "vergessen": 0}
 
@@ -275,7 +377,7 @@ def inbox(entries, in_background: bool = True) -> dict:
             continue
         if header["typ"] != "objekt":
             continue
-        b = checks.check(raw, header["pub"] in (config.get("reflexe_von") or []))
+        b = checks.check(raw, header["pub"] in (config.get("reflexe_von") or []), internal_ok=is_company(net))
         if b.verdict != "ablehnen" and (b.mem_object["netz_id"] != header.get("netz_id") or b.mem_object["loesch_hash"] != header.get("loesch_hash")):
             b.reject("header and content name different objects")
         if b.verdict != "ablehnen" and b.mem_object["art"] == "reflex":
@@ -305,7 +407,7 @@ def inbox(entries, in_background: bool = True) -> dict:
             with g.lock:
                 g.db().execute("DELETE FROM p2p_gesehen WHERE sha = ?", (old[1],))
                 g.db().commit()
-        o = _create(b, header, sha)
+        o = _create(b, header, sha, net)
         with g.lock:
             g.db().execute("INSERT INTO p2p_gesehen (sha, oid, herausgeber) VALUES (?,?,?)", (sha, o.id, pseudonym(header["pub"])))
             g.db().execute("INSERT OR REPLACE INTO p2p_netz (netz_id, oid, loesch_hash, sha) VALUES (?,?,?,?)", (b.mem_object["netz_id"], o.id, b.mem_object["loesch_hash"], sha))
@@ -362,7 +464,14 @@ def status() -> dict:
     with g.lock:
         q = g.db().execute("SELECT COUNT(*) FROM objekt WHERE modus = 'quarantaene'").fetchone()[0]
         gr = g.db().execute("SELECT COUNT(*) FROM p2p_grab").fetchone()[0]
-    return {"quarantaene": q, "grabsteine": gr, "herausgeber": publisher_value(fresh=True)}
+    st = states()
+    nets = {}
+    for n, d in networks().items():
+        s = st.get(n)
+        nets[n] = {"art": d["art"], "instanz": d["instanz"],
+                   "stand": ({"zeit": s["zeit"], **{k: s["daten"].get(k) for k in ("pseudonym", "version", "mitglieder", "peers", "transport", "unbekannte_typen", "wiki_sperre")}}
+                             if s else "not recorded (the network service has not reported since 0.39.0)")}
+    return {"netze": nets, "quarantaene": q, "grabsteine": gr, "herausgeber": publisher_value(fresh=True)}
 
 
 def sensitive(o: g.MemoryObject) -> list[str]:

@@ -492,6 +492,23 @@ Joining: `vi-mcp net invitation` stores on a peerhost the SHA-256 of a random se
 If it matches, it is marked as used and the peerhost writes an invitation into its logbook. From 1,000 missing entries of one publisher, the service fetches finished segments (2,000 entries, JSON lines) via BitTorrent directly from the peer
 (private, without DHT, LSD, UPnP); a segment with forgotten content is discarded.
 
+**Several networks (0.39.0).** One net service per network: `vi-p2p` is the network `standard` (config `/etc/vi-p2p/config.json`,
+memory instance `p2p`); every further one runs as `vi-p2p@<name>` with `/etc/vi-p2p/<name>.json`, `/var/lib/vi-p2p/<name>/` and the
+memory instance `netz-<name>`. The kind is set in the memory (`p2p.netze`: `{name: {art, instanz}}`), never by the service, because the
+service reads foreign data: `offen` exports only `geteilt`, anonymised; `firma` exports `geteilt` and `intern` unanonymised
+(`p2p._company_form`), imports become `intern` with the fixed hashtag `netz:<name>`, and `!herkunft:p2p` keeps them out of every export.
+`netz_id` and object token are derived per network (`HMAC(token, "id|<netz>|"+oid)`; the network `standard` keeps the form without a
+scope, so existing entries stay revocable). The service's own relay check (`Logbook(internal_ok=…)`, `checks.check(internal_ok=…)`)
+follows its configured kind; the memory checks again with the kind it knows.
+
+**Forward compatibility (0.39.0).** An entry of an unknown type (`[a-z_]{2,20}`) is accepted when signature, chain, membership and quota
+hold; its content is checked against checksum and size only, stored, relayed and counted (`unbekannte_typen`), but has no effect.
+Up to four extra header fields and extra fields in `adresse` are tolerated likewise; `einladung`, `ausschluss` and `widerruf` stay
+exact. `/netz/gesund` reports the version; `peer.version` keeps it, and `Logbook.peers_below(v)` names the peers that would not yet
+understand a new type — new types are written only when that list is empty. With every outbox call the service sends a snapshot
+(peers, versions, backlog both ways, transport counts); the memory keeps the last one per network (`netz_stand`) for `vi_net_status` and
+section W of `vi_stats`.
+
 In the memory (`p2p.py`) every signature is checked again, because the net service reads foreign data. `glauben` (believe) in `/etc/vi-p2p/config.json` limits whose objects get into the memory at all; revocations always apply.
 Usefulness per publisher = beta mean of its hint counters; from 20 judgements and a mean < 0.3 its objects are no longer shown. `p2p.auto_freigabe` provisionally releases inconspicuous items during sleep.
 

@@ -292,6 +292,10 @@ Hinter einem Reverse-Proxy mit öffentlichem Zertifikat: `--adresse https://host
 - **Nur Bewährtes.** Geteilt wird geteiltes, aktives Wissen, das eine unabhängige Linie bestätigt hat (eine andere Modellfamilie, nicht aus der Quelle des Objekts selbst) oder das nachweislich geholfen hat.
 - **Quellen müssen sich bewähren.** Der Nutzen je Herausgeber wird gemessen; wessen Hinweise immer wieder scheitern, der wird nicht mehr gezeigt (`vi_net_status`).
 - **Eigener Prozess.** `vi-p2p` läuft als eigener Nutzer und kommt nicht an die Gedächtnisdateien; mit dem Gedächtnis spricht er nur über zwei Werkzeuge.
+- **Mehrere Netze (0.39.0).** Neben dem Netz `standard` kann ein Server weiteren Netzen beitreten, jedes mit eigenem Dienst und Schlüssel:
+  `sudo vi-mcp net --network firma setup --kind firma …`. Ein *Firmennetz* (`firma`, eine Organisation) trägt geteiltes und internes Wissen
+  ohne Anonymisierung, seine Importe bleiben intern; ein *offenes* Netz (`offen`) arbeitet wie hier beschrieben. `vi_net_status` und
+  `vi_stats` (Abschnitt W) zeigen jedes Netz mit Peers, Versionen und Rückstand.
 - **Transport.** Standard ist HTTPS mit signierten Anfragen, Antwort bekommen nur Mitglieder. Große Rückstände gehen über BitTorrent (libtorrent, privat, ohne DHT), HTTPS bleibt der Rückfall. Einträge beweisen sich selbst, der Weg ist egal.
 - Gemessen mit drei paketierten Servern (Ubuntu, Debian, Fedora) unter systemd: Wissen über zwei Stationen in 27 s, ein Widerruf wirkte nach 4 s (Takt 4 s).
 

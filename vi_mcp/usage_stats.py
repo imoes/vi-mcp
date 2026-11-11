@@ -204,6 +204,41 @@ def _count(values) -> dict:
     return dict(sorted(outputs.items(), key=lambda kv: -kv[1]))
 
 
+def _age(ts: str) -> str:
+    try:
+        s = (datetime.now(timezone.utc) - datetime.fromisoformat(ts.replace("Z", "+00:00"))).total_seconds()
+    except (ValueError, AttributeError):
+        return "?"
+    return f"{s / 60:.0f} min" if s < 5400 else f"{s / 3600:.1f} h" if s < 172800 else f"{s / 86400:.0f} d"
+
+
+def network_lines() -> list[str]:
+    """0.39.0: section W — the networks this memory takes part in, as their services reported them (snapshot with every outbox call).
+    Nothing is invented: without a snapshot a network shows 'not recorded'."""
+    from . import p2p
+    nets, st = p2p.networks(), p2p.states()
+    out = [f"W Network: {len(nets)} network(s) (source: snapshot of each network service, sent with its outbox call; config p2p.netze)"]
+    for name, d in nets.items():
+        s = st.get(name)
+        if not s:
+            out.append(f"    {name} ({d['art']}, instance {d['instanz']}): not recorded — its network service has not reported (not running, or older than 0.39.0)")
+            continue
+        x = s["daten"]
+        peers = x.get("peers") or []
+        reach = sum(1 for p in peers if p.get("erreichbar"))
+        versions = _count(p.get("version") or "unknown" for p in peers)
+        here = sum(p.get("fehlt_hier") or 0 for p in peers)
+        there = sum(p.get("fehlt_dort") or 0 for p in peers)
+        tr = x.get("transport") or {}
+        out.append(f"    {name} ({d['art']}): snapshot {_age(s['zeit'])} old · {x.get('pseudonym', '?')} {x.get('modus', '?')} {x.get('version', '?')} · "
+                   f"{x.get('mitglieder', '?')} members · peers {reach} of {len(peers)} reachable · versions "
+                   + (", ".join(f"{v} {n}" for v, n in versions.items()) or "—")
+                   + f" · backlog: missing here {here}, missing there {there} entries (after the last exchange) · since service start {tr.get('runden', 0)} rounds, "
+                   f"{tr.get('per_https', 0)} entries via HTTPS, {tr.get('per_torrent', 0)} via torrent · entries of unknown types {x.get('unbekannte_typen', 0)} "
+                   f"· forks {x.get('gabelungen', 0)} · violations {x.get('verstoesse', 0)}")
+    return out
+
+
 def report(days: float = 7) -> str:
     d = data(days)
     from . import on_demand, learning, metrics
@@ -235,4 +270,5 @@ def report(days: float = 7) -> str:
     m = learning.model()
     z.append(f"F Cleanup: {a['schlaefe']} sleeps (median {a['schlaf_ms_median'] // 1000} s, {a['neue_erkenntnisse']} new insights, {a['fehler']} step errors) · "
              f"{on_demand.line()} · router AUC {m.data.get('auc_holdout') if m else '—'} · semantic edges {a['semantische_kanten']}")
+    z += network_lines()
     return "\n".join(z)

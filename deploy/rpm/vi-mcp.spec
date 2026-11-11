@@ -46,6 +46,7 @@ exit 0
 %preun
 if [ "$1" -eq 0 ]; then
     systemctl disable --now vi-p2p.service >/dev/null 2>&1 || true
+    systemctl disable --now 'vi-p2p@*.service' >/dev/null 2>&1 || true
     systemctl disable --now vi-mcp.service >/dev/null 2>&1 || true
 fi
 exit 0
@@ -62,5 +63,6 @@ exit 0
 /usr/lib/vi-mcp
 /usr/lib/systemd/system/vi-mcp.service
 /usr/lib/systemd/system/vi-p2p.service
+/usr/lib/systemd/system/vi-p2p@.service
 /usr/share/doc/vi-mcp
 /usr/share/vi-mcp

@@ -18,6 +18,9 @@ from pathlib import Path
 from . import config, logbook as lb, net_service as nd
 
 SERVICE_USER = "vi-p2p"
+#: 0.39.0: systemd unit of the network being worked on — vi-p2p for the network standard, vi-p2p@<netz> for a further one
+SERVICE = "vi-p2p"
+NETWORK: str | None = None
 
 
 def _as_service_user() -> None:
@@ -120,15 +123,31 @@ def setup(o) -> int:
         raw["torrent"] = {**raw.get("torrent", {}), "aktiv": True}
     if o.mode == "standalone":
         _write(p, raw)
-        if reason := _service("disable", "--now", "vi-p2p"):
+        if reason := _service("disable", "--now", SERVICE):
             print(f"Hint: {reason}")
         print("Mode standalone: the network service does not run. The logbook is kept.")
         return 0
+    if NETWORK:  # 0.39.0: own directory, key, logbook and memory instance per network
+        kind = getattr(o, "kind", None) or raw.get("art")
+        if kind not in ("firma", "offen"):
+            print("A further network needs --kind firma (one organisation, internal names allowed) or --kind offen (anonymised)", file=sys.stderr)
+            return 2
+        if raw.get("art") and raw["art"] != kind:
+            print(f"Network {NETWORK} is {raw['art']}; the kind is not changed afterwards", file=sys.stderr)
+            return 2
+        raw.update(netz=NETWORK, art=kind)
+        raw.setdefault("db", f"/var/lib/vi-p2p/{NETWORK}/netz.db")
+        raw.setdefault("seed", f"/var/lib/vi-p2p/{NETWORK}/schluessel")
+        raw.setdefault("mcp_token_datei", f"/etc/vi-p2p/{NETWORK}-mcp-token")
+    elif getattr(o, "kind", None) == "firma":
+        print("The network standard is open (anonymised); a company network gets its own name: vi-mcp net --network NAME setup --kind firma …", file=sys.stderr)
+        return 2
     seed = Path(raw.get("seed") or k_old.seed)
     if not seed.exists():
         child_pid = os.fork()
         if child_pid == 0:
             _as_service_user()
+            seed.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             lb.generate_keys(seed)
             os._exit(0)
         os.waitpid(child_pid, 0)
@@ -155,7 +174,11 @@ def setup(o) -> int:
         raw["tls_cert"], raw["tls_key"] = str(cert), str(key)
     token_file = Path(raw.get("mcp_token_datei") or k_old.mcp_token_file)
     if not token_file.exists():
-        token = config.create_instance("p2p")
+        if NETWORK:
+            _instance, token = config.set_network(NETWORK, raw["art"])
+            token = token or config.create_instance(_instance)
+        else:
+            token = config.create_instance("p2p")
         fd = os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640)
         with os.fdopen(fd, "w") as f:
             f.write(token + "\n")
@@ -164,11 +187,11 @@ def setup(o) -> int:
         if reason := _service("restart", "vi-mcp"):
             print(f"Hint: vi-mcp not restarted: {reason}")
     _write(p, raw)
-    if reason := _service("enable", "vi-p2p"):
+    if reason := _service("enable", SERVICE):
         print(f"Hint: {reason}")
-    if reason := _service("restart", "vi-p2p"):
+    if reason := _service("restart", SERVICE):
         print(f"Hint: {reason}")
-    print(f"Mode {o.mode}. Key of this server: {pub}\nPseudonym: {lb.pseudonym(pub)}")
+    print(f"Network {raw.get('netz', 'standard')} ({raw.get('art', 'offen')}) · mode {o.mode}. Key of this server: {pub}\nPseudonym: {lb.pseudonym(pub)}")
     if not o.found and pub not in raw["gruender"] and not getattr(o, "quiet", False):
         print("To join: a member runs:  vi-mcp net invite " + pub)
     return 0
@@ -180,8 +203,8 @@ def join(o) -> int:
     except ValueError as e:
         print(e, file=sys.stderr)
         return 2
-    e = argparse.Namespace(mode=o.mode, address=o.address, bind=None, port=None, tls_cert=None, tls_key=None, ca_file=None, found=False, founders=d["g"], start=[d["s"]],
-                           http_allowed=o.http_allowed, torrent=False, tls_self=o.tls_self, proxy=o.proxy, no_proxy=o.no_proxy, quiet=True)
+    e = argparse.Namespace(mode=o.mode, address=o.address, bind=None, port=o.port, tls_cert=None, tls_key=None, ca_file=None, found=False, founders=d["g"], start=[d["s"]],
+                           http_allowed=o.http_allowed, torrent=False, tls_self=o.tls_self, proxy=o.proxy, no_proxy=o.no_proxy, quiet=True, kind=o.kind)
     if (code := setup(e)) != 0:
         return code
 
@@ -199,12 +222,15 @@ def join(o) -> int:
         return 0
     code = _as_service(redeem)
     if code == 0:
-        _service("restart", "vi-p2p")
+        _service("restart", SERVICE)
     return code
 
 
 def main(argv: list[str]) -> int:
+    global SERVICE, NETWORK
     a = argparse.ArgumentParser(prog="vi-mcp net")
+    a.add_argument("--network", "--netz", dest="network", help="a further network (0.39.0): config /etc/vi-p2p/NAME.json, service vi-p2p@NAME; "
+                   "without it: the network standard")
     u = a.add_subparsers(dest="subcommand", required=True)
 
     def cmd(name: str, alias: str | None = None, **kw):
@@ -228,6 +254,8 @@ def main(argv: list[str]) -> int:
     e.add_argument("--tls-self", "--tls-selbst", dest="tls_self", action="store_true", help="create a self-signed certificate; peers check it via the pin in the logbook")
     e.add_argument("--proxy", help="HTTPS proxy for foreign peers, e.g. http://proxy:3128 (empty = none)")
     e.add_argument("--no-proxy", "--kein-proxy", dest="no_proxy", action="append", default=[], help="domain for which no proxy applies")
+    e.add_argument("--kind", "--art", dest="kind", choices=("firma", "offen"), help="with --network: firma = one organisation, internal names allowed, "
+                   "knowledge stays internal; offen = anonymised")
     for name, alias in (("invite", "einladen"), ("exclude", "ausschliessen")):
         x = cmd(name, alias)
         x.add_argument("key_", metavar="key")
@@ -241,11 +269,20 @@ def main(argv: list[str]) -> int:
     bt.add_argument("--proxy")
     bt.add_argument("--no-proxy", "--kein-proxy", dest="no_proxy", action="append", default=[])
     bt.add_argument("--http-allowed", "--http-erlaubt", dest="http_allowed", action="store_true")
+    bt.add_argument("--port", type=int)
+    bt.add_argument("--kind", "--art", dest="kind", choices=("firma", "offen"))
     cmd("peers")
     cmd("id")
     cmd("status")
     cmd("run", "lauf")
     o = a.parse_args(argv)
+    if o.network:
+        import re
+        if not re.fullmatch(r"[a-z][a-z0-9-]{1,30}", o.network) or o.network in ("standard", "config"):
+            print("network name: a-z, 0-9, -, 2–31 characters; 'standard' is the network without --network", file=sys.stderr)
+            return 2
+        NETWORK, SERVICE = o.network, f"vi-p2p@{o.network}"
+        os.environ["VI_P2P_CONFIG"] = str(nd.fpath().parent / f"{o.network}.json") if os.environ.get("VI_P2P_CONFIG") else f"/etc/vi-p2p/{o.network}.json"
     if o.command == "setup":
         return setup(o)
     if o.command == "run":
@@ -288,6 +325,6 @@ def main(argv: list[str]) -> int:
         print(f"{'Invited' if o.command == 'invite' else 'Excluded'}: {lb.pseudonym(o.key_)}. The network learns of it at the next sync.")
         return 0
     st = log.status()
-    print(f"Mode {k.mode} · pseudonym {lb.pseudonym(log.pub)} · {'member' if log.is_member(log.pub) else 'not a member yet'}")
+    print(f"Network {k.net} ({k.kind}) · mode {k.mode} · pseudonym {lb.pseudonym(log.pub)} · {'member' if log.is_member(log.pub) else 'not a member yet'}")
     print(" · ".join(f"{a_} {b}" for a_, b in st.items()))
     return 0

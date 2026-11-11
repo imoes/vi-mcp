@@ -13,6 +13,7 @@ install -m 0644 vi_mcp/*.py "$r/usr/lib/python3/dist-packages/vi_mcp/"
 install -m 0755 deploy/debian/vi-mcp.sh "$r/usr/bin/vi-mcp"
 install -m 0644 deploy/debian/vi-mcp.service "$r/lib/systemd/system/vi-mcp.service"
 install -m 0644 deploy/vi-p2p.service "$r/lib/systemd/system/vi-p2p.service"
+install -m 0644 deploy/vi-p2p@.service "$r/lib/systemd/system/vi-p2p@.service"
 install -m 0644 README.md README.de.md AGENTS.md CHANGELOG.md "$r/usr/share/doc/vi-mcp/"
 # docs/LOKAL* holds host details and the reviewer prompt and must never go into a package
 find docs -maxdepth 1 -name "*.md" ! -name "LOKAL*" -exec install -m 0644 {} "$r/usr/share/doc/vi-mcp/docs/" \;

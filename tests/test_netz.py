@@ -23,7 +23,8 @@ class FakeMemory:
     def __init__(self):
         self.mem_objects, self.revocations, self.receive, self.outage = [], [], [], False
 
-    def outbox(self):
+    def outbox(self, state=None):
+        self.state = state
         if self.outage:
             raise OSError("weg")
         return {"objekte": list(self.mem_objects), "widerrufe": list(self.revocations)}

@@ -174,6 +174,28 @@ def set_local(user: str, instance: str | None, p: Path | None = None) -> str | N
     return old
 
 
+def set_network(name: str, kind: str, p: Path | None = None) -> tuple[str, str | None]:
+    """0.39.0: register a further network with its kind (firma or offen) and the instance its network service uses (netz-<name>).
+    The memory, not the network service, decides the kind. Returns (instance, new token or None if the instance existed)."""
+    import re
+    if not re.fullmatch(r"[a-z][a-z0-9-]{1,30}", name or "") or name in ("standard", "config"):
+        raise ValueError("network name: a-z, 0-9, -, 2–31 characters, not 'standard' (that is the network without a name)")
+    if kind not in ("firma", "offen"):
+        raise ValueError("network kind must be firma or offen")
+    p = p or fpath()
+    instance = f"netz-{name}"
+    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    token = None if instance in (raw.get("instanzen") or {}) else create_instance(instance, p=p)
+    raw = json.loads(p.read_text(encoding="utf-8-sig"))
+    nets = raw.setdefault("p2p", {}).setdefault("netze", {})
+    if name in nets and nets[name].get("art") != kind:
+        raise ValueError(f"network {name} is already registered as {nets[name].get('art')}; the kind is not changed afterwards "
+                         "(knowledge already exchanged would otherwise change its visibility)")
+    nets[name] = {"art": kind, "instanz": instance}
+    _save_raw(raw, p)
+    return instance, token
+
+
 def set_embed(embed: dict | None, p: Path | None = None) -> None:
     """0.28.0: set or clear the embedding service ({"url": ...}); the service reads it at start."""
     p = p or fpath()
