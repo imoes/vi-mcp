@@ -300,6 +300,10 @@ Hinter einem Reverse-Proxy mit öffentlichem Zertifikat: `--adresse https://host
   Servern ist ein Objekt mit mehreren *Haltern*. Server veröffentlichen ihre eigenen Messungen je Inhalt, und jeder Server berechnet daraus
   einen **Netz-Score**: gedeckelt pro Server, gewichtet nach dessen gemessenem Nutzen, ohne Bewertungen eines Servers zu eigenen Inhalten.
   `vi_object` zeigt ihn; ein Inhalt, der immer wieder versagt, wird nicht mehr als Hinweis angeboten.
+- **Netz-Wiki (0.41.0).** Seiten, die jeder Server eines Netzes bearbeiten darf, ohne Master: `vi_page_write` (mit der Revision, die
+  man bearbeitet hat), `vi_page_read`, `vi_page_history`. Revisionen sind signiert und inhaltsadressiert; gleichzeitige Änderungen in
+  verschiedenen Absätzen werden von selbst zusammengeführt, überlappende werden ein benannter Konflikt, den jedes Mitglied auflöst.
+  Fremde Änderungen zählen erst nach Prüfung.
 - **Port 443 (0.40.0).** `--public https://HOST` veröffentlicht ein Netz als `https://HOST/vi-p2p/<netz>` hinter dem Reverse Proxy;
   `vi-mcp net proxy-config` gibt die nginx-Konfiguration aus. Alle Netze teilen sich 443.
 - **Transport.** Standard ist HTTPS mit signierten Anfragen, Antwort bekommen nur Mitglieder. Große Rückstände gehen über BitTorrent (libtorrent, privat, ohne DHT), HTTPS bleibt der Rückfall. Einträge beweisen sich selbst, der Weg ist egal.
@@ -334,6 +338,7 @@ Empfänger löschen sie samt Suchindex und Vektor und merken sich nur einen Grab
 | `vi_conversation` · `vi_delete_conversation` · `vi_archive` · `vi_archive_restore` | Gespräche und Langzeitlager |
 | `vi_net_outbox` · `vi_net_inbox` · `vi_quarantine` · `vi_release` · `vi_net_status` | Schnittstelle des Netzdienstes, Prüfung, Nutzen je Herausgeber |
 | `vi_net_token` · `vi_net_forget` · `vi_net_preview` | Löschtoken, Recht auf Vergessen, Vorschau |
+| `vi_page_read` · `vi_page_write` · `vi_page_history` · `vi_page_forget` | Netz-Wiki: lesen, bearbeiten, Verlauf, Revision zurückrufen |
 
 ## Entwicklung
 

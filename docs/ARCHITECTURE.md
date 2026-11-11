@@ -533,6 +533,33 @@ import as one more rater. Score = (1 + Σ w·yes) / (2 + Σ w·(yes+no)), 90 % i
 approximation without it). `ausgeblendet` = at least 20 observations and score < 0.3 → `p2p.without_blocked` drops it from hint candidates.
 The router (learning.py) never sees foreign counters.
 
+## Network wiki — pages without a master (0.41.0)
+
+`wiki_merge.py` (pure), `wiki.py` (memory side), logbook type `seite`.
+- **Revision.** Content `{seite, titel, text ≤ 64,000, eltern ≤ 8, hashtags, quelle, notiz, geloescht, netz_id, loesch_hash, zeit}`
+  (`checks.PAGE_FIELDS`), id = SHA-256 of the content (the header's `sha`). A revocation (`widerruf` on its `netz_id`) deletes the text;
+  the revision keeps its place in the graph (status `vergessen`).
+- **Multi-master without coordination.** Every server appends only to its own logbook; the revisions of a page form a grow-only set
+  over a DAG.
+- **View** (`wiki_merge.view`):
+  - Heads are the accepted revisions without an accepted descendant.
+  - Several heads are folded in id order with `merge3`, a three-way merge of paragraph lists (difflib opcodes against the deepest
+    common ancestor, ties by id).
+  - Overlapping hunks, and insertions at the edge of the other side's change, form a cluster. Equal results merge; different ones are
+    a `Conflict`. Neighbouring paragraphs merge.
+  - Conflict markers carry revision ids only (author labels differ per server); the authors are named in the page header.
+  - The result is a view, not a revision, and is equal everywhere for equal sets.
+- **States of a revision** (exhaustive): `ausstehend` (waiting for review), `frei` (counts), `verworfen`, `vergessen`.
+  - Own revisions are `frei` at once.
+  - A foreign one becomes a quarantine object `seite:rev-<id>` (content: the unified diff to its first known parent, so the reviewer
+    reads what changed), and goes through `reviewer` → `p2p.approve`/`discard` → `wiki.on_release`. The released object becomes
+    `aufgegangen` (merged into the page).
+- **Page object** `seite:<netz>:<slug>`, kind `seite`:
+  - It is rebuilt on every change (`materialize`): text = title and first paragraph, content = header line + view.
+  - It is in mode `test` while a head is foreign, `intern` in a company network, and is deleted when the page is deleted.
+- **Transport.** The network service writes own revisions once (by checksum), oldest first, and only while `peers_below("0.39.0")` is
+  empty. Logbooks of 0.39.0 and 0.40.0 already relay the type unread.
+
 ## Housekeeping — the long-term archive
 
 `archive.py`, sleep step 5. Entries no longer in use move to a separate file (`<db>-lager.db`, 0600), so that

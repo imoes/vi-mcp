@@ -294,6 +294,9 @@ Behind a reverse proxy with a public certificate use `--address https://host/vi-
   is one object with several *holders*. Servers publish their own measurements per content, and every server computes a **network
   score** from them: capped per server, weighted by its measured benefit, never counting a server's rating of its own content.
   `vi_object` shows it; a content that keeps failing is no longer offered as a hint.
+- **Network wiki (0.41.0).** Pages every server of a network may edit, without a master: `vi_page_write` (with the revision you
+  edited), `vi_page_read`, `vi_page_history`. Revisions are signed and content-addressed; concurrent changes in different paragraphs
+  merge by themselves, overlapping ones become a named conflict that any member resolves. Foreign changes count only after review.
 - **Port 443 (0.40.0).** `--public https://HOST` publishes a network as `https://HOST/vi-p2p/<network>` behind the reverse proxy;
   `vi-mcp net proxy-config` prints the nginx configuration. All networks share 443.
 - **Transport.** HTTPS by default; signed requests, only members get answers. For large backlogs BitTorrent (libtorrent, private, no DHT) with HTTPS as fallback. Entries prove themselves, the path does not matter.
@@ -328,6 +331,7 @@ receivers delete them along with search index and vector, and keep only a tombst
 | `vi_conversation` · `vi_delete_conversation` · `vi_archive` · `vi_archive_restore` | conversations and long-term storage |
 | `vi_net_outbox` · `vi_net_inbox` · `vi_quarantine` · `vi_release` · `vi_net_status` | network service interface, review, usefulness per publisher |
 | `vi_net_token` · `vi_net_forget` · `vi_net_preview` | deletion token, right to be forgotten, preview |
+| `vi_page_read` · `vi_page_write` · `vi_page_history` · `vi_page_forget` | network wiki: read, edit, history, revoke a revision |
 
 ## Development
 

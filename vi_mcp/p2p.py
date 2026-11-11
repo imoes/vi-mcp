@@ -51,14 +51,14 @@ NET_NAME = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
 
 def networks() -> dict[str, dict]:
     """Every network this memory takes part in: name → {art, instanz}. Unusable entries are reported, not used."""
-    out = {STANDARD: {"art": "offen", "instanz": "p2p"}}
+    out = {STANDARD: {"art": "offen", "instanz": "p2p", "auto_freigabe": False}}
     for name, d in (config.get("netze") or {}).items():
         if not isinstance(d, dict) or not NET_NAME.match(str(name)) or name == STANDARD or d.get("art") not in NET_KINDS \
                 or not isinstance(d.get("instanz"), str) or d["instanz"] in ("p2p",):
             from .log_output import log
             log(f"p2p: network {name!r} ignored: needs a name a-z0-9-, art {' or '.join(NET_KINDS)} and its own instance")
             continue
-        out[name] = {"art": d["art"], "instanz": d["instanz"]}
+        out[name] = {"art": d["art"], "instanz": d["instanz"], "auto_freigabe": bool(d.get("auto_freigabe"))}
     return out
 
 
@@ -278,7 +278,9 @@ def _revocations(net: str = STANDARD) -> list[dict]:
 def outbox(net: str = STANDARD) -> dict:
     """What may go to the network, unsigned: signing is the network service's job, which keeps its key to itself."""
     mem_objects, withdrawn = _collect(None, net)
-    return {"objekte": [r for _o, r in mem_objects], "widerrufe": _revocations(net), "zurueckgehalten": withdrawn, "bewertungen": net_score.outgoing(net)}
+    from . import wiki
+    return {"objekte": [r for _o, r in mem_objects], "widerrufe": _revocations(net) + wiki.revocations(net), "zurueckgehalten": withdrawn,
+            "bewertungen": net_score.outgoing(net), "seiten": wiki.outgoing(net)}
 
 
 def record_state(net: str, state) -> None:
@@ -327,6 +329,9 @@ def _apply_forget(revocations) -> int:
             n += 1
         elif z:
             continue  # wrong token: nothing happens
+        else:
+            from . import wiki
+            n += wiki.forget(net_id, evidence)  # 0.41.0: a page revision — its text goes, its place in the graph stays
         if not known:
             with g.lock:
                 g.db().execute("INSERT OR IGNORE INTO p2p_grab (netz_id, token_sha, zeit) VALUES (?,?,?)", (net_id, evidence, g.now()[:10]))
@@ -378,6 +383,16 @@ def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
         if header["typ"] == "widerruf":
             if lb.valid_control_form("widerruf", raw):
                 report["vergessen"] += _apply_forget([{"netz_id": raw["ziel"], "token": raw["token"]}])
+            continue
+        if header["typ"] == "seite":  # 0.41.0
+            from . import wiki
+            r = wiki.ingest(raw, header, net)
+            if r == "neu":
+                report["seiten"] = report.get("seiten", 0) + 1
+            elif r == "bekannt":
+                report["bekannt"] += 1
+            else:
+                from_seq(r)
             continue
         if header["typ"] == "bewertung":
             if net_score.receive(raw, header["pub"], net, header["seq"]):
@@ -441,7 +456,7 @@ def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
             g.db().commit()
         report["quarantaene"] += 1
     report["gruende"] = report["gruende"][:20]
-    if in_background and report["quarantaene"] and reviewer.available():
+    if in_background and (report["quarantaene"] or report.get("seiten")) and reviewer.available():
         threading.Thread(target=reviewer.work_off, args=(MAX_OBJECTS,), name="vi-pruefer", daemon=True).start()
     return report
 
@@ -475,11 +490,15 @@ def without_blocked(mem_objects: list[g.MemoryObject]) -> list[g.MemoryObject]:
 
 def auto_approve() -> int:
     """Only with `p2p.auto_freigabe`: what rules and reviewer find unremarkable becomes provisional (mode test). Sensitive items stay with a human."""
-    if not config.get("auto_freigabe"):
+    nets = networks()
+    if not config.get("auto_freigabe") and not any(d["auto_freigabe"] for d in nets.values()):
         return 0
     n = 0
     value = publisher_value(fresh=True)
     for _, o, _g in g.recall("modus:quarantaene", limit=MAX_OBJECTS, viewer=None):
+        net = o.data["herkunft"].get("netz") or STANDARD
+        if not (config.get("auto_freigabe") or nets.get(net, {}).get("auto_freigabe")):  # 0.41.0: per network, e.g. only the company one
+            continue
         if "pruefer:ausstehend" in o.hashtags or sensitive(o) or value.get(o.data["herkunft"]["herausgeber"], {}).get("gesperrt"):
             continue
         approve(o, "vi", True, False, "automatic: no rule findings, reviewer admits")
@@ -542,6 +561,9 @@ def approve(o: g.MemoryObject, instance: str, reflex_permission: bool, release_p
     g.save(o)
     if o.kind == "reflex":
         reflexes.load_all()
+    if o.kind == "seite":  # 0.41.0: a wiki revision counts from now on; its object is merged into the page
+        from . import wiki
+        wiki.on_release(o, True)
     return o
 
 
@@ -553,7 +575,11 @@ def discard(o: g.MemoryObject, instance: str, reason: str) -> g.MemoryObject:
     o.mode = "widerlegt"
     o.hashtags = [t for t in o.hashtags if not t.startswith("modus:")] + ["modus:widerlegt"]
     o.change(f"ki@{instance}", "discarded from quarantine", reason)
-    return g.save(o)
+    g.save(o)
+    if o.kind == "seite":
+        from . import wiki
+        wiki.on_release(o, False)
+    return o
 
 
 def line(o: g.MemoryObject) -> str:

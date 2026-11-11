@@ -29,7 +29,7 @@ def test_unknown_type_is_accepted_relayed_and_keeps_the_chain(tmp_path):
     a = _log(tmp_path, "a")
     b = _log(tmp_path, "b", [a.pub])
     c = _log(tmp_path, "c", [a.pub])
-    _foreign_entry(a, "seite", {"seite": "backup", "text": "Restore with proxmox-backup-client"})
+    _foreign_entry(a, "zukunft", {"thema": "backup", "text": "Restore with proxmox-backup-client"})
     a.attach("adresse", {"adresse": "https://a.example:8766"})
     r = b.ingest(a.read(a.pub, 0))
     assert r["neu"] == 2 and r["unbekannt"] == 1 and r["abgelehnt"] == 0  # the entry after it still arrives: chain intact
@@ -41,9 +41,9 @@ def test_unknown_type_is_accepted_relayed_and_keeps_the_chain(tmp_path):
 def test_unknown_type_with_wrong_content_is_a_violation(tmp_path):
     a = _log(tmp_path, "a")
     b = _log(tmp_path, "b", [a.pub])
-    _foreign_entry(a, "seite", {"seite": "x", "text": "y"})
+    _foreign_entry(a, "zukunft", {"thema": "x", "text": "y"})
     entries = a.read(a.pub, 0)
-    entries[0]["inhalt"] = {"seite": "x", "text": "changed on the way"}
+    entries[0]["inhalt"] = {"thema": "x", "text": "changed on the way"}
     r = b.ingest(entries)
     assert r["neu"] == 0 and "unusable" in r["gruende"][0]
 

@@ -26,7 +26,9 @@ from pathlib import Path
 from . import checks
 
 VERSION = 1
-TYPE_NAMES = ("objekt", "widerruf", "einladung", "ausschluss", "adresse", "bewertung")
+TYPE_NAMES = ("objekt", "widerruf", "einladung", "ausschluss", "adresse", "bewertung", "seite")
+#: types whose content can be forgotten by the author (netz_id + loesch_hash in the header)
+FORGETTABLE = ("objekt", "seite")
 #: 0.40.0: a rating names a content hash and five non-negative numbers (net_score.py); peers before 0.39.0 would reject the type
 RATING_FIELDS = ("gezeigt", "ja", "nein", "bestaetigt", "widerlegt")
 RELAY_MIN = "0.39.0"
@@ -130,9 +132,9 @@ def header_form(header) -> str | None:
         return "header: number or predecessor unusable"
     if not isinstance(header["zeit"], str) or not _DATE.match(header["zeit"]) or not isinstance(header["sha"], str) or not _HEX64.match(header["sha"]):
         return "header: date or checksum unusable"
-    if header["typ"] in ("objekt", "widerruf") and not (isinstance(header.get("netz_id"), str) and _HEX32.match(header["netz_id"])):
+    if header["typ"] in ("objekt", "widerruf", "seite") and not (isinstance(header.get("netz_id"), str) and _HEX32.match(header["netz_id"])):
         return "header: netz_id missing"
-    if header["typ"] == "objekt" and not (isinstance(header.get("loesch_hash"), str) and _HEX64.match(header["loesch_hash"])):
+    if header["typ"] in FORGETTABLE and not (isinstance(header.get("loesch_hash"), str) and _HEX64.match(header["loesch_hash"])):
         return "header: loesch_hash missing"
     return None
 
@@ -204,7 +206,7 @@ class Logbook:
         return (z[0], z[1]) if z else (0, None)
 
     def attach(self, type_: str, content: dict, net_id: str | None = None, delete_hash: str | None = None) -> dict:
-        if type_ != "objekt" and not valid_control_form(type_, content):
+        if type_ not in FORGETTABLE and not valid_control_form(type_, content):
             raise ValueError(f"content does not fit type {type_}")
         with self.lock:
             self.db.execute("BEGIN IMMEDIATE")
@@ -242,7 +244,7 @@ class Logbook:
         """Delete the content if the proof matches; remember a tombstone. Returns (pub, seq) of the deleted entries."""
         evidence = hashlib.sha256(token.encode()).hexdigest()
         with self.lock:
-            lines = self.db.execute("SELECT pub, seq, sha, loesch_hash FROM eintrag WHERE netz_id = ? AND typ = 'objekt'", (net_id,)).fetchall()
+            lines = self.db.execute("SELECT pub, seq, sha, loesch_hash FROM eintrag WHERE netz_id = ? AND typ IN ('objekt', 'seite')", (net_id,)).fetchall()
             if lines and not any(hmac.compare_digest(z[3], evidence) for z in lines):
                 return []  # wrong proof
             remove = []
@@ -307,7 +309,8 @@ class Logbook:
         if sha256(content) != header["sha"] or len(canonical(content)) > MAX_CONTENT or not isinstance(content, dict) or content.get("netz_id") != header["netz_id"] or content.get("loesch_hash") != header["loesch_hash"]:
             self._violation(header["pub"])
             return None
-        if checks.check(content, may_reflex=True, internal_ok=self.internal_ok).verdict == "ablehnen":
+        rules = checks.check_page if header["typ"] == "seite" else (lambda c, internal_ok: checks.check(c, may_reflex=True, internal_ok=internal_ok))
+        if rules(content, internal_ok=self.internal_ok).verdict == "ablehnen":
             self._violation(header["pub"])
             return None
         return content
@@ -346,7 +349,7 @@ class Logbook:
                         stop(pub, f"fork at number {header['seq']}")
                         continue
                     report["bekannt"] += 1
-                    if header["typ"] == "objekt" and content is not None and not self.db.execute("SELECT 1 FROM inhalt WHERE sha = ?", (header["sha"],)).fetchone():
+                    if header["typ"] in FORGETTABLE and content is not None and not self.db.execute("SELECT 1 FROM inhalt WHERE sha = ?", (header["sha"],)).fetchone():
                         if (good := self._object_content(header, content)) is not None:
                             self.db.execute("INSERT OR IGNORE INTO inhalt (sha, daten) VALUES (?,?)", (header["sha"], json.dumps(good, ensure_ascii=False, sort_keys=True)))
                     continue
@@ -357,7 +360,7 @@ class Logbook:
                 if self.db.execute("SELECT COUNT(*) FROM eintrag WHERE pub = ? AND zeit = ?", (pub, header["zeit"])).fetchone()[0] >= MAX_PER_DAY:
                     stop(pub, "daily quota exhausted")
                     continue
-                if header["typ"] == "objekt":
+                if header["typ"] in FORGETTABLE:
                     to_save = self._object_content(header, content)
                 elif not known_type(header["typ"]):
                     # a type of a newer version: relayed, not interpreted; content only against checksum and size
@@ -394,6 +397,10 @@ class Logbook:
     def own_objects(self) -> set[tuple[str, str]]:
         with self.lock:
             return set(self.db.execute("SELECT netz_id, sha FROM eintrag WHERE pub = ? AND typ = 'objekt'", (self.pub,)).fetchall())
+
+    def own_shas(self, type_: str) -> set[str]:
+        with self.lock:
+            return {r[0] for r in self.db.execute("SELECT sha FROM eintrag WHERE pub = ? AND typ = ?", (self.pub, type_))}
 
     def own_ratings(self) -> dict[str, tuple[str, str]]:
         """content hash → (sha of the last own rating, its date)."""

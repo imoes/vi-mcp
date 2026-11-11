@@ -29,7 +29,7 @@ from pathlib import Path
 from . import anonymize
 from .log_output import log
 
-KINDS = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell", "skill", "bewertung", "bild")
+KINDS = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell", "skill", "bewertung", "bild", "seite")
 #: strittig = refuted by exactly one foreign instance (still appears, with a note); widerlegt = refuted by the author
 #: or by ≥ 2 different instances (no longer appears)
 #: archiviert = stub (text, hashtags) stays, content compressed in the archive; visible only with modus:archiviert in the filter
@@ -39,7 +39,7 @@ MODES = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt", "archiviert"
 #: Collective: who may read an object? privat = only the author instance (results may contain credentials),
 #: geteilt = all instances. The loop (server) sees everything. Exhaustive for KINDS.
 VISIBILITY_PER_KIND = {"erfahrung": "privat", "antwort": "privat", "erkenntnis": "geteilt", "regel": "geteilt", "reflex": "geteilt",
-                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt", "skill": "geteilt", "bewertung": "privat", "bild": "geteilt"}
+                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt", "skill": "geteilt", "bewertung": "privat", "bild": "geteilt", "seite": "geteilt"}
 #: author of objects the server creates itself (loop) — a named instance, not NULL
 SERVER_INSTANCE = "vi"
 #: weight bonus per different FOREIGN instance that confirmed (self-confirmation does not count as evidence)

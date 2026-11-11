@@ -21,7 +21,7 @@ from collections import defaultdict
 
 from . import memory as g
 
-HINT_KINDS = ("erkenntnis:", "regel:", "suche:", "skill:", "bild:")
+HINT_KINDS = ("erkenntnis:", "regel:", "suche:", "skill:", "bild:", "seite:")
 
 
 BASE_DAYS = 90

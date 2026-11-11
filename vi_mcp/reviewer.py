@@ -92,6 +92,9 @@ def _set(o: g.MemoryObject, result: dict) -> None:
     o.hashtags = [t for t in o.hashtags if not t.startswith("pruefer:")] + [f"pruefer:{result['status']}"]
     o.change("vi", f"reviewer: {result['status']}", "; ".join(result["gruende"])[:280] or "no findings")
     g.save(o)
+    if o.kind == "seite":  # 0.41.0: time from arrival to review, for vi_stats
+        from . import wiki
+        wiki.reviewed(o)
 
 
 def _answer(system: str, user: str) -> dict:

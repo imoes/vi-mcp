@@ -290,7 +290,7 @@ class NetService:
         return {"netz": self.k.net, "art": self.k.kind, "modus": self.k.mode, "pseudonym": lb.pseudonym(self.log.pub), "version": __version__,
                 "mitglieder": st["mitglieder"], "eintraege": st["eintraege"], "unbekannte_typen": st["unbekannte_typen"], "gabelungen": st["gabelungen"],
                 "verstoesse": st["verstoesse"], "peers": peers, "transport": dict(self.usage_stats),
-                "eigene": {t: self.log.count_own(t) for t in ("objekt", "widerruf", "bewertung")}}
+                "eigene": {t: self.log.count_own(t) for t in ("objekt", "widerruf", "bewertung", "seite")}}
 
     def _fetch(self, address: str, pub: str, target: int) -> int:
         new = 0
@@ -369,7 +369,25 @@ class NetService:
             if w["netz_id"] not in revoke:
                 self.log.attach("widerruf", {"ziel": w["netz_id"], "token": w["token"]}, w["netz_id"])
                 new += 1
-        return new + self._ratings(a.get("bewertungen") or [])
+        return new + self._ratings(a.get("bewertungen") or []) + self._pages(a.get("seiten") or [])
+
+    def _pages(self, pages: list) -> int:
+        """0.41.0: own wiki revisions — each once (by checksum), only once no peer is older than 0.39.0."""
+        if not pages:
+            return 0
+        if blocked := self.log.peers_below(lb.RELAY_MIN):
+            self.usage_stats["seiten_wartend"] = len(pages)
+            self.usage_stats["seiten_sperre"] = blocked[:10]
+            return 0
+        self.usage_stats.pop("seiten_sperre", None)
+        done, new = self.log.own_shas("seite"), 0
+        for c in reversed(pages):  # oldest first: parents before children
+            if not isinstance(c, dict) or lb.sha256(c) in done or not isinstance(c.get("netz_id"), str) or not isinstance(c.get("loesch_hash"), str):
+                continue
+            self.log.attach("seite", c, c["netz_id"], c["loesch_hash"])
+            new += 1
+        self.usage_stats["seiten_wartend"] = 0
+        return new
 
     def _ratings(self, ratings: list) -> int:
         """0.40.0: own measurements per content. Only changed values, at most one per content and day, RATINGS_PER_DAY in all — and only
@@ -402,7 +420,7 @@ class NetService:
                 continue
             while (entry_batch := self.log.new_since_checkpoint(pub)):
                 believed = believes_all or pub in self.k.believe
-                to_send = [e for e in entry_batch if e["inhalt"] is not None and (e["kopf"]["typ"] == "widerruf" or (believed and e["kopf"]["typ"] in ("objekt", "bewertung")))]
+                to_send = [e for e in entry_batch if e["inhalt"] is not None and (e["kopf"]["typ"] == "widerruf" or (believed and e["kopf"]["typ"] in ("objekt", "bewertung", "seite")))]
                 try:
                     if to_send:
                         self.mcp.inbox(to_send)

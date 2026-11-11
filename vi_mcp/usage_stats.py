@@ -212,7 +212,7 @@ def _age(ts: str) -> str:
     return f"{s / 60:.0f} min" if s < 5400 else f"{s / 3600:.1f} h" if s < 172800 else f"{s / 86400:.0f} d"
 
 
-def network_lines() -> list[str]:
+def network_lines(days: float = 7) -> list[str]:
     """0.39.0: section W — the networks this memory takes part in, as their services reported them (snapshot with every outbox call).
     Nothing is invented: without a snapshot a network shows 'not recorded'."""
     from . import p2p
@@ -224,6 +224,22 @@ def network_lines() -> list[str]:
                f"(same meaning from a further server) · holders per content " + ", ".join(f"{k}: {v}" for k, v in sc["halter_verteilung"].items())
                + f" · rated {sc['bewertet']} (score " + ", ".join(f"{k} {v}" for k, v in sc["score_verteilung"].items())
                + f"), hidden as a hint {sc['ausgeblendet']} · ratings received {sc['bewertungen_empfangen']} (latest per rater and content; source: tables p2p_halter, p2p_bewertung)")
+    from . import wiki  # 0.41.0
+    ws = wiki.stats(days)
+    _table()
+    with g.lock:
+        reads = g.db().execute("SELECT COUNT(*) FROM nutzung WHERE werkzeug IN ('vi_page_read', 'vi_page_history') AND zeit >= ?", (_since(days),)).fetchone()[0]
+        writes = g.db().execute("SELECT COUNT(*) FROM nutzung WHERE werkzeug = 'vi_page_write' AND zeit >= ?", (_since(days),)).fetchone()[0]
+    wst = ws["je_status"]
+    out.append(f"    wiki: {ws['seiten']} page(s) ({ws['geloescht']} deleted), {ws['revisionen']} revisions (own {ws['eigene']}, foreign {ws['fremde']}) from "
+               f"{ws['herausgeber']} author(s) · in {days:g} d: {ws['neue_seiten']} new, {ws['geaenderte_seiten']} changed page(s), {reads} reads, {writes} writes · "
+               f"revisions waiting for review {wst['ausstehend']}, counting {wst['frei']} (foreign ones released {ws['fremd_freigegeben']}, of them automatically "
+               f"{ws['automatisch_freigegeben']}), discarded {wst['verworfen']}, "
+               f"forgotten {wst['vergessen']} · arrival → release median {ws['freigabe_h_median'] if ws['freigabe_h_median'] is not None else 'not recorded'} h, "
+               f"90th percentile {ws['freigabe_h_p90'] if ws['freigabe_h_p90'] is not None else 'not recorded'} h · several heads {ws['mehrere_koepfe']} "
+               f"(merged silently {ws['still_zusammengefuehrt']}, open conflicts {ws['offene_konflikte']}"
+               + (": oldest " + ", ".join(f"{pg} since {ts[:16]}" for ts, pg in ws["aelteste_konflikte"]) if ws["aelteste_konflikte"] else "")
+               + ") (source: table seite_rev, usage log)")
     for name, d in nets.items():
         s = st.get(name)
         if not s:
@@ -278,5 +294,5 @@ def report(days: float = 7) -> str:
     m = learning.model()
     z.append(f"F Cleanup: {a['schlaefe']} sleeps (median {a['schlaf_ms_median'] // 1000} s, {a['neue_erkenntnisse']} new insights, {a['fehler']} step errors) · "
              f"{on_demand.line()} · router AUC {m.data.get('auc_holdout') if m else '—'} · semantic edges {a['semantische_kanten']}")
-    z += network_lines()
+    z += network_lines(days)
     return "\n".join(z)

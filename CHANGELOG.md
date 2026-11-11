@@ -3,6 +3,60 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.41.0 — 2026-11-11 — The network wiki: pages every server may edit, without a master
+
+### What is new
+
+- **Pages in a network that every member may edit** — the multi-master part of the network wiki.
+  - `vi_page_write` (network, page, text, `base_rev`) writes a revision, `vi_page_read` shows the page, `vi_page_history` the
+    revisions, `vi_page_forget` revokes an own revision.
+  - A revision is a signed logbook entry of the new type `seite`. Its id is the SHA-256 of its content, and its parents form a graph as
+    in git. Every server writes only its own logbook, so there is nothing to coordinate.
+  - Whoever holds the same revisions computes the same page: one head is the page. Several heads are merged on paragraphs against
+    their deepest common ancestor, and changes in different paragraphs merge silently.
+  - Overlapping different changes become a **named conflict** with both versions and the authors. A revision with all heads as parents
+    resolves it.
+  - Deleting is a revision; a later one restores the page.
+
+  *Proof:* `tests/test_wiki_merge.py` (11, among them every arrival order of the same revisions gives the same page, and 3,000
+  revisions without a recursion limit). End to end with **two separate VI servers** (own processes, a real network service each,
+  11.11.2026):
+  1. A wrote the page; it arrived at B in quarantine; after release B showed it.
+  2. A and B changed different paragraphs at the same time; after one exchange and release both showed the identical merged page
+     (`state merged`).
+  3. Both changed the same paragraph; both showed the same conflict with both versions.
+  4. A resolved it; after the exchange B showed `state current` with the resolution, and the history lists 6 revisions.
+- **Foreign revisions count only after review**, as the user decided.
+  - They pass the fixed rules (`checks.check_page`): commands and URLs are findings, since a runbook has them; binary content and
+    invisible characters are refused, and so are internals in an open network.
+  - They then go into quarantine as an object of kind `seite`, whose content is the diff to its parent, so the reviewer sees exactly
+    what changed.
+  - Release and discard work as for every import (`vi_release`). Released, the revision counts and its object is merged into the page.
+  - The page names changes still waiting for review.
+  - `auto_freigabe` can now be set per network, e.g. only for a company network.
+
+  *Proof:* `tests/test_wiki.py` (14), among them an injected instruction that needs the release right.
+- **A page is one searchable object** (`seite:<network>:<page>`): `vi_recall` finds it, and like a reviewed import it can be a hint
+  before an action ("Wiki page …"). In a company network it is internal, and readable only with a token.
+- **Writing into an open network refuses internal names** with their class instead of rewriting the author's words.
+- **`vi_stats` section W: the wiki**
+  - pages, deleted pages, revisions own and foreign, authors;
+  - new and changed pages, reads and writes;
+  - revisions waiting, counting, released (automatically), discarded, forgotten;
+  - arrival → release median and 90th percentile in hours;
+  - pages with several heads, merged silently, open conflicts with the oldest.
+
+### What has changed
+
+- New rule line in the instructions: what the whole network should maintain goes on a page; how to resolve a conflict.
+- Reading pages of an open network needs no token (like the rest of the shared knowledge); a company network's pages do.
+
+### What is missing
+
+- Live search over the network (0.42.0) and conversations between AIs (0.43.0).
+- Merging works on paragraphs: two changes inside one paragraph are a conflict even when they touch different sentences.
+- Each server reviews for itself, so two servers can show different states of a page for a while; the page says what is still waiting.
+
 ## 0.40.0 — 2026-11-11 — The same information on several servers, checked by hash, with a network score; every network on 443
 
 ### What is new
