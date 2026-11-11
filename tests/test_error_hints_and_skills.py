@@ -59,14 +59,16 @@ def _overview(doc, prefix, text, visibility=None):
 def test_table_joins_overviews_measured_tools_and_manual_tools(gd):
     ov = _overview("gitlab-api", "gitlab", "Verbindet sich mit GitLab und führt API-Aufrufe aus (Projekte, Pipelines, z.B. CI-Variablen).")
     g.new_object("erkenntnis", "[gitlab-api › MCP-Tools] gitlab_get_tree lists a directory, gitlab_get_file reads a file",
-                 ["art_wissen:handbuch", "doku:gitlab-api"], {"quelle": "skills folder", "inhalt": "gitlab_get_tree(project, path) · gitlab_get_file(project, path)"},
-                 instance="alice")
+                 ["herkunft:skills-ordner", "doku:gitlab-api"], {"quelle": "skills folder", "inhalt": "gitlab_get_tree(project, path) · gitlab_get_file(project, path)"},
+                 instance="alice")  # tagged as the skills-folder import tags it (production 11.11.2026), not art_wissen:handbuch
+    g.new_object("erkenntnis", "Vendor docs mention gitlab_vendor_thing", ["art_wissen:doku-extern", "doku:gitlab-api"], {"quelle": "vendor"}, instance="alice")
     for _ in range(3):
         g.new_object("erfahrung", "gitlab_list_projects run", ["tool:gitlab_list_projects", "ok:ja"], {}, instance="a")
     _overview("agents", "agents", "(Abschnitte: Skills Documentation, API Skills, Other Skills)")
     rows = {r["skill"]: r for r in capabilities.table("a")}
     assert rows["gitlab-api"]["id"] == ov.id and rows["gitlab-api"]["tools"][0] == "gitlab_list_projects"  # measured first
     assert {"gitlab_get_tree", "gitlab_get_file"} <= set(rows["gitlab-api"]["tools"])  # then what the manual names
+    assert "gitlab_vendor_thing" not in rows["gitlab-api"]["tools"]  # vendor documentation is not the skill's manual
     assert rows["agents"]["description"].startswith("sections: Skills Documentation")
     t = capabilities.text("a")
     assert t.startswith("[Skills] 2 skill manuals") and "No such tool available" in t and f"→ [{ov.id}]" in t

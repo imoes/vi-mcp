@@ -3,6 +3,18 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.53.2 — 2026-11-11 — The skill table names the tools from the manuals
+
+### What was fixed
+
+- **The skill table listed no tools for most skills** (production, 11.11.2026: gitlab-api without any, although its manual names
+  `gitlab_get_file`, `gitlab_get_tree`, `gitlab_get_projects`, …). The manual sections were looked for with `art_wissen:handbuch`, but the
+  import from the skills folder tags them `herkunft:skills-ordner`. Now every section tagged `doku:<skill>` counts, except vendor
+  documentation (`art_wissen:doku-extern`).
+
+*Proof:* `tests/test_error_hints_and_skills.py` now builds the manual section the way the skills-folder import tags it and checks that a
+vendor document's tool name is not listed; checked against a production server's data (read only): the gitlab-api manual names six tools.
+
 ## 0.53.1 — 2026-11-11 — The update no longer leaves vi-mcp stopped; sleep survives a damaged skill
 
 ### What was fixed

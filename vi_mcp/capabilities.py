@@ -18,7 +18,7 @@ from . import memory as g
 OVERVIEW_TAGS = ("art-wissen:ueberblick", "art_wissen:ueberblick")
 TOOLS_PER_SKILL = 5
 DESCRIPTION_CHARS = 90
-MANUAL_TAG = "art_wissen:handbuch"
+EXTERNAL_TAG = "art_wissen:doku-extern"
 CACHE_S = 600
 _cache: dict = {}
 
@@ -39,9 +39,10 @@ def _description(text: str, doc: str) -> str:
 
 def _manual_tools(doc: str, prefix: str) -> list[str]:
     """Tool names written in the skill's manual (e.g. its section "MCP-Tools"): <prefix>_…, most mentioned first."""
-    with g.lock:
-        ids = [r[0] for r in g.db().execute("SELECT t1.objekt_id FROM tag t1 JOIN tag t2 ON t2.objekt_id = t1.objekt_id AND t2.tag = ? "
-                                            "WHERE t1.tag = ? LIMIT 400", (MANUAL_TAG, f"doku:{doc}"))]
+    with g.lock:  # 0.53.2: every section of the skill's manual — imported from the skills folder they carry herkunft:skills-ordner, not
+        # art_wissen:handbuch (production 11.11.2026: gitlab-api listed no tools); vendor documentation (doku-extern) is not the skill's manual
+        ids = [r[0] for r in g.db().execute("SELECT t1.objekt_id FROM tag t1 WHERE t1.tag = ? AND NOT EXISTS (SELECT 1 FROM tag t2 "
+                                            "WHERE t2.objekt_id = t1.objekt_id AND t2.tag = ?) LIMIT 400", (f"doku:{doc}", EXTERNAL_TAG))]
     tally: dict[str, int] = {}
     pattern = re.compile(rf"\b({re.escape(prefix)}_[a-z0-9_]{{2,40}})\b")
     for o in g.load_many(ids).values():
