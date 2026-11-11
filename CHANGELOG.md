@@ -3,6 +3,40 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.54.0 — 2026-11-11 — A package repository: updates with apt upgrade and dnf upgrade
+
+### What is new
+
+- **Signed apt and dnf repositories on GitHub Pages**, as the user asked ("damit die Pakete per Update kommen"):
+  https://imoes.github.io/vi-mcp-packages/ (repository `imoes/vi-mcp-packages`). A server adds it once — two `curl` lines on Debian/Ubuntu,
+  one on Fedora/RHEL, written in the README (English and German) and on the repository's start page — and then gets every release with
+  `apt upgrade` / `dnf upgrade`.
+  - apt: `pool/main` + `dists/stable/main` for `all`, `amd64`, `arm64`, signed `InRelease` and `Release.gpg`; the key as binary
+    `vi-mcp-repo.gpg` for `Signed-By` (no gpg needed on the server) and armored `vi-mcp-repo.asc`.
+  - dnf: RPMs signed with `rpmsign`, `createrepo_c` metadata (gzip, also for older dnf), signed `repomd.xml`, `vi-mcp.repo` with
+    `gpgcheck=1` and `repo_gpgcheck=1`.
+  - Its own OpenPGP key (Ed25519, valid to 2029-11-10), fingerprint `4598 3154 14EB F86C ABD3  22D9 730B 75BF AC30 36B7`; private part outside every repository, public part
+    `deploy/repo-key.asc`. apt and dnf need OpenPGP; the Ed25519 key of `SHA256SUMS` stays as it is.
+- **In one line**, as the user asked: `curl -fsSL https://imoes.github.io/vi-mcp-packages/setup.sh | sudo sh` adds key and source on
+  apt and dnf systems and installs nothing else (`deploy/repo-setup.sh`, published as `setup.sh`).
+- **`deploy/release.sh --gh` publishes into it** after the GitHub release (`deploy/publish-repo.sh`); every version stays in the pool.
+  The release stops before building if the repository key is missing.
+- First content: the packages of release v0.50.1 (checked with `deploy/pruefe-release.sh` first). Newer versions arrive with the next release.
+
+*Proof (11.11.2026):*
+- Local repository in throw-away containers: Debian 13 (`apt update` loads the signed `InRelease`, installs 0.53.3-1), Fedora 43 and
+  AlmaLinux 10 with EPEL (key imported with the fingerprint above, metadata and package signatures checked, installed 0.53.3-1).
+- A tampered repository is refused: apt "OpenPGP signature verification failed … Message has been manipulated", dnf "repomd.xml GPG
+  signature verification error: Bad PGP signature".
+- The live repository on GitHub Pages with exactly the documented commands: Debian 13 and Fedora 43 install 0.50.1-1.
+
+### What is missing
+
+- The repository holds v0.50.1 until the next release; the production server still installs by hand and has not added the repository.
+- No arm64 test (the package is `all`/`noarch`, the index for arm64 is there).
+- Back up the private repository key (`~/.config/vi-mcp/repo-gnupg`, with its revocation certificate): without it no release can be
+  published to the repository.
+
 ## 0.53.3 — 2026-11-11 — The skill table lists real tools only
 
 ### What was fixed

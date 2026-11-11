@@ -145,6 +145,36 @@ vi-mcp never trains the language model. The only weights it learns decide **whic
 
 ## Install
 
+### From the package repository — updates come with `apt upgrade` / `dnf upgrade` (0.54.0)
+
+Add the signed repository once; from then on every release arrives with the system's normal updates. The repository is served by
+GitHub Pages: **https://imoes.github.io/vi-mcp-packages/**. Its signing key (OpenPGP, Ed25519) has the fingerprint
+`4598 3154 14EB F86C ABD3  22D9 730B 75BF AC30 36B7` — compare it with [`deploy/repo-key.asc`](deploy/repo-key.asc) in this repository before you trust it.
+
+In one line (adds key and source on apt and dnf systems, installs nothing else — [read it first](deploy/repo-setup.sh)):
+
+```bash
+curl -fsSL https://imoes.github.io/vi-mcp-packages/setup.sh | sudo sh      # then: sudo apt install vi-mcp  or  sudo dnf install vi-mcp
+```
+
+The same by hand:
+
+```bash
+# Debian 12/13, Ubuntu 24.04
+sudo curl -fsSLo /usr/share/keyrings/vi-mcp.gpg https://imoes.github.io/vi-mcp-packages/vi-mcp-repo.gpg
+sudo curl -fsSLo /etc/apt/sources.list.d/vi-mcp.sources https://imoes.github.io/vi-mcp-packages/vi-mcp.sources
+sudo apt update && sudo apt install vi-mcp            # later: sudo apt upgrade
+
+# Fedora 43; AlmaLinux/RHEL 10 first: sudo dnf install epel-release
+sudo curl -fsSLo /etc/yum.repos.d/vi-mcp.repo https://imoes.github.io/vi-mcp-packages/vi-mcp.repo
+sudo dnf install vi-mcp                               # later: sudo dnf upgrade (dnf asks once to import the key: compare the fingerprint)
+```
+
+The same configuration questions and `VI_MCP_<KEY>` variables apply as with a downloaded package. Remove the repository again:
+`sudo rm /etc/apt/sources.list.d/vi-mcp.sources /usr/share/keyrings/vi-mcp.gpg` or `sudo rm /etc/yum.repos.d/vi-mcp.repo`.
+
+### From a downloaded package
+
 Packages are on the [releases page](https://github.com/imoes/vi-mcp/releases/latest). Your package manager pulls in all dependencies (Python ≥ 3.11, NumPy, scikit-learn, cryptography, PyYAML).
 
 ```bash

@@ -72,7 +72,7 @@ menu below. On first installation the menu opens by itself if a terminal is pres
 | Debian package | `deploy/debian/build.sh` |
 | RPM package | `deploy/rpm/build.sh` (builds in a Fedora container if `rpmbuild` is missing) |
 | Windows MSI | `deploy/windows/build.sh` (wixl/msitools in a Fedora container; `install.ps1` does Python, venv, PyPI and the scheduled task) |
-| Release | `deploy/release.sh --gh`: builds .deb, .rpm and .msi, signs `SHA256SUMS` (key outside the repo, `VI_MCP_RELEASE_KEY`, old name `VI_MCP_RELEASE_SCHLUESSEL`), checks and publishes |
+| Release | `deploy/release.sh --gh`: builds .deb, .rpm and .msi, signs `SHA256SUMS` (key outside the repo, `VI_MCP_RELEASE_KEY`, old name `VI_MCP_RELEASE_SCHLUESSEL`), checks and publishes — since 0.54.0 also into the signed apt/dnf repository `imoes/vi-mcp-packages` (GitHub Pages, `deploy/publish-repo.sh`, OpenPGP key in `VI_MCP_REPO_GNUPG`, default `~/.config/vi-mcp/repo-gnupg`, public part `deploy/repo-key.asc`) |
 | Check a release | `deploy/pruefe-release.sh <directory>` |
 
 Modules (`vi_mcp/`): `memory` (objects, search), `intuition` (before/after), `session`, `sleep_cycle`, `main_loop` (the loop), `scorer`, `learning`, `bandit`, `vector`, `reflection`, `skills`, `reflexes`, `sandbox`,

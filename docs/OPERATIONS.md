@@ -5,6 +5,9 @@ working tree (development).
 
 ## Debian package (server)
 
+**Updates from the package repository (0.54.0):** add the signed apt/dnf repository once (README, "From the package repository"), and
+every release comes with `apt upgrade` / `dnf upgrade`; `deploy/release.sh --gh` publishes into it. https://imoes.github.io/vi-mcp-packages/
+
 ```bash
 deploy/debian/build.sh                         # → dist/vi-mcp_<version>-1_all.deb (only dpkg-deb needed)
 scp dist/vi-mcp_0.1.0-1_all.deb host:/tmp/ && ssh host sudo dpkg -i /tmp/vi-mcp_0.1.0-1_all.deb

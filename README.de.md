@@ -149,6 +149,36 @@ wahr ist:
 
 ## Installieren
 
+### Aus dem Paket-Repository — Updates kommen mit `apt upgrade` / `dnf upgrade` (0.54.0)
+
+Das signierte Repository einmal einbinden; danach kommt jedes Release mit den normalen Updates des Systems. Ausgeliefert wird es über
+GitHub Pages: **https://imoes.github.io/vi-mcp-packages/**. Der Signaturschlüssel (OpenPGP, Ed25519) hat den Fingerprint
+`4598 3154 14EB F86C ABD3  22D9 730B 75BF AC30 36B7` — vor dem Vertrauen mit [`deploy/repo-key.asc`](deploy/repo-key.asc) in diesem Repository vergleichen.
+
+In einer Zeile (richtet Schlüssel und Quelle auf apt- und dnf-Systemen ein, installiert sonst nichts — [vorher lesen](deploy/repo-setup.sh)):
+
+```bash
+curl -fsSL https://imoes.github.io/vi-mcp-packages/setup.sh | sudo sh      # dann: sudo apt install vi-mcp  oder  sudo dnf install vi-mcp
+```
+
+Dasselbe von Hand:
+
+```bash
+# Debian 12/13, Ubuntu 24.04
+sudo curl -fsSLo /usr/share/keyrings/vi-mcp.gpg https://imoes.github.io/vi-mcp-packages/vi-mcp-repo.gpg
+sudo curl -fsSLo /etc/apt/sources.list.d/vi-mcp.sources https://imoes.github.io/vi-mcp-packages/vi-mcp.sources
+sudo apt update && sudo apt install vi-mcp            # später: sudo apt upgrade
+
+# Fedora 43; AlmaLinux/RHEL 10 vorher: sudo dnf install epel-release
+sudo curl -fsSLo /etc/yum.repos.d/vi-mcp.repo https://imoes.github.io/vi-mcp-packages/vi-mcp.repo
+sudo dnf install vi-mcp                               # später: sudo dnf upgrade (dnf fragt einmal nach dem Schlüssel: Fingerprint vergleichen)
+```
+
+Es gelten dieselben Konfigurationsfragen und `VI_MCP_<KEY>`-Variablen wie bei einem heruntergeladenen Paket. Repository wieder entfernen:
+`sudo rm /etc/apt/sources.list.d/vi-mcp.sources /usr/share/keyrings/vi-mcp.gpg` oder `sudo rm /etc/yum.repos.d/vi-mcp.repo`.
+
+### Aus einem heruntergeladenen Paket
+
 Pakete liegen unter [Releases](https://github.com/imoes/vi-mcp/releases/latest). Der Paketmanager zieht alle Abhängigkeiten nach (Python ≥ 3.11, NumPy, scikit-learn, cryptography, PyYAML).
 
 ```bash

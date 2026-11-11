@@ -19,6 +19,9 @@ if [ "${1:-}" = "--gh" ]; then
     ! git ls-remote --exit-code --tags origin "v$version" >/dev/null || { echo "tag v$version already exists on origin" >&2; exit 2; }
     # 0.30.1: the CHANGELOG entry must exist and carry a date (v0.30.1 was released with "unreleased" in its heading)
     grep -qE "^## $version — [0-9]{4}-[0-9]{2}-[0-9]{2}" CHANGELOG.md || { echo "CHANGELOG.md has no dated entry \"## $version — YYYY-MM-DD\"" >&2; exit 2; }
+    # 0.54.0: the apt/dnf repository is signed with its own OpenPGP key — check it before anything is built or published
+    GNUPGHOME="${VI_MCP_REPO_GNUPG:-$HOME/.config/vi-mcp/repo-gnupg}" gpg --list-secret-keys 2>/dev/null | grep -q '^sec' \
+        || { echo "repository signing key missing (VI_MCP_REPO_GNUPG) — needed to publish to the apt/dnf repository" >&2; exit 2; }
 fi
 deb=$(deploy/debian/build.sh)
 rpm=$(deploy/rpm/build.sh | tail -1)
@@ -38,4 +41,12 @@ print(s[i:j if j > 0 else None].split("\n", 1)[1].strip())
 print("\nVerify: `deploy/pruefe-release.sh <directory>` or by hand with openssl, see README.")
 PY
 ) --target "$(git rev-parse HEAD)"
+    # 0.54.0: the signed apt/dnf repository on GitHub Pages — servers that added it get this version with apt/dnf upgrade
+    repo_dir=$(mktemp -d); pkg_dir=$(mktemp -d)
+    gh repo clone imoes/vi-mcp-packages "$repo_dir" -- -q
+    cp "$deb" "$rpm" "$pkg_dir/"
+    deploy/publish-repo.sh "$pkg_dir" "$repo_dir"
+    (cd "$repo_dir" && git add -A && git -c user.name=imoes -c user.email=imoes@users.noreply.github.com commit -q -m "vi-mcp $version" && git push -q)
+    rm -rf "$repo_dir" "$pkg_dir"
+    echo "published to https://imoes.github.io/vi-mcp-packages/ (apt and dnf)"
 fi
