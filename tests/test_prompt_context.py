@@ -160,3 +160,16 @@ def test_hermes_on_writes_hook_config(target):  # noqa: F811
     e._hermes_off(target)
     d = yaml.safe_load((v / "config.yaml").read_text())
     assert "hooks" not in d and not (target.home / ".config/vi-mcp/hook-hermes.json").exists()
+
+
+def test_first_prompt_of_a_session_carries_the_skill_table_once(h):
+    """0.53.0: which skills exist — once per session, with its first question; without overview objects nothing."""
+    from vi_mcp import capabilities
+    capabilities._cache.clear()  # cached per instance for 10 minutes; an earlier test of this module cached an empty table
+    g.new_object("erkenntnis", "Vollständige Doku zu gitlab-api: vi_erinnere doku:gitlab-api. Verbindet sich mit GitLab.",
+                 ["art-wissen:ueberblick", "doku:gitlab-api", "skill:gitlab"], {"quelle": "skills folder"}, instance="alice")
+    ev = {"hook_event_name": "UserPromptSubmit", "session_id": "cc-skills", "cwd": "/tmp", "prompt": "wo liegt das Repo der Web-Komponente?"}
+    ctx = h.process(ev)["hookSpecificOutput"]["additionalContext"]
+    assert ctx.startswith("[Skills] 1 skill manuals") and "gitlab-api" in ctx
+    again = h.process({**ev, "prompt": "und die Pipeline dazu?"})
+    assert again is None or "[Skills]" not in again["hookSpecificOutput"]["additionalContext"]

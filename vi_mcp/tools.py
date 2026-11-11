@@ -277,6 +277,10 @@ TOOLS = [
      "inputSchema": _schema({"filter": {"type": "string", "description": "e.g. art_wissen:handbuch"},
                              "visibility": {"type": "string", "enum": ["shared", "internal"]}, "reason": _S,
                              "apply": {"type": "boolean", "description": "false (default): only count"}}, ["filter", "visibility", "reason"])},
+    {"name": "vi_capabilities",
+     "description": "VI: the skills of this installation — one line each: the system it serves, its tools (measured in use) and the id of its "
+                    "manual. Use it before working on a system or when a tool is missing. Read only.",
+     "inputSchema": _schema({})},
     {"name": "vi_why",
      "description": "VI: why was this hint shown? From the stored decision of your own last action with it (last 7 days): position, router "
                     "(model/bandit/heuristic), exploration, fitting triggers, measured usefulness, and the router weights that carry it. "
@@ -337,7 +341,7 @@ class Rejected(Exception):
 OPEN_ALLOWED = {"vi_before", "vi_after", "vi_learn", "vi_recall", "vi_drilldown", "vi_why", "vi_object", "vi_status", "vi_experience", "vi_skills", "vi_skill",
                  "vi_model", "vi_scorer", "vi_self", "vi_sleep", "vi_archive", "vi_quarantine", "vi_net_status", "vi_questions", "vi_reflex_list",
                  "vi_page_read", "vi_page_history", "vi_net_search", "vi_prompt_context",
-                 "vi_feedback"}  # 0.41.0: the open network's pages are readable like the rest; a company network is refused in the tool
+                 "vi_feedback", "vi_capabilities"}  # 0.41.0: the open network's pages are readable like the rest; a company network is refused in the tool
 
 
 def listing(instance: str | None = None) -> list[dict]:
@@ -997,6 +1001,9 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                 f"{c['already']} already {label} · {c['private']} private (never switched) · {c['not_yours']} of other instances "
                 f"(need the release right)" + ("" if apply else " — dry run, nothing changed; to switch: apply=true (command line: --apply)")
                 + (" · internal stops further sharing; copies already on the network: vi_net_forget" if new == "intern" and c["changed"] else ""))
+    if name == "vi_capabilities":  # 0.53.0
+        from . import capabilities
+        return capabilities.text(None if instance == config.OPEN else instance) or "no skill manuals in the VI yet (overview objects tagged art-wissen:ueberblick)"
     if name == "vi_why":
         o = _visible(args.get("id"), instance)
         t = args.get("triggers")

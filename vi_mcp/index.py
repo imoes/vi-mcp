@@ -84,7 +84,15 @@ def text(instance: str) -> str:
     titles = {"vorgaben": "Requirements and decisions (thema:vorgabe)", "bewaehrt": "Proven or most used", "hier": f"Learned by {instance} recently"}
     head = (f"[Index] Memory index for instance {instance}, like a MEMORY.md: one line per entry — vi_object <id> reads it whole, "
             "vi_recall searches everything else.")
-    out, size = [head], len(head)
+    try:  # 0.53.0: the skills are too many for this budget — one line says where they are
+        from . import capabilities
+        n = len(capabilities.table(instance))
+    except Exception:  # noqa: BLE001
+        n = 0
+    skills_line = (f"[Skills] {n} skill manuals (system, tools, manual id): vi_capabilities — before working on a system or when a tool is missing."
+                   if n else "")
+    out = [head] + ([skills_line] if skills_line else [])
+    size = sum(len(x) + 1 for x in out)
     for key, objs in sec.items():
         if not objs:
             continue

@@ -14,6 +14,8 @@ Sleep (when enough important things have accumulated; at night only after 24 h w
 learn on demand (`on_demand`), about a minute after new experiences or new knowledge. Visibilities: private, shared, internal (only with a token; never an open network, only a company network).
 Everything is an object in SQLite with hashtags (`art:wert`, kind:value), owning instance and visibility (stored as `privat`/`geteilt`/`intern`). The language model is never trained.
 
+Since 0.53.0 a failed action brings what the memory knows about its error (`intuition.error_hints`, returned by `vi_after`), and the
+first prompt of a session carries the skill table (`capabilities`, `vi_capabilities`: system, tools, manual id).
 Since 0.44.0 the hook also searches before every user prompt (`vi_prompt_context`: Claude Code `UserPromptSubmit`, Hermes shell hook
 `pre_llm_call` with `vi_hook.py --hermes`), so follow-up questions in a conversation get the memory too; the prompt is masked and not stored.
 
@@ -84,7 +86,8 @@ Modules (`vi_mcp/`): `memory` (objects, search), `intuition` (before/after), `se
 - **Nothing internal onto an open network.** What leaves for an open network goes through `anonymize.py`; what comes in is rejected there. A company network (`art: firma`, 0.39.0, members of one organisation) carries internal knowledge unanonymised, and its imports stay internal and are never exported again. A new kind of export needs a test in `tests/test_anonym.py`.
 - **Portable SQL (0.50.0).** Write SQLite SQL through `g.db()`; it must also run on PostgreSQL (`vi_mcp/db.py` translates the idioms its
   docstring lists). Not translated, so not allowed: `json_set`/`json_remove`/`json_each` (use `memory.update_data` or Python), a number
-  read from JSON without `CAST(json_extract(…) AS REAL)`, an alias in `HAVING`, scalar `min(a, b)`/`max(a, b)`, integer shifts. A new
+  read from JSON without `CAST(json_extract(…) AS REAL)`, an alias in `HAVING`, scalar `min(a, b)`/`max(a, b)`, integer shifts,
+  `SELECT DISTINCT … ORDER BY` a column that is not selected. A new
   query is tested by running the suite with `VI_MCP_TEST_PG`.
 - **No `max_tokens` / `n_predict`.** If an output is cut off: switch thinking off (`chat_template_kwargs: {enable_thinking: false}`).
 - **Language-model verdicts only tighten.** The model can be deceived by the text it checks; only fixed rules may reject for good.

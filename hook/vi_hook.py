@@ -217,7 +217,7 @@ def _init_session(claude_session: str, cwd: str | None) -> str:
     return sid
 
 
-def call_tool(claude_session: str, cwd: str | None, name: str, args: dict) -> dict:
+def call_tool(claude_session: str, cwd: str | None, name: str, args: dict, raw: bool = False):
     """Call a tool in vi-mcp; on an unknown session (server restarted, expired) log in again once."""
     z = read("sitzung", claude_session)
     sid = z["mcp_session_id"] if z else _init_session(claude_session, cwd)
@@ -231,7 +231,7 @@ def call_tool(claude_session: str, cwd: str | None, name: str, args: dict) -> di
         text = a["result"]["content"][0]["text"]
         if a["result"].get("isError"):
             raise Outage(f"{name}: {text[:200]}")
-        return json.loads(text)
+        return text if raw else json.loads(text)
     raise Outage(f"{name}: session still unknown after logging in again")
 
 
@@ -341,6 +341,10 @@ MAX_PROMPT = 4000
 PROMPT_SHOWN_MAX = 200
 
 
+#: 0.53.0: the skill table at the start of a session (one line per skill)
+MAX_SKILLS = 8000
+
+
 def prompt_context(session: str, cwd: str | None, prompt: str) -> str | None:
     """0.44.0: hints for the user's question. Ids already shown in this session are not repeated."""
     text = (prompt or "").strip()
@@ -349,10 +353,19 @@ def prompt_context(session: str, cwd: str | None, prompt: str) -> str | None:
     state = read("prompt", session) or {"gezeigt": []}
     v = call_tool(session, cwd, "vi_prompt_context", {"prompt": mask(text)[:MAX_PROMPT], "shown": state["gezeigt"][-PROMPT_SHOWN_MAX:]})
     hints = v.get("hinweise") or []
-    if not hints:
+    skills = None
+    if not state.get("faehigkeiten"):  # 0.53.0: once per session, with its first question — which skills exist, their tools and manuals
+        try:
+            skills = str(call_tool(session, cwd, "vi_capabilities", {}, raw=True)).strip()[:MAX_SKILLS] or None
+        except Outage as ex:
+            log_output(f"vi_capabilities: {ex}")
+        if skills and not skills.startswith("[Skills]"):
+            skills = None
+    if not hints and not skills:
         return None
-    write("prompt", session, {"gezeigt": (state["gezeigt"] + list(v.get("ids") or []))[-PROMPT_SHOWN_MAX:]})
-    return "[VI memory for this question — read and follow, or contradict with a reason]\n" + "\n".join(hints)
+    write("prompt", session, {"gezeigt": (state["gezeigt"] + list(v.get("ids") or []))[-PROMPT_SHOWN_MAX:], "faehigkeiten": True})
+    parts = ([skills] if skills else []) + (["[VI memory for this question — read and follow, or contradict with a reason]\n" + "\n".join(hints)] if hints else [])
+    return "\n\n".join(parts)
 
 
 def hermes(e: dict) -> dict | None:

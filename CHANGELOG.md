@@ -3,6 +3,39 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.53.0 — 2026-11-11 — After an error the VI says what it knows; every session starts with the skill table
+
+Proposed by a Claude Code session (cue-print) after a day next to the right manuals without opening them; the user approved A and B
+(11.11.2026). Its evidence: a tool error ("No such tool available") brought no hint although the VI held the fix; a GitLab repository
+was searched with a local `git grep` because nothing said that a GitLab skill with its own tools existed.
+
+### What is new
+
+- **After a failed action the memory searches by itself** (rule 3) and `vi_after` returns at most two hits: knowledge that carries the
+  error's `fehler:` tag, or shares at least two words of the error text plus the skill or a host of the action (for a shell only words and
+  host count, not the shell). Only active knowledge, never experiences; nothing when nothing really fits. The hook shows them after
+  `PostToolUseFailure`.
+- **The skill table** (`vi_mcp/capabilities.py`, tool `vi_capabilities`): one line per skill manual the instance may read — the system it
+  serves, its tools (measured in use first, then the ones its manual names, e.g. in "MCP-Tools") and the id of its overview — plus how to
+  read a manual and what a missing tool ("No such tool available") usually means. The hook puts it into the **first prompt of every
+  session**; it is too long for the instructions (some clients cut them at about 2,000 characters), so the index there names it in one line.
+  Works without setting up the hook again (it rides on `UserPromptSubmit`, registered since 0.44.0); Hermes gets it the same way.
+
+*Proof:* `tests/test_error_hints_and_skills.py` (8): the hint after a 401 names the knowledge about it; nothing without a real match; a
+shell error matches on words and host, not on the shell; refuted knowledge is not offered; success brings no error hints; the table joins
+overviews, measured and manual tools (measured first) and turns an overview without description into its sections; visibility (internal
+manuals never for the tokenless instance); the tool and the index line. `tests/test_prompt_context.py`: the first prompt of a session
+carries the table, the second does not. Preview against a production server's data (read only, 11.11.2026): 30 skills, 4,407
+characters. The PostgreSQL run caught a non-portable `SELECT DISTINCT … ORDER BY` — fixed, and the rule added to AGENTS.md. Full suite
+on SQLite and PostgreSQL 16.
+
+### What is missing
+
+- "No such tool available" itself still triggers nothing: a tool that does not exist is never called, so no hook runs. The skill table
+  says what it usually means; the error hint needs a call that fails.
+- D (fewer foreign-doc hints, the host failure-rate warning only when it fits) and E (manual content inside the hint) are proposed, not
+  yet approved.
+
 ## 0.52.0 — 2026-11-11 — Peers behind firewalls get news in seconds; live search reaches them; network questions without a person
 
 The user's setup: a peerhost that knows nothing itself and peers behind firewalls that hold the knowledge. He asked for A (questions

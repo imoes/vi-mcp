@@ -169,6 +169,53 @@ def error_signature(text: str) -> str:
     return re.sub(r"[0-9a-f]{8,}|\d+", "#", (text or "")[:160])
 
 
+#: 0.53.0 (proposed by a Claude Code session, approved by the user, 11.11.2026): rule 3 — "on an error, search the VI for the tool and the
+#: error text" — happens by itself: after a failed action the memory searches and hands the best hits back with vi_after (hook:
+#: PostToolUseFailure → additionalContext). At most ERROR_HINTS, only with a real match, never experiences.
+ERROR_HINTS = 2
+ERROR_KINDS = ("erkenntnis", "regel", "suche", "skill")
+_ERROR_STOP = frozenset("""error errors failed failure the and for with not was were is are has have this that from into exit code status
+http https true false none null traceback most recent call last line file module object type value valueerror keyerror oserror""".split())
+
+
+def _error_words(error: str) -> list[str]:
+    words = []
+    for w in re.findall(r"[A-Za-z][A-Za-z0-9_.-]{2,}", error or ""):
+        lw = w.lower().strip(".-_")
+        if len(lw) >= 3 and lw not in _ERROR_STOP and not re.fullmatch(r"[0-9a-f]{8,}", lw) and lw not in words:
+            words.append(lw)
+    return words[:10]
+
+
+def error_hints(tool: str, args: dict, error: str, instance: str | None) -> list[str]:
+    """Knowledge about this error: objects that share the tool's skill or a host with the action and at least two words of the error text,
+    or carry its fehler: tag. Lines like the hints before an action, with the id to read in full."""
+    words = _error_words(error)
+    trig = set(triggers(tool, args or {}))
+    sig = "fehler:" + error_signature(error)[:60].replace(" ", "_").replace("(", "_").replace(")", "_")
+    generic = {f"tool:{tool}", f"skill:{tool.split('_')[0]}"} if tool in SHELL_TOOLS else set()  # a shell says nothing specific
+    found: dict[str, tuple[float, g.MemoryObject]] = {}
+    queries = ([sig] if g.TAG.match(sig) else []) + ([" ".join(words[:6])] if words else [])
+    for q in queries:
+        try:
+            hits = g.recall(q, limit=12, kinds=ERROR_KINDS, viewer=instance, or_fallback=True)
+        except Exception:  # noqa: BLE001 — a search must never cost the vi_after
+            continue
+        for _sc, o, _p in hits:
+            if o.mode not in ("aktiv", "test") or o.id in found:
+                continue
+            body = (o.text + " " + str(o.data.get("inhalt") or "")[:4000]).lower()
+            shared_words = sum(1 for w in words if w in body)
+            shared_tags = len((trig - generic) & set(o.hashtags))
+            if sig in o.hashtags or (shared_words >= 2 and (shared_tags or shared_words >= 3)):
+                found[o.id] = (shared_words + 2 * shared_tags + (5 if sig in o.hashtags else 0), o)
+    best = sorted(found.values(), key=lambda x: -x[0])[:ERROR_HINTS]
+    if not best:
+        return []
+    return [f"After this error — known in the VI: [{o.id}] {' '.join(o.text.split())[:240]}" + (" — vi_object for the full content" if o.data.get("inhalt") else "")
+            for _w, o in best]
+
+
 def _question(tool: str, args: dict) -> str:
     return g.hash_value(tool, json.dumps(args, sort_keys=True, ensure_ascii=False))
 
@@ -457,6 +504,8 @@ def after(tool: str, args: dict, ok: bool, duration_ms: int, error: str | None, 
                     h.access()
                     reinforced += 1
     hints = reflexes.after(tool, dict(args or {}), result or "") if ok else []
+    if ok is False and error:  # 0.53.0: rule 3 by itself — what the memory knows about this error
+        hints += error_hints(tool, args or {}, error, instance)
     if ok is not None:  # a rated action is a new observation for router and bandit
         from . import on_demand
         on_demand.nudge("experience")
