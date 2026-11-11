@@ -307,7 +307,8 @@ def _proximity() -> dict:
 def _reviewer() -> dict:
     from . import reviewer
     from . import p2p
-    return {**reviewer.work_off(100), "auto_freigegeben": p2p.auto_approve()}
+    from . import forum
+    return {**reviewer.work_off(100), "fragen_freigegeben": forum.release_questions(), "auto_freigegeben": p2p.auto_approve()}
 
 
 def _doc_triggers() -> dict:

@@ -3,6 +3,39 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.52.0 — 2026-11-11 — Peers behind firewalls get news in seconds; live search reaches them; network questions without a person
+
+The user's setup: a peerhost that knows nothing itself and peers behind firewalls that hold the knowledge. He asked for A (questions
+without a person) and B (live search to the peers), and found the 300 s round too long — "bei BitTorrent gibt es ja auch Clients hinter
+einer Firewall".
+
+### What is new
+
+- **News without waiting for the round**, like BitTorrent's open connections and `have` messages (BEP 3,
+  https://www.bittorrent.org/beps/bep_0003.html): a peer behind a firewall keeps one outgoing long poll open at the peerhost
+  (`POST /netz/warten`, ≤ 50 s); the peerhost answers it at once when it holds entries the peer lacks, and the peer fetches them. A new
+  question, answer or wiki revision of the own AIs is pushed at once (`/lokal/anstoss`). The 300 s round stays as the fallback.
+- **The live search reaches the peers behind the peerhost.** The peerhost relays a search to its waiting peers (one hop) and returns their
+  answers within 3 s; every hit is signed by the peer that holds the knowledge, the asker verifies it. A peerhost's own memory reaches its
+  waiting peers too.
+- **A question from the network is released without a person** once the fixed rules found nothing and the reviewer admits it — right after
+  the review, not at the next sleep. Answers keep the full review; without a reviewer a question still waits for `vi_release`.
+
+*Proof:* `tests/test_network_fast.py` (11), with a real peerhost and two peers in mode `peer` on local ports: news reach a waiting peer in
+under 5 s (the round would take up to 300 s) and arrive in its memory; an empty wait ends after `max_s`; a search from one peer finds the
+knowledge of the other through the peerhost, which knows nothing itself; the peerhost's own search reaches it too; a hit the peerhost
+changes is dropped; an answer to a search not given to that peer is refused; a peerhost without the endpoint (404) is left alone for an
+hour; the round includes the peerhost of the long poll; the memory nudges its service. A question released after review and delivered; one
+with an injected instruction waits; without a reviewer it waits. The test found a race (a peer between two waits missed a search) — fixed:
+peers whose wait ended < 5 s ago count as connected. Full suite on SQLite and PostgreSQL 16.
+
+### What is missing
+
+- Measured only on one machine (local ports); not yet between real servers through a reverse proxy and a corporate HTTPS proxy.
+- Two peers both behind firewalls still talk only through a peerhost; there is no direct connection (BitTorrent punches holes over UDP,
+  BEP 55, which HTTPS-only firewalls do not allow).
+- A peerhost holds one thread per waiting peer (`ThreadingHTTPServer`); at most 500 at once, beyond that peers fall back to rounds.
+
 ## 0.51.0 — 2026-11-11 — English configuration files; vi_recall understands query; the embedding model in the README
 
 ### What has changed

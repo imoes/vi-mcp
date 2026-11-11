@@ -122,6 +122,8 @@ def write(instance: str, net: str, slug: str, text: str, base_rev: str | None, t
         g.db().execute("INSERT OR IGNORE INTO seite_eigen (rev, netz, instanz, schluessel) VALUES (?,?,?,?)", (rev, net, instance, key))
         g.db().commit()
     new_view = materialize(net, slug)
+    from . import p2p
+    p2p.nudge_service(net)  # 0.52.0: the revision goes out now
     branch = bool(v.heads) and set(full) != set(v.heads)
     return {"rev": rev, "eltern": content["eltern"], "zweig": branch, "zustand": new_view.state, "koepfe": new_view.heads,
             "befunde": b.reasons}

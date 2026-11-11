@@ -47,6 +47,14 @@ POSTS_PER_DAY = 200
 SEARCHES_PER_MIN = 30
 SEARCH_FANOUT = 20
 SEARCH_TIMEOUT_S = 5
+#: 0.52.0 — news without waiting for the round, like BitTorrent's open connections and "have" messages (BEP 3): a peer behind a firewall
+#: keeps one outgoing request open at a peerhost (long poll); the peerhost answers it as soon as it holds entries the peer lacks or a live
+#: search waits for the peer. tick_s stays as the fallback. WAIT_MAX_S stays below the 60 s that proxies often allow.
+WAIT_MAX_S = 50
+MAX_WAITERS = 500
+#: a live search at a peerhost is relayed to the peers waiting there (one hop, never further); how long it waits for their answers
+RELAY_WAIT_S = 3
+RECONNECT_S = 5  # a peer whose wait ended this recently still counts as connected
 SEARCH_MAX = 10
 LOCAL = ("127.0.0.1", "localhost", "::1")
 
@@ -236,6 +244,13 @@ class NetService:
         self.swarm = None
         self.paused = False  # 0.47.0: the memory switched this network off: no reconciliation, no inbox
         self.usage_stats = {"runden": 0, "per_https": 0, "per_torrent": 0}
+        # 0.52.0 long poll and search relay
+        self._changed = threading.Condition()
+        self._waiters: dict[str, int] = {}  # pub → open waits at this peerhost
+        self._waited: dict[str, float] = {}  # pub → when its last wait ended (it reconnects within a second)
+        self._searches: dict[str, dict] = {}  # relayed live searches waiting for answers
+        self._wait_target: str | None = None  # the peerhost this peer keeps a long poll open at
+        self._no_wait: dict[str, float] = {}  # peerhost → until when it is not asked (older version without /netz/warten)
         if k.torrent.get("active"):
             from . import net_torrent
             if net_torrent.available():
@@ -468,6 +483,127 @@ class NetService:
             return
         self.swarm.build(self.log, self.log.pub, from_, from_ + size - 1)
 
+    # ---- News without waiting for the round (0.52.0) ----
+
+    def _signal(self) -> None:
+        """Something changed here (new entries, a relayed search): wake every waiting long poll."""
+        with self._changed:
+            self._changed.notify_all()
+
+    def _news_for(self, theirs: dict) -> bool:
+        return any(s > int((theirs or {}).get(p, 0) or 0) for p, s in self.log.headers().items())
+
+    def _searches_for(self, pub: str) -> list[dict]:
+        out, now = [], time.monotonic()
+        for sid, x in self._searches.items():
+            if x["von"] != pub and pub not in x["an"] and x["ende"] > now:
+                x["an"].add(pub)
+                out.append({"id": sid, "q": x["q"], "max": x["max"]})
+        return out
+
+    def wait_for(self, pub: str, theirs: dict, max_s: float) -> dict:
+        """Peerhost side of the long poll: answer at once if there is news for the caller, else wait for news up to max_s."""
+        deadline = time.monotonic() + max(0.0, min(float(max_s), WAIT_MAX_S))
+        with self._changed:
+            if sum(self._waiters.values()) >= MAX_WAITERS:
+                return {"neu": False, "suchen": [], "voll": True}
+            self._waiters[pub] = self._waiters.get(pub, 0) + 1
+            try:
+                while True:
+                    news, searches = self._news_for(theirs), self._searches_for(pub)
+                    if news or searches or self.halt.is_set():
+                        return {"neu": news, "suchen": searches}
+                    left = deadline - time.monotonic()
+                    if left <= 0:
+                        return {"neu": False, "suchen": []}
+                    self._changed.wait(left)
+            finally:
+                self._waiters[pub] -= 1
+                if not self._waiters[pub]:
+                    del self._waiters[pub]
+                self._waited[pub] = time.monotonic()
+
+    def wait_once(self, address: str) -> dict:
+        """Peer side: one long poll at the peerhost. News → reconcile with it at once; relayed searches → answer them from here."""
+        r = self._request(address, "POST", "/netz/warten", {"koepfe": self.log.headers(), "max_s": WAIT_MAX_S}, timeout=WAIT_MAX_S + 20)
+        for x in (r or {}).get("suchen") or []:
+            try:
+                a = self.answer(str(x.get("q") or "")[:300], int(x.get("max") or SEARCH_MAX))
+            except (urllib.error.URLError, OSError, ValueError, KeyError, TimeoutError) as e:
+                log(f"network: relayed search not answered: {type(e).__name__}: {str(e)[:120]}")
+                a = {"pub": self.log.pub, "treffer": []}
+            try:
+                self._request(address, "POST", "/netz/suche/antwort", {"id": str(x.get("id")), **a}, timeout=SEARCH_TIMEOUT_S)
+            except (urllib.error.URLError, OSError, ValueError, TimeoutError, http.client.HTTPException) as e:
+                log(f"network: relayed search answer not delivered: {type(e).__name__}: {str(e)[:120]}")
+        if (r or {}).get("neu") and not self.paused and self._round.acquire(timeout=30):
+            try:
+                if self.reconcile(address):
+                    self.inbox()
+            finally:
+                self._round.release()
+        return r or {}
+
+    def wait_targets(self) -> list[str]:
+        """Peerhosts this peer can keep a long poll open at: known addresses, reachable at the last attempt, not marked as too old."""
+        own = self.k.address.rstrip("/") if self.k.address else None
+        now = time.time()
+        return [p["adresse"] for p in self.log.peers() if p["adresse"] != own and p["fehler"] == 0 and self._no_wait.get(p["adresse"], 0) < now]
+
+    def wait_loop(self) -> None:
+        """Peer mode: keep one long poll open, at the first reachable peerhost; never a tight loop."""
+        pause = 1.0
+        while not self.halt.is_set():
+            targets = self.wait_targets()
+            if self.paused or not targets:
+                self.halt.wait(10)
+                continue
+            address = self._wait_target if self._wait_target in targets else targets[0]
+            self._wait_target = address
+            try:
+                if self.wait_once(address).get("voll"):
+                    self.halt.wait(10)
+                pause = 1.0
+            except (urllib.error.URLError, OSError, ValueError, TimeoutError, http.client.HTTPException, KeyError, TypeError) as e:
+                if "404" in str(e):  # a peerhost older than 0.52.0: rounds only, ask again in an hour
+                    self._no_wait[address] = time.time() + 3600
+                    self._wait_target = None
+                else:
+                    log(f"network: long poll at {address}: {type(e).__name__}: {str(e)[:120]}")
+                    self.halt.wait(pause)
+                    pause = min(pause * 2, 60.0)
+            self.halt.wait(0.5)
+
+    def relay_search(self, asker: str, query: str, n: int) -> dict:
+        """Peerhost: hand a member's live search to the peers waiting here and collect their signed answers for RELAY_WAIT_S at most.
+        One hop: a peer answers from its own memory and never relays further."""
+        import uuid
+        with self._changed:
+            # waiting now, or between two waits (a peer reconnects within a second and then picks the search up at once)
+            recent = {p for p, t in self._waited.items() if time.monotonic() - t < RECONNECT_S}
+            targets = (set(self._waiters) | recent) - {asker}
+            if not targets:
+                return {"antworten": [], "gefragt": 0, "ohne_antwort": 0}
+            sid = uuid.uuid4().hex
+            self._searches[sid] = x = {"q": query, "max": n, "von": asker, "an": set(), "antworten": {}, "ende": time.monotonic() + RELAY_WAIT_S}
+            self._changed.notify_all()
+            try:
+                while time.monotonic() < x["ende"] and not targets <= set(x["antworten"]):
+                    self._changed.wait(max(0.05, x["ende"] - time.monotonic()))
+            finally:
+                del self._searches[sid]
+        self.usage_stats["suchen_weitergeleitet"] = self.usage_stats.get("suchen_weitergeleitet", 0) + 1
+        return {"antworten": list(x["antworten"].values()), "gefragt": len(targets), "ohne_antwort": len(targets - set(x["antworten"]))}
+
+    def relay_answer(self, pub: str, body: dict) -> bool:
+        with self._changed:
+            x = self._searches.get(str(body.get("id") or ""))
+            if not x or pub not in x["an"] or body.get("pub") != pub:
+                return False
+            x["antworten"][pub] = {"pub": pub, "treffer": [t for t in (body.get("treffer") or []) if isinstance(t, dict)][:SEARCH_MAX]}
+            self._changed.notify_all()
+            return True
+
     # ---- Live search (0.42.0) ----
 
     def answer(self, query: str, n: int) -> dict:
@@ -485,10 +621,20 @@ class NetService:
 
         def ask(address):
             try:
-                return address, self._request(address, "POST", "/netz/suche", {"q": query, "max": n}, timeout=SEARCH_TIMEOUT_S), None
+                return address, self._request(address, "POST", "/netz/suche", {"q": query, "max": n}, timeout=SEARCH_TIMEOUT_S + RELAY_WAIT_S), None
             except (urllib.error.URLError, OSError, TimeoutError, ValueError, http.client.HTTPException) as e:
                 return address, None, f"{type(e).__name__}: {str(e)[:80]}"
-        answers, unreachable, dropped = [], [], 0
+        answers, unreachable, dropped, relayed_to, relayed_silent = [], [], 0, 0, 0
+
+        def verified(pub, hits):
+            nonlocal dropped
+            good = []
+            for t in hits or []:
+                if isinstance(t, dict) and isinstance(t.get("objekt"), dict) and isinstance(t.get("sig"), str) and lb.valid(pub, t["sig"], lb.canonical(t["objekt"])):
+                    good.append(t)
+                else:
+                    dropped += 1
+            return good
         with ThreadPoolExecutor(max_workers=max(1, len(targets))) as ex:
             for address, a, err in ex.map(ask, targets):
                 if err or not isinstance(a, dict):
@@ -498,15 +644,26 @@ class NetService:
                 if not isinstance(pub, str) or not lb._HEX64.match(pub) or not self.log.is_member(pub):
                     unreachable.append({"adresse": address, "grund": "answer not from a member"})
                     continue
-                good = []
-                for t in a.get("treffer") or []:
-                    if isinstance(t, dict) and isinstance(t.get("objekt"), dict) and isinstance(t.get("sig"), str) and lb.valid(pub, t["sig"], lb.canonical(t["objekt"])):
-                        good.append(t)
-                    else:
-                        dropped += 1
-                answers.append({"adresse": address, "pub": pub, "treffer": good})
+                answers.append({"adresse": address, "pub": pub, "treffer": verified(pub, a.get("treffer"))})
+                # 0.52.0: answers of the peers behind the peerhost — each signed by its own author, so the peerhost cannot forge them
+                relayed_to += int(a.get("weitergeleitet_an") or 0)
+                relayed_silent += int(a.get("ohne_antwort") or 0)
+                for r in a.get("weitergeleitet") or []:
+                    rp = r.get("pub") if isinstance(r, dict) else None
+                    if not isinstance(rp, str) or not lb._HEX64.match(rp) or not self.log.is_member(rp) or rp == self.log.pub:
+                        dropped += len((r or {}).get("treffer") or []) if isinstance(r, dict) else 1
+                        continue
+                    answers.append({"adresse": f"{address} → {lb.pseudonym(rp)}", "pub": rp, "treffer": verified(rp, r.get("treffer"))})
+        if self.k.mode == "peerhost":  # 0.52.0: a peerhost asks the peers waiting at it too
+            mine = self.relay_search(self.log.pub, query, n)
+            relayed_to += mine["gefragt"]
+            relayed_silent += mine["ohne_antwort"]
+            for r in mine["antworten"]:
+                if self.log.is_member(r["pub"]):
+                    answers.append({"adresse": f"waiting here → {lb.pseudonym(r['pub'])}", "pub": r["pub"], "treffer": verified(r["pub"], r["treffer"])})
         self.usage_stats["suchen_gestellt"] = self.usage_stats.get("suchen_gestellt", 0) + 1
-        return {"antworten": answers, "nicht_erreichbar": unreachable, "verworfen": dropped, "gefragt": len(targets), "ms": int((time.monotonic() - t0) * 1000)}
+        return {"antworten": answers, "nicht_erreichbar": unreachable, "verworfen": dropped, "gefragt": len(targets), "weitergeleitet_an": relayed_to,
+                "weitergeleitet_ohne_antwort": relayed_silent, "ms": int((time.monotonic() - t0) * 1000)}
 
     def _local_handler(self):
         service = self
@@ -537,6 +694,9 @@ class NetService:
                     body = json.loads(self.rfile.read(length) or b"{}")
                 except ValueError:
                     return self._send(400, {"fehler": "not JSON"})
+                if self.path == "/lokal/anstoss":  # 0.52.0: the memory has something new for the network (a question, an answer, a page)
+                    service.awake.set()
+                    return self._send(204)
                 if self.path == "/lokal/suche" and isinstance(body.get("q"), str) and body["q"].strip():
                     return self._send(200, service.search(body["q"].strip()[:300], int(body.get("max") or SEARCH_MAX)))
                 return self._send(404, {"fehler": "unknown"})
@@ -683,10 +843,14 @@ class NetService:
             self.build_segment()
             excluding = self.k.address.rstrip("/") if self.k.address else None
             peers = self.log.choose_peers(self.k.neighbors, excluding)
+            if self._wait_target and self._wait_target not in peers:  # 0.52.0: the peerhost of the long poll always gets our news
+                peers.append(self._wait_target)
             for a in peers:
                 new += self.reconcile(a)
             self.inbox()
             self.usage_stats["runden"] += 1
+            if new:
+                self._signal()
             if new and time.time() - self._last_nudged >= self.k.min_round_s:
                 self._last_nudged = time.time()
                 self.nudge(peers)
@@ -800,7 +964,25 @@ class NetService:
                     r = service.log.ingest(json.loads(req_body).get("eintraege"))
                     if r["neu"]:
                         service.awake.set()
+                        service._signal()  # 0.52.0: peers waiting here learn it now, not at their next round
                     return self._send(200, r)
+                if self.path == "/netz/warten":  # 0.52.0: long poll of a peer behind a firewall
+                    pub = check_header(self.headers.get("Authorization"), self.command, self.path, req_body)
+                    try:
+                        q = json.loads(req_body or b"{}")
+                        theirs, max_s = q.get("koepfe") or {}, float(q.get("max_s") or WAIT_MAX_S)
+                    except (ValueError, AttributeError, TypeError):
+                        return self._send(400, {"fehler": "koepfe and max_s"})
+                    if not isinstance(theirs, dict):
+                        return self._send(400, {"fehler": "koepfe must be an object"})
+                    return self._send(200, service.wait_for(pub, theirs, max_s))
+                if self.path == "/netz/suche/antwort":  # 0.52.0: a waiting peer answers a relayed search
+                    pub = check_header(self.headers.get("Authorization"), self.command, self.path, req_body)
+                    try:
+                        body = json.loads(req_body)
+                    except ValueError:
+                        return self._send(400, {"fehler": "not JSON"})
+                    return self._send(204) if service.relay_answer(pub, body if isinstance(body, dict) else {}) else self._send(410, {"fehler": "search unknown or over"})
                 if self.path == "/netz/anstoss":
                     service.awake.set()
                     return self._send(204)
@@ -817,9 +999,11 @@ class NetService:
                     if not query:
                         return self._send(400, {"fehler": "q is empty"})
                     try:
-                        return self._send(200, service.answer(query, n))
+                        own = service.answer(query, n)
                     except (urllib.error.URLError, OSError, ValueError, KeyError, TimeoutError) as e:
-                        return self._send(503, {"fehler": f"memory not reachable: {type(e).__name__}"})
+                        own = {"pub": service.log.pub, "treffer": [], "fehler": f"memory not reachable: {type(e).__name__}"}
+                    relayed = service.relay_search(pub, query, n) if service.k.mode == "peerhost" else {"antworten": [], "gefragt": 0, "ohne_antwort": 0}
+                    return self._send(200, {**own, "weitergeleitet": relayed["antworten"], "weitergeleitet_an": relayed["gefragt"], "ohne_antwort": relayed["ohne_antwort"]})
                 return self._send(404, {"fehler": "unknown"})
         return H
 
@@ -838,6 +1022,7 @@ class NetService:
     def stop_service(self) -> None:
         self.halt.set()
         self.awake.set()
+        self._signal()
         for srv in (self.server, self.local_server):
             if srv:
                 srv.shutdown()
@@ -895,6 +1080,8 @@ def main() -> int:
     import signal
     signal.signal(signal.SIGUSR1, lambda *_: d.awake.set())  # systemctl kill -s USR1 vi-p2p: round now
     log(f"network: mode {k.mode}, pseudonym {lb.pseudonym(d.log.pub)}, {len(d.log.members())} members known")
+    if k.mode == "peer":  # 0.52.0: behind a firewall — keep a long poll open at a peerhost, news arrive in seconds
+        threading.Thread(target=d.wait_loop, name="vi-p2p-wait", daemon=True).start()
     try:
         d.main_loop()
     except KeyboardInterrupt:

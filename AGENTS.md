@@ -27,7 +27,10 @@ signed entries to its own logbook, the network service (`vi-p2p`, `vi-p2p@<netz>
   score (`net_score`); a content that keeps failing is no longer a hint.
 - Network wiki (`wiki`, `wiki_merge`): `vi_page_read/write/history/forget`, revisions with parents, paragraph merge, named conflicts.
 - Live search: `vi_net_search` asks the members now; hits are unreviewed until taken (`take`).
-- Conversations between AIs (`forum`): `vi_ask(to="netz")`, answers come back reviewed; `vi_confirm` on an answer rates it.
+- Conversations between AIs (`forum`): `vi_ask(to="netz")`, answers come back reviewed; `vi_confirm` on an answer rates it. Since 0.52.0 a
+  question is released as soon as fixed rules and reviewer admit it (`forum.release_questions`).
+- Peers behind firewalls (0.52.0): a long poll at the peerhost (`/netz/warten`, `NetService.wait_loop`) brings news in seconds instead of
+  at the 300 s round, and the peerhost relays live searches to its waiting peers (`relay_search`, one hop, hits signed by their authors).
 - Everything foreign counts only after review (fixed rules → quarantine → reviewer → release); `vi_stats` section W counts all of it.
 - Default wiki network (0.47.0): a new installation joins the free network `wiki` (start `https://vi-wiki.org/vi-p2p/wiki`,
   `p2p.WIKI_*`, `deploy/nach-installation.sh wiki`, opt-out `VI_MCP_KEIN_WIKI=1`). The instructions name every public network that is

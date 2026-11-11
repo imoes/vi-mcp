@@ -95,6 +95,7 @@ def ask(instance: str, net: str, text: str, triggers: list, source: str) -> g.Me
         g.db().execute("INSERT INTO beitrag_aus (netz, id, art, faden, eltern, instanz, daten, zeit, oid) VALUES (?,?,?,?,?,?,?,?,?)",
                        (net, pid, "frage", None, None, instance, json.dumps(content, ensure_ascii=False), g.now(), o.id))
         g.db().commit()
+    p2p.nudge_service(net)  # 0.52.0: out now, not at the next round
     return o
 
 
@@ -110,6 +111,8 @@ def reply(instance: str, question: g.MemoryObject, text: str, evidence: str) -> 
         g.db().execute("INSERT INTO beitrag_aus (netz, id, art, faden, eltern, instanz, daten, zeit, oid) VALUES (?,?,?,?,?,?,?,?,?)",
                        (b["netz"], pid, "antwort", content["faden"], b["id"], instance, json.dumps(content, ensure_ascii=False), g.now(), question.id))
         g.db().commit()
+    from . import p2p
+    p2p.nudge_service(b["netz"])  # 0.52.0
     return pid
 
 
@@ -163,6 +166,25 @@ def ingest(raw: dict, header: dict, net: str) -> str:
                        (net, pid, raw["art"], raw["faden"], raw["eltern"], header["pub"], raw["autor"], "ausstehend", o.id, raw["netz_id"], raw["loesch_hash"], g.now()))
         g.db().commit()
     return "neu"
+
+
+def release_questions() -> int:
+    """0.52.0 (decided by the user, 11.11.2026): a question from the network carries no claim. Once the fixed rules found nothing and the
+    reviewer admits it, it is released at once — no person, no waiting for sleep — and reaches the AIs of this server at their next action.
+    Answers keep the full path (they are knowledge). Without a reviewer (no prompt or model configured) a question still waits for
+    vi_release: the user's rule is "only after review"."""
+    from . import p2p
+    n = 0
+    value = p2p.publisher_value(fresh=True)
+    for _, o, _g in g.recall("art:frage modus:quarantaene herkunft:gespraech", limit=200, viewer=None):
+        b = o.data.get("beitrag") or {}
+        if b.get("richtung") != "ein" or b.get("art") != "frage" or "pruefer:ausstehend" in o.hashtags:
+            continue
+        if p2p.sensitive(o) or value.get(o.data["herkunft"]["herausgeber"], {}).get("gesperrt"):
+            continue  # a rule finding, a reviewer doubt or a blocked publisher: a person decides
+        p2p.approve(o, "vi", True, False, "automatic: a question carries no claim — fixed rules found nothing, the reviewer admits it")
+        n += 1
+    return n
 
 
 def on_release(o: g.MemoryObject, accepted: bool) -> None:

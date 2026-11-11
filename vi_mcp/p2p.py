@@ -375,6 +375,24 @@ def _record_search(net: str, kind: str, asked=0, answered=0, unreachable=0, hits
         g.db().commit()
 
 
+def nudge_service(net: str) -> None:
+    """0.52.0: tell the network service of `net` that something new waits in the outbox (a question, an answer, a wiki page), so it goes
+    out now and not at the next round. Best effort, in the background: without the local listener the round takes it."""
+    loc = (networks().get(net) or {}).get("local") or {}
+    if not loc.get("url") or not loc.get("token"):
+        return
+
+    def send():
+        import urllib.request
+        req = urllib.request.Request(loc["url"].rstrip("/") + "/lokal/anstoss", data=b"{}",
+                                     headers={"Content-Type": "application/json", "Authorization": f"Bearer {loc['token']}"})
+        try:
+            urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=5).close()
+        except OSError:
+            pass
+    threading.Thread(target=send, name="vi-net-nudge", daemon=True).start()
+
+
 def live_search(net: str, query: str, n: int = LIVE_MAX) -> dict:
     """Ask the members of `net` now, through this server's network service (local listener). Hits are checked by the fixed rules, never
     stored, never a hint — `take` sends one through quarantine, review and release like every import."""
@@ -445,7 +463,7 @@ def take_live(short_id: str, in_background: bool = True) -> g.MemoryObject:
     _record_search(e["netz"], "uebernahme")
     e["hier"] = o.id
     if in_background and reviewer.available():
-        threading.Thread(target=reviewer.work_off, args=(MAX_OBJECTS,), name="vi-pruefer", daemon=True).start()
+        threading.Thread(target=review_and_release, name="vi-pruefer", daemon=True).start()
     return o
 
 
@@ -661,8 +679,15 @@ def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
         report["quarantaene"] += 1
     report["gruende"] = report["gruende"][:20]
     if in_background and (report["quarantaene"] or report.get("seiten") or report.get("beitraege")) and reviewer.available():
-        threading.Thread(target=reviewer.work_off, args=(MAX_OBJECTS,), name="vi-pruefer", daemon=True).start()
+        threading.Thread(target=review_and_release, name="vi-pruefer", daemon=True).start()
     return report
+
+
+def review_and_release() -> dict:
+    """The reviewer works off the quarantine; then questions from the network that it admits are released at once (0.52.0)."""
+    from . import forum
+    r = reviewer.work_off(MAX_OBJECTS)
+    return {**r, "fragen_freigegeben": forum.release_questions()}
 
 
 _value_cache: tuple[float, dict] = (0.0, {})

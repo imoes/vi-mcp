@@ -575,6 +575,31 @@ and keeps the hits in process memory for an hour (`_live`), nothing in the datab
 import (`_create`, `herkunft:live`, holder line, `p2p_netz`). Counted in `netz_suche` (searches, takes) and the service snapshot
 (answered, refused).
 
+## News without waiting for the round, relayed live search (0.52.0)
+
+Shape it is built for: a peerhost that knows nothing itself and peers behind firewalls (mode `peer`) that hold the knowledge. BitTorrent
+keeps connections open and announces a new piece at once (`have`, BEP 3); a peer behind a firewall can only connect out (BEP 55 punches
+holes over UDP, which corporate firewalls with HTTPS proxies usually do not allow). So the peer connects out and keeps the request open:
+
+- **Long poll.** `NetService.wait_loop` (mode `peer` only, started by `main`) keeps one `POST /netz/warten {koepfe, max_s}` open at the first
+  reachable peerhost (`wait_targets`). The peerhost (`wait_for`) answers at once if its logbook holds entries the caller lacks (`_news_for`
+  compares heads) or a relayed search waits for it, otherwise it waits on a condition up to `WAIT_MAX_S` = 50 s (below the 60 s many proxies
+  allow; the nginx snippet sets `proxy_read_timeout 120s`). At most `MAX_WAITERS` = 500 open waits; beyond that `voll` and the peer
+  retries in 10 s. On news the peer reconciles with that peerhost at once (`wait_once`, under the round lock) and hands the entries to its
+  memory. A peerhost without the endpoint (404, older than 0.52.0) is left to the rounds for an hour (`_no_wait`).
+- **Signals.** `_signal` wakes all waits: after `POST /netz/eintraege` with new entries, after a round that brought something new, when a
+  search is queued, at stop. The memory calls `POST /lokal/anstoss` (`p2p.nudge_service`) after a question, an answer or a wiki revision,
+  so it goes out at once. A round always includes the peerhost of the long poll (`_wait_target`). `tick_s` = 300 stays as the fallback.
+- **Relayed live search.** A peerhost answering `POST /netz/suche` also calls `relay_search`: the search goes to the peers waiting at it or
+  whose wait ended less than `RECONNECT_S` = 5 s ago, without the asker; they get it in their long poll, answer from their own memory with
+  their own signature (`POST /netz/suche/antwort`, accepted only from a peer the search was given to) and the peerhost returns them as
+  `weitergeleitet` after at most `RELAY_WAIT_S` = 3 s, with `weitergeleitet_an` and `ohne_antwort`. One hop: a peer answers, it never relays.
+  The asker verifies every relayed hit against its author's key (`search` → `verified`), so a peerhost cannot forge one; it also searches
+  its own waiting peers when its own memory asks.
+- **Questions released after review** (`forum.release_questions`, after `reviewer.work_off` in `p2p.review_and_release` and in sleep): a
+  quarantined question from the network whose review is done, without rule findings or reviewer doubts (`p2p.sensitive`) and from a
+  publisher not blocked is approved by `vi`. Answers keep the full path. Without a reviewer a question waits for `vi_release`.
+
 ## Conversations between AIs in the network (0.43.0)
 
 `forum.py`, logbook type `beitrag` `{faden, eltern, art (frage|antwort), text, inhalt, hashtags, reize, autor, netz_id, loesch_hash, zeit}`
