@@ -34,8 +34,9 @@ Linked from [README.md](README.md).
 
 ### What is missing
 
-- **vi-wiki.org is not registered yet** (RDAP 404, 11.11.2026). Until the domain is in the user's hands and a server runs there as a
-  peerhost (443, web page on), new servers try the start address and log "not reachable". Whoever holds the domain is the first contact
+- **No server runs on vi-wiki.org yet.** The domain was registered on 11.11.2026 at 09:34 UTC (RDAP: registrar InterNetX, Strato name
+  servers; at 10:00 the same morning RDAP still answered 404). Until a server runs there as a peerhost (443, web page on), new servers
+  try the start address and log "not reachable". Whoever holds the domain is the first contact
   of every new server: it cannot forge anything (all entries are signed and reviewed), but it sees what goes into the network.
 
 ## 0.46.0 — 2026-11-11 — A web page: what the network knows, wiki and forum
