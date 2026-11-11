@@ -353,6 +353,11 @@ def _network_notice() -> str:
         return ""
 
 
+def _db_label(target) -> str:
+    from . import db as dbmod
+    return f"PostgreSQL {dbmod.redact(target)}" if dbmod.is_url(target) else str(target)
+
+
 def build(k: config.Config) -> list[Server]:
     """One memory, one loop — one HTTP server per bind address, all in the same process."""
     if not k.instances:
@@ -381,7 +386,7 @@ def build(k: config.Config) -> list[Server]:
                 addresses += f", local socket {k.socket} (users: {', '.join(f'{u}→{i}' for u, i in sorted(k.local.items())) or 'none allowed yet'})"
             except OSError as e:  # HTTP keeps working; the reason is named, the socket is not silently missing
                 log(f"local socket {k.socket} not opened: {e} — HTTP is unaffected, vi-mcp stdio will not reach this service")
-    log(f"vi-mcp {__version__} on {addresses} · memory {k.db} · {n} reflexes · "
+    log(f"vi-mcp {__version__} on {addresses} · memory {_db_label(k.db)} · {n} reflexes · "
         f"instances {', '.join(sorted(k.instances))} · loop every {main_loop.LOOP_S} s")
     return srvs
 

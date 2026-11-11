@@ -61,6 +61,7 @@ menu below. On first installation the menu opens by itself if a terminal is pres
 | Task | Command |
 |---|---|
 | Tests | `.venv/bin/python -m pytest -q tests -p no:cacheprovider` (`.venv`: scikit-learn, cryptography, pyyaml, numpy) |
+| Tests against PostgreSQL (0.50.0) | `VI_MCP_TEST_PG=postgresql://USER@HOST/DB` before the same command (`.venv` also needs psycopg; a throw-away database: every test gets its own schema) |
 | Debian package | `deploy/debian/build.sh` |
 | RPM package | `deploy/rpm/build.sh` (builds in a Fedora container if `rpmbuild` is missing) |
 | Windows MSI | `deploy/windows/build.sh` (wixl/msitools in a Fedora container; `install.ps1` does Python, venv, PyPI and the scheduled task) |
@@ -68,7 +69,7 @@ menu below. On first installation the menu opens by itself if a terminal is pres
 | Check a release | `deploy/pruefe-release.sh <directory>` |
 
 Modules (`vi_mcp/`): `memory` (objects, search), `intuition` (before/after), `session`, `sleep_cycle`, `main_loop` (the loop), `scorer`, `learning`, `bandit`, `vector`, `reflection`, `skills`, `reflexes`, `sandbox`,
-`content` (meaning as a router feature), `on_demand` (training on demand), `usage_stats` (usage statistics, `vi_stats`), `metrics` (hint lift, by hint age), `images` (images with description and SAM 3 regions), `image_cli` (`vi-mcp image`), `stdio_bridge` (`vi-mcp stdio`, MCP over stdio through the local socket), `index` (memory index in the instructions), `weight_audit` (fixed rules over the router weights), `archive`, `self_model`, `questions`, `p2p` (memory on the network), `net_score` (content hash, holders, network score), `wiki` + `wiki_merge` (network wiki pages, merge), `forum` (questions and answers between AIs in the network), `web` (read-only web page of the free and open networks), `configure` (package configuration: debconf, menu, VI_MCP_ variables), `logbook`, `net_service` (separate process `vi-p2p`), `net_torrent`, `net_cli`, `anonymize`, `checks`, `reviewer`, `setup`, `config`, `server`, `tools`, `api_en` (German aliases), `log_output`.
+`content` (meaning as a router feature), `on_demand` (training on demand), `usage_stats` (usage statistics, `vi_stats`), `metrics` (hint lift, by hint age), `images` (images with description and SAM 3 regions), `image_cli` (`vi-mcp image`), `stdio_bridge` (`vi-mcp stdio`, MCP over stdio through the local socket), `index` (memory index in the instructions), `weight_audit` (fixed rules over the router weights), `archive`, `self_model`, `questions`, `p2p` (memory on the network), `net_score` (content hash, holders, network score), `wiki` + `wiki_merge` (network wiki pages, merge), `forum` (questions and answers between AIs in the network), `web` (read-only web page of the free and open networks), `configure` (package configuration: debconf, menu, VI_MCP_ variables), `db` (SQLite or PostgreSQL behind the sqlite3 interface, SQL translation), `db_migrate` (`vi-mcp db migrate|status`), `logbook`, `net_service` (separate process `vi-p2p`), `net_torrent`, `net_cli`, `anonymize`, `checks`, `reviewer`, `setup`, `config`, `server`, `tools`, `api_en` (German aliases), `log_output`.
 
 ## Rules
 
@@ -76,6 +77,10 @@ Modules (`vi_mcp/`): `memory` (objects, search), `intuition` (before/after), `se
 
 - **Public repository.** No host names, IPs, user names, tokens or internal URLs in code, docs, commits or packages. Host-specific material belongs in `docs/LOKAL*.md` (gitignored, never in a package).
 - **Nothing internal onto an open network.** What leaves for an open network goes through `anonymize.py`; what comes in is rejected there. A company network (`art: firma`, 0.39.0, members of one organisation) carries internal knowledge unanonymised, and its imports stay internal and are never exported again. A new kind of export needs a test in `tests/test_anonym.py`.
+- **Portable SQL (0.50.0).** Write SQLite SQL through `g.db()`; it must also run on PostgreSQL (`vi_mcp/db.py` translates the idioms its
+  docstring lists). Not translated, so not allowed: `json_set`/`json_remove`/`json_each` (use `memory.update_data` or Python), a number
+  read from JSON without `CAST(json_extract(…) AS REAL)`, an alias in `HAVING`, scalar `min(a, b)`/`max(a, b)`, integer shifts. A new
+  query is tested by running the suite with `VI_MCP_TEST_PG`.
 - **No `max_tokens` / `n_predict`.** If an output is cut off: switch thinking off (`chat_template_kwargs: {enable_thinking: false}`).
 - **Language-model verdicts only tighten.** The model can be deceived by the text it checks; only fixed rules may reject for good.
 - **No instance rates itself.** There is no MCP tool for setting a grade.

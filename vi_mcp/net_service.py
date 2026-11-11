@@ -178,14 +178,21 @@ class McpClient:
         return self._call_tool("vi_net_answer_search", {"query": query, "max": n})
 
 
+def data_dir(k: "NetConfig") -> Path:
+    """Directory for files next to the logbook (torrent segments, TLS): beside the SQLite file, or beside the key with PostgreSQL."""
+    from . import db as dbmod
+    return Path(k.seed).parent if dbmod.is_url(k.db) else Path(k.db).parent
+
+
 class NetService:
     def __init__(self, k: NetConfig, mcp=None):
         self.k = k
         self.free = k.kind == "frei"
         self.trusted: set[str] = set()  # 0.45.0: publishers the memory measured as useful — full quota in a free network
         self.blocked_addresses = {b.rstrip("/") for b in k.blocked if "://" in str(b)}
-        self.log = lb.Logbook(Path(k.db), Path(k.seed), k.founders, internal_ok=k.kind == "firma", free_bits=int(k.pow_bits) if self.free else None,
-                              blocked={b for b in k.blocked if lb._HEX64.match(str(b))}, quota_of=self._quota if self.free else None)
+        self.log = lb.Logbook(k.db, Path(k.seed), k.founders, internal_ok=k.kind == "firma", free_bits=int(k.pow_bits) if self.free else None,
+                              blocked={b for b in k.blocked if lb._HEX64.match(str(b))}, quota_of=self._quota if self.free else None,
+                              schema=lb.schema_for(k.net))
         self.config_blocked = set(self.log.blocked)
         if self.free:
             took = self.log.ensure_identity(int(k.pow_bits))
@@ -207,7 +214,7 @@ class NetService:
         if k.torrent.get("aktiv"):
             from . import net_torrent
             if net_torrent.available():
-                self.swarm = net_torrent.Swarm(Path(k.torrent.get("verzeichnis") or Path(k.db).parent / "segmente"), int(k.torrent.get("port", 6881)), k.bind if k.mode == "peerhost" else "127.0.0.1")
+                self.swarm = net_torrent.Swarm(Path(k.torrent.get("verzeichnis") or data_dir(k) / "segmente"), int(k.torrent.get("port", 6881)), k.bind if k.mode == "peerhost" else "127.0.0.1")
                 for sha, ti, file in self.log.segments_local():
                     self.swarm.parts(ti, Path(file))
             else:

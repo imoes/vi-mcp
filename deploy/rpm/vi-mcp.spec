@@ -16,6 +16,7 @@ Requires:       python3-cryptography
 Requires:       python3-pyyaml
 Requires:       systemd
 Recommends:     rb_libtorrent-python3
+Suggests:       python3dist(psycopg)
 Requires(pre):  shadow-utils
 
 %description

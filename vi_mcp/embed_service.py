@@ -224,7 +224,8 @@ def compare(port: int = DEFAULT_PORT, sample: int = 30) -> dict:
     import sqlite3
     import numpy as np
     db = config.load().db
-    c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    from . import db as dbmod
+    c = dbmod.connect_readonly(db)
     rows = c.execute("SELECT o.text, v.roh, v.dim FROM vektor v JOIN objekt o ON o.id = v.id WHERE length(o.text) > 0 "
                      "ORDER BY random() LIMIT ?", (sample,)).fetchall()
     c.close()

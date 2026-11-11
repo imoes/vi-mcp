@@ -192,16 +192,26 @@ def valid_control_form(type_: str, content) -> bool:
     return False
 
 
+def schema_for(net: str) -> str:
+    """PostgreSQL schema of a network's logbook (0.50.0): every network service its own, so two networks never share tables."""
+    return "netz_" + (re.sub(r"[^a-z0-9_]", "_", str(net).lower())[:50] or "standard")
+
+
 class Logbook:
-    def __init__(self, fpath: Path, seed: Path, founders: list[str], internal_ok: bool = False, free_bits: int | None = None,
-                 blocked: set[str] | None = None, quota_of=None):
-        Path(fpath).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    def __init__(self, fpath: Path | str, seed: Path, founders: list[str], internal_ok: bool = False, free_bits: int | None = None,
+                 blocked: set[str] | None = None, quota_of=None, schema: str | None = None):
+        """fpath: SQLite file, or (0.50.0) a postgresql:// URL — then the tables live in `schema` (one per network, schema_for(net))."""
+        from . import db as dbmod
         self.lock = threading.RLock()
-        old_umask_value = os.umask(0o077)
-        try:
-            self.db = sqlite3.connect(str(fpath), check_same_thread=False, timeout=30, isolation_level=None)
-        finally:
-            os.umask(old_umask_value)
+        if dbmod.is_url(fpath):
+            self.db = dbmod.connect(str(fpath), schema=schema, autocommit=True)
+        else:
+            Path(fpath).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            old_umask_value = os.umask(0o077)
+            try:
+                self.db = sqlite3.connect(str(fpath), check_same_thread=False, timeout=30, isolation_level=None)
+            finally:
+                os.umask(old_umask_value)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA busy_timeout=30000")
         self.db.executescript("""
@@ -337,7 +347,7 @@ class Logbook:
         return [{"kopf": json.loads(k), "inhalt": json.loads(d) if d else None} for k, d in lines]
 
     def _violation(self, pub: str) -> None:
-        self.db.execute("INSERT INTO verstoss (pub, n) VALUES (?, 1) ON CONFLICT(pub) DO UPDATE SET n = n + 1", (pub,))
+        self.db.execute("INSERT INTO verstoss (pub, n) VALUES (?, 1) ON CONFLICT(pub) DO UPDATE SET n = verstoss.n + 1", (pub,))
 
     def _object_content(self, header: dict, content):
         """The content of an object to store, or None (forgotten, missing, or violating the rules)."""
@@ -563,7 +573,10 @@ class Logbook:
             if ok:
                 self.db.execute("UPDATE peer SET zuletzt = ?, fehler = 0, naechster = 0 WHERE adresse = ?", (time.time(), address))
             else:
-                self.db.execute("UPDATE peer SET fehler = fehler + 1, naechster = ? + min(3600, 30 * (1 << min(fehler, 7))) WHERE adresse = ?", (time.time(), address))
+                row = self.db.execute("SELECT fehler FROM peer WHERE adresse = ?", (address,)).fetchone()
+                errors = int(row[0] or 0) if row else 0  # backoff 30 s · 2^errors, at most an hour (computed here: portable SQL)
+                self.db.execute("UPDATE peer SET fehler = fehler + 1, naechster = ? WHERE adresse = ?",
+                                (time.time() + min(3600, 30 * (1 << min(errors, 7))), address))
 
     # ---- Segments: transport cache for torrent, without evidential value of their own ----
 

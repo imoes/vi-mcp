@@ -88,6 +88,16 @@ def _base(v):
     return None if re.fullmatch(r"(/[A-Za-z0-9._-]+)+", v or "") else "a path like /web or /vi-mcp/web"
 
 
+def _db(v):
+    if not v:
+        return None
+    if not re.fullmatch(r"postgres(ql)?://\S+", v):
+        return "empty (SQLite file) or a postgresql:// URL"
+    if re.search(r"://[^/@:]+:[^@]*@", v):
+        return "no password in the URL — ~/.pgpass of the service user, PGPASSFILE or peer authentication over the socket"
+    return None
+
+
 def _start(v):
     return None if not v or v.startswith("vinetz1.") or re.fullmatch(r"https?://[^\s]+", v) else "empty, an https:// address or a join code vinetz1.…"
 
@@ -96,6 +106,9 @@ QUESTIONS = [
     Q("port", "Server", "string", "Port of the VI server", "The port the server listens on (HTTP; TLS comes from the reverse proxy).", "8765", priority="high", check=_port),
     Q("bind", "Server", "string", "Addresses the server listens on",
       "Comma-separated. 127.0.0.1 = this machine only. Add the gateway of a Docker network if nginx runs in a container.", "127.0.0.1", check=_addresses),
+    Q("db", "Server", "string", "Database (empty = SQLite file)",
+      "Empty: the SQLite file (default, no server needed). Or a PostgreSQL URL, e.g. postgresql://vi-mcp@/vi-mcp?host=/var/run/postgresql — "
+      "needs python3-psycopg; move the data first with vi-mcp db migrate --to URL (an empty database is refused).", "", check=_db),
     Q("open", "Server", "boolean", "Access without a token (open wiki mode)",
       "Anyone who reaches the server may read shared knowledge and propose new knowledge (which goes into quarantine). Internal knowledge "
       "always needs a token.", "false"),
@@ -141,7 +154,9 @@ def current() -> dict[str, str]:
     raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
     b = raw.get("bind", "127.0.0.1")
     wiki = Path(os.environ.get("VI_P2P_DIR", "/etc/vi-p2p")) / "wiki.json"
+    db = str(raw.get("db") or "")
     return {"port": str(raw.get("port", 8765)), "bind": ",".join([b] if isinstance(b, str) else b), "open": _b(raw.get("offen", False)),
+            "db": db if db.startswith(("postgresql://", "postgres://")) else "",
             "wiki": _b(wiki.exists()), "web": _b(raw.get("web", False)), "web_base": raw.get("web_basis") or "/web",
             "llm_url": (raw.get("llm") or {}).get("url", ""), "llm_model": (raw.get("llm") or {}).get("modell", ""),
             "reviewer_prompt": raw.get("pruefer_prompt") or "", "embed_url": (raw.get("embed") or {}).get("url", ""),
@@ -206,6 +221,34 @@ def validate(answers: dict[str, str]) -> dict[str, str]:
 
 # ---- applying ----
 
+def _db_target_not_ready(url: str, raw: dict) -> str | None:
+    """Switching to PostgreSQL only onto data: the target must hold at least as many objects as the SQLite file (vi-mcp db migrate)."""
+    import sqlite3
+    from . import db as dbmod
+    src = Path(str(raw.get("db") or config.Config().db)).expanduser()
+    try:
+        con = dbmod.connect(url)
+    except Exception as exc:  # noqa: BLE001 — every reason is named
+        return f"PostgreSQL not reachable ({type(exc).__name__}: {str(exc).splitlines()[0][:160]})"
+    try:
+        has = con.execute("SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'objekt'").fetchone()
+        target = con.execute("SELECT COUNT(*) FROM objekt").fetchone()[0] if has else 0
+    finally:
+        con.close()
+    if not src.exists():
+        return None  # a new installation: nothing to move
+    s = sqlite3.connect(f"file:{src}?mode=ro", uri=True)
+    try:
+        source = s.execute("SELECT COUNT(*) FROM objekt").fetchone()[0]
+    except sqlite3.Error:
+        source = 0
+    finally:
+        s.close()
+    if target < source:
+        return f"the PostgreSQL database holds {target} objects, the SQLite file {source} — run vi-mcp db migrate --to URL first"
+    return None
+
+
 def apply(answers: dict[str, str], restart: bool = True) -> list[str]:
     """Apply answers; only what differs from the running configuration. Returns what was done (for the screen and the log)."""
     answers = {k: str(v).strip() for k, v in answers.items() if k in BY_KEY}
@@ -230,6 +273,16 @@ def apply(answers: dict[str, str], restart: bool = True) -> list[str]:
     if "bind" in answers and answers["bind"] != cur["bind"]:
         addrs = [a.strip() for a in answers["bind"].split(",") if a.strip()]
         setraw("bind", addrs[0] if len(addrs) == 1 else addrs, f"addresses → {', '.join(addrs)}")
+    if "db" in answers and answers["db"] != cur["db"]:  # 0.50.0
+        if answers["db"]:
+            why = _db_target_not_ready(answers["db"], raw)
+            if why:
+                raise ValueError(f"db: {why}")
+            setraw("db", answers["db"], "database → PostgreSQL")
+        else:
+            raw.pop("db", None)
+            changed_raw = need_restart = True
+            done.append("database → SQLite file (its content is as old as the last migration)")
     if "open" in answers and answers["open"] != cur["open"]:
         setraw("offen", answers["open"] == "true", f"access without a token {'on' if answers['open'] == 'true' else 'off'}")
     if "web" in answers and answers["web"] != cur["web"]:

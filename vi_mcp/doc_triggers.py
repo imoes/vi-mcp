@@ -76,7 +76,7 @@ def run(batch: int = BATCH) -> dict:
     with g.lock:
         ids = [r[0] for r in g.db().execute(
             f"SELECT id FROM objekt WHERE id IN ({_doc_ids_sql()}) AND modus NOT IN ('aufgegangen', 'widerlegt') "
-            "AND COALESCE(json_extract(daten, '$.derived_triggers.version'), 0) < ? ORDER BY zeit LIMIT ?", (*DOC_TAGS, VERSION, batch))]
+            "AND COALESCE(CAST(json_extract(daten, '$.derived_triggers.version') AS REAL), 0) < ? ORDER BY zeit LIMIT ?", (*DOC_TAGS, VERSION, batch))]
     too_common_h: set[str] = set()
     too_common_t: set[str] = set()
     if ids:  # document frequency over all documentation: what fits too much of it is no specific trigger
@@ -121,4 +121,4 @@ def _remaining() -> int:
     with g.lock:
         return g.db().execute(
             f"SELECT COUNT(*) FROM objekt WHERE id IN ({_doc_ids_sql()}) AND modus NOT IN ('aufgegangen', 'widerlegt') "
-            "AND COALESCE(json_extract(daten, '$.derived_triggers.version'), 0) < ?", (*DOC_TAGS, VERSION)).fetchone()[0]
+            "AND COALESCE(CAST(json_extract(daten, '$.derived_triggers.version') AS REAL), 0) < ?", (*DOC_TAGS, VERSION)).fetchone()[0]

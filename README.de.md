@@ -220,8 +220,13 @@ sudo VI_MCP_PORT=9000 VI_MCP_WIKI=false VI_MCP_WEB=true VI_MCP_INSTANCE=claude-c
 sudo VI_MCP_NET_NAME=firma VI_MCP_NET_KIND=firma VI_MCP_NET_START=vinetz1.… dnf install -y ./vi-mcp-<version>-1.noarch.rpm
 ```
 
-Schlüssel: `PORT BIND OPEN WIKI NET_NAME NET_KIND NET_MODE NET_PUBLIC NET_START WEB WEB_BASE INSTANCE INSTANCE_FAMILY LLM_URL LLM_MODEL
+Schlüssel: `PORT BIND DB OPEN WIKI NET_NAME NET_KIND NET_MODE NET_PUBLIC NET_START WEB WEB_BASE INSTANCE INSTANCE_FAMILY LLM_URL LLM_MODEL
 REVIEWER_PROMPT EMBED_URL` (jeweils mit Präfix `VI_MCP_`).
+
+**Datenbank (0.50.0):** standardmäßig SQLite. Wahlweise PostgreSQL: `db` auf eine URL setzen, etwa
+`postgresql://vi-mcp@/vi-mcp?host=/var/run/postgresql` (braucht `python3-psycopg`, kein Passwort in der URL). Ein vorhandenes Gedächtnis
+zieht vorher mit `vi-mcp db migrate --to URL` um; der Befehl vergleicht die Zeilenzahl jeder Tabelle, und `configure` verweigert das
+Umschalten auf eine leere Datenbank. Wann es sich lohnt, Einrichtung und Unterschiede: [docs/OPERATIONS.md](docs/OPERATIONS.md#postgresql-optional-0500).
 
 ## Einrichten
 

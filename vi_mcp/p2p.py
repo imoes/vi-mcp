@@ -664,12 +664,12 @@ def publisher_value(fresh: bool = False) -> dict[str, dict]:
     if not fresh and time.time() - _value_cache[0] < 300:
         return _value_cache[1]
     with g.lock:
-        lines = g.db().execute("SELECT t.tag, COUNT(*), SUM(COALESCE(json_extract(o.daten, '$.nuetzlich.ja'), 0)), SUM(COALESCE(json_extract(o.daten, '$.nuetzlich.nein'), 0)), SUM(COALESCE(json_extract(o.daten, '$.nuetzlich.n'), 0)) "
+        lines = g.db().execute("SELECT t.tag, COUNT(*), SUM(COALESCE(CAST(json_extract(o.daten, '$.nuetzlich.ja') AS REAL), 0)), SUM(COALESCE(CAST(json_extract(o.daten, '$.nuetzlich.nein') AS REAL), 0)), SUM(COALESCE(CAST(json_extract(o.daten, '$.nuetzlich.n') AS REAL), 0)) "
                                 "FROM tag t JOIN objekt o ON o.id = t.objekt_id WHERE t.tag LIKE 'herausgeber:%' GROUP BY t.tag").fetchall()
     outputs = {}
     for tag, n, yes, no, shown_flag in lines:
         mean = (1 + yes) / (2 + yes + no)
-        outputs[tag[12:]] = {"objekte": n, "ja": round(yes, 2), "nein": round(no, 2), "gezeigt": shown_flag, "mittel": round(mean, 3), "gesperrt": shown_flag >= VALUE_MIN_VERDICTS and mean < VALUE_BLOCK}
+        outputs[tag[12:]] = {"objekte": n, "ja": round(yes, 2), "nein": round(no, 2), "gezeigt": int(shown_flag), "mittel": round(mean, 3), "gesperrt": shown_flag >= VALUE_MIN_VERDICTS and mean < VALUE_BLOCK}
     _value_cache = (time.time(), outputs)
     return outputs
 

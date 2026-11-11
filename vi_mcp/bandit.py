@@ -98,9 +98,11 @@ def recompute() -> dict:
             z[4] += p
     with g.lock:
         old = [r[0] for r in g.db().execute("SELECT id FROM objekt WHERE json_extract(daten, '$.nuetzlich') IS NOT NULL")]
-        g.db().executemany("UPDATE objekt SET daten = json_remove(daten, '$.nuetzlich') WHERE id = ?", [(i,) for i in old if i not in sum_total])
-        g.db().executemany("UPDATE objekt SET daten = json_set(daten, '$.nuetzlich', json(?)) WHERE id = ?",
-                           [(json.dumps({"ja": round(a, 4), "nein": round(b, 4), "n": n, "ok": k, "erwartet": round(e, 4), "verfahren": METHOD_ID}), h) for h, (a, b, n, k, e) in sum_total.items()])
+        for i in old:
+            if i not in sum_total:
+                g.update_data(i, lambda d: d.pop("nuetzlich", None))
+        for h, (a, b, n, k, e) in sum_total.items():
+            g.update_data(h, lambda d, v={"ja": round(a, 4), "nein": round(b, 4), "n": n, "ok": k, "erwartet": round(e, 4), "verfahren": METHOD_ID}: d.__setitem__("nuetzlich", v))
         g.db().commit()
     return {"hinweise": len(sum_total), "zurueckgesetzt": len([i for i in old if i not in sum_total]), "grundraten": {t: round(p, 3) for t, p in sorted(per_tool_rate.items(), key=lambda x: -x[1])[:8]}}
 
@@ -137,13 +139,18 @@ def book_entry(shown: list[str], ok: bool | None, tool: str | None = None) -> in
         for oid in shown:
             if not oid.startswith(HINT_KINDS):
                 continue
-            # increase the JSON counters in daten relatively — no read-modify-write via the object class (no lost counter)
+            # increase the JSON counters in daten in place under the lock — not via the object class (no lost counter)
             # zuletzt_gezeigt counts as use for housekeeping but does not change recency (no Matthew effect)
-            cur = g.db().execute("UPDATE objekt SET daten = json_set(daten, '$.nuetzlich.' || ?, "
-                                 "COALESCE(json_extract(daten, '$.nuetzlich.' || ?), 0) + ?, '$.nuetzlich.n', COALESCE(json_extract(daten, '$.nuetzlich.n'), 0) + 1, "
-                                 "'$.nuetzlich.ok', COALESCE(json_extract(daten, '$.nuetzlich.ok'), 0) + ?, '$.nuetzlich.erwartet', COALESCE(json_extract(daten, '$.nuetzlich.erwartet'), 0) + ?, "
-                                 "'$.zuletzt_gezeigt', ?) WHERE id = ?", (field_name, field_name, value, plus_ok, p, g.now(), oid))
-            n += cur.rowcount
+            def add(d, now=g.now()):
+                c = d.get("nuetzlich")
+                if not isinstance(c, dict):
+                    c = d["nuetzlich"] = {}
+                c[field_name] = (c.get(field_name) or 0) + value
+                c["n"] = (c.get("n") or 0) + 1
+                c["ok"] = (c.get("ok") or 0) + plus_ok
+                c["erwartet"] = (c.get("erwartet") or 0) + p
+                d["zuletzt_gezeigt"] = now
+            n += g.update_data(oid, add)
         g.db().commit()
     return n
 
@@ -155,8 +162,13 @@ def rebook(shown: list[str], tool: str | None = None) -> int:
     with g.lock:
         for oid in shown:
             if oid.startswith(HINT_KINDS):
-                n += g.db().execute("UPDATE objekt SET daten = json_set(daten, '$.nuetzlich.ja', max(COALESCE(json_extract(daten, '$.nuetzlich.ja'), 0) - ?, 0), "
-                                    "'$.nuetzlich.nein', COALESCE(json_extract(daten, '$.nuetzlich.nein'), 0) + ?) WHERE id = ?", (1 - p, p, oid)).rowcount
+                def back(d):
+                    c = d.get("nuetzlich")
+                    if not isinstance(c, dict):
+                        c = d["nuetzlich"] = {}
+                    c["ja"] = max((c.get("ja") or 0) - (1 - p), 0)
+                    c["nein"] = (c.get("nein") or 0) + p
+                n += g.update_data(oid, back)
         g.db().commit()
     return n
 

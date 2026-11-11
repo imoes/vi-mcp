@@ -109,7 +109,7 @@ def code_run() -> dict:
     """Sleep: all actions not yet rated (or rated with an old version). Open conversations only after OPEN_LATER_S."""
     with g.lock:
         lines = g.db().execute("SELECT DISTINCT gespraech FROM objekt WHERE art = 'erfahrung' AND modus = 'aktiv' AND "
-                                "COALESCE(json_extract(daten, '$.score.version'), 0) <> ? LIMIT 2000", (CODE_VERSION,)).fetchall()
+                                "COALESCE(CAST(json_extract(daten, '$.score.version') AS REAL), 0) <> ? LIMIT 2000", (CODE_VERSION,)).fetchall()
     open_ = {s.serial: s for s in session.open_items()}
     bound = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - OPEN_LATER_S))
     n = bad = rebooked = 0
@@ -134,7 +134,8 @@ def code_run() -> dict:
                     rebooked += bandit.rebook((o.data.get("vorher") or {}).get("gezeigt", []), next((t[5:] for t in o.hashtags if t.startswith("tool:")), None))
         if changes:
             with g.lock:
-                g.db().executemany("UPDATE objekt SET daten = json_set(daten, '$.score', json(?)) WHERE id = ?", changes)
+                for score_json, oid in changes:
+                    g.update_data(oid, lambda d, v=json.loads(score_json): d.__setitem__("score", v))
                 g.db().commit()
     return {"bewertet": n, "misslungen": bad, "hinweise_umgebucht": rebooked}
 
@@ -222,7 +223,7 @@ def model_run(limit: int = MODEL_PER_RUN) -> dict:
 def _grades(scorer: str) -> dict[str, float]:
     """{serial: grade}; if there are several, the most recent counts."""
     with g.lock:
-        lines = g.db().execute("SELECT json_extract(daten, '$.ziel'), json_extract(daten, '$.note') FROM objekt WHERE art = 'bewertung' AND "
+        lines = g.db().execute("SELECT json_extract(daten, '$.ziel'), CAST(json_extract(daten, '$.note') AS REAL) FROM objekt WHERE art = 'bewertung' AND "
                                 "json_extract(daten, '$.scorer') = ? ORDER BY zeit", (scorer,)).fetchall()
     return {z: n for z, n in lines}
 
@@ -243,7 +244,7 @@ def conversation_grades() -> dict[str, float]:
 
 def line() -> str:
     with g.lock:
-        n, good = g.db().execute("SELECT COUNT(*), SUM(json_extract(daten, '$.score.note') >= ?) FROM objekt WHERE art = 'erfahrung' AND json_extract(daten, '$.score.version') IS NOT NULL", (GOOD_FROM,)).fetchone()
+        n, good = g.db().execute("SELECT COUNT(*), SUM(CASE WHEN CAST(json_extract(daten, '$.score.note') AS REAL) >= ? THEN 1 ELSE 0 END) FROM objekt WHERE art = 'erfahrung' AND json_extract(daten, '$.score.version') IS NOT NULL", (GOOD_FROM,)).fetchone()
     k = calibration()
     q = "—" if k["quote"] is None else f"{k['quote'] * 100:.0f} %"
     return (f"code {good or 0}/{n} succeeded · model {len(_grades('modell'))} conversations ({'calibrated' if k['geeicht'] else 'not calibrated, does not count for learning'}) · "
@@ -254,7 +255,12 @@ def line() -> str:
 def report() -> str:
     z = ["Scorer: " + line()]
     with g.lock:
-        features = g.db().execute("SELECT j.value, COUNT(*) FROM objekt o, json_each(o.daten, '$.score.merkmale') j WHERE o.art = 'erfahrung' GROUP BY j.value ORDER BY 2 DESC").fetchall()
+        tally: dict[str, int] = {}
+        for (merkmale,) in g.db().execute("SELECT json_extract(daten, '$.score.merkmale') FROM objekt WHERE art = 'erfahrung' "
+                                          "AND json_extract(daten, '$.score.merkmale') IS NOT NULL"):
+            for m in json.loads(merkmale) if isinstance(merkmale, str) else []:
+                tally[str(m)] = tally.get(str(m), 0) + 1
+        features = sorted(tally.items(), key=lambda kv: -kv[1])
     z.append("Features: " + (", ".join(f"{m} {n}" for m, n in features) or "—"))
     for _, o, _g in g.recall("art:bewertung scorer:modell", limit=5, viewer=None):
         z.append(f"  {o.data['ziel']}: {o.data['note']:.2f} ({o.data.get('sicherheit')}) — {o.data['begruendung'][:140]}")

@@ -21,6 +21,7 @@ import os
 import re
 import secrets
 import sqlite3
+from typing import Any
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -62,11 +63,13 @@ lock = threading.RLock()
 _KINDS_CACHE: dict = {"t": float("-inf"), "kinds": frozenset()}
 KINDS_TTL_S = 300
 CONTENT_MAX = 200_000
-_db: sqlite3.Connection | None = None
+_db: Any = None  # sqlite3.Connection, or db.PgConnection for a postgresql:// URL (0.50.0)
 fts = False
-#: active database and long-term archive (archive.py) — set by open_db()
-fpath_active: Path | None = None
-archive_path: Path | None = None
+#: active database and long-term archive (archive.py) — set by open_db(). For PostgreSQL: the URL, and the archive lives in the
+#: schema archive_schema of the same database.
+fpath_active: Path | str | None = None
+archive_path: Path | str | None = None
+archive_schema: str | None = None
 
 #: the conversation (serial number) on whose behalf work is being done — set per request thread
 current_conversation: contextvars.ContextVar[str | None] = contextvars.ContextVar("aktuelles_gespraech", default=None)
@@ -84,28 +87,37 @@ def hash_value(*parts: str) -> str:
     return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:24]
 
 
-def db() -> sqlite3.Connection:
+def db() -> Any:
     if _db is None:
         raise RuntimeError("memory not opened (open_db() missing)")
     return _db
 
 
-def open_db(fpath: Path) -> None:
-    """Open or create the database. File and companion files readable only by the owner (0600):
-    the memory contains conversation histories and tool results, which may contain credentials."""
-    global _db, fts, fpath_active, archive_path
+def open_db(fpath: Path | str) -> None:
+    """Open or create the database. A file path: SQLite, file and companion files readable only by the owner (0600):
+    the memory contains conversation histories and tool results, which may contain credentials.
+    A postgresql:// URL (0.50.0, optional, psycopg 3): the tables in the URL's schema (search_path, default public), the long-term
+    archive in the schema <schema>_lager of the same database (vi_mcp/db.py translates the SQLite SQL)."""
+    global _db, fts, fpath_active, archive_path, archive_schema
+    from . import db as dbmod
     _KINDS_CACHE.update(t=float("-inf"), kinds=frozenset())  # another database: other kinds
-    fpath.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    old_umask = os.umask(0o077)
-    try:
-        con = sqlite3.connect(str(fpath), check_same_thread=False, timeout=30)
-        con.execute("PRAGMA journal_mode=WAL")
-        con.execute("PRAGMA busy_timeout=30000")
-    finally:
-        os.umask(old_umask)
-    for f in (fpath, Path(f"{fpath}-wal"), Path(f"{fpath}-shm")):
-        if f.exists():
-            os.chmod(f, 0o600)
+    if dbmod.is_url(fpath):
+        con = dbmod.connect(str(fpath))
+        target, archive_target, archive_schema_ = str(fpath), str(fpath), f"{con.schema}_lager"
+    else:
+        fpath = Path(fpath)
+        fpath.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        old_umask = os.umask(0o077)
+        try:
+            con = sqlite3.connect(str(fpath), check_same_thread=False, timeout=30)
+            con.execute("PRAGMA journal_mode=WAL")
+            con.execute("PRAGMA busy_timeout=30000")
+        finally:
+            os.umask(old_umask)
+        for f in (fpath, Path(f"{fpath}-wal"), Path(f"{fpath}-shm")):
+            if f.exists():
+                os.chmod(f, 0o600)
+        target, archive_target, archive_schema_ = fpath, fpath.with_name(f"{fpath.stem}-lager.db"), None
     con.executescript("""
         CREATE TABLE IF NOT EXISTS objekt (
             id TEXT PRIMARY KEY, art TEXT NOT NULL, zeit TEXT NOT NULL, zuletzt TEXT NOT NULL,
@@ -132,10 +144,16 @@ def open_db(fpath: Path) -> None:
         if _db is not None:
             _db.close()
         _db = con
-        fpath_active, archive_path = fpath, fpath.with_name(f"{fpath.stem}-lager.db")
+        fpath_active, archive_path, archive_schema = target, archive_target, archive_schema_
 
 
-def _migrate(con: sqlite3.Connection) -> None:
+def backend() -> str:
+    """'sqlite' or 'postgres' — for the few places that differ (full-text query, sizes, VACUUM)."""
+    from . import db as dbmod
+    return dbmod.backend(_db)
+
+
+def _migrate(con: Any) -> None:
     """0.1.x → 0.2.0: add columns instanz/sicht (author from the hashtag instanz:, visibility from the kind);
     cache hashtag frage:<hash> → cache:<hash> (frage is now a kind)."""
     columns = {r[1] for r in con.execute("PRAGMA table_info(objekt)")}
@@ -408,6 +426,18 @@ def save(o: MemoryObject) -> MemoryObject:
     return o
 
 
+def update_data(oid: str, change) -> int:
+    """Change the JSON field daten of one object in place: change(dict) edits it. Read and write under the lock, so counters do not get
+    lost (one process writes the memory). Portable instead of SQLite's json_set/json_remove (0.50.0). Returns 1 if the object exists."""
+    with lock:
+        row = db().execute("SELECT daten FROM objekt WHERE id = ?", (oid,)).fetchone()
+        if row is None:
+            return 0
+        d = json.loads(row[0] or "{}")
+        change(d)
+        return db().execute("UPDATE objekt SET daten = ? WHERE id = ?", (json.dumps(d, ensure_ascii=False), oid)).rowcount
+
+
 def delete(oids: list[str]) -> int:
     """Remove objects with hashtags, full text, edges and archive content — no dangling edges, no leftovers in the archive."""
     from . import archive
@@ -572,7 +602,7 @@ def link_similar(o: MemoryObject, at_least: int = 2, limit: int = 5) -> None:
     with lock:
         rows = db().execute(
             f"SELECT objekt_id, COUNT(*) n FROM tag WHERE tag IN ({','.join('?' * len(content))}) AND objekt_id <> ? "
-            f"GROUP BY objekt_id HAVING n >= ? ORDER BY n DESC LIMIT ?", (*content, o.id, at_least, limit)).fetchall()
+            f"GROUP BY objekt_id HAVING COUNT(*) >= ? ORDER BY n DESC LIMIT ?", (*content, o.id, at_least, limit)).fetchall()
     for oid, n in rows:
         o.link(oid, f"{n} shared hashtags")
 
@@ -696,17 +726,21 @@ def recall(filter_text: str, limit: int = 10, kinds: tuple[str, ...] = (), viewe
                 search_kind = "und"
 
                 def _fts(q: str) -> dict[str, float]:
+                    if backend() == "postgres":  # 0.50.0: tsvector ('simple': no stemming, like FTS5 unicode61); ts_rank instead of bm25
+                        return {oid: float(rank) for oid, rank in db().execute(
+                            f"SELECT id, ts_rank(tsv, q) AS r FROM objekt_fts, websearch_to_tsquery('simple', ?) q WHERE tsv @@ q AND id IN ({sql}) "
+                            "ORDER BY r DESC LIMIT 500", (q, *par))}
                     return {oid: -float(rank) for oid, rank in db().execute(
                         f"SELECT id, rank FROM objekt_fts WHERE objekt_fts MATCH ? AND id IN ({sql}) ORDER BY rank LIMIT 500", (q, *par))}
                 word_hits = _fts(" ".join(terms))
                 if or_fallback and len(terms) > 1 and len(word_hits) < limit:
-                    or_hits = _fts(" OR ".join(terms))
+                    or_hits = _fts((" or " if backend() == "postgres" else " OR ").join(terms))
                     if len(or_hits) > len(word_hits):
                         # objects with all words stay in front: their rank is lifted above the highest OR rank
                         upper = max(or_hits.values(), default=0.0)
                         word_hits = {**or_hits, **{k: v + abs(upper) + 1 for k, v in word_hits.items()}}
                         search_kind = "oder"
-                sql += f" AND id IN ({','.join('?' * len(word_hits))})" if word_hits else " AND 0"
+                sql += f" AND id IN ({','.join('?' * len(word_hits))})" if word_hits else " AND 1 = 0"
                 par += list(word_hits)
             else:
                 for w in words:

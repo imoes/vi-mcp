@@ -38,7 +38,8 @@ def test_old_experience_archived_with_stub(gd):
     s = g.load(old)
     assert s.mode == "archiviert" and "modus:archiviert" in s.hashtags and s.data["lager"] and "args" not in s.data
     assert g.load(young).mode == "aktiv"
-    assert stat.S_IMODE(os.stat(g.archive_path).st_mode) == 0o600 and g.archive_path != gd
+    if g.backend() == "sqlite":  # PostgreSQL: the archive is a schema, no file
+        assert stat.S_IMODE(os.stat(g.archive_path).st_mode) == 0o600 and g.archive_path != gd
     assert not [o for _, o, _g in g.recall("host:h1", viewer=None)]  # not in the foreground
     assert [o.id for _, o, _g in g.recall("host:h1 modus:archiviert", viewer=None)] == [old]  # but findable
     assert archive.content(old)["daten"]["args"]["host"] == "h1"
@@ -135,7 +136,7 @@ def test_condense_and_status(gd):
     for i in ids:
         _age(i, archive.DAYS["erkenntnis"] + 1)
     r = archive.cleanup()
-    assert r["eingelagert"] == 40 and r["verdichtet"] is True
+    assert r["eingelagert"] == 40 and r["verdichtet"] is (g.backend() == "sqlite")  # PostgreSQL: autovacuum, no VACUUM
     assert len(archive.content(ids[0])["text"]) > 5000 and len(g.load(ids[0]).text) == archive.STUB_CHARS
     assert "Archive: 40 entries" in tools.call_tool("vi_status", {}, "a", True)
 

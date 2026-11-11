@@ -50,7 +50,78 @@ Client ──TLS──▶ nginx (container, <docker-network>, certificate <certi
   `docker network inspect <docker-network>` and adjust `bind` in `/etc/vi-mcp/config.json` + `proxy_pass`.
 - Check: `curl -s https://<host>/vi-mcp/gesund` → `ok vi-mcp <version>`.
 
-### Connecting Claude Code (this server)
+### PostgreSQL (optional, 0.50.0)
+
+SQLite stays the default: no server, nothing to install. PostgreSQL pays off when a database becomes large, when the public web page of
+a wiki server gets many readers, or when backups have to run while the service keeps writing. vi-mcp writes SQLite SQL; `vi_mcp/db.py`
+translates it for PostgreSQL (placeholders, `INSERT OR IGNORE/REPLACE`, `LIKE` → `ILIKE`, JSON functions, full text as `tsvector`), so
+the code has one set of statements and the whole test suite runs against both.
+
+**1. Database and driver** (PostgreSQL 12 or newer — generated columns, `CREATE OR REPLACE AGGREGATE`; tested with 16):
+
+```bash
+sudo apt install postgresql python3-psycopg            # Debian/Ubuntu; Fedora/RHEL: dnf install postgresql-server 'python3dist(psycopg)'
+sudo -u postgres createuser vi-mcp
+sudo -u postgres createdb -O vi-mcp vi-mcp
+```
+
+The service user `vi-mcp` then reaches its database over the local socket without a password (peer authentication):
+`postgresql://vi-mcp@/vi-mcp?host=/var/run/postgresql`. Another host: `postgresql://vi-mcp@db.example/vi-mcp` with the password in
+`/var/lib/vi-mcp/.pgpass` (0600, `host:5432:vi-mcp:vi-mcp:PASSWORD`) — **never in the URL**; `vi-mcp configure` refuses a URL with a
+password, because the configuration and debconf are no place for it.
+
+**2. Move the data** (an existing installation; a new one skips this):
+
+```bash
+sudo systemctl stop vi-mcp
+sudo -u vi-mcp vi-mcp db migrate --to 'postgresql://vi-mcp@/vi-mcp?host=/var/run/postgresql'
+```
+
+`migrate` reads a consistent snapshot of the SQLite file, creates every table and index in the target schema, copies the rows and
+compares the row count of every table; it prints each table `source → target` and stops with an error if one differs. The long-term
+archive (`vi-lager.db`) goes into the schema `<schema>_lager`. It only writes into an empty schema. The SQLite file stays untouched —
+it is the way back.
+
+**3. Switch:**
+
+```bash
+sudo vi-mcp configure --set 'db=postgresql://vi-mcp@/vi-mcp?host=/var/run/postgresql'    # restarts the service
+vi-mcp db status        # database: PostgreSQL 16.x · postgresql://vi-mcp@/vi-mcp?… · schema public · N objects
+```
+
+`configure` refuses the switch while the PostgreSQL database holds fewer objects than the SQLite file (it names both counts), so the
+memory never starts empty by mistake. Unattended: `VI_MCP_DB=postgresql://…` at installation, like every other key. Back to SQLite:
+`vi-mcp configure --set db=` — the file then has the state of the migration.
+
+**Schema:** without anything else the tables go into `public`. Another schema: `…/vi-mcp?options=-csearch_path%3Dvi` (created if missing).
+
+**Network logbooks** (`vi-p2p@<netz>`): `"db"` in `/etc/vi-p2p/<netz>.json` takes the same URL; every network gets its own schema
+`netz_<name>`, so two networks never share tables. Moving an existing logbook keeps the server's own chain:
+
+```bash
+sudo systemctl stop vi-p2p@wiki
+sudo -u vi-p2p vi-mcp db migrate --from /var/lib/vi-p2p/wiki/netz.db --to 'postgresql://vi-p2p@/vi-mcp?host=/var/run/postgresql' --schema netz_wiki
+# then "db": "postgresql://vi-p2p@/vi-mcp?host=/var/run/postgresql" in /etc/vi-p2p/wiki.json, start the service
+```
+
+**What differs from SQLite** (measured 11.11.2026 with 10,000 synthetic objects, PostgreSQL 16 in a local container over TCP, one client):
+
+| | SQLite | PostgreSQL |
+|---|---|---|
+| hashtag search (`thema:docker`, `host:…`) | 0.4–6.5 ms | 1.4–17.8 ms, same hits in the same order |
+| free-text search (`borg restore`) | 24 ms, BM25 | 45 ms, `ts_rank` — the same documents match, the order among equally good hits differs (top 10 overlap 4–8 of 10) |
+| migration | — | 159,690 rows in 2.2 s, every count equal |
+
+One client is slower on PostgreSQL (a round trip per statement); it gains with many readers and large data, which this measurement does not
+cover. Full text uses the `simple` configuration (no stemming), like FTS5's `unicode61`.
+
+**Not available on PostgreSQL:** `VACUUM` of the archive (autovacuum does it); the view `beobachtung` returns JSON booleans as `true`/`false`
+text instead of 1/0. Tests about SQLite files (permissions 0600, migration of 0.1 files) are skipped there.
+
+**Development:** `VI_MCP_TEST_PG=postgresql://USER@HOST/DB .venv/bin/python -m pytest -q tests` runs the whole suite against a throw-away
+database; every test gets its own schema.
+
+## Connecting Claude Code (this server)
 
 ```bash
 claude mcp add --transport http -s user vi-mcp https://<host>/vi-mcp/mcp \
@@ -164,7 +235,7 @@ The service keeps running without a login if lingering is enabled (`loginctl sho
 | Field | Meaning | Default |
 |---|---|---|
 | `bind`, `port` | where the server listens | `127.0.0.1`, `8765` |
-| `db` | memory file (local file system, **no** NFS/SMB) | `~/.local/share/vi-mcp/vi.db` |
+| `db` | memory file (local file system, **no** NFS/SMB), or since 0.50.0 a `postgresql://` URL (see below) | `~/.local/share/vi-mcp/vi.db` |
 | `instanzen` | who may access (instances); `reflexe: true` = may learn/switch reflexes | — (without an instance the server does not start) |
 | `ttl` | validity of remembered answers per tool in s (max 3600) | 120 s |
 | `origins` | allowed `Origin` headers (browser clients); requests without an Origin are allowed | localhost |
@@ -270,7 +341,7 @@ Since 0.27.0 there is `vi-mcp-<version>-x64.msi` (built on Linux with `deploy/wi
 
 ## Backup
 
-The database is a WAL file. For a consistent copy while running:
+PostgreSQL: `pg_dump -Fc vi-mcp > vi-$(date +%F).dump` while running. SQLite: the database is a WAL file. For a consistent copy while running:
 
 ```bash
 sqlite3 ~/.local/share/vi-mcp/vi.db ".backup '/path/vi-$(date +%F).db'"

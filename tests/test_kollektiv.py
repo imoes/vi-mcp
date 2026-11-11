@@ -7,6 +7,7 @@ import pytest
 
 from vi_mcp import questions, intuition, main_loop, session, tools
 from vi_mcp import memory as g
+from conftest import sqlite_only  # noqa: E402
 
 
 @pytest.fixture()
@@ -142,6 +143,7 @@ def test_foreign_conversation_history_stays_private(from_seq):
     assert "t_x" in as_user(a, "vi_gespraech", {"serial": a.serial})
 
 
+@sqlite_only
 def test_migration_from_0_1(tmp_path):
     p = tmp_path / "alt.db"
     con = sqlite3.connect(p)

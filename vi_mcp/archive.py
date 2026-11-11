@@ -39,23 +39,27 @@ VACUUM_FROM = 0.25
 #: Edges to these targets protect an experience if they are evidence
 EVIDENCE_TARGETS = ("erkenntnis:", "regel:", "suche:", "skill:", "selbst:")
 
-_con: sqlite3.Connection | None = None
+_con = None  # sqlite3.Connection or db.PgConnection
 _fpath: Path | None = None
 
 
-def db() -> sqlite3.Connection:
+def db():
     global _con, _fpath
     if g.archive_path is None:
         raise RuntimeError("memory not opened")
     if _con is None or _fpath != g.archive_path:
         if _con is not None:
             _con.close()
-        old_umask_value = os.umask(0o077)
-        try:
-            _con = sqlite3.connect(str(g.archive_path), check_same_thread=False, timeout=30)
-        finally:
-            os.umask(old_umask_value)
-        os.chmod(g.archive_path, 0o600)
+        from . import db as dbmod
+        if dbmod.is_url(g.archive_path):  # 0.50.0: PostgreSQL — the archive is a schema of the same database
+            _con = dbmod.connect(g.archive_path, schema=g.archive_schema)
+        else:
+            old_umask_value = os.umask(0o077)
+            try:
+                _con = sqlite3.connect(str(g.archive_path), check_same_thread=False, timeout=30)
+            finally:
+                os.umask(old_umask_value)
+            os.chmod(g.archive_path, 0o600)
         _fpath = g.archive_path
         _con.executescript("""
             CREATE TABLE IF NOT EXISTS objekt (id TEXT PRIMARY KEY, art TEXT NOT NULL, instanz TEXT NOT NULL, sicht TEXT NOT NULL,
@@ -184,6 +188,8 @@ def _raw_histories() -> int:
 
 
 def _condense() -> bool:
+    if g.backend() == "postgres":
+        return False  # autovacuum reclaims space; a VACUUM FULL would lock the tables
     with g.lock:
         pages = g.db().execute("PRAGMA page_count").fetchone()[0]
         free = g.db().execute("PRAGMA freelist_count").fetchone()[0]
@@ -224,6 +230,10 @@ def progress() -> dict:
     with g.lock:
         n = db().execute("SELECT COUNT(*) FROM objekt").fetchone()[0]
         r = db().execute("SELECT COUNT(*) FROM gespraech_roh").fetchone()[0]
+    if g.backend() == "postgres":
+        size_of = "SELECT COALESCE(SUM(pg_total_relation_size(c.oid)), 0) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relkind = 'r'"
+        with g.lock:
+            return {"objekte": n, "rohverlaeufe": r, "lager_bytes": int(db().execute(size_of).fetchone()[0]), "aktiv_bytes": int(g.db().execute(size_of).fetchone()[0])}
     size = lambda p: os.path.getsize(p) if p and os.path.exists(p) else 0
     return {"objekte": n, "rohverlaeufe": r, "lager_bytes": size(g.archive_path), "aktiv_bytes": size(g.fpath_active) + size(f"{g.fpath_active}-wal")}
 

@@ -3,6 +3,49 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.50.0 — 2026-11-11 — Optional PostgreSQL: set the database URL, move the data with one command
+
+### What is new
+
+- **PostgreSQL as an optional backend**, as the user decided ("einfach den db treiber konfigurieren"). SQLite stays the default and needs
+  nothing new. `db` in the configuration takes a `postgresql://` URL instead of a file path: the memory, its long-term archive (schema
+  `<schema>_lager`) and every network logbook (schema `netz_<name>`, `"db"` in `/etc/vi-p2p/<netz>.json`).
+  - One set of SQL statements: `vi_mcp/db.py` offers the `sqlite3` interface and translates the SQLite idioms for PostgreSQL
+    (placeholders, `INSERT OR IGNORE/REPLACE`, `LIKE` → `ILIKE`, `IS ?`, `group_concat`, types, `PRAGMA`, `sqlite_master`, JSON functions,
+    full text as `tsvector` with a GIN index). Every statement in a transaction runs in a savepoint, so a caught error behaves as in SQLite.
+  - The driver psycopg 3 is only needed for PostgreSQL: the packages suggest it (`python3-psycopg`, `python3dist(psycopg)`).
+- **`vi-mcp db migrate --to URL`** copies the memory and its archive from a consistent snapshot of the SQLite file into an empty schema
+  and compares the row count of every table; `--from FILE --schema NAME` moves one network logbook (the server's own chain continues).
+  The SQLite file stays as it is — the way back. **`vi-mcp db status`** names backend, target (password masked) and object count.
+- **`vi-mcp configure` has the key `db`** (debconf, menu, `VI_MCP_DB`). It refuses a URL with a password (`.pgpass`, `PGPASSFILE` or peer
+  authentication instead) and refuses to switch while the PostgreSQL database holds fewer objects than the SQLite file — the memory never
+  starts empty by mistake; the answer names both counts.
+
+### What has changed
+
+- A few statements were rewritten so they run on both databases: hint counters and scorer results are changed through
+  `memory.update_data` instead of SQLite's `json_set`; numbers read from JSON are cast; the peer backoff is computed in Python. Same results:
+  the 601 tests of 0.49.0 pass unchanged on SQLite, the backoff gives the same seconds for 0–8 errors (30, 60, …, 1920, 3600, 3600).
+
+*Proof:*
+- The whole suite against PostgreSQL 16 (`VI_MCP_TEST_PG`, local throw-away container): 607 passed, 2 skipped (file permissions and the
+  migration of 0.1 SQLite files, which do not apply). Against SQLite: 605 passed, 4 skipped (the PostgreSQL-only tests of `test_db.py`). With psycopg 3.1.18 (the version of Debian/Ubuntu)
+  137 tests of memory, wiki, network and scorer passed.
+- `tests/test_db.py` (8): translation of every idiom; script splitting and password masking; the URL survives the configuration; the
+  configure check; transactions like sqlite3 (caught IntegrityError, rollback, boolean sums); migration of memory and archive with full-text
+  search and content afterwards, a second migration refused; a network logbook moved and continued; configure refuses an empty target and
+  takes a migrated one.
+- Measured 11.11.2026, 10,000 synthetic objects, PostgreSQL 16 in a local container over TCP, one client: migration 159,690 rows in 2.2 s,
+  every count equal. Hashtag search 1.4–17.8 ms (SQLite 0.4–6.5 ms) with identical hits; free text 45 ms (SQLite 24 ms).
+
+### What is missing
+
+- **Free-text ranking differs:** PostgreSQL ranks with `ts_rank`, SQLite with BM25. The same documents match; the order among equally good
+  hits differs (top 10 overlap 4 of 10 for "borg restore", 8 of 10 for "nginx certificate proxy" in the measurement above).
+- One client is about twice as slow on PostgreSQL. Where it should win — many readers, large data — is not measured yet.
+- No production installation runs on PostgreSQL yet; the switch of a real server is untested.
+- The view `beobachtung` returns JSON booleans as `true`/`false` text on PostgreSQL (1/0 on SQLite).
+
 ## 0.49.0 — 2026-11-11 — Fewer, better hints; feedback in one call; a hint lift that compares like with like
 
 Measured on production (7 days to 11.11.2026, `vi_stats`): three hints were shown before nearly every shell command; feedback came for 2

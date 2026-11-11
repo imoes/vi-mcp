@@ -29,6 +29,10 @@
                                           server the clients use; "image get ID OUTFILE" fetches it back
   python3 -m vi_mcp configure [--new]       ANSI menu: server, networks, web page and instances, language model (Debian: dpkg-reconfigure
                                           vi-mcp); --set KEY=VALUE …, --env (VI_MCP_<KEY> from the environment, as at installation)
+  python3 -m vi_mcp db status | db migrate --to postgresql://USER@HOST/DB [--from FILE --schema NAME]
+                                          the database: SQLite file (default) or PostgreSQL (optional, psycopg 3); migrate copies the
+                                          memory and its archive (or one network logbook with --from) into an empty schema and compares
+                                          every table's row count; then vi-mcp configure --set db=URL
   python3 -m vi_mcp web [on|off] [--base PATH]
                                           the read-only web page of the free and open networks (search, wiki, forum, knowledge) under
                                           /web; --base = the path the browser sees behind the reverse proxy (e.g. /vi-mcp/web); restarts
@@ -172,7 +176,8 @@ def _cli(argv: list[str]) -> int:
             declared = k.instances[argv[1]].family
             print(f"declared: {declared or 'none'}" + (" (wins over announcements)" if declared else ""))
             try:  # read only: what the clients of this instance announced (0.34.0)
-                c = sqlite3.connect(f"file:{k.db}?mode=ro", uri=True)
+                from . import db as dbmod
+                c = dbmod.connect_readonly(k.db)
                 rows = c.execute("SELECT json_extract(daten, '$.familie'), json_extract(daten, '$.familie_quelle'), json_extract(daten, '$.client'), "
                                  "MAX(zeit), COUNT(*) FROM objekt WHERE art = 'gespraech' AND instanz = ? AND json_extract(daten, '$.familie') IS NOT NULL "
                                  "GROUP BY 1, 2, 3 ORDER BY 4 DESC LIMIT 10", (argv[1],)).fetchall()
@@ -193,6 +198,9 @@ def _cli(argv: list[str]) -> int:
         from . import setup
         setup._restart()
         return 0
+    if command == "db":  # 0.50.0: optional PostgreSQL
+        from . import db_migrate
+        return db_migrate.main(argv[1:])
     if command == "configure":  # 0.48.0
         from . import configure
         return configure.main(argv[1:])

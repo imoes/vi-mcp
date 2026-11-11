@@ -56,7 +56,8 @@ class Instance:
 class Config:
     bind: list[str] = field(default_factory=lambda: ["127.0.0.1"])
     port: int = 8765
-    db: Path = Path("~/.local/share/vi-mcp/vi.db").expanduser()
+    #: SQLite file, or (0.50.0) a postgresql:// URL (str) — vi_mcp/db.py; never with a password in it (~/.pgpass, PGPASSFILE, peer auth)
+    db: Path | str = Path("~/.local/share/vi-mcp/vi.db").expanduser()
     instances: dict[str, Instance] = field(default_factory=dict)
     ttl: dict[str, int] = field(default_factory=dict)
     origins: list[str] = field(default_factory=lambda: ["http://localhost", "http://127.0.0.1"])
@@ -99,7 +100,8 @@ def load(p: Path | None = None) -> Config:
     b = raw.get("bind", k.bind)
     k.bind = [b] if isinstance(b, str) else list(b)
     k.port = int(raw.get("port", k.port))
-    k.db = Path(raw.get("db", str(k.db))).expanduser()
+    db_value = str(raw.get("db", str(k.db)))
+    k.db = db_value if db_value.startswith(("postgresql://", "postgres://")) else Path(db_value).expanduser()
     k.ttl = {w: int(s) for w, s in (raw.get("ttl") or {}).items()}
     k.origins = list(raw.get("origins") or k.origins)
     k.embed = raw.get("embed") or None

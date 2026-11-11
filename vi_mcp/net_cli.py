@@ -97,7 +97,7 @@ def nginx_snippet(confs: dict[str, dict]) -> str:
 
 
 def _logbook(k: nd.NetConfig) -> lb.Logbook:
-    return lb.Logbook(Path(k.db), Path(k.seed), k.founders)
+    return lb.Logbook(k.db, Path(k.seed), k.founders, schema=lb.schema_for(k.net))
 
 
 def _as_service(fn) -> int:
@@ -250,7 +250,7 @@ def setup(o) -> int:
         if o.mode != "peerhost":
             print("--tls-self applies to peerhost only", file=sys.stderr)
             return 2
-        dir_path = Path(raw.get("db") or k_old.db).parent
+        dir_path = nd.data_dir(nd.NetConfig(db=raw.get("db") or k_old.db, seed=raw.get("seed") or k_old.seed))
         cert, key = dir_path / "tls-cert.pem", dir_path / "tls-key.pem"
         if not cert.exists():
             _as_service(lambda: _create_certificate(raw["adresse"], cert, key) or 0)

@@ -7,6 +7,7 @@ import pytest
 
 from vi_mcp import memory as g
 from vi_mcp import intuition, reflexes, session
+from conftest import sqlite_only  # noqa: E402
 
 
 def test_parse_filter():
@@ -14,6 +15,7 @@ def test_parse_filter():
     assert g.parse_filter("") == ([], [], [])
 
 
+@sqlite_only
 def test_file_only_for_owner(gd):
     g.new_object("erkenntnis", "irgendein Text", ["thema:x"], reason="Test")
     for f in (gd, gd.with_name("vi.db-wal")):
