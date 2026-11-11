@@ -240,6 +240,14 @@ def network_lines(days: float = 7) -> list[str]:
                f"(merged silently {ws['still_zusammengefuehrt']}, open conflicts {ws['offene_konflikte']}"
                + (": oldest " + ", ".join(f"{pg} since {ts[:16]}" for ts, pg in ws["aelteste_konflikte"]) if ws["aelteste_konflikte"] else "")
                + ") (source: table seite_rev, usage log)")
+    ls = p2p.search_stats(days)  # 0.42.0
+    tr = [(st.get(n) or {}).get("daten", {}).get("transport") or {} for n in nets]
+    nz = lambda v: "not recorded" if v is None else v  # noqa: E731
+    out.append(f"    live search: {ls['suchen']} search(es) in {days:g} d, with at least one hit {ls['mit_treffer']} ({_pct(ls['mit_treffer'], ls['suchen'])}), "
+               f"members answering per search median {nz(ls['antworten_median'])}, not reachable {ls['nicht_erreichbar']} in all, time median "
+               f"{nz(ls['ms_median'])} ms, 90th percentile {nz(ls['ms_p90'])} ms, taken into review {ls['uebernommen']} · answered for other members "
+               f"{sum(t.get('suchen_beantwortet', 0) for t in tr)}, refused (rate limit) {sum(t.get('suchen_abgewiesen', 0) for t in tr)} "
+               "(since the services started; source: table netz_suche, service snapshots)")
     for name, d in nets.items():
         s = st.get(name)
         if not s:

@@ -560,6 +560,19 @@ The router (learning.py) never sees foreign counters.
 - **Transport.** The network service writes own revisions once (by checksum), oldest first, and only while `peers_below("0.39.0")` is
   empty. Logbooks of 0.39.0 and 0.40.0 already relay the type unread.
 
+## Live search (0.42.0)
+
+`p2p.live_search` → network service local listener `POST /lokal/suche` (127.0.0.1, bearer token whose SHA-256 is in the service
+config as `lokal_token_sha256`; the token is in the memory config `p2p.lokal` / `p2p.netze.<n>.lokal`) → `NetService.search`:
+`POST /netz/suche {q, max}` to every peer with an address (at most `SEARCH_FANOUT` = 20, `SEARCH_TIMEOUT_S` = 5, parallel, no
+forwarding) → the member's service (`authenticate`, then `SEARCHES_PER_MIN` = 30 per key) → its memory `vi_net_answer_search`
+(`p2p.answer_search`: the query reduced to words, `!herkunft:p2p`, visibility and mode as `_collect` for that network without
+"proven", export form via `_export_form`) → each hit signed with the member's key. The asking service drops hits whose signature
+does not match or whose sender is no member; the memory checks the signature again, applies `checks.check`, merges by content hash
+and keeps the hits in process memory for an hour (`_live`), nothing in the database. `take` creates the quarantine object as an
+import (`_create`, `herkunft:live`, holder line, `p2p_netz`). Counted in `netz_suche` (searches, takes) and the service snapshot
+(answered, refused).
+
 ## Housekeeping — the long-term archive
 
 `archive.py`, sleep step 5. Entries no longer in use move to a separate file (`<db>-lager.db`, 0600), so that

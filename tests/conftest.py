@@ -14,3 +14,11 @@ def gd(tmp_path):
     yield tmp_path / "vi.db"
     session.end_all("unterbrochen")
     g.close_db()
+
+
+@pytest.fixture(autouse=True)
+def _isolated_config(tmp_path, monkeypatch):
+    """No test may write the real configuration (~/.config/vi-mcp/config.json): net setup registers networks and live search there."""
+    import os
+    if not os.environ.get("VI_MCP_CONFIG"):
+        monkeypatch.setenv("VI_MCP_CONFIG", str(tmp_path / "vi-mcp-config.json"))

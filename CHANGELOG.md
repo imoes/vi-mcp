@@ -3,6 +3,46 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.42.0 — 2026-11-11 — Live search: ask the network now
+
+### What is new
+
+- **`vi_net_search` asks the members of a network now**, for knowledge this server does not hold. Rule 4 in the instructions says
+  when: after `vi_recall` found nothing.
+  - The network service asks every member with an address in parallel: at most 20, 5 s each, no forwarding, so no amplification.
+  - Every member answers from its memory with what its export rules for this network let out: anonymised in an open network, internal
+    knowledge only in a company network. "Proven" is not required, because a question is asked on purpose.
+  - Each answer is signed with the member's key.
+  - The asking memory checks the signature again and applies the fixed rules. It merges the same meaning from several members by
+    content hash and shows how many servers hold it, and whether it is already here.
+  - Unreachable members are named. Hits are unreviewed data: never stored, never a hint.
+  - `take=<id>` sends one hit through quarantine, review and release like every import (`herkunft:live`).
+
+  *Proof:* `tests/test_netz_suche.py` (7: three services, signatures, a tampered hit dropped, a stopped member named, rate limit 30
+  per minute and key, non-member 403, local listener only with its token, export rules for open and company network, query reduced to
+  words). End to end with **two separate VI servers** (11.11.2026):
+  - `vi_recall` on A: nothing.
+  - `vi_net_search` on A: one member asked, answered in 42 ms with B's shared finding, the path anonymised (`<pfad>`); B's internal
+    finding was not delivered.
+  - `take` put it into quarantine.
+- **Local listener of the network service** (127.0.0.1 only). The memory reaches the network through it, because the service holds
+  the key. Its token is in the memory config; the service keeps only its SHA-256. `vi-mcp net [--network NAME] setup` sets both up,
+  with ports from 9766 upward.
+- **`vi_stats` section W: live search**
+  - searches, share with at least one hit, members answering (median), unreachable;
+  - time median and 90th percentile, hits taken into review;
+  - searches answered for other members, searches refused by the rate limit.
+
+### What has changed
+
+- Tests can no longer write the real `~/.config/vi-mcp/config.json`: every test gets its own config path unless it sets one.
+
+### What is missing
+
+- Members in mode `peer` (no address) cannot be asked; only peerhosts answer.
+- Existing networks get the live search with a new `vi-mcp net … setup` on the server (it adds token and port, nothing else changes).
+- Conversations between AIs over the network (0.43.0).
+
 ## 0.41.0 — 2026-11-11 — The network wiki: pages every server may edit, without a master
 
 ### What is new

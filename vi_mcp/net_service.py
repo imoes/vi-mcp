@@ -40,6 +40,11 @@ JOINS_PER_MIN = 10
 CODE_PREFIX = "vinetz1."
 PER_FETCH = 500
 RATINGS_PER_DAY = 1000
+#: 0.42.0: live search — answers per minute and key, members asked at most, seconds per member, hits per member
+SEARCHES_PER_MIN = 30
+SEARCH_FANOUT = 20
+SEARCH_TIMEOUT_S = 5
+SEARCH_MAX = 10
 LOCAL = ("127.0.0.1", "localhost", "::1")
 
 
@@ -69,6 +74,9 @@ class NetConfig:
     torrent: dict = field(default_factory=dict)
     proxy: str | None = None
     no_proxy: list = field(default_factory=list)
+    #: 0.42.0: local listener for the memory's live searches (127.0.0.1 only); the memory holds the token, this file only its SHA-256
+    local_port: int = 0
+    local_token_sha256: str | None = None
 
 
 def fpath() -> Path:
@@ -79,7 +87,7 @@ def fpath() -> Path:
 #: Keys not listed here have the same name in file and dataclass.
 FILE_KEYS = {"modus": "mode", "adresse": "address", "ca_datei": "ca_file", "gruender": "founders", "takt_s": "tick_s",
              "min_runde_s": "min_round_s", "nachbarn": "neighbors", "http_erlaubt": "http_allowed", "glauben": "believe",
-             "mcp_token_datei": "mcp_token_file", "kein_proxy": "no_proxy", "netz": "net", "art": "kind"}
+             "mcp_token_datei": "mcp_token_file", "kein_proxy": "no_proxy", "netz": "net", "art": "kind", "lokal_port": "local_port", "lokal_token_sha256": "local_token_sha256"}
 
 
 def from_file(d: dict) -> NetConfig:
@@ -155,6 +163,9 @@ class McpClient:
     def inbox(self, entries: list[dict]) -> dict:
         return self._call_tool("vi_net_inbox", {"entries": entries})
 
+    def answer_search(self, query: str, n: int) -> list:
+        return self._call_tool("vi_net_answer_search", {"query": query, "max": n})
+
 
 class NetService:
     def __init__(self, k: NetConfig, mcp=None):
@@ -166,6 +177,7 @@ class NetService:
         self.halt = threading.Event()
         self.awake = threading.Event()
         self.server: ThreadingHTTPServer | None = None
+        self.local_server: ThreadingHTTPServer | None = None
         self._round = threading.Lock()
         self._counter: dict[str, list[float]] = {}
         self._last_nudged = 0.0
@@ -192,7 +204,7 @@ class NetService:
         u = urllib.parse.urlsplit(self.k.proxy)
         return u.hostname, u.port or 80
 
-    def _request(self, address: str, method: str, req_path: str, data=None):
+    def _request(self, address: str, method: str, req_path: str, data=None, timeout: float = 30):
         """Signed request. HTTPS verifies the certificate via the CA or, if a pin is known, via its SHA-256. HTTPS proxy via CONNECT."""
         if not self._allowed(address):
             raise ValueError("unencrypted HTTP to another machine is not allowed")
@@ -211,7 +223,7 @@ class NetService:
                     ctx.verify_mode = ssl.CERT_NONE
                 else:
                     ctx = ssl.create_default_context(cafile=self.k.ca_file)
-                c = http.client.HTTPSConnection(*(proxy or (host, port)), context=ctx, timeout=30)
+                c = http.client.HTTPSConnection(*(proxy or (host, port)), context=ctx, timeout=timeout)
                 if proxy:
                     c.set_tunnel(host, port)
                 c.connect()
@@ -219,7 +231,7 @@ class NetService:
                     c.close()
                     raise ValueError("certificate does not match the known pin")
             else:
-                c = http.client.HTTPConnection(host, port, timeout=30)
+                c = http.client.HTTPConnection(host, port, timeout=timeout)
             try:
                 c.request(method, u.path.rstrip("/") + req_path, body=req_body if method == "POST" else None, headers=h)
                 r = c.getresponse()
@@ -349,6 +361,87 @@ class NetService:
         if self.log.headers().get(self.log.pub, 0) - from_ + 1 < size:
             return
         self.swarm.build(self.log, self.log.pub, from_, from_ + size - 1)
+
+    # ---- Live search (0.42.0) ----
+
+    def answer(self, query: str, n: int) -> dict:
+        """A member asks: hits from the memory in this network's export form, each signed with this server's key."""
+        hits = self.mcp.answer_search(query, min(int(n or SEARCH_MAX), SEARCH_MAX)) if self.mcp else []
+        self.usage_stats["suchen_beantwortet"] = self.usage_stats.get("suchen_beantwortet", 0) + 1
+        return {"pub": self.log.pub, "treffer": [{"objekt": o, "sig": self.log.k.sign(lb.canonical(o)).hex()} for o in hits if isinstance(o, dict)][:SEARCH_MAX]}
+
+    def search(self, query: str, n: int = SEARCH_MAX) -> dict:
+        """Ask every reachable member with an address at once (no forwarding, so no amplification); verify every hit's signature."""
+        from concurrent.futures import ThreadPoolExecutor
+        t0 = time.monotonic()
+        own = self.k.address.rstrip("/") if self.k.address else None
+        targets = [p["adresse"] for p in self.log.peers() if p["adresse"] != own][:SEARCH_FANOUT]
+
+        def ask(address):
+            try:
+                return address, self._request(address, "POST", "/netz/suche", {"q": query, "max": n}, timeout=SEARCH_TIMEOUT_S), None
+            except (urllib.error.URLError, OSError, TimeoutError, ValueError, http.client.HTTPException) as e:
+                return address, None, f"{type(e).__name__}: {str(e)[:80]}"
+        answers, unreachable, dropped = [], [], 0
+        with ThreadPoolExecutor(max_workers=max(1, len(targets))) as ex:
+            for address, a, err in ex.map(ask, targets):
+                if err or not isinstance(a, dict):
+                    unreachable.append({"adresse": address, "grund": err or "no answer"})
+                    continue
+                pub = a.get("pub")
+                if not isinstance(pub, str) or not lb._HEX64.match(pub) or not self.log.is_member(pub):
+                    unreachable.append({"adresse": address, "grund": "answer not from a member"})
+                    continue
+                good = []
+                for t in a.get("treffer") or []:
+                    if isinstance(t, dict) and isinstance(t.get("objekt"), dict) and isinstance(t.get("sig"), str) and lb.valid(pub, t["sig"], lb.canonical(t["objekt"])):
+                        good.append(t)
+                    else:
+                        dropped += 1
+                answers.append({"adresse": address, "pub": pub, "treffer": good})
+        self.usage_stats["suchen_gestellt"] = self.usage_stats.get("suchen_gestellt", 0) + 1
+        return {"antworten": answers, "nicht_erreichbar": unreachable, "verworfen": dropped, "gefragt": len(targets), "ms": int((time.monotonic() - t0) * 1000)}
+
+    def _local_handler(self):
+        service = self
+
+        class L(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *_):
+                pass
+
+            def _send(self, code: int, value=None):
+                raw = json.dumps(value).encode() if value is not None else b""
+                self.send_response(code)
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(raw)
+
+            def do_POST(self):
+                import hmac as _hmac
+                token = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+                if not service.k.local_token_sha256 or not _hmac.compare_digest(hashlib.sha256(token.encode()).hexdigest(), service.k.local_token_sha256):
+                    return self._send(401, {"fehler": "local token wrong"})
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > 64 * 1024:
+                    return self._send(413, {"fehler": "too large"})
+                try:
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                except ValueError:
+                    return self._send(400, {"fehler": "not JSON"})
+                if self.path == "/lokal/suche" and isinstance(body.get("q"), str) and body["q"].strip():
+                    return self._send(200, service.search(body["q"].strip()[:300], int(body.get("max") or SEARCH_MAX)))
+                return self._send(404, {"fehler": "unknown"})
+        return L
+
+    def start_local_server(self) -> int:
+        """Only on the own machine: the memory asks the network through this service (which holds the key)."""
+        self.local_server = ThreadingHTTPServer(("127.0.0.1", self.k.local_port), self._local_handler())
+        self.local_server.daemon_threads = True
+        threading.Thread(target=self.local_server.serve_forever, name="vi-p2p-local", daemon=True).start()
+        return self.local_server.server_address[1]
 
     # ---- Round ----
 
@@ -573,6 +666,22 @@ class NetService:
                 if self.path == "/netz/anstoss":
                     service.awake.set()
                     return self._send(204)
+                if self.path == "/netz/suche":  # 0.42.0: live search of a member
+                    pub = check_header(self.headers.get("Authorization"), self.command, self.path, req_body)
+                    if service._limited(f"suche:{pub}", SEARCHES_PER_MIN):
+                        service.usage_stats["suchen_abgewiesen"] = service.usage_stats.get("suchen_abgewiesen", 0) + 1
+                        return self._send(429, {"fehler": "too many searches"})
+                    try:
+                        q = json.loads(req_body)
+                        query, n = str(q.get("q") or "").strip()[:300], int(q.get("max") or SEARCH_MAX)
+                    except (ValueError, AttributeError, TypeError):
+                        return self._send(400, {"fehler": "q and max"})
+                    if not query:
+                        return self._send(400, {"fehler": "q is empty"})
+                    try:
+                        return self._send(200, service.answer(query, n))
+                    except (urllib.error.URLError, OSError, ValueError, KeyError, TimeoutError) as e:
+                        return self._send(503, {"fehler": f"memory not reachable: {type(e).__name__}"})
                 return self._send(404, {"fehler": "unknown"})
         return H
 
@@ -591,9 +700,10 @@ class NetService:
     def stop_service(self) -> None:
         self.halt.set()
         self.awake.set()
-        if self.server:
-            self.server.shutdown()
-            self.server.server_close()
+        for srv in (self.server, self.local_server):
+            if srv:
+                srv.shutdown()
+                srv.server_close()
         if self.swarm:
             self.swarm.stop_service()
         self.log.close()
@@ -642,6 +752,8 @@ def main() -> int:
     d = NetService(k, McpClient(k.mcp_url, k.mcp_token_file))
     if k.mode == "peerhost":
         d.start_server()
+    if k.local_token_sha256:  # 0.42.0: live search for the memory
+        log(f"network: local search listener on 127.0.0.1:{d.start_local_server()}")
     import signal
     signal.signal(signal.SIGUSR1, lambda *_: d.awake.set())  # systemctl kill -s USR1 vi-p2p: round now
     log(f"network: mode {k.mode}, pseudonym {lb.pseudonym(d.log.pub)}, {len(d.log.members())} members known")

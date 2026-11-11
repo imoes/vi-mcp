@@ -196,6 +196,20 @@ def set_network(name: str, kind: str, p: Path | None = None) -> tuple[str, str |
     return instance, token
 
 
+def set_net_local(net: str, url: str, token: str, p: Path | None = None) -> None:
+    """0.42.0: where the memory reaches the network service of `net` for live searches (local listener) and with which token."""
+    p = p or fpath()
+    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    p2p = raw.setdefault("p2p", {})
+    if net == "standard":
+        p2p["lokal"] = {"url": url, "token": token}
+    else:
+        if net not in (p2p.get("netze") or {}):
+            raise ValueError(f"network {net} is not registered — first: vi-mcp net --network {net} setup --kind …")
+        p2p["netze"][net]["lokal"] = {"url": url, "token": token}
+    _save_raw(raw, p)
+
+
 def set_embed(embed: dict | None, p: Path | None = None) -> None:
     """0.28.0: set or clear the embedding service ({"url": ...}); the service reads it at start."""
     p = p or fpath()

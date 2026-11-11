@@ -29,6 +29,10 @@ class FakeMemory:
             raise OSError("weg")
         return {"objekte": list(self.mem_objects), "widerrufe": list(self.revocations)}
 
+    def answer_search(self, query, n):
+        self.asked = getattr(self, "asked", []) + [query]
+        return [o for o in getattr(self, "answers", []) if any(w.lower() in o["text"].lower() for w in query.split())][:n]
+
     def inbox(self, e):
         if self.outage:
             raise OSError("weg")

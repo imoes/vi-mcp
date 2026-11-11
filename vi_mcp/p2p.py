@@ -51,14 +51,14 @@ NET_NAME = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
 
 def networks() -> dict[str, dict]:
     """Every network this memory takes part in: name → {art, instanz}. Unusable entries are reported, not used."""
-    out = {STANDARD: {"art": "offen", "instanz": "p2p", "auto_freigabe": False}}
+    out = {STANDARD: {"art": "offen", "instanz": "p2p", "auto_freigabe": False, "lokal": config.get("lokal") or None}}
     for name, d in (config.get("netze") or {}).items():
         if not isinstance(d, dict) or not NET_NAME.match(str(name)) or name == STANDARD or d.get("art") not in NET_KINDS \
                 or not isinstance(d.get("instanz"), str) or d["instanz"] in ("p2p",):
             from .log_output import log
             log(f"p2p: network {name!r} ignored: needs a name a-z0-9-, art {' or '.join(NET_KINDS)} and its own instance")
             continue
-        out[name] = {"art": d["art"], "instanz": d["instanz"], "auto_freigabe": bool(d.get("auto_freigabe"))}
+        out[name] = {"art": d["art"], "instanz": d["instanz"], "auto_freigabe": bool(d.get("auto_freigabe")), "lokal": d.get("lokal") or None}
     return out
 
 
@@ -273,6 +273,131 @@ def _revocations(net: str = STANDARD) -> list[dict]:
             nid, t = _object_token(tokens[inst], oid, net)
             out.append({"netz_id": nid, "token": t})
     return out
+
+
+# ---- Live search (0.42.0) ----
+
+LIVE_MAX = 10
+_live: dict[str, dict] = {}  # short id → a verified live hit, for take; process memory only, nothing is stored without take
+
+
+def answer_search(net: str, query: str, n: int = LIVE_MAX) -> list[dict]:
+    """A member of `net` asks. Only what the export rules of this network let out (without 'proven': a question is asked on purpose),
+    in the network's export form. The query is reduced to words: a foreign member cannot address modes, visibilities or instances."""
+    _tables()
+    words = re.findall(r"[\w.-]{2,}", str(query or ""))[:12]
+    if not words:
+        return []
+    with g.lock:
+        withdrawn = {r[0] for r in g.db().execute("SELECT oid FROM netz_widerruf")}
+        tokens = dict(g.db().execute("SELECT instanz, token FROM netz_token").fetchall())
+    known = _known()
+    visibilities = ("geteilt", "intern") if is_company(net) else ("geteilt",)
+    out = []
+    for _, o, _g in g.recall(" ".join(words) + " !herkunft:p2p", limit=max(1, min(int(n or LIVE_MAX), LIVE_MAX)) * 4, viewer=None, kinds=EXPORT_KINDS, or_fallback=True):
+        if o.visibility not in visibilities or o.mode != "aktiv" or o.id in withdrawn or o.instance not in tokens:
+            continue
+        raw, _reason = _export_form(o, tokens[o.instance], known, net)
+        if raw:
+            out.append(raw)
+        if len(out) >= min(int(n or LIVE_MAX), LIVE_MAX):
+            break
+    return out
+
+
+def _record_search(net: str, kind: str, asked=0, answered=0, unreachable=0, hits=0, ms=0) -> None:
+    with g.lock:
+        g.db().execute("CREATE TABLE IF NOT EXISTS netz_suche (zeit TEXT NOT NULL, netz TEXT NOT NULL, art TEXT NOT NULL, gefragt INTEGER, antworten INTEGER, "
+                       "nicht_erreichbar INTEGER, treffer INTEGER, ms INTEGER)")
+        g.db().execute("INSERT INTO netz_suche VALUES (?,?,?,?,?,?,?,?)", (g.now(), net, kind, asked, answered, unreachable, hits, ms))
+        g.db().commit()
+
+
+def live_search(net: str, query: str, n: int = LIVE_MAX) -> dict:
+    """Ask the members of `net` now, through this server's network service (local listener). Hits are checked by the fixed rules, never
+    stored, never a hint — `take` sends one through quarantine, review and release like every import."""
+    import urllib.request
+    nets = networks()
+    if net not in nets:
+        raise ValueError(f"unknown network {net!r} — known: {', '.join(nets)}")
+    loc = nets[net].get("lokal") or {}
+    if not loc.get("url") or not loc.get("token"):
+        raise ValueError(f"network {net}: live search not set up — on the server: vi-mcp net{'' if net == STANDARD else ' --network ' + net} setup … (0.42.0 adds the local listener)")
+    req = urllib.request.Request(loc["url"].rstrip("/") + "/lokal/suche", data=json.dumps({"q": query, "max": n}).encode(),
+                                 headers={"Content-Type": "application/json", "Authorization": f"Bearer {loc['token']}"})
+    try:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=15) as r:
+            a = json.loads(r.read())
+    except (OSError, ValueError) as e:
+        raise ValueError(f"network service of {net} not reachable for the live search: {type(e).__name__}: {str(e)[:120]}") from e
+    company, merged, rejected = is_company(net), {}, 0
+    for ans in a.get("antworten") or []:
+        pub = ans.get("pub")
+        for t in ans.get("treffer") or []:
+            o, sig = t.get("objekt"), t.get("sig")
+            if not (isinstance(pub, str) and isinstance(o, dict) and isinstance(sig, str) and lb.valid(pub, sig, canonical(o))):
+                rejected += 1  # the memory checks again: the network service reads foreign data
+                continue
+            b = checks.check(o, internal_ok=company)
+            if b.verdict == "ablehnen":
+                rejected += 1
+                continue
+            ish = net_score.content_hash(b.mem_object)
+            e = merged.setdefault(ish, {"id": ish[:12], "objekt": o, "form": b.mem_object, "pub": pub, "sig": sig, "halter": [], "befunde": b.reasons,
+                                        "hier": net_score.find(ish) or net_score.find_local(b.mem_object, ish)})
+            if pseudonym(pub) not in e["halter"]:
+                e["halter"].append(pseudonym(pub))
+    for e in merged.values():
+        _live[e["id"]] = {**e, "netz": net, "zeit": time.time()}
+    for k in [k for k, v in _live.items() if time.time() - v["zeit"] > 3600]:
+        _live.pop(k, None)
+    _record_search(net, "suche", a.get("gefragt", 0), len(a.get("antworten") or []), len(a.get("nicht_erreichbar") or []), len(merged), a.get("ms", 0))
+    return {"treffer": sorted(merged.values(), key=lambda e: -len(e["halter"])), "gefragt": a.get("gefragt", 0), "antworten": len(a.get("antworten") or []),
+            "nicht_erreichbar": a.get("nicht_erreichbar") or [], "verworfen": rejected + int(a.get("verworfen") or 0), "ms": a.get("ms", 0)}
+
+
+def take_live(short_id: str, in_background: bool = True) -> g.MemoryObject:
+    """A live hit into quarantine — the normal import path: reviewer, release, then mode test."""
+    e = _live.get((short_id or "").strip()[:12])
+    if not e:
+        raise ValueError(f"live hit {short_id} unknown or older than an hour — search again")
+    if e["hier"]:
+        raise ValueError(f"this content is already here: {e['hier']}")
+    if not lb.valid(e["pub"], e["sig"], canonical(e["objekt"])):
+        raise ValueError("signature of the live hit does not match")
+    b = checks.check(e["objekt"], internal_ok=is_company(e["netz"]))
+    if b.verdict == "ablehnen":
+        raise ValueError("fixed rules reject it: " + "; ".join(b.reasons)[:200])
+    sha = sha256(b.mem_object)
+    o = _create(b, {"pub": e["pub"], "seq": 0}, sha, e["netz"])
+    o.hashtags = sorted(set(o.hashtags) | {"herkunft:live"})
+    g.save(o)
+    ish = net_score.content_hash(b.mem_object)
+    net_score.link(ish, o.id)
+    net_score.add_holder(ish, e["pub"], e["netz"], b.mem_object["netz_id"], 0)
+    with g.lock:
+        g.db().execute("INSERT OR REPLACE INTO p2p_netz (netz_id, oid, loesch_hash, sha) VALUES (?,?,?,?)", (b.mem_object["netz_id"], o.id, b.mem_object["loesch_hash"], sha))
+        g.db().commit()
+    _record_search(e["netz"], "uebernahme")
+    e["hier"] = o.id
+    if in_background and reviewer.available():
+        threading.Thread(target=reviewer.work_off, args=(MAX_OBJECTS,), name="vi-pruefer", daemon=True).start()
+    return o
+
+
+def search_stats(days: float = 7) -> dict:
+    from datetime import datetime, timedelta, timezone
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S")
+    with g.lock:
+        g.db().execute("CREATE TABLE IF NOT EXISTS netz_suche (zeit TEXT NOT NULL, netz TEXT NOT NULL, art TEXT NOT NULL, gefragt INTEGER, antworten INTEGER, "
+                       "nicht_erreichbar INTEGER, treffer INTEGER, ms INTEGER)")
+        rows = g.db().execute("SELECT antworten, nicht_erreichbar, treffer, ms FROM netz_suche WHERE art = 'suche' AND zeit >= ?", (since,)).fetchall()
+        taken = g.db().execute("SELECT COUNT(*) FROM netz_suche WHERE art = 'uebernahme' AND zeit >= ?", (since,)).fetchone()[0]
+    ms = sorted(r[3] for r in rows)
+    ans = sorted(r[0] for r in rows)
+    q = lambda xs, p: xs[min(len(xs) - 1, int(p * len(xs)))] if xs else None  # noqa: E731
+    return {"suchen": len(rows), "mit_treffer": sum(1 for r in rows if r[2]), "antworten_median": q(ans, 0.5), "nicht_erreichbar": sum(r[1] for r in rows),
+            "ms_median": q(ms, 0.5), "ms_p90": q(ms, 0.9), "uebernommen": taken}
 
 
 def outbox(net: str = STANDARD) -> dict:

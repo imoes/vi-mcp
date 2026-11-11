@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import ipaddress
 import json
 import os
@@ -39,6 +40,7 @@ def _as_service_user() -> None:
 #: 0.40.0: every network on port 443 — TLS ends at the reverse proxy, each network under its own path, the services listen on localhost
 PUBLIC_PREFIX = "/vi-p2p"
 FIRST_LOCAL_PORT = 8766
+FIRST_SEARCH_PORT = 9766  # 0.42.0: local listener for the memory's live searches
 
 
 def public_address(url: str, net: str) -> str:
@@ -261,6 +263,15 @@ def setup(o) -> int:
             shutil.chown(token_file, "root", SERVICE_USER)
         if reason := _service("restart", "vi-mcp"):
             print(f"Hint: vi-mcp not restarted: {reason}")
+    if not raw.get("lokal_token_sha256"):  # 0.42.0: live search — the memory holds the token, the service its hash
+        used = {int(c.get("lokal_port") or 0) for n, c in network_configs(p.parent).items() if n != (NETWORK or "standard")}
+        raw["lokal_port"] = int(raw.get("lokal_port") or free_port(used, FIRST_SEARCH_PORT))
+        local_token = secrets.token_urlsafe(32)
+        raw["lokal_token_sha256"] = hashlib.sha256(local_token.encode()).hexdigest()
+        try:
+            config.set_net_local(NETWORK or "standard", f"http://127.0.0.1:{raw['lokal_port']}", local_token)
+        except (OSError, ValueError) as ex:
+            print(f"Hint: live search not wired into the memory config: {ex}")
     _write(p, raw)
     if reason := _service("enable", SERVICE):
         print(f"Hint: {reason}")
