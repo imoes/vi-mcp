@@ -110,7 +110,7 @@ def test_forged_object_signature(net):
 
 def test_quarantine_is_invisible_and_without_effect(net, monkeypatch):
     r = _import_bundle(net, [GOOD], monkeypatch)
-    assert r == {"quarantaene": 1, "abgelehnt": 0, "bekannt": 0, "gruende": [], "vergessen": 0}
+    assert r == {"quarantaene": 1, "abgelehnt": 0, "bekannt": 0, "gruende": [], "vergessen": 0, "dedupliziert": 0, "bewertungen": 0}
     o = g.recall("modus:quarantaene", viewer=None)[0][1]
     assert o.instance == f"p2p-{_hg(net)}" and "herkunft:p2p" in o.hashtags and o.id.startswith(f"erkenntnis:p2p-{_hg(net)}-") and o.edges() == []
     assert not g.recall("thema:eingang", viewer=None)

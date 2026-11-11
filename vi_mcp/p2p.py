@@ -30,7 +30,7 @@ from collections import Counter
 from pathlib import Path
 
 from . import memory as g
-from . import anonymize, bandit, reviewer, checks, reflexes, sandbox, vector
+from . import anonymize, bandit, reviewer, checks, reflexes, sandbox, vector, net_score
 from . import logbook as lb
 from .logbook import canonical, pseudonym, generate_keys, sha256  # noqa: F401
 
@@ -278,7 +278,7 @@ def _revocations(net: str = STANDARD) -> list[dict]:
 def outbox(net: str = STANDARD) -> dict:
     """What may go to the network, unsigned: signing is the network service's job, which keeps its key to itself."""
     mem_objects, withdrawn = _collect(None, net)
-    return {"objekte": [r for _o, r in mem_objects], "widerrufe": _revocations(net), "zurueckgehalten": withdrawn}
+    return {"objekte": [r for _o, r in mem_objects], "widerrufe": _revocations(net), "zurueckgehalten": withdrawn, "bewertungen": net_score.outgoing(net)}
 
 
 def record_state(net: str, state) -> None:
@@ -314,8 +314,12 @@ def _apply_forget(revocations) -> int:
             z = g.db().execute("SELECT oid, loesch_hash, sha FROM p2p_netz WHERE netz_id = ?", (net_id,)).fetchone()
             known = g.db().execute("SELECT 1 FROM p2p_grab WHERE netz_id = ?", (net_id,)).fetchone()
         if z and hmac.compare_digest(z[1], evidence):
-            g.delete([z[0]])
-            vector.remove_entry(z[0])
+            # 0.40.0: only this holder goes; the object goes with its last holder, and an own local object never
+            _ish, left = net_score.drop_holder(net_id)
+            o = g.load(z[0])
+            if o and not left and str(o.instance or "").startswith("p2p-"):
+                g.delete([z[0]])
+                vector.remove_entry(z[0])
             with g.lock:
                 g.db().execute("DELETE FROM p2p_netz WHERE netz_id = ?", (net_id,))
                 g.db().execute("DELETE FROM p2p_gesehen WHERE sha = ?", (z[2],))
@@ -361,7 +365,7 @@ def _create(b: checks.Finding, header: dict, sha: str, net: str = STANDARD) -> g
 def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
     """Check entries from the network and put them into quarantine. In a company network imports become internal (0.39.0)."""
     _tables()
-    report = {"quarantaene": 0, "abgelehnt": 0, "bekannt": 0, "gruende": [], "vergessen": 0}
+    report = {"quarantaene": 0, "abgelehnt": 0, "bekannt": 0, "gruende": [], "vergessen": 0, "dedupliziert": 0, "bewertungen": 0}
 
     def from_seq(reason):
         report["abgelehnt"] += 1
@@ -374,6 +378,12 @@ def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
         if header["typ"] == "widerruf":
             if lb.valid_control_form("widerruf", raw):
                 report["vergessen"] += _apply_forget([{"netz_id": raw["ziel"], "token": raw["token"]}])
+            continue
+        if header["typ"] == "bewertung":
+            if net_score.receive(raw, header["pub"], net, header["seq"]):
+                report["bewertungen"] += 1
+            else:
+                from_seq("rating has the wrong form")
             continue
         if header["typ"] != "objekt":
             continue
@@ -401,13 +411,30 @@ def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
         if n:
             report["bekannt"] += 1
             continue
-        if old:  # a new version of the same object replaces the old one
-            g.delete([old[0]])
-            vector.remove_entry(old[0])
+        if old:  # a new version of the same object: this publisher's old version goes (the object only with its last holder)
+            _ish, left = net_score.drop_holder(b.mem_object["netz_id"])
+            prev = g.load(old[0])
+            if prev and not left and str(prev.instance or "").startswith("p2p-"):
+                g.delete([old[0]])
+                vector.remove_entry(old[0])
             with g.lock:
                 g.db().execute("DELETE FROM p2p_gesehen WHERE sha = ?", (old[1],))
                 g.db().commit()
+        # 0.40.0: the same meaning from another server is no second object — it is one more holder of the first
+        ish = net_score.content_hash(b.mem_object)
+        existing = net_score.find(ish) or net_score.find_local(b.mem_object, ish)
+        if existing:
+            net_score.link(ish, existing)
+            net_score.add_holder(ish, header["pub"], net, b.mem_object["netz_id"], header["seq"])
+            with g.lock:
+                g.db().execute("INSERT OR IGNORE INTO p2p_gesehen (sha, oid, herausgeber) VALUES (?,?,?)", (sha, existing, pseudonym(header["pub"])))
+                g.db().execute("INSERT OR REPLACE INTO p2p_netz (netz_id, oid, loesch_hash, sha) VALUES (?,?,?,?)", (b.mem_object["netz_id"], existing, b.mem_object["loesch_hash"], sha))
+                g.db().commit()
+            report["dedupliziert"] += 1
+            continue
         o = _create(b, header, sha, net)
+        net_score.link(ish, o.id)
+        net_score.add_holder(ish, header["pub"], net, b.mem_object["netz_id"], header["seq"])
         with g.lock:
             g.db().execute("INSERT INTO p2p_gesehen (sha, oid, herausgeber) VALUES (?,?,?)", (sha, o.id, pseudonym(header["pub"])))
             g.db().execute("INSERT OR REPLACE INTO p2p_netz (netz_id, oid, loesch_hash, sha) VALUES (?,?,?,?)", (b.mem_object["netz_id"], o.id, b.mem_object["loesch_hash"], sha))
@@ -442,7 +469,8 @@ def without_blocked(mem_objects: list[g.MemoryObject]) -> list[g.MemoryObject]:
     if not any("herkunft:p2p" in o.hashtags for o in mem_objects):
         return mem_objects
     value = publisher_value()
-    return [o for o in mem_objects if not any(t.startswith("herausgeber:") and value.get(t[12:], {}).get("gesperrt") for t in o.hashtags)]
+    return [o for o in mem_objects if not any(t.startswith("herausgeber:") and value.get(t[12:], {}).get("gesperrt") for t in o.hashtags)
+            and not ("herkunft:p2p" in o.hashtags and net_score.hidden(o))]  # 0.40.0: the network score of this content
 
 
 def auto_approve() -> int:

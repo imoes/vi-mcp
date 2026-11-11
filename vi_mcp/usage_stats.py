@@ -216,8 +216,14 @@ def network_lines() -> list[str]:
     """0.39.0: section W — the networks this memory takes part in, as their services reported them (snapshot with every outbox call).
     Nothing is invented: without a snapshot a network shows 'not recorded'."""
     from . import p2p
+    from . import net_score
     nets, st = p2p.networks(), p2p.states()
     out = [f"W Network: {len(nets)} network(s) (source: snapshot of each network service, sent with its outbox call; config p2p.netze)"]
+    sc = net_score.stats()  # 0.40.0
+    out.append(f"    contents by hash: {sc['inhalte']} known on the network, {sc['halterzeilen']} holder lines, {sc['dedupliziert']} arrivals deduplicated "
+               f"(same meaning from a further server) · holders per content " + ", ".join(f"{k}: {v}" for k, v in sc["halter_verteilung"].items())
+               + f" · rated {sc['bewertet']} (score " + ", ".join(f"{k} {v}" for k, v in sc["score_verteilung"].items())
+               + f"), hidden as a hint {sc['ausgeblendet']} · ratings received {sc['bewertungen_empfangen']} (latest per rater and content; source: tables p2p_halter, p2p_bewertung)")
     for name, d in nets.items():
         s = st.get(name)
         if not s:
@@ -235,7 +241,9 @@ def network_lines() -> list[str]:
                    + (", ".join(f"{v} {n}" for v, n in versions.items()) or "—")
                    + f" · backlog: missing here {here}, missing there {there} entries (after the last exchange) · since service start {tr.get('runden', 0)} rounds, "
                    f"{tr.get('per_https', 0)} entries via HTTPS, {tr.get('per_torrent', 0)} via torrent · entries of unknown types {x.get('unbekannte_typen', 0)} "
-                   f"· forks {x.get('gabelungen', 0)} · violations {x.get('verstoesse', 0)}")
+                   f"· forks {x.get('gabelungen', 0)} · violations {x.get('verstoesse', 0)} · own entries "
+                   + (", ".join(f"{k} {v}" for k, v in (x.get("eigene") or {}).items()) or "not recorded")
+                   + (f" · ratings waiting for peers older than 0.39.0: {', '.join(tr['bewertung_sperre'])}" if tr.get("bewertung_sperre") else ""))
     return out
 
 

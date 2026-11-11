@@ -26,7 +26,10 @@ from pathlib import Path
 from . import checks
 
 VERSION = 1
-TYPE_NAMES = ("objekt", "widerruf", "einladung", "ausschluss", "adresse")
+TYPE_NAMES = ("objekt", "widerruf", "einladung", "ausschluss", "adresse", "bewertung")
+#: 0.40.0: a rating names a content hash and five non-negative numbers (net_score.py); peers before 0.39.0 would reject the type
+RATING_FIELDS = ("gezeigt", "ja", "nein", "bestaetigt", "widerlegt")
+RELAY_MIN = "0.39.0"
 HEADER_REQUIRED = {"v", "pub", "seq", "vor", "typ", "sha", "zeit", "sig"}
 HEADER_OPTIONAL = {"netz_id", "loesch_hash"}
 MAX_CONTENT = 128 * 1024
@@ -134,9 +137,17 @@ def header_form(header) -> str | None:
     return None
 
 
+def valid_rating(c) -> bool:
+    """Pure. The content of a `bewertung` entry: the target content hash and five non-negative numbers, nothing else."""
+    return (isinstance(c, dict) and set(c) == {"ziel", *RATING_FIELDS} and isinstance(c["ziel"], str) and bool(_HEX64.match(c["ziel"]))
+            and all(isinstance(c[k], (int, float)) and not isinstance(c[k], bool) and 0 <= c[k] <= 1e6 for k in RATING_FIELDS))
+
+
 def valid_control_form(type_: str, content) -> bool:
     if not isinstance(content, dict):
         return False
+    if type_ == "bewertung":
+        return valid_rating(content)
     if type_ == "widerruf":
         return set(content) == {"ziel", "token"} and isinstance(content["ziel"], str) and isinstance(content["token"], str) and len(content["token"]) <= 128
     if type_ in ("einladung", "ausschluss"):
@@ -383,6 +394,19 @@ class Logbook:
     def own_objects(self) -> set[tuple[str, str]]:
         with self.lock:
             return set(self.db.execute("SELECT netz_id, sha FROM eintrag WHERE pub = ? AND typ = 'objekt'", (self.pub,)).fetchall())
+
+    def own_ratings(self) -> dict[str, tuple[str, str]]:
+        """content hash → (sha of the last own rating, its date)."""
+        with self.lock:
+            lines = self.db.execute("SELECT e.sha, e.zeit, i.daten FROM eintrag e JOIN inhalt i ON i.sha = e.sha WHERE e.pub = ? AND e.typ = 'bewertung' ORDER BY e.seq",
+                                    (self.pub,)).fetchall()
+        return {json.loads(d)["ziel"]: (sha, z) for sha, z, d in lines}
+
+    def count_own(self, type_: str, day: str | None = None) -> int:
+        with self.lock:
+            if day:
+                return self.db.execute("SELECT COUNT(*) FROM eintrag WHERE pub = ? AND typ = ? AND zeit = ?", (self.pub, type_, day)).fetchone()[0]
+            return self.db.execute("SELECT COUNT(*) FROM eintrag WHERE pub = ? AND typ = ?", (self.pub, type_)).fetchone()[0]
 
     def own_revocations(self) -> set[str]:
         with self.lock:

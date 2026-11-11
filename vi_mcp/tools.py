@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import memory as g
-from . import api_en, bandit, config, images, questions, intuition, archive, learning, metrics, p2p, reflexes, sleep_cycle, scorer, self_model, session, skills, vector
+from . import api_en, bandit, config, images, questions, intuition, archive, learning, metrics, net_score, p2p, reflexes, sleep_cycle, scorer, self_model, session, skills, vector
 from .main_loop import progress as loop_progress, LOOP_S
 
 _O = {"type": "object"}
@@ -305,6 +305,9 @@ def _line(o: g.MemoryObject, gw: dict | None = None) -> str:
     wt = f" · R{gw['relevanz']} A{gw['aktualitaet']} W{gw['wichtigkeit']}" if gw else ""
     tags = " ".join(t for t in o.hashtags if not t.startswith(("art:", "frage:")))[:160]
     pic = f" [{images.summary(o)} — vi_object shows it]" if o.data.get("bild") else ""
+    if "herkunft:p2p" in o.hashtags and (ish := net_score.hash_of(o.id)):  # 0.40.0
+        s = net_score.score(ish, o)
+        pic += f" [network score {s['score']} from {s['bewerter']} rater(s), held by {s['halter']}]" if s["bewerter"] else f" [held by {s['halter']} server(s)]"
     return f"  [{o.id}] {o.kind} {o.ts[:16]} {o.mode if o.mode != 'aktiv' else ''} {o.text[:200].replace(chr(10), ' ')}{pic}\n     {tags}{wt}"
 
 
@@ -654,6 +657,8 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                         f"last {o.last_at[:16]} · conversation {o.conversation or '—'}"]
         if o.kind in ("erkenntnis", "regel", "suche", "bild"):
             z.append(f"  as a hint: {bandit.line(o)}")
+        if (nl := net_score.line(o)):  # 0.40.0
+            z.append(f"  {nl}")
         d = {k: v for k, v in o.data.items() if k not in ("ergebnis", "code", "inhalt", "bild", "regionen")}
         z.append("  data: " + json.dumps(d, ensure_ascii=False)[:800])
         pics = []

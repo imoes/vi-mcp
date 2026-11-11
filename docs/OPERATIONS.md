@@ -57,6 +57,30 @@ claude mcp add --transport http -s user vi-mcp https://<host>/vi-mcp/mcp \
   --header "Authorization: Bearer $(cat ~/.config/vi-mcp/token-anna-<host>)"
 ```
 
+### Network wiki on port 443 (0.40.0)
+
+Every network runs over TLS on 443, each under its own path; TLS ends at the reverse proxy, the network services listen without TLS
+on a local address only (one service per network, ports from 8766 upward):
+
+```
+Peer ──TLS:443──▶ nginx  location /vi-p2p/standard/ → http://127.0.0.1:8766/   (vi-p2p)
+                         location /vi-p2p/firma/    → http://127.0.0.1:8767/   (vi-p2p@firma)
+```
+
+```bash
+sudo vi-mcp net setup --mode peerhost --found --public https://<host>                              # network standard (open)
+sudo vi-mcp net --network firma setup --mode peerhost --found --kind firma --public https://<host>  # company network
+sudo vi-mcp net proxy-config        # prints the location blocks for nginx
+nginx -t && systemctl reload nginx  # in a container: docker exec nginx nginx -t && docker exec nginx nginx -s reload
+```
+
+- Peers verify the certificate of the proxy via the CA (no pin needed with a public certificate). Outgoing connections are HTTPS to
+  port 443 as well, so a company proxy (`--proxy`) or a firewall that only allows 443 is enough.
+- If nginx runs in a container, it cannot reach the host's `127.0.0.1`: give `--bind <docker-gateway>`; `proxy-config` then names that
+  address.
+- Torrent for large backlogs uses its own port and is off unless switched on; for a network on 443 only, leave it off.
+- Check: `curl -s https://<host>/vi-p2p/firma/netz/gesund` → `{"zustand": "ok", "version": "…"}`.
+
 ## User service (development)
 
 ```bash

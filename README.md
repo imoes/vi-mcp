@@ -290,6 +290,12 @@ Behind a reverse proxy with a public certificate use `--address https://host/vi-
   `sudo vi-mcp net --network firma setup --kind firma …`. A *company* network (`firma`, one organisation) carries shared and internal
   knowledge without anonymising, and its imports stay internal; an *open* network (`offen`) works as described here. `vi_net_status`
   and `vi_stats` (section W) show every network with peers, versions and backlog.
+- **The same information, checked by hash (0.40.0).** Every server computes a content hash itself; the same meaning from several servers
+  is one object with several *holders*. Servers publish their own measurements per content, and every server computes a **network
+  score** from them: capped per server, weighted by its measured benefit, never counting a server's rating of its own content.
+  `vi_object` shows it; a content that keeps failing is no longer offered as a hint.
+- **Port 443 (0.40.0).** `--public https://HOST` publishes a network as `https://HOST/vi-p2p/<network>` behind the reverse proxy;
+  `vi-mcp net proxy-config` prints the nginx configuration. All networks share 443.
 - **Transport.** HTTPS by default; signed requests, only members get answers. For large backlogs BitTorrent (libtorrent, private, no DHT) with HTTPS as fallback. Entries prove themselves, the path does not matter.
 - Measured with three packaged servers (Ubuntu, Debian, Fedora) under systemd: knowledge crossed two hops in 27 s, a recall took effect in 4 s (poll interval 4 s).
 

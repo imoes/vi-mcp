@@ -455,7 +455,7 @@ proves that a file is unchanged, not who it comes from; that is what the Ed25519
 | Language model | Reads every object, may only tighten. Before every run a self-test with a known attack checks whether it holds. The model can be deceived and is therefore never the last authority. |
 | Quarantine | Mode `quarantaene`: in no search, no hint, no edges, cannot be merged. |
 | Release | Inconspicuous items by an instance with reflex permission. Reflexes, write access, rule findings and everything without a positive review verdict only with release permission (`vi-mcp release` on the server, token readable only by root). Afterwards mode `test`. |
-| Effect | Imported items are text hints with visible origin, `herkunft:p2p` cannot be removed. Own namespace, no overwriting of local objects, no weight from foreign counters. Imported code only runs in the sandbox, may only be `vorher` (before) and never change arguments. Imported items are not re-exported. |
+| Effect | Imported items are text hints with visible origin, `herkunft:p2p` cannot be removed. Own namespace, no overwriting of local objects, no weight from foreign counters in training (0.40.0: foreign ratings get capped, aggregated weight in the network score — shown, and hiding a hint — see "Network score"). Imported code only runs in the sandbox, may only be `vorher` (before) and never change arguments. Imported items are not re-exported. |
 
 Limits: patterns and model do not recognise every attack. Whoever has root on the server can release. The reviewer instructions are deliberately not in the public repo (config `pruefer_prompt`).
 
@@ -511,6 +511,27 @@ section W of `vi_stats`.
 
 In the memory (`p2p.py`) every signature is checked again, because the net service reads foreign data. `glauben` (believe) in `/etc/vi-p2p/config.json` limits whose objects get into the memory at all; revocations always apply.
 Usefulness per publisher = beta mean of its hint counters; from 20 judgements and a mean < 0.3 its objects are no longer shown. `p2p.auto_freigabe` provisionally releases inconspicuous items during sleep.
+
+## Network score — the same information on several servers (0.40.0)
+
+`net_score.py`. **Content hash** = SHA-256 over `{art, text, inhalt, hashtags sorted}` (plus filter, name, steps for searches and skills),
+whitespace normalised in text, line ends and trailing blanks in content; without `netz_id`, `loesch_hash`, `zeit`, `quelle`. Computed by the
+receiver, never taken from the sender.
+
+**Holders.** `p2p_halter(inhalt_sha, pub, netz, netz_id, seq)`: every publisher whose objekt entry carries the content. `p2p_inhalt(inhalt_sha → oid)`:
+the one object for it — an import, or an own object of the same meaning (found by exact text, confirmed by the hash). A second arrival
+adds a holder line (`dedupliziert`), a revocation removes one (`drop_holder`); the import goes with its last holder, an own object never.
+
+**Ratings.** Logbook type `bewertung` `{ziel, gezeigt, ja, nein, bestaetigt, widerlegt}` (`logbook.valid_rating`, exact fields, numbers
+0–1e6): this server's own measurements of an import (bandit counters, confirmations and refutations by its instances). The network
+service writes a rating only when it changed, once per content and day, at most 1,000 a day, and only while `peers_below("0.39.0")` is
+empty (older peers would reject the type). The memory keeps the latest per rater and content (`p2p_bewertung`, by `seq`).
+
+**Score.** yes = ja + bestaetigt, no = nein + widerlegt per rater; scaled to at most `CAP` = 20 observations; weighted by the rater's
+publisher benefit (`publisher_value`, 0.5 unknown); holders' ratings of their own content left out; this memory's own measurement of an
+import as one more rater. Score = (1 + Σ w·yes) / (2 + Σ w·(yes+no)), 90 % interval from the beta distribution (scipy; normal
+approximation without it). `ausgeblendet` = at least 20 observations and score < 0.3 → `p2p.without_blocked` drops it from hint candidates.
+The router (learning.py) never sees foreign counters.
 
 ## Housekeeping — the long-term archive
 

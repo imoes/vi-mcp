@@ -3,6 +3,64 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.40.0 — 2026-11-11 — The same information on several servers, checked by hash, with a network score; every network on 443
+
+### What is new
+
+- **Same meaning, one object.** Every server computes a content hash itself: SHA-256 over kind, text, content and hashtags, with
+  whitespace normalised. It leaves out `netz_id`, deletion hash, date and source, which differ per publisher; before, the network
+  deduplicated only identical entries, so never across publishers.
+  - When a second server delivers the same content, it becomes one more *holder* of the existing object, not a second object.
+  - When the content equals an own local object, the foreign server is a holder of that one.
+  - A revocation removes only that holder. An imported object goes with its last holder, and an own object never goes.
+  - A hash the sender claims is never used.
+
+  *Proof:* `tests/test_net_score.py` — two publishers give one object with two holders; revocations one by one; a local copy is linked
+  and stays; a claimed hash is ignored.
+- **Ratings travel through the network.** Each server publishes its own measurements per imported content, as the new logbook type
+  `bewertung`: hints shown, helpful, not helpful, confirmed and refuted by its own instances.
+  - Counters it received are never passed on, because an import starts at zero.
+  - The network service writes only changed values, at most one per content and day and 1,000 a day in all.
+  - It writes them only once no peer is older than 0.39.0; older peers would reject the type. The peers it waits for are named in
+    `vi_stats`.
+- **Network score per content.** It is the beta mean over distinct raters, plus a 90 % interval.
+  - The latest rating per rater counts, with at most 20 observations per rater so no server dominates.
+  - Each rater is weighted by its measured benefit as a publisher (0.5 while unknown).
+  - A holder's rating of its own content does not count, because no instance rates itself. This server's own measurement counts as one
+    rater.
+  - `vi_object` and `vi_recall` show the score and the number of holders.
+  - From 20 observations and a score below 0.3, a content is no longer offered as a hint before actions.
+  - The router still learns only from this server's own experiences.
+
+  *Proof:* `test_ratings_latest_per_rater_cap_and_no_self_rating`, `test_low_score_hides_the_hint`,
+  `test_ratings_travel_and_reach_the_memory`, `test_ratings_carry_only_a_hash_and_numbers` (`tests/test_anonym.py`: hash and five numbers,
+  no names or text).
+- **Every network on port 443.** `vi-mcp net [--network NAME] setup --mode peerhost --public https://HOST` publishes a network as
+  `https://HOST/vi-p2p/<network>`.
+  - TLS ends at the reverse proxy. The services listen on a local address, ports from 8766 upward.
+  - `vi-mcp net proxy-config` prints the nginx location blocks for all networks.
+  - Anything but https on 443 without a path is refused with the reason.
+
+  *Proof:* `test_two_networks_share_one_tls_port` (an open and a company network through one TLS port, each under its path, each peer
+  verifying the certificate via the CA), `test_setup_public_and_proxy_config_commands`.
+- **`vi_stats` section W** now also counts:
+  - contents by hash, holder lines, deduplicated arrivals and holders per content;
+  - rated contents with their score distribution, hidden contents and ratings received;
+  - own entries per type.
+
+### What has changed
+
+- The design rule "no weight from foreign counters" is made precise. Foreign ratings get capped, aggregated weight in what is shown and
+  in hiding a hint, never in training (`docs/ARCHITECTURE.md`).
+- Imports from before 0.40.0 get their content hash and holder from what the import kept. Imported searches and skills were renamed on
+  import, so their hash cannot be rebuilt; they are counted in the log, not guessed.
+
+### What is missing
+
+- Hints are filtered by the score but not yet sorted by it among imported objects.
+- Only an exact match of meaning is deduplicated. Two servers wording the same finding differently stay two objects.
+- No measurement with real servers yet: proof so far is the test suite, including real HTTP and TLS between services.
+
 ## 0.39.0 — 2026-11-11 — Several networks: a company network and an open one
 
 First step towards the network wiki (a decentralised "Wikipedia and social network for AIs", plan in five versions up to 0.43.0).

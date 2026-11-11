@@ -36,6 +36,64 @@ def _as_service_user() -> None:
     os.setuid(p.pw_uid)
 
 
+#: 0.40.0: every network on port 443 — TLS ends at the reverse proxy, each network under its own path, the services listen on localhost
+PUBLIC_PREFIX = "/vi-p2p"
+FIRST_LOCAL_PORT = 8766
+
+
+def public_address(url: str, net: str) -> str:
+    """Pure. https://HOST → https://HOST/vi-p2p/<net>. Only https on port 443 without a path: the network wiki runs over TLS on 443."""
+    u = urllib.parse.urlsplit((url or "").strip())
+    try:
+        port = u.port
+    except ValueError:
+        port = -1
+    if u.scheme != "https" or not u.hostname or port not in (None, 443) or u.path not in ("", "/") or u.query or u.fragment:
+        raise ValueError("--public needs https://HOST (port 443, no path): every network runs over TLS on 443, each under /vi-p2p/<network>")
+    return f"https://{u.hostname}{PUBLIC_PREFIX}/{net}"
+
+
+def network_configs(directory: Path) -> dict[str, dict]:
+    """network name → its config (config.json is the network standard)."""
+    out = {}
+    for f in sorted(Path(directory).glob("*.json")):
+        try:
+            raw = json.loads(f.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            continue
+        out["standard" if f.stem == "config" else f.stem] = raw
+    return out
+
+
+def free_port(used: set[int], start: int = FIRST_LOCAL_PORT) -> int:
+    p = start
+    while p in used:
+        p += 1
+    return p
+
+
+def nginx_snippet(confs: dict[str, dict]) -> str:
+    """Pure. The location blocks for every network published under /vi-p2p/<name> — for the server block that listens on 443."""
+    lines = ["# vi-mcp network wiki: every network on port 443, TLS ends here (vi-mcp net proxy-config)",
+             "# inside the server { listen 443 ssl; … } block; then: nginx -t && systemctl reload nginx"]
+    n = 0
+    for name, raw in sorted(confs.items()):
+        addr = str(raw.get("adresse") or "")
+        if raw.get("modus") != "peerhost" or urllib.parse.urlsplit(addr).path != f"{PUBLIC_PREFIX}/{name}":
+            continue
+        n += 1
+        lines += [f"location {PUBLIC_PREFIX}/{name}/ {{  # network {name} ({raw.get('art', 'offen')})",
+                  f"    proxy_pass http://{raw.get('bind') if raw.get('bind') not in (None, '0.0.0.0', '::') else '127.0.0.1'}:{int(raw.get('port', FIRST_LOCAL_PORT))}/;",
+                  "    proxy_set_header Host $host;",
+                  "    proxy_http_version 1.1;",
+                  "    client_max_body_size 2m;  # the service accepts at most 1 MiB per request",
+                  "    proxy_read_timeout 120s;",
+                  "}"]
+    if not n:
+        lines.append("# no network is published on 443 yet: vi-mcp net [--network NAME] setup --mode peerhost --public https://HOST …")
+    return "\n".join(lines)
+
+
 def _logbook(k: nd.NetConfig) -> lb.Logbook:
     return lb.Logbook(Path(k.db), Path(k.seed), k.founders)
 
@@ -160,6 +218,23 @@ def setup(o) -> int:
     if not raw.get("gruender"):
         print("Founder missing: --found for a new network or --founder KEY to join", file=sys.stderr)
         return 2
+    if getattr(o, "public", None):  # 0.40.0: published on 443 behind the reverse proxy
+        if o.mode != "peerhost" or o.tls_self:
+            print("--public is for a peerhost and replaces --tls-self: TLS ends at the reverse proxy on 443", file=sys.stderr)
+            return 2
+        try:
+            raw["adresse"] = public_address(o.public, NETWORK or "standard")
+        except ValueError as ex:
+            print(ex, file=sys.stderr)
+            return 2
+        raw["bind"] = o.bind or "127.0.0.1"  # --bind: e.g. the gateway of a Docker network when nginx runs in a container
+        raw.pop("tls_cert", None)
+        raw.pop("tls_key", None)
+        if not o.port and "port" not in raw:
+            used = {int(c.get("port", FIRST_LOCAL_PORT)) for n, c in network_configs(p.parent).items() if n != (NETWORK or "standard")}
+            raw["port"] = free_port(used)
+        if (raw.get("torrent") or {}).get("aktiv"):
+            print("Hint: torrent uses its own port (not 443); for a network on 443 only, switch it off in " + str(p))
     if o.mode == "peerhost" and not raw.get("adresse"):
         print("peerhost needs --address https://name:port, otherwise nobody finds it", file=sys.stderr)
         return 2
@@ -204,7 +279,8 @@ def join(o) -> int:
         print(e, file=sys.stderr)
         return 2
     e = argparse.Namespace(mode=o.mode, address=o.address, bind=None, port=o.port, tls_cert=None, tls_key=None, ca_file=None, found=False, founders=d["g"], start=[d["s"]],
-                           http_allowed=o.http_allowed, torrent=False, tls_self=o.tls_self, proxy=o.proxy, no_proxy=o.no_proxy, quiet=True, kind=o.kind)
+                           http_allowed=o.http_allowed, torrent=False, tls_self=o.tls_self, proxy=o.proxy, no_proxy=o.no_proxy, quiet=True, kind=o.kind,
+                           public=o.public)
     if (code := setup(e)) != 0:
         return code
 
@@ -228,6 +304,7 @@ def join(o) -> int:
 
 def main(argv: list[str]) -> int:
     global SERVICE, NETWORK
+    SERVICE, NETWORK = "vi-p2p", None  # per call: the network standard unless --network names another
     a = argparse.ArgumentParser(prog="vi-mcp net")
     a.add_argument("--network", "--netz", dest="network", help="a further network (0.39.0): config /etc/vi-p2p/NAME.json, service vi-p2p@NAME; "
                    "without it: the network standard")
@@ -254,6 +331,8 @@ def main(argv: list[str]) -> int:
     e.add_argument("--tls-self", "--tls-selbst", dest="tls_self", action="store_true", help="create a self-signed certificate; peers check it via the pin in the logbook")
     e.add_argument("--proxy", help="HTTPS proxy for foreign peers, e.g. http://proxy:3128 (empty = none)")
     e.add_argument("--no-proxy", "--kein-proxy", dest="no_proxy", action="append", default=[], help="domain for which no proxy applies")
+    e.add_argument("--public", "--oeffentlich", dest="public", help="publish this network on 443: https://HOST — reachable as "
+                   "https://HOST/vi-p2p/<network> through the reverse proxy (vi-mcp net proxy-config prints its configuration)")
     e.add_argument("--kind", "--art", dest="kind", choices=("firma", "offen"), help="with --network: firma = one organisation, internal names allowed, "
                    "knowledge stays internal; offen = anonymised")
     for name, alias in (("invite", "einladen"), ("exclude", "ausschliessen")):
@@ -270,8 +349,10 @@ def main(argv: list[str]) -> int:
     bt.add_argument("--no-proxy", "--kein-proxy", dest="no_proxy", action="append", default=[])
     bt.add_argument("--http-allowed", "--http-erlaubt", dest="http_allowed", action="store_true")
     bt.add_argument("--port", type=int)
+    bt.add_argument("--public", "--oeffentlich", dest="public")
     bt.add_argument("--kind", "--art", dest="kind", choices=("firma", "offen"))
     cmd("peers")
+    cmd("proxy-config", help="nginx configuration for every network published on 443 (setup --public)")
     cmd("id")
     cmd("status")
     cmd("run", "lauf")
@@ -289,6 +370,9 @@ def main(argv: list[str]) -> int:
         return nd.main()
     if o.command == "join":
         return join(o)
+    if o.command == "proxy-config":
+        print(nginx_snippet(network_configs(nd.fpath().parent)))
+        return 0
     _as_service_user()
     k = nd.load()
     if not Path(k.seed).exists():

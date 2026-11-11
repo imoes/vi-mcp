@@ -63,7 +63,10 @@ def test_import_without_deletability_is_rejected():
 
 
 @pytest.fixture()
-def publisher(net):  # noqa: F811
+def publisher(net, monkeypatch):  # noqa: F811
+    # one database plays both servers here: its own objects must not count as "the same content held locally" (0.40.0)
+    from vi_mcp import net_score
+    monkeypatch.setattr(net_score, "find_local", lambda raw, ish: None)
     return net
 
 
@@ -322,3 +325,19 @@ def test_company_network_export_keeps_the_open_network_clean(publisher, monkeypa
     open_ = json.dumps(p2p.outbox("standard"), ensure_ascii=False)
     for forbidden in ("srv-alpha", "srv-beta", "10.9.1.5", "alice-laptop", "sw-07", "host:", "Passwort"):
         assert forbidden not in open_, forbidden
+
+
+def test_ratings_carry_only_a_hash_and_numbers(publisher):
+    """0.40.0: the rating export is a new kind of export — content hash and five numbers, never text, names or instances."""
+    from vi_mcp import logbook as lb, net_score
+    p2p.inbox(_bundle(publisher, [GOOD]), in_background=False)
+    o = g.recall("modus:quarantaene", viewer=None)[0][1]
+    o.mode = "test"
+    o.data["nuetzlich"] = {"ja": 1.0, "nein": 0.0, "n": 1}
+    o.confirm("ki@alice-laptop", "half bei srv-alpha", "alice-laptop")
+    out = p2p.outbox()["bewertungen"]
+    assert out and all(set(r) == {"ziel", *lb.RATING_FIELDS} and lb.valid_rating(r) for r in out)
+    raw = json.dumps(out)
+    for forbidden in ("alice", "srv-alpha", "Graylog", "Eingang"):
+        assert forbidden not in raw
+    assert out[0]["ziel"] == net_score.content_hash(GOOD)

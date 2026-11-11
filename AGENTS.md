@@ -37,14 +37,14 @@ On first installation the menu opens by itself if a terminal is present. Without
 | Check a release | `deploy/pruefe-release.sh <directory>` |
 
 Modules (`vi_mcp/`): `memory` (objects, search), `intuition` (before/after), `session`, `sleep_cycle`, `main_loop` (the loop), `scorer`, `learning`, `bandit`, `vector`, `reflection`, `skills`, `reflexes`, `sandbox`,
-`content` (meaning as a router feature), `on_demand` (training on demand), `usage_stats` (usage statistics, `vi_stats`), `metrics` (hint lift, by hint age), `images` (images with description and SAM 3 regions), `image_cli` (`vi-mcp image`), `stdio_bridge` (`vi-mcp stdio`, MCP over stdio through the local socket), `index` (memory index in the instructions), `weight_audit` (fixed rules over the router weights), `archive`, `self_model`, `questions`, `p2p` (memory on the network), `logbook`, `net_service` (separate process `vi-p2p`), `net_torrent`, `net_cli`, `anonymize`, `checks`, `reviewer`, `setup`, `config`, `server`, `tools`, `api_en` (German aliases), `log_output`.
+`content` (meaning as a router feature), `on_demand` (training on demand), `usage_stats` (usage statistics, `vi_stats`), `metrics` (hint lift, by hint age), `images` (images with description and SAM 3 regions), `image_cli` (`vi-mcp image`), `stdio_bridge` (`vi-mcp stdio`, MCP over stdio through the local socket), `index` (memory index in the instructions), `weight_audit` (fixed rules over the router weights), `archive`, `self_model`, `questions`, `p2p` (memory on the network), `net_score` (content hash, holders, network score), `logbook`, `net_service` (separate process `vi-p2p`), `net_torrent`, `net_cli`, `anonymize`, `checks`, `reviewer`, `setup`, `config`, `server`, `tools`, `api_en` (German aliases), `log_output`.
 
 ## Rules
 
 - **Store knowledge in full.** Code, API tables, commands and configurations belong unabridged in the field `content` (stored as `inhalt`, up to 200,000 characters), not as a summary with a reference to a file. What is missing is a gap in the memory.
 
 - **Public repository.** No host names, IPs, user names, tokens or internal URLs in code, docs, commits or packages. Host-specific material belongs in `docs/LOKAL*.md` (gitignored, never in a package).
-- **Nothing internal onto the network.** What leaves for the network goes through `anonymize.py`; what comes in is rejected there. A new kind of export needs a test in `tests/test_anonym.py`.
+- **Nothing internal onto an open network.** What leaves for an open network goes through `anonymize.py`; what comes in is rejected there. A company network (`art: firma`, 0.39.0, members of one organisation) carries internal knowledge unanonymised, and its imports stay internal and are never exported again. A new kind of export needs a test in `tests/test_anonym.py`.
 - **No `max_tokens` / `n_predict`.** If an output is cut off: switch thinking off (`chat_template_kwargs: {enable_thinking: false}`).
 - **Language-model verdicts only tighten.** The model can be deceived by the text it checks; only fixed rules may reject for good.
 - **No instance rates itself.** There is no MCP tool for setting a grade.

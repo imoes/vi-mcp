@@ -22,6 +22,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from hashlib import sha256 as _sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -38,6 +39,7 @@ REQUESTS_PER_MIN = 240
 JOINS_PER_MIN = 10
 CODE_PREFIX = "vinetz1."
 PER_FETCH = 500
+RATINGS_PER_DAY = 1000
 LOCAL = ("127.0.0.1", "localhost", "::1")
 
 
@@ -287,7 +289,8 @@ class NetService:
                   "erreichbar": bool(p["zuletzt"]) and p["fehler"] == 0, "fehlt_hier": p["fehlt_hier"], "fehlt_dort": p["fehlt_dort"]} for p in self.log.peers()]
         return {"netz": self.k.net, "art": self.k.kind, "modus": self.k.mode, "pseudonym": lb.pseudonym(self.log.pub), "version": __version__,
                 "mitglieder": st["mitglieder"], "eintraege": st["eintraege"], "unbekannte_typen": st["unbekannte_typen"], "gabelungen": st["gabelungen"],
-                "verstoesse": st["verstoesse"], "peers": peers, "transport": dict(self.usage_stats)}
+                "verstoesse": st["verstoesse"], "peers": peers, "transport": dict(self.usage_stats),
+                "eigene": {t: self.log.count_own(t) for t in ("objekt", "widerruf", "bewertung")}}
 
     def _fetch(self, address: str, pub: str, target: int) -> int:
         new = 0
@@ -366,6 +369,28 @@ class NetService:
             if w["netz_id"] not in revoke:
                 self.log.attach("widerruf", {"ziel": w["netz_id"], "token": w["token"]}, w["netz_id"])
                 new += 1
+        return new + self._ratings(a.get("bewertungen") or [])
+
+    def _ratings(self, ratings: list) -> int:
+        """0.40.0: own measurements per content. Only changed values, at most one per content and day, RATINGS_PER_DAY in all — and only
+        once no peer is older than 0.39.0 (older ones would reject the type and stop this server's whole chain)."""
+        if not ratings:
+            return 0
+        if blocked := self.log.peers_below(lb.RELAY_MIN):
+            self.usage_stats["bewertungen_wartend"] = len(ratings)
+            self.usage_stats["bewertung_sperre"] = blocked[:10]
+            return 0
+        self.usage_stats.pop("bewertung_sperre", None)
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        last, n, new = self.log.own_ratings(), self.log.count_own("bewertung", today), 0
+        for r in ratings:
+            if n >= RATINGS_PER_DAY:
+                break
+            if not lb.valid_rating(r) or (prev := last.get(r["ziel"])) and (prev[0] == lb.sha256(r) or prev[1] == today):
+                continue
+            self.log.attach("bewertung", r)
+            n, new = n + 1, new + 1
+        self.usage_stats["bewertungen_wartend"] = 0
         return new
 
     def inbox(self) -> None:
@@ -377,7 +402,7 @@ class NetService:
                 continue
             while (entry_batch := self.log.new_since_checkpoint(pub)):
                 believed = believes_all or pub in self.k.believe
-                to_send = [e for e in entry_batch if e["inhalt"] is not None and (e["kopf"]["typ"] == "widerruf" or (believed and e["kopf"]["typ"] == "objekt"))]
+                to_send = [e for e in entry_batch if e["inhalt"] is not None and (e["kopf"]["typ"] == "widerruf" or (believed and e["kopf"]["typ"] in ("objekt", "bewertung")))]
                 try:
                     if to_send:
                         self.mcp.inbox(to_send)
