@@ -509,14 +509,22 @@ _WORD = re.compile(r"[\wäöüÄÖÜß][\wäöüÄÖÜß.:/_-]{2,}")
 def prompt_words(text: str) -> list[str]:
     """Pure. The words of a prompt worth searching for: no stop words, no pure numbers, at most 20, in order."""
     out, seen = [], set()
-    for w in _WORD.findall(text or ""):
-        w = w.strip(".:/-_")
-        lw = w.lower()
-        if len(lw) < 3 or lw in _STOP or lw.isdigit() or lw in seen:
-            continue
-        seen.add(lw)
-        out.append(w)
+    for whole in _WORD.findall(text or ""):
+        whole = whole.strip(".:/-_")
+        # compounds count whole and in parts: "ssh-Verbindung" also finds "ssh" (measured 11.11.2026 with Claude Code: missed otherwise)
+        parts = [whole] + ([p for p in re.split(r"[-/_]", whole) if p] if re.search(r"[-/_]", whole) and not _specific(whole) else [])
+        for w in parts:
+            lw = w.lower()
+            if len(lw) < 3 or lw in _STOP or lw.isdigit() or lw in seen:
+                continue
+            seen.add(lw)
+            out.append(w)
     return out[:20]
+
+
+def _specific(w: str) -> bool:
+    """An identifier rather than a word: a host or file name, an error code with letters and digits."""
+    return bool(re.search(r"\d", w) and re.search(r"[a-zA-Z]", w)) or "." in w.strip(".")
 
 
 def prompt_hints(text: str, instance: str | None, shown: list[str] | None = None) -> dict:
@@ -525,7 +533,7 @@ def prompt_hints(text: str, instance: str | None, shown: list[str] | None = None
     words = prompt_words(text)
     if not words:
         return {"hinweise": [], "woerter": 0}
-    need = 1 if len(words) == 1 else 2
+    need = 2  # an identifier (host name, error code) or a hashtag value counts 2, another shared word 1
     skip = set(shown or [])
     hits = g.recall(" ".join(words), limit=PROMPT_HINTS * 6, kinds=PROMPT_KINDS, viewer=instance, or_fallback=True)
     cand = [o for _s, o, _g in hits if o.id not in skip and o.mode not in ("strittig", "quarantaene", "widerlegt", "archiviert")
@@ -535,7 +543,9 @@ def prompt_hints(text: str, instance: str | None, shown: list[str] | None = None
     out = []
     for o in cand:
         hay = (o.text + " " + " ".join(o.hashtags)).lower()
-        if sum(1 for w in lw if w in hay) < need:
+        values = {t.split(":", 1)[1].lower() for t in o.hashtags if ":" in t}
+        score = sum((2 if (_specific(w) or w in values) else 1) for w in lw if w in hay)
+        if score < (1 if len(words) == 1 else need):
             continue
         provenance = f"from {o.instance}" if o.instance else "from the server"
         label = {"regel": "Rule", "skill": "Skill", "bild": "Image", "seite": "Wiki page", "suche": "Search"}.get(o.kind, "Learned")

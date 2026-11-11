@@ -37,6 +37,15 @@ def test_follow_up_question_finds_the_memory(gd):
     assert intuition.prompt_hints("wie ist das wetter morgen am meer", "a")["hinweise"] == []  # no shared words, no noise
 
 
+def test_a_host_name_alone_is_enough_and_compounds_are_split(gd):
+    """Measured with Claude Code 11.11.2026: "Meine ssh-Verbindung zu buildhost07 hängt" missed the knowledge "ssh to buildhost07 hangs …"."""
+    k = _k("ssh to buildhost07 hangs at the password prompt without -i; use the key file", ["host:buildhost07", "tool:ssh"])
+    assert "ssh" in intuition.prompt_words("Meine ssh-Verbindung zu buildhost07 hängt")
+    assert intuition.prompt_hints("Kurze Frage: Meine ssh-Verbindung zu buildhost07 hängt. Woran liegt das?", "a")["ids"] == [k.id]
+    assert intuition.prompt_hints("Was läuft auf buildhost07?", "a")["ids"] == [k.id]  # a host name is specific: it counts 2
+    assert intuition.prompt_hints("Wie ist das Passwort-Prompt Verhalten bei Telnet?", "a")["ids"] == []  # one plain shared word is not enough
+
+
 def test_disputed_and_private_of_others_stay_out(gd):
     d = _k("ssh build host needs agent forwarding always", ["tool:ssh"])
     d.mode = "strittig"

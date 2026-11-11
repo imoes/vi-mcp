@@ -23,6 +23,16 @@ Linked from [README.md](README.md).
   *Proof:* `tests/test_prompt_context.py` (12): a follow-up question finds the knowledge, no repetition, no noise, disputed and others'
   private items stay out. **Through Hermes itself** (`hermes hooks test pre_llm_call` in a throwaway `HERMES_HOME` against a real
   server, 11.11.2026), the hook answered in 0.18 s with the matching knowledge, parsed by Hermes as `{"context": …}`.
+- **Measured with a real Claude Code** (11.11.2026, `claude --print`, then `--resume`, as the CentralStation console does; isolated test
+  server with two facts):
+  - First run: turns 2 and 3 got the context and the answers used it. Turn 1 got nothing: "ssh-Verbindung" and "hängt" shared only
+    the host name with "ssh to buildhost07 hangs".
+  - Since then compounds are split ("ssh-Verbindung" → "ssh"), and identifiers (host names, codes with letters and digits) or an exact
+    hashtag value count double.
+  - Second run: all three turns answered from the memory. Turn 1 named the key file, turn 2 the OOM kill with the 8 GiB limit, turn 3
+    the key path again. The hook log had no outage.
+
+  *Proof:* `test_a_host_name_alone_is_enough_and_compounds_are_split`.
 - **Privacy:** the prompt goes to the VI server, masked like tool arguments (passwords, tokens, URLs with logins), and at most 4,000
   characters. The server does not store it; usage keeps tool, outcome, duration and hit count. *Proof:*
   `test_prompt_is_masked_and_not_stored`.
