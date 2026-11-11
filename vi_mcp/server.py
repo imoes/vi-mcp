@@ -131,7 +131,8 @@ def _initialize(msg: dict, inst: config.Instance, announced: str | None = None) 
                          "afterwards; vi_recall/vi_drilldown to look things up, vi_object reads one object completely. vi_learn with a source to learn: code, API tables and commands belong unabridged into the field content, otherwise memory has gaps.\n"
                          + tools.RULES + "\n"
                          + (tools.RULES_WITHOUT_TOKEN + "\n" if inst.name == config.OPEN else "") + self_model.hint()
-                         + (f"\n{ix}" if (ix := index.text(inst.name)) else ""))}), s  # 0.38.0: the memory index, like a MEMORY.md
+                         + (f"\n{ix}" if (ix := index.text(inst.name)) else "")
+                         + (f"\n{nt}" if (nt := _network_notice()) else ""))}), s  # 0.38.0: the memory index, like a MEMORY.md
 
 
 class Server(ThreadingHTTPServer):
@@ -341,6 +342,15 @@ class Handler(BaseHTTPRequestHandler):
         if not answers:
             return self._send(202)
         self._send(200, answers if isinstance(message, list) else answers[0], {"Mcp-Session-Id": s.id})
+
+
+def _network_notice() -> str:
+    """0.47.0: the public networks this server takes part in — the AI tells the user and switches off on request."""
+    try:
+        from . import p2p
+        return p2p.notice()
+    except Exception:  # noqa: BLE001 — a notice must never break initialize
+        return ""
 
 
 def build(k: config.Config) -> list[Server]:

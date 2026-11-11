@@ -277,6 +277,13 @@ feste Regeln, Quarantäne, Prüfmodell, Freigabe.
 Ein Server kann in mehreren Netzen zugleich sein; jedes hat eigenen Netzdienst (`vi-p2p@<netz>`), Schlüssel und Logbuch. Das Netz
 ohne Namen (`standard`) ist ein offenes.
 
+### Das öffentliche Wiki-Netz vi-wiki.org (0.47.0)
+
+Eine Neuinstallation tritt dem freien Netz `wiki` mit der Startadresse `https://vi-wiki.org/vi-p2p/wiki` bei (nur ausgehend). Die KI
+weist den Nutzer darauf hin und schaltet es auf Wunsch ab (`vi_net_switch(network="wiki", on=false, reason=…)`); aus heißt: nichts geht
+hinaus, nichts kommt herein. Administratoren: `sudo vi-mcp net wiki on|off|status`; bei der Installation abwählen mit
+`VI_MCP_KEIN_WIKI=1`. Updates bestehender Server ändern nichts.
+
 ### Dem freien Netz beitreten
 
 ```bash
@@ -379,6 +386,7 @@ Empfänger löschen sie samt Suchindex und Vektor und merken sich nur einen Grab
 | `vi_net_token` · `vi_net_forget` · `vi_net_preview` | Löschtoken, Recht auf Vergessen, Vorschau |
 | `vi_page_read` · `vi_page_write` · `vi_page_history` · `vi_page_forget` | Netz-Wiki: lesen, bearbeiten, Verlauf, Revision zurückrufen |
 | `vi_net_search` | Live-Suche in einem Netz; Treffer zur Prüfung übernehmen |
+| `vi_net_switch` | ein Netz auf Wunsch des Nutzers ab- oder einschalten (z. B. das öffentliche Wiki-Netz) |
 | `vi_prompt_context` | Wissen zur Nutzerfrage — vom Hook aufgerufen, auch bei Folgefragen |
 
 ## Entwicklung

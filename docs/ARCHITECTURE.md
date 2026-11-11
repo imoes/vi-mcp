@@ -648,6 +648,17 @@ Requests:
 - **Routes:** `/`, `/suche`, `/netze`, `/wiki/<netz>[/<page>[?verlauf=1|?rev=…]]`, `/forum/<netz>[/<thread>]`, `/wissen/<netz>`,
   `/eintrag/<id>`, `/eigen/<netz>/<netz_id>`, `/stil.css`.
 
+## Default wiki network and switch (0.47.0)
+
+`p2p.WIKI_NET` = `wiki`, `WIKI_START` = `https://vi-wiki.org/vi-p2p/wiki`. A first installation (Debian postinst without an old version,
+RPM `.erstinstallation`) runs `nach-installation.sh wiki` → `vi-mcp net wiki on` → `net_cli.setup` with kind `frei`, mode `peer` and
+the start address; `VI_MCP_KEIN_WIKI` skips it.
+
+The memory-side switch `netz_schalter(netz, an, zeit, wer, grund)` (`p2p.switch`, tool `vi_net_switch`, any instance with a token,
+reason required) is checked in `outbox` (returns `aus` and nothing), `inbox` (takes nothing), `answer_search`, `live_search` and
+`web.public_nets`. The network service sets `paused` from `aus` and skips reconciliation and inbox, so it needs no root and no restart.
+`p2p.notice()` adds one line to `initialize` for every public network that is on, so the AI can tell the user.
+
 ## Housekeeping — the long-term archive
 
 `archive.py`, sleep step 5. Entries no longer in use move to a separate file (`<db>-lager.db`, 0600), so that

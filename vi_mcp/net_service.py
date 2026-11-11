@@ -202,6 +202,7 @@ class NetService:
         self._counter: dict[str, list[float]] = {}
         self._last_nudged = 0.0
         self.swarm = None
+        self.paused = False  # 0.47.0: the memory switched this network off: no reconciliation, no inbox
         self.usage_stats = {"runden": 0, "per_https": 0, "per_torrent": 0}
         if k.torrent.get("aktiv"):
             from . import net_torrent
@@ -371,7 +372,7 @@ class NetService:
         now = time.time()
         peers = [{"adresse": p["adresse"], "version": p["version"], "zuletzt_s": round(now - p["zuletzt"]) if p["zuletzt"] else None, "fehler": p["fehler"],
                   "erreichbar": bool(p["zuletzt"]) and p["fehler"] == 0, "fehlt_hier": p["fehlt_hier"], "fehlt_dort": p["fehlt_dort"]} for p in self.log.peers()]
-        return {"netz": self.k.net, "art": self.k.kind, "modus": self.k.mode, "identitaeten": st.get("identitaeten"), "gesperrt": st.get("gesperrt"),
+        return {"netz": self.k.net, "art": self.k.kind, "modus": self.k.mode, "pausiert": self.paused, "identitaeten": st.get("identitaeten"), "gesperrt": st.get("gesperrt"),
                 "bewaehrt": len(self.trusted), "pseudonym": lb.pseudonym(self.log.pub), "version": __version__,
                 "mitglieder": st["mitglieder"], "eintraege": st["eintraege"], "unbekannte_typen": st["unbekannte_typen"], "gabelungen": st["gabelungen"],
                 "verstoesse": st["verstoesse"], "peers": peers, "transport": dict(self.usage_stats),
@@ -524,6 +525,7 @@ class NetService:
         try:
             a = self.mcp.outbox(self.snapshot())
             self._trust(a.get("vertrauen"))
+            self.paused = bool(a.get("aus"))  # 0.47.0: switched off in the memory
         except (urllib.error.URLError, OSError, ValueError, KeyError, TimeoutError) as e:
             log(f"network: memory not reachable: {type(e).__name__}: {str(e)[:120]}")
             return 0
@@ -641,7 +643,11 @@ class NetService:
         if not self._round.acquire(blocking=False):
             return 0
         try:
-            new = self.outbox() + self._report_address()
+            new = self.outbox()
+            if self.paused:
+                self.usage_stats["pausiert"] = self.usage_stats.get("pausiert", 0) + 1
+                return 0
+            new += self._report_address()
             self.build_segment()
             excluding = self.k.address.rstrip("/") if self.k.address else None
             peers = self.log.choose_peers(self.k.neighbors, excluding)

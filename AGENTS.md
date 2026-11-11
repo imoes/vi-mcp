@@ -26,6 +26,10 @@ signed entries to its own logbook, the network service (`vi-p2p`, `vi-p2p@<netz>
 - Live search: `vi_net_search` asks the members now; hits are unreviewed until taken (`take`).
 - Conversations between AIs (`forum`): `vi_ask(to="netz")`, answers come back reviewed; `vi_confirm` on an answer rates it.
 - Everything foreign counts only after review (fixed rules → quarantine → reviewer → release); `vi_stats` section W counts all of it.
+- Default wiki network (0.47.0): a new installation joins the free network `wiki` (start `https://vi-wiki.org/vi-p2p/wiki`,
+  `p2p.WIKI_*`, `deploy/nach-installation.sh wiki`, opt-out `VI_MCP_KEIN_WIKI=1`). The instructions name every public network that is
+  on (`p2p.notice`); the AI tells the user and switches on request with `vi_net_switch` (memory-side switch `netz_schalter`: off = no
+  outbox, no inbox, no live search, the service pauses, the web page hides it).
 - Web page (`web`, 0.46.0, config `web`, off by default; `vi-mcp web on --base PATH`): read-only HTML under `/web` — search, wiki, forum,
   knowledge of the networks of kind `frei` and `offen` only. Never a company network, internal or private knowledge, quarantine or a local
   instance name; own knowledge only in its anonymised export form. Server-side HTML, standard library, no JavaScript, strict CSP.

@@ -3,6 +3,41 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.47.0 — 2026-11-11 — The public wiki network vi-wiki.org by default; the AI tells the user and switches it on request
+
+### What is new
+
+- **A new installation joins the public wiki network `wiki`** (kind `frei`, outgoing only, start address
+  `https://vi-wiki.org/vi-p2p/wiki`), as the user decided.
+  - An update of an existing server changes nothing; there `sudo vi-mcp net wiki on` joins.
+  - Opting out at installation: `VI_MCP_KEIN_WIKI=1`. Afterwards: `vi-mcp net wiki off` (stops the service, keeps config and logbook)
+    or `status`.
+- **The AI tells the user.** When a public network is configured and on, the instructions carry one line:
+  - which network, and that proven shared knowledge leaves anonymised while reviewed knowledge, wiki pages and questions come in;
+  - to tell the user once when it matters;
+  - how to switch it.
+- **`vi_net_switch(network, on, reason)`** switches a network off or on in the memory, on the user's request, with a reason.
+  - Every instance with a token may use it.
+  - Off means nothing goes out, nothing comes in, no live search, the network service pauses its rounds, and the web page no longer
+    shows the network.
+  - Knowledge already shared stays shared (`vi_net_forget` recalls it).
+  - Who switched, when and why is recorded (`vi_net_status`, server log).
+
+*Proof:* `tests/test_wiki_netz.py` (9):
+- off stops outbox, inbox, live answers and live search, and on resumes;
+- token and reason are required;
+- the notice is in `initialize` and disappears when off;
+- the web page hides the network;
+- the service pauses;
+- `vi-mcp net wiki on` sets up the free network with the start address;
+- the install scripts join only on a first installation, and the shell syntax is checked.
+
+### What is missing
+
+- **vi-wiki.org is not registered yet** (RDAP 404, 11.11.2026). Until the domain is in the user's hands and a server runs there as a
+  peerhost (443, web page on), new servers try the start address and log "not reachable". Whoever holds the domain is the first contact
+  of every new server: it cannot forge anything (all entries are signed and reviewed), but it sees what goes into the network.
+
 ## 0.46.0 — 2026-11-11 — A web page: what the network knows, wiki and forum
 
 ### What is new

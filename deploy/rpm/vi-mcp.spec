@@ -39,6 +39,7 @@ exit 0
 %posttrans
 if [ -e /var/lib/vi-mcp/.erstinstallation ]; then
     rm -f /var/lib/vi-mcp/.erstinstallation
+    /usr/share/vi-mcp/nach-installation.sh wiki
     /usr/share/vi-mcp/nach-installation.sh menue
 fi
 exit 0

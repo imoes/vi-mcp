@@ -81,6 +81,15 @@ nginx -t && systemctl reload nginx  # in a container: docker exec nginx nginx -t
 - Torrent for large backlogs uses its own port and is off unless switched on; for a network on 443 only, leave it off.
 - Check: `curl -s https://<host>/vi-p2p/firma/netz/gesund` → `{"zustand": "ok", "version": "…"}`.
 
+### Public wiki network vi-wiki.org (0.47.0)
+
+- A new installation runs `nach-installation.sh wiki`, which equals `sudo vi-mcp net wiki on`: free network `wiki`, mode `peer`
+  (outgoing), start `https://vi-wiki.org/vi-p2p/wiki`. Opt out: `VI_MCP_KEIN_WIKI=1 apt install ./vi-mcp_….deb`.
+- Existing servers: `sudo vi-mcp net wiki on` to join, `off` to stop the service (config and logbook stay), `status`.
+- The AI can switch the network off and on in the memory (`vi_net_switch`); the service keeps running but pauses. `vi_net_status`
+  shows who switched, when and why.
+- The start server: a peerhost of the network `wiki` on vi-wiki.org (443, `--public https://vi-wiki.org`, `vi-mcp web on`).
+
 ### Web page (0.46.0)
 
 ```bash

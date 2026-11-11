@@ -371,6 +371,8 @@ def main(argv: list[str]) -> int:
     bt.add_argument("--port", type=int)
     bt.add_argument("--public", "--oeffentlich", dest="public")
     bt.add_argument("--kind", "--art", dest="kind", choices=("firma", "offen"))
+    wk = cmd("wiki", help="the public wiki network vi-wiki.org: on (join: free network, outgoing, start vi-wiki.org) · off (stop the service) · status")
+    wk.add_argument("action", choices=("on", "off", "status"), nargs="?", default="status")
     cmd("peers")
     for name, alias in (("block", "sperren"), ("unblock", "entsperren")):  # 0.45.0: local block list (public key or address)
         x = cmd(name, alias)
@@ -387,6 +389,24 @@ def main(argv: list[str]) -> int:
             return 2
         NETWORK, SERVICE = o.network, f"vi-p2p@{o.network}"
         os.environ["VI_P2P_CONFIG"] = str(nd.fpath().parent / f"{o.network}.json") if os.environ.get("VI_P2P_CONFIG") else f"/etc/vi-p2p/{o.network}.json"
+    if o.command == "wiki":  # 0.47.0
+        from . import p2p
+        NETWORK, SERVICE = p2p.WIKI_NET, f"vi-p2p@{p2p.WIKI_NET}"
+        if not os.environ.get("VI_P2P_CONFIG"):
+            os.environ["VI_P2P_CONFIG"] = f"/etc/vi-p2p/{p2p.WIKI_NET}.json"
+        p = nd.fpath()
+        if o.action == "status":
+            state = (subprocess.run(["systemctl", "is-active", SERVICE], capture_output=True, text=True).stdout.strip() or "unknown") \
+                if shutil.which("systemctl") and not os.environ.get("VI_MCP_KEIN_DIENST") else "not checked"
+            print(f"wiki network ({p2p.WIKI_START}): {'configured' if p.exists() else 'not set up'}; service {SERVICE}: {state}")
+            return 0
+        if o.action == "off":
+            print(_service("disable", "--now", SERVICE) or f"{SERVICE} stopped and disabled; config and logbook are kept (vi-mcp net wiki on resumes)")
+            return 0
+        e = argparse.Namespace(mode="peer", address=None, bind=None, port=None, tls_cert=None, tls_key=None, ca_file=None, found=False, founders=[],
+                               start=[p2p.WIKI_START], http_allowed=False, torrent=False, tls_self=False, proxy=None, no_proxy=[], quiet=True,
+                               kind="frei", public=None)
+        return setup(e)
     if o.command == "setup":
         return setup(o)
     if o.command == "run":

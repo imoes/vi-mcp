@@ -38,6 +38,18 @@ JSON
         systemctl restart vi-mcp.service >/dev/null 2>&1 || true
     fi
     ;;
+wiki)
+    # 0.47.0: a new installation joins the public wiki network vi-wiki.org (free network, outgoing only). Opt out: VI_MCP_KEIN_WIKI=1.
+    # The AI tells the user about it and switches it off on request (vi_net_switch); the administrator: vi-mcp net wiki off.
+    if [ -n "$VI_MCP_KEIN_WIKI" ]; then
+        echo "vi-mcp: wiki network not joined (VI_MCP_KEIN_WIKI); later: sudo vi-mcp net wiki on"
+        exit 0
+    fi
+    if [ ! -e /etc/vi-p2p/wiki.json ]; then
+        /usr/bin/vi-mcp net wiki on >/dev/null 2>&1 && echo "vi-mcp: joined the public wiki network vi-wiki.org (off: sudo vi-mcp net wiki off)" \
+            || echo "vi-mcp: joining the wiki network failed; later: sudo vi-mcp net wiki on"
+    fi
+    ;;
 menue)
     hinweis="vi-mcp: set up Claude Code, Codex and Hermes:  sudo vi-mcp setup"
     # Unattended runs (Ansible, CI, image builds) must never wait for a key press

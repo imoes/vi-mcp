@@ -45,7 +45,7 @@ def when(ts) -> str:
 
 def public_nets() -> dict[str, dict]:
     from . import p2p
-    return {n: d for n, d in p2p.networks().items() if d["art"] in PUBLIC_KINDS}
+    return {n: d for n, d in p2p.networks().items() if d["art"] in PUBLIC_KINDS and p2p.is_on(n)}  # 0.47.0: a switched-off network is not shown
 
 
 # ---- text rendering: a small, safe subset (paragraphs, headings, lists, code, links) ----

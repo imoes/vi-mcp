@@ -45,6 +45,11 @@ RELEASE_STATUS_OK = "zulassen"
 #:  "netze": {name: {"art": "firma"|"offen", "instanz": "netz-<name>"}}}
 config: dict = {}
 STANDARD = "standard"
+#: 0.47.0: the public wiki network every new installation joins (decided by the user, 11.11.2026). A free network; the start server at
+#: vi-wiki.org is only the first contact. The AI tells the user about it and switches it off on request (vi_net_switch).
+WIKI_NET = "wiki"
+WIKI_HOME = "https://vi-wiki.org"
+WIKI_START = f"{WIKI_HOME}/vi-p2p/{WIKI_NET}"
 #: frei (0.45.0): like offen (shared, anonymised), but anyone may join — no invitation; see logbook identity proof
 NET_KINDS = ("offen", "firma", "frei")
 NET_NAME = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
@@ -61,6 +66,51 @@ def networks() -> dict[str, dict]:
             continue
         out[name] = {"art": d["art"], "instanz": d["instanz"], "auto_freigabe": bool(d.get("auto_freigabe")), "lokal": d.get("lokal") or None}
     return out
+
+
+def is_on(net: str) -> bool:
+    """0.47.0: a network can be switched off in the memory (vi_net_switch): nothing goes out, nothing comes in, the service pauses."""
+    _tables()
+    with g.lock:
+        z = g.db().execute("SELECT an FROM netz_schalter WHERE netz = ?", (net,)).fetchone()
+    return bool(z[0]) if z else True
+
+
+def switch(net: str, on: bool, who: str, reason: str) -> dict:
+    if net not in networks():
+        raise ValueError(f"unknown network {net!r} — known: {', '.join(networks())}")
+    if not (reason or "").strip():
+        raise ValueError("reason is required")
+    _tables()
+    before = is_on(net)
+    with g.lock:
+        g.db().execute("INSERT INTO netz_schalter (netz, an, zeit, wer, grund) VALUES (?,?,?,?,?) ON CONFLICT(netz) DO UPDATE SET an = excluded.an, "
+                       "zeit = excluded.zeit, wer = excluded.wer, grund = excluded.grund", (net, int(bool(on)), g.now(), who, reason.strip()[:300]))
+        g.db().commit()
+    from .log_output import log
+    log(f"network {net} switched {'on' if on else 'off'} by {who}: {reason.strip()[:200]}")
+    return {"netz": net, "vorher": before, "jetzt": bool(on)}
+
+
+def switch_state(net: str) -> dict | None:
+    _tables()
+    with g.lock:
+        z = g.db().execute("SELECT an, zeit, wer, grund FROM netz_schalter WHERE netz = ?", (net,)).fetchone()
+    return {"an": bool(z[0]), "zeit": z[1], "wer": z[2], "grund": z[3]} if z else None
+
+
+def notice() -> str:
+    """0.47.0: one line for the instructions — which public networks this server takes part in, so the AI can tell the user and
+    switch one off on request. Empty if none is configured and on."""
+    nets = networks()
+    st = states()
+    live = [n for n, d in nets.items() if d["art"] in ("frei", "offen") and (n != STANDARD or n in st) and is_on(n)]
+    if not live:
+        return ""
+    names = ", ".join(f"{n} ({nets[n]['art']}{', ' + WIKI_HOME.split('//')[1] if n == WIKI_NET else ''})" for n in live)
+    return (f"[Network] This server takes part in the public network(s) {names}: proven, shared knowledge leaves it anonymised, reviewed "
+            "knowledge, wiki pages and questions from other servers come in. Tell the user once when it matters (sharing, privacy, a question "
+            "about the network); if they do not want it, switch it off: vi_net_switch(network, on=false, reason) — and on again with on=true.")
 
 
 def network_of(instance: str) -> str | None:
@@ -86,6 +136,7 @@ def _tables() -> None:
             CREATE TABLE IF NOT EXISTS p2p_netz (netz_id TEXT PRIMARY KEY, oid TEXT NOT NULL, loesch_hash TEXT NOT NULL, sha TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS p2p_grab (netz_id TEXT PRIMARY KEY, token_sha TEXT NOT NULL, zeit TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS netz_stand (netz TEXT PRIMARY KEY, zeit TEXT NOT NULL, daten TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS netz_schalter (netz TEXT PRIMARY KEY, an INTEGER NOT NULL, zeit TEXT NOT NULL, wer TEXT NOT NULL, grund TEXT NOT NULL);
         """)
         g.db().commit()
 
@@ -287,7 +338,7 @@ def answer_search(net: str, query: str, n: int = LIVE_MAX) -> list[dict]:
     in the network's export form. The query is reduced to words: a foreign member cannot address modes, visibilities or instances."""
     _tables()
     words = re.findall(r"[\w.-]{2,}", str(query or ""))[:12]
-    if not words:
+    if not words or not is_on(net):
         return []
     with g.lock:
         withdrawn = {r[0] for r in g.db().execute("SELECT oid FROM netz_widerruf")}
@@ -321,6 +372,8 @@ def live_search(net: str, query: str, n: int = LIVE_MAX) -> dict:
     nets = networks()
     if net not in nets:
         raise ValueError(f"unknown network {net!r} — known: {', '.join(nets)}")
+    if not is_on(net):
+        raise ValueError(f"network {net} is switched off on this server (vi_net_switch(network={net!r}, on=true) to switch it on)")
     loc = nets[net].get("lokal") or {}
     if not loc.get("url") or not loc.get("token"):
         raise ValueError(f"network {net}: live search not set up — on the server: vi-mcp net{'' if net == STANDARD else ' --network ' + net} setup … (0.42.0 adds the local listener)")
@@ -403,6 +456,8 @@ def search_stats(days: float = 7) -> dict:
 
 def outbox(net: str = STANDARD) -> dict:
     """What may go to the network, unsigned: signing is the network service's job, which keeps its key to itself."""
+    if not is_on(net):  # 0.47.0: switched off in the memory — nothing goes out; the service pauses its rounds
+        return {"aus": True, "objekte": [], "widerrufe": [], "zurueckgehalten": {}, "bewertungen": [], "seiten": [], "beitraege": [], "vertrauen": trust()}
     mem_objects, withdrawn = _collect(None, net)
     from . import forum, wiki
     return {"vertrauen": trust(), "objekte": [r for _o, r in mem_objects], "widerrufe": _revocations(net) + wiki.revocations(net), "zurueckgehalten": withdrawn,
@@ -498,6 +553,8 @@ def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
     """Check entries from the network and put them into quarantine. In a company network imports become internal (0.39.0)."""
     _tables()
     report = {"quarantaene": 0, "abgelehnt": 0, "bekannt": 0, "gruende": [], "vergessen": 0, "dedupliziert": 0, "bewertungen": 0}
+    if not is_on(net):  # 0.47.0: switched off — nothing comes in
+        return {**report, "aus": True}
 
     def from_seq(reason):
         report["abgelehnt"] += 1
@@ -668,7 +725,7 @@ def status() -> dict:
     nets = {}
     for n, d in networks().items():
         s = st.get(n)
-        nets[n] = {"art": d["art"], "instanz": d["instanz"],
+        nets[n] = {"art": d["art"], "instanz": d["instanz"], "an": is_on(n), "schalter": switch_state(n),
                    "stand": ({"zeit": s["zeit"], **{k: s["daten"].get(k) for k in ("pseudonym", "version", "mitglieder", "peers", "transport", "unbekannte_typen", "wiki_sperre")}}
                              if s else "not recorded (the network service has not reported since 0.39.0)")}
     return {"netze": nets, "quarantaene": q, "grabsteine": gr, "herausgeber": publisher_value(fresh=True)}

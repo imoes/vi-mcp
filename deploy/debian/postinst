@@ -10,6 +10,7 @@ if [ "$1" = "configure" ]; then
     fi
     /usr/share/vi-mcp/nach-installation.sh system
     if [ -z "$2" ]; then
+        /usr/share/vi-mcp/nach-installation.sh wiki
         /usr/share/vi-mcp/nach-installation.sh menue
     fi
 fi

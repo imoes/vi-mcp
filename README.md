@@ -271,6 +271,13 @@ the review model, release.
 A server can be in several networks at once; each runs its own network service (`vi-p2p@<network>`), key and logbook. The network
 without a name (`standard`) is an open one.
 
+### The public wiki network vi-wiki.org (0.47.0)
+
+A new installation joins the free network `wiki` with the start address `https://vi-wiki.org/vi-p2p/wiki` (outgoing only). The AI
+tells the user about it and switches it off on request (`vi_net_switch(network="wiki", on=false, reason=…)`); off means nothing goes
+out or comes in. Administrators: `sudo vi-mcp net wiki on|off|status`; opt out at installation with `VI_MCP_KEIN_WIKI=1`. Updates of
+existing servers change nothing.
+
 ### Joining the free network
 
 ```bash
@@ -371,6 +378,7 @@ receivers delete them along with search index and vector, and keep only a tombst
 | `vi_net_token` · `vi_net_forget` · `vi_net_preview` | deletion token, right to be forgotten, preview |
 | `vi_page_read` · `vi_page_write` · `vi_page_history` · `vi_page_forget` | network wiki: read, edit, history, revoke a revision |
 | `vi_net_search` | live search in a network; take a hit into review |
+| `vi_net_switch` | switch a network off or on, on the user's request (e.g. the public wiki network) |
 | `vi_prompt_context` | knowledge for a user prompt — called by the hook, follow-up questions included |
 
 ## Development
