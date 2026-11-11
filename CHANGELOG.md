@@ -3,6 +3,24 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.53.3 — 2026-11-11 — The skill table lists real tools only
+
+### What was fixed
+
+- **0.53.2 listed tool names that do not exist.** A Claude Code session compared the table with the real tool list of its skills server
+  (108 tools): names read from manual prose were REST endpoints, old names or fragments (`proxmox_vms_list`, `vcenter_session`,
+  `idgen_reader`, `jira_acme_`, `prompt_tokens` …), jira-servicedesk got jira's tools (same prefix), and `gitlab_get_tree` fell off
+  the 5-tool limit. A wrong name in a "use this tool" table is worse than none.
+  - Names now come only from **real** tools: registered from an MCP server's `tools/list` (new tool `vi_tools_register(server, tools)`,
+    a new list replaces the old one and names what went) or seen in use (`tool:<name>` on experiences).
+  - The manual only **assigns** real tools to a skill: if it names some of them, exactly those (that separates skills sharing a
+    prefix); if it names none, every real tool with the prefix. No real tool: "tools: see the manual".
+  - Up to 8 tools per skill, the most used first.
+
+*Proof:* `tests/test_error_hints_and_skills.py`: nothing registered and nothing used → no guessed names, "see the manual"; registered and
+used → only real names the manual assigns, an old name and a vendor-doc name never; a new list replaces the old one and names what went;
+jira and jira-servicedesk each get their own tools; the register tool checks its input. Full suite on SQLite and PostgreSQL 16.
+
 ## 0.53.2 — 2026-11-11 — The skill table names the tools from the manuals
 
 ### What was fixed

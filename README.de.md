@@ -443,7 +443,7 @@ Empfänger löschen sie samt Suchindex und Vektor und merken sich nur einen Grab
 | `vi_before` · `vi_after` | vor und nach einer Handlung melden |
 | `vi_learn` · `vi_recall` · `vi_drilldown` · `vi_object` | lernen (Code und API-Tabellen vollständig in `inhalt`; Bilder mit Beschreibung und Regionen im SAM-3-Format, `vi-mcp image DATEI …`), suchen, vertiefen, vollständig lesen (mit Bild) |
 | `vi_tag` · `vi_confirm` · `vi_refute` · `vi_forget` | ändern, nur mit Grund |
-| `vi_capabilities` | die Skills dieser Installation: System, Werkzeuge (gemessen im Einsatz und im Handbuch genannt), Handbuch-ID — auch bei der ersten Frage jeder Sitzung (0.53.0) |
+| `vi_capabilities` · `vi_tools_register` | die Skills dieser Installation: System, echte Werkzeuge (aus der tools/list des MCP-Servers gemeldet oder im Einsatz gesehen), Handbuch-ID — auch bei der ersten Frage jeder Sitzung (0.53.0, 0.53.3) |
 | `vi_feedback` | nach Hinweisen: welcher half, welcher führte in die Irre — ein Aufruf, ohne Grund (0.49.0); `before_id` = die `vorher_id` der Aktion, eindeutig, wenn sich Agenten eine Instanz teilen (0.50.1) |
 | `vi_ask` · `vi_answer` · `vi_questions` | Rückfragen zwischen Instanzen |
 | `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | Lösungswege |

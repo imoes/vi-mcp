@@ -436,7 +436,7 @@ receivers delete them along with search index and vector, and keep only a tombst
 | `vi_before` · `vi_after` | report before and after an action |
 | `vi_learn` · `vi_recall` · `vi_drilldown` · `vi_object` | learn (code and API tables in full in `inhalt`; images with description and regions in SAM 3 format, `vi-mcp image FILE …`), search, drill down, read in full (with the image) |
 | `vi_tag` · `vi_confirm` · `vi_refute` · `vi_forget` | change, always with a reason |
-| `vi_capabilities` | the skills of this installation: system, tools (measured in use and named in the manual), manual id — also at the first question of every session (0.53.0) |
+| `vi_capabilities` · `vi_tools_register` | the skills of this installation: system, real tools (registered from the MCP server's tools/list or seen in use), manual id — also at the first question of every session (0.53.0, 0.53.3) |
 | `vi_feedback` | after hints: which helped, which misled — one call, no reason needed (0.49.0); `before_id` = the `vorher_id` of the action, exact when agents share an instance (0.50.1) |
 | `vi_ask` · `vi_answer` · `vi_questions` | questions between instances |
 | `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | solutions |

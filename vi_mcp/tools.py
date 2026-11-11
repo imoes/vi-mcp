@@ -281,6 +281,11 @@ TOOLS = [
      "description": "VI: the skills of this installation — one line each: the system it serves, its tools (measured in use) and the id of its "
                     "manual. Use it before working on a system or when a tool is missing. Read only.",
      "inputSchema": _schema({})},
+    {"name": "vi_tools_register",
+     "description": "VI: register the real tool list of an MCP server (the names from its tools/list), replacing the previous list of that "
+                    "server. The skill table (vi_capabilities) lists only real tools — registered or seen in use, never names guessed from "
+                    "manuals.",
+     "inputSchema": _schema({"server": {"type": "string", "description": "name of the MCP server, e.g. team-skills"}, "tools": _TAGS}, ["server", "tools"])},
     {"name": "vi_why",
      "description": "VI: why was this hint shown? From the stored decision of your own last action with it (last 7 days): position, router "
                     "(model/bandit/heuristic), exploration, fitting triggers, measured usefulness, and the router weights that carry it. "
@@ -1003,6 +1008,14 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                 f"{c['already']} already {label} · {c['private']} private (never switched) · {c['not_yours']} of other instances "
                 f"(need the release right)" + ("" if apply else " — dry run, nothing changed; to switch: apply=true (command line: --apply)")
                 + (" · internal stops further sharing; copies already on the network: vi_net_forget" if new == "intern" and c["changed"] else ""))
+    if name == "vi_tools_register":  # 0.53.3
+        from . import capabilities
+        try:
+            r = capabilities.register(args.get("server") or "", list(args.get("tools") or []), instance)
+        except ValueError as e:
+            raise Rejected(str(e)) from e
+        return (f"{r['server']}: {r['tools']} tools registered" + (f"; new: {', '.join(r['new'][:20])}" if r["new"] else "")
+                + (f"; gone since the last list: {', '.join(r['gone'][:20])}" if r["gone"] else ""))
     if name == "vi_capabilities":  # 0.53.0
         from . import capabilities
         return capabilities.text(None if instance == config.OPEN else instance) or "no skill manuals in the VI yet (overview objects tagged art-wissen:ueberblick)"
