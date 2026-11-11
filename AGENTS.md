@@ -6,6 +6,9 @@ One server process with one memory for many AI sessions over MCP (Streamable HTT
 ## How it works
 
 Before every action the session asks `vi_before` and gets at most four hints from the memory; afterwards it reports `vi_after`.
+Since 0.49.0 a hint before a shell command must share a host, program or error with it — the tool and common words (`intuition.GENERIC_SHELL_WORDS`) do not count —
+and a hint without measured benefit appears at most `DAILY_MAX` times a day per instance. `vi_feedback(helped, wrong)` books which hints
+helped in one call; `metrics.hint_lift_matched` compares within instance and tool (the raw lift mixes base rates: Simpson's paradox).
 When an AI consults the VI and when it learns is defined in `tools.RULES` and goes to every client with the `instructions` (since 0.20.7).
 Sleep (when enough important things have accumulated; at night only after 24 h without sleep) condenses experiences into insights and skills and rates the work (scorer). Router, bandit and vectors
 learn on demand (`on_demand`), about a minute after new experiences or new knowledge. Visibilities: private, shared, internal (only with a token; never an open network, only a company network).

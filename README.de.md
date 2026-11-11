@@ -394,6 +394,7 @@ Empfänger löschen sie samt Suchindex und Vektor und merken sich nur einen Grab
 | `vi_before` · `vi_after` | vor und nach einer Handlung melden |
 | `vi_learn` · `vi_recall` · `vi_drilldown` · `vi_object` | lernen (Code und API-Tabellen vollständig in `inhalt`; Bilder mit Beschreibung und Regionen im SAM-3-Format, `vi-mcp image DATEI …`), suchen, vertiefen, vollständig lesen (mit Bild) |
 | `vi_tag` · `vi_confirm` · `vi_refute` · `vi_forget` | ändern, nur mit Grund |
+| `vi_feedback` | nach Hinweisen: welcher half, welcher führte in die Irre — ein Aufruf, ohne Grund (0.49.0) |
 | `vi_ask` · `vi_answer` · `vi_questions` | Rückfragen zwischen Instanzen |
 | `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | Lösungswege |
 | `vi_reflex_learn` · `vi_reflex_list` · `vi_reflex_switch` | Code im Gedächtnis |

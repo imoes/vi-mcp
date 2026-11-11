@@ -44,7 +44,7 @@ LEARN (vi_learn: text = one concrete key statement; content = complete, with com
 6. The user states a rule, requirement or decision that applies beyond this session — with the hashtag thema:vorgabe: those are listed in the index every session receives.
 7. A reusable fact about a system was looked up or measured (path, port, version, peculiarity, access route without secrets).
 8. Something turns out to be wrong: mark wrong VI knowledge with vi_refute, learn the correction.
-Search before learning: if it is already there, vi_confirm instead of creating it again. If a hint helped, vi_confirm; if it was wrong, vi_refute.
+Search before learning: if it is already there, vi_confirm instead of creating it again. After hints: vi_feedback(helped=[ids], wrong=[ids]) — one call, no reason needed; it is how the VI learns which hint to show. vi_confirm / vi_refute when you checked the knowledge itself.
 Code: the code of a solution, a fix, a reusable script or a query belongs in content, complete and runnable. Not a copy of a file that lives in a repository: name repository, path and commit instead.
 Network wiki: what the whole network should maintain (a runbook, the answer to a recurring question) goes on a page with vi_page_write (network, page, text, base_rev = the revision you edited); vi_page_read shows a page with its open conflicts — resolve one by writing with base_rev = one head and also_parents = the others.
 Images are their own kind (art:bild). Save a screenshot when it shows what text would lose: an error dialog, a UI state, a configuration screen, a graph — take it (e.g. browser_take_screenshot) and store it with vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F.json] (text = what it shows, content = full description, regions in SAM 3 format); vi_object shows it. Never screenshots with passwords or tokens on screen.
@@ -228,6 +228,11 @@ TOOLS = [
     {"name": "vi_tag",
      "description": "VI: change an object's hashtags (add/remove), with a reason — with history.",
      "inputSchema": _schema({"id": _S, "add": _TAGS, "remove": _TAGS, "reason": _S}, ["id", "reason"])},
+    {"name": "vi_feedback",
+     "description": "VI: tell the memory which of the hints shown to you helped and which misled you — ids from the hint lines. One call, no "
+                    "reason needed. This is the signal the VI learns from which hint to show; it does not change the knowledge itself (vi_confirm / "
+                    "vi_refute do that).",
+     "inputSchema": _schema({"helped": _TAGS, "wrong": _TAGS, "note": {"type": "string", "description": "optional"}})},
     {"name": "vi_confirm",
      "description": "VI: confirm an object (it becomes more important) — with a reason. Counts as feedback if it was just shown as a "
                     "hint. Weight comes from independent lines: confirmations of one model family count once, and a confirmation citing the "
@@ -315,7 +320,8 @@ class Rejected(Exception):
 #: (confirm, refute, questions, reflexes, releases, network) needs an instance with a token.
 OPEN_ALLOWED = {"vi_before", "vi_after", "vi_learn", "vi_recall", "vi_drilldown", "vi_why", "vi_object", "vi_status", "vi_experience", "vi_skills", "vi_skill",
                  "vi_model", "vi_scorer", "vi_self", "vi_sleep", "vi_archive", "vi_quarantine", "vi_net_status", "vi_questions", "vi_reflex_list",
-                 "vi_page_read", "vi_page_history", "vi_net_search", "vi_prompt_context"}  # 0.41.0: the open network's pages are readable like the rest; a company network is refused in the tool
+                 "vi_page_read", "vi_page_history", "vi_net_search", "vi_prompt_context",
+                 "vi_feedback"}  # 0.41.0: the open network's pages are readable like the rest; a company network is refused in the tool
 
 
 def listing(instance: str | None = None) -> list[dict]:
@@ -802,8 +808,21 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             f += f" · searched as text, no hashtag kind: {', '.join(as_text[:5])}"
         return (f"{len(hits)} object{'' if len(hits) == 1 else 's'} for “{f}” (R relevance · A recency · W importance):\n"
                 + "\n".join(_line(o, gw) for _, o, gw in hits)) if hits else f"nothing in memory for “{f}”"
+    if name == "vi_feedback":  # 0.49.0
+        helped = [str(x) for x in (args.get("helped") or []) if x][:20]
+        wrong = [str(x) for x in (args.get("wrong") or []) if x][:20]
+        if not helped and not wrong:
+            raise Rejected("give helped=[ids] and/or wrong=[ids] — the ids of the hint lines")
+        booked, unknown = [], []
+        for hid, value in [(h, 1) for h in helped] + [(w, -1) for w in wrong]:
+            (booked if intuition.feedback(instance, hid, value) else unknown).append(hid)
+        return (f"feedback recorded for {len(booked)} hint(s)" + (f"; not shown to {instance} in the last {intuition.FEEDBACK_MIN} min: {', '.join(unknown)}"
+                                                                     if unknown else "") + " — thanks, this is what the VI learns from")
     if name == "vi_object":
         o = _visible(args.get("id"), instance)
+        s_now = session.current()
+        if s_now is not None and o.id in s_now.shown:  # 0.49.0: a shown hint was opened — a weak signal of use, counted apart
+            intuition.opened(instance, o.id)
         z = [_line(o), f"  author {o.instance} · visibility {o.visibility} · importance {o.importance} · confirmed {o.confirmed} "
                         f"(independent lines: {o.foreign_confirmations()} — one per model family, not from the object's own source) · refuted {o.refuted} · accesses {o.accesses} · "
                         f"last {o.last_at[:16]} · conversation {o.conversation or '—'}"]
@@ -874,7 +893,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         for o in hits:
             per_tool_rate.setdefault(next((t[5:] for t in o.hashtags if t.startswith("tool:")), "?"), []).append(o)
         lift = metrics.hint_lift(h, args.get("tool"), viewer=instance)
-        z = [metrics.line(lift)]
+        z = [metrics.line(lift), "  " + metrics.matched_line(metrics.hint_lift_matched(h, viewer=instance))]
         for t, d in sorted(lift["je_tool"].items(), key=lambda kv: -(kv[1]["mit"]["n"] + kv[1]["ohne"]["n"]))[:10]:
             if d["mit"]["n"] and d["ohne"]["n"]:
                 z.append(f"  {t:42} with {d['mit']['ok']}/{d['mit']['n']} · without {d['ohne']['ok']}/{d['ohne']['n']} → {d['urteil']}")

@@ -7,11 +7,12 @@ from vi_mcp import memory as g
 
 def _before(s, tool="Bash"):
     with session.on_behalf(s):
-        return intuition.before(tool, {"command": "ls"}, s.instance, False)
+        return intuition.before(tool, {"command": "uptime"}, s.instance, False)
 
 
 def test_hint_is_not_repeated_within_the_conversation(gd):
-    k = g.new_object("erkenntnis", "ssh to the build host only with the key file", ["tool:Bash"], {"quelle": "x"}, instance="b")
+    # 0.49.0: before a shell command a hint must share more than the tool — here the program
+    k = g.new_object("erkenntnis", "uptime on the build host lies after a suspend", ["tool:Bash", "thema:uptime"], {"quelle": "x"}, instance="b")
     s = session.begin("a", "t")
     first = _before(s)
     assert k.id in first["zugriff"]["gezeigt"]

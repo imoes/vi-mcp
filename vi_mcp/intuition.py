@@ -40,6 +40,16 @@ TTL_MAX = 3600
 HINT_BUDGET = 4
 #: 0.24.0: a hint is shown at most once per conversation within this many seconds
 REPEAT_S = 3600
+#: 0.49.0: words of a shell command that say nothing about its subject — a hint sharing only these (and the tool) is noise. Measured on
+#: production (vi_stats, 7 days to 11.11.2026): three hints (ssh key, "Bash failed 3×", pkill) were recalled 921/901/826 times, before
+#: nearly every shell command.
+GENERIC_SHELL_WORDS = frozenset("""grep sed cat ls head tail echo cd find awk cut sort uniq wc tr xargs tee printf test true false
+for do done if then else elif fi while case esac export source set unset env timeout sleep mkdir rm cp mv ln chmod chown touch stat
+python python3 bash sh sudo pip git curl wget jq less more diff file which type exit return import from def class assert print with
+as in is not and or none self open read write path pathlib json re os sys time subprocess""".split())
+#: 0.49.0: the same hint at most this often per instance and day — across conversations (REPEAT_S covers one conversation)
+DAILY_MAX = 6
+_daily: dict[tuple[str, str], list[float]] = {}
 #: Reference material (imported vendor docs): is searched, but shown unasked before an action at most LOOKUP_MAX times,
 #: so that manual paragraphs do not push experience knowledge (warnings, pitfalls) out of the budget. Measured 09.11.2026: before `docker logs`
 #: four general Docker doc paragraphs took all slots.
@@ -204,9 +214,13 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
         router = "bandit"
     # Fit first, then learned usefulness: a new, exactly matching rule has no history yet and would otherwise lose against
     # established general hints. Importance 3 (warning) goes first. Tool triggers of a shell say nothing specific.
-    general = {f"tool:{tool}", f"skill:{tool.split('_')[0]}", "thema:ssh"} if tool in SHELL_TOOLS else set()  # ssh is only the transport
+    general = ({f"tool:{tool}", f"skill:{tool.split('_')[0]}", "thema:ssh"} | {f"thema:{w}" for w in GENERIC_SHELL_WORDS}) \
+        if tool in SHELL_TOOLS else set()  # ssh is only the transport; grep, sed, from, def … say nothing about the subject
     matching = set(search_triggers) - general
     cand.sort(key=lambda o: (-(o.importance >= 3 and bool(matching & set(o.hashtags))), -len(matching & set(o.hashtags))))
+    # 0.49.0: before a shell command a hint must share more than the tool and generic words — a host, a program, an error. Counted.
+    unspecific = [o for o in cand if general and not (matching & set(o.hashtags))]
+    cand = [o for o in cand if o not in unspecific]
     # 0.24.0: a hint already shown in this conversation within REPEAT_S is not shown again. Measured 09.11.: three objects made up
     # ~2,300 of 5,841 shown hints — the same ssh tip appeared before every shell command. Held back with a count, not silently.
     repeated = []
@@ -214,6 +228,19 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
         recent = time.monotonic() - REPEAT_S
         repeated = [o for o in cand if s.shown.get(o.id, float("-inf")) > recent]
         cand = [o for o in cand if o not in repeated]
+    # 0.49.0: at most DAILY_MAX times a day per instance, across conversations (process memory: a restart resets it). Counted.
+    # Only hints without measured benefit: a warning (importance 3) or a hint whose bandit advantage is positive keeps its place —
+    # the matched lift (11.11.2026) showed hints helping centralstation `analyse` by about +9 points, every analysis anew.
+    capped = []
+    if instance:
+        from . import bandit
+        now_s = time.time()
+
+        def earned(o):
+            ja, nein = bandit.counter(o)
+            return o.importance >= 3 or ja > nein
+        capped = [o for o in cand if not earned(o) and sum(1 for t in _daily.get((instance, o.id), []) if now_s - t < 86400) >= DAILY_MAX]
+        cand = [o for o in cand if o not in capped]
     # never show surplus manual paragraphs regularly, only via exploration (so the bandit learns whether they help after all)
     surplus = {o.id for o in [o for o in cand if any(t in o.hashtags for t in LOOKUP)][LOOKUP_MAX:]}
     regular = [o for o in cand if o.id not in surplus]
@@ -227,6 +254,12 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
         shown_at = time.monotonic()
         for o in shown_obj:
             s.shown[o.id] = shown_at
+    if instance:
+        for o in shown_obj:
+            _daily.setdefault((instance, o.id), []).append(time.time())
+            _daily[(instance, o.id)] = [t for t in _daily[(instance, o.id)] if time.time() - t < 86400]
+        if len(_daily) > 50000:
+            _daily.clear()
     for i, o in enumerate(shown_obj):
         found.append(o.id)
         provenance = f"from {o.instance}" + (f", confirmed by {o.foreign_confirmations()} independent line(s)" if o.foreign_confirmations() else "")
@@ -262,9 +295,13 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     if len(from_memory) > HINT_BUDGET:
         remaining += len(from_memory) - HINT_BUDGET
         from_memory = from_memory[:HINT_BUDGET]
-    if remaining > 0 or only_on_request or repeated:
+    if shown_obj and any(not h.startswith("Learned search") for h in from_memory):  # 0.49.0: ask for feedback where it costs least
+        from_memory.append("Did one of these help or mislead you? vi_feedback(helped=[ids], wrong=[ids]) — one call, no reason needed")
+    if remaining > 0 or only_on_request or repeated or unspecific or capped:
         addendum = f" (of which {len(only_on_request)} disputed or unconfirmed hypothesis, only on request)" if only_on_request else ""
-        again = f"{len(repeated)} already shown in this conversation within the last hour, not repeated" if repeated else ""
+        again = " · ".join(x for x in (f"{len(repeated)} already shown in this conversation within the last hour, not repeated" if repeated else "",
+                                        f"{len(unspecific)} share only the tool or generic words, not shown" if unspecific else "",
+                                        f"{len(capped)} shown {DAILY_MAX}× today already" if capped else "") if x)
         more = remaining + len(only_on_request)
         from_memory.append((f"… {more} more hits in memory{addendum}" + (f" · {again}" if again else "") if more else f"… {again}")
                            + f" — vi_drilldown(\"{' '.join(search_triggers)}\") shows them")
@@ -359,6 +396,22 @@ def explain(hint: g.MemoryObject, instance: str, triggers: list[str] | None = No
     else:
         z.append("  Router model: none yet — order by fit, importance and recency (heuristic) or measured usefulness (bandit)")
     return "\n".join(z)
+
+
+def opened(instance: str, hint_id: str) -> str | None:
+    """0.49.0: the AI opened a shown hint with vi_object — a weak signal of use, kept apart from feedback (not a training label)."""
+    since = (datetime.now(timezone.utc) - timedelta(minutes=FEEDBACK_MIN)).isoformat(timespec="milliseconds")
+    with g.lock:
+        rows = g.db().execute("SELECT id FROM objekt WHERE art = 'erfahrung' AND instanz = ? AND zeit >= ? ORDER BY zeit DESC LIMIT 200",
+                              (instance, since)).fetchall()
+    for (eid,) in rows:
+        e = g.load(eid)
+        if e and hint_id in ((e.data.get("vorher") or {}).get("gezeigt") or []):
+            if not (e.data.get("geoeffnet") or {}).get(hint_id):
+                e.data.setdefault("geoeffnet", {})[hint_id] = 1
+                g.save(e)
+            return eid
+    return None
 
 
 def feedback(instance: str, hint_id: str, value: int) -> str | None:

@@ -38,6 +38,52 @@ def hint_lift(hours: float = 24, tool: str | None = None, viewer: str | None = N
     return {**total, **_rate(total), "je_tool": {t: {**d, **_rate(d)} for t, d in per_tool.items()}, "stunden": hours}
 
 
+def hint_lift_matched(hours: float = 24, viewer: str | None = None) -> dict:
+    """0.49.0: hint lift within the same instance and tool (Mantel-Haenszel risk difference). The raw comparison mixes populations:
+    measured on production (7 days to 11.11.2026) it said −20 points, while claude-code alone showed −1 (97 % vs 98 %) and the other
+    instances, mostly centralstation's `analyse` with a 39 % base rate and nearly always a hint, about +9 — Simpson's paradox."""
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
+    strata: dict[tuple[str, str], dict] = {}
+    for _, o, _g in g.recall("art:erfahrung (ok:ja OR ok:nein)", limit=20000, viewer=viewer):
+        if o.ts < since or (o.data.get("vorher") or {}).get("aus_gedaechtnis"):
+            continue
+        t = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
+        d = strata.setdefault((o.instance or "?", t), {"mit": {"n": 0, "ok": 0}, "ohne": {"n": 0, "ok": 0}})
+        s = o.data.get("score")
+        ok = s["note"] >= 0.5 if s else "ok:ja" in o.hashtags
+        side = d["mit" if _with_hint(o) else "ohne"]
+        side["n"] += 1
+        side["ok"] += 1 if ok else 0
+    num = den = 0.0
+    used = {"mit": 0, "ohne": 0}
+    total_with = sum(d["mit"]["n"] for d in strata.values())
+    for d in strata.values():
+        a, b = d["mit"], d["ohne"]
+        if not a["n"] or not b["n"]:
+            continue
+        w = a["n"] * b["n"] / (a["n"] + b["n"])
+        num += w * (a["ok"] / a["n"] - b["ok"] / b["n"])
+        den += w
+        used["mit"] += a["n"]
+        used["ohne"] += b["n"]
+    lift = num / den if den else None
+    if used["mit"] < AT_LEAST or used["ohne"] < AT_LEAST or lift is None:
+        verdict = f"too little data in comparable strata (at least {AT_LEAST} per side)"
+    elif lift > 0.05:
+        verdict = "hints help"
+    elif lift < -0.05:
+        verdict = "hints hurt — check weighting"
+    else:
+        verdict = "no measurable difference"
+    return {"lift": lift, "urteil": verdict, "schichten": sum(1 for d in strata.values() if d["mit"]["n"] and d["ohne"]["n"]),
+            "mit_vergleichbar": used["mit"], "mit_gesamt": total_with, "ohne_vergleichbar": used["ohne"], "stunden": hours}
+
+
+def matched_line(m: dict) -> str:
+    return (f"matched within instance and tool (Mantel-Haenszel): " + (f"lift {m['lift'] * 100:+.0f} points" if m["lift"] is not None else "—")
+            + f" over {m['schichten']} stratum/strata, {m['mit_vergleichbar']} of {m['mit_gesamt']} actions with a hint comparable → {m['urteil']}")
+
+
 def _rate(d: dict) -> dict:
     qm = d["mit"]["ok"] / d["mit"]["n"] if d["mit"]["n"] else None
     qo = d["ohne"]["ok"] / d["ohne"]["n"] if d["ohne"]["n"] else None

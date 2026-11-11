@@ -59,8 +59,9 @@ def test_error_hint_and_own_tools(h):
     h.process(ev("PreToolUse", tool_name="Bash", tool_input={"command": "x"}, tool_use_id="b1"))
     h.process(ev("PostToolUseFailure", tool_name="Bash", tool_input={"command": "x"}, tool_use_id="b1", error="Exit 127: x: not found"))
     assert [o.text for _, o, _g in g.recall("tool:Bash ok:nein")][0].startswith("Bash(")
-    g.new_object("erkenntnis", "Bash hier ohne Proxy-Variablen", ["tool:Bash"], {"quelle": "Test"}, reason="T")
-    outputs = h.process(ev("PreToolUse", tool_name="Bash", tool_input={"command": "y"}, tool_use_id="b2"))
+    # 0.49.0: a shell hint needs more than the tool in common — here the host
+    g.new_object("erkenntnis", "web7 hier ohne Proxy-Variablen", ["tool:Bash", "host:web7.example"], {"quelle": "Test"}, reason="T")
+    outputs = h.process(ev("PreToolUse", tool_name="Bash", tool_input={"command": "ssh web7.example uptime"}, tool_use_id="b2"))
     assert "ohne Proxy-Variablen" in outputs["hookSpecificOutput"]["additionalContext"]
     assert h.process(ev("PreToolUse", tool_name="mcp__vi-mcp__vi_status", tool_input={}, tool_use_id="v1")) is None
     assert not g.recall("tool:vi_status")

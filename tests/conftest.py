@@ -11,6 +11,7 @@ def gd(tmp_path):
     session.end_all("unterbrochen")
     reflexes.loaded.clear()
     intuition.ttl_per_tool.clear()
+    intuition._daily.clear()  # 0.49.0: the daily cap is module state — it must not leak from one test into the next
     yield tmp_path / "vi.db"
     session.end_all("unterbrochen")
     g.close_db()

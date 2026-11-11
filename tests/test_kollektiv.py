@@ -181,7 +181,8 @@ def test_hint_budget(gd):
     for i in range(7):
         g.new_object("erkenntnis", f"Hinweis {i} zu web3", ["host:web3"], {"quelle": "x"}, reason="T")
     h = intuition.before("Bash", {"host": "web3"}, "a", False)["hinweise"]
-    assert len(h) == intuition.HINT_BUDGET + 1 and h[-1].startswith("… 3 more hits") and "vi_drilldown" in h[-1]
+    assert len(h) == intuition.HINT_BUDGET + 2 and h[-1].startswith("… 3 more hits") and "vi_drilldown" in h[-1]
+    assert h[-2].startswith("Did one of these help or mislead you?")  # 0.49.0: the feedback nudge
 
 
 def test_history_truncation_is_named(gd):

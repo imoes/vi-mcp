@@ -34,8 +34,8 @@ def test_code_rules():
     assert scorer.rate_conversation([e(1, ok=None)], []) == {}
 
 
-def action(s, tool, ok, error=None, n=None):
-    args = {"n": n if n is not None else time.time_ns()}
+def action(s, tool, ok, error=None, n=None, **extra):
+    args = {"n": n if n is not None else time.time_ns(), **extra}
     with session.on_behalf(s):
         v = intuition.before(tool, args, s.instance, False)
         return intuition.after(tool, args, ok, 1, error, None, v["vorher_id"], s.instance, False)["erfahrung"]
@@ -43,10 +43,11 @@ def action(s, tool, ok, error=None, n=None):
 
 def test_scorer_in_sleep_rebooks_and_labels(gd, monkeypatch):
     monkeypatch.setattr(intuition, "REPEAT_S", 0)  # this test is about rebooking: the same hint must count in both actions
-    k = g.new_object("erkenntnis", "Hinweis zu Bash hier", ["tool:Bash"], {"quelle": "x"}, reason="T", instance="b")
+    # 0.49.0: a shell hint needs more in common than the tool — here the program
+    k = g.new_object("erkenntnis", "Hinweis zu uptime hier", ["tool:Bash", "thema:uptime"], {"quelle": "x"}, reason="T", instance="b")
     s = session.begin("a", "t")
     bandit._reason.update(zeit=time.time(), je={"Bash": 0.8}, alle=0.8)
-    ids = [action(s, "Bash", True) for _ in range(2)]
+    ids = [action(s, "Bash", True, command="uptime") for _ in range(2)]
     assert bandit.counter(g.load(k.id)) == (0.4, 0)  # two successes at 80 % base rate: 0.2 advantage each
     s.signals.append({"zeit": g.now(), "art": "korrektur"})
     session.finish(s.id)

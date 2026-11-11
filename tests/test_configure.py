@@ -129,6 +129,7 @@ def test_debconf_files_are_generated_and_valid(tmp_path):
     c = configure.debconf_config()
     for q in configure.QUESTIONS:
         assert f"db_input {q.priority} vi-mcp/{q.key}" in c and f'if [ -n "${{{q.env}+x}}" ]' in c
+    assert "| while read" not in c and "<&4" in c  # debconf owns stdin (dpkg-reconfigure failed with a pipe, container test 11.11.2026)
     f = tmp_path / "config"
     f.write_text(c)
     assert subprocess.run(["sh", "-n", str(f)]).returncode == 0

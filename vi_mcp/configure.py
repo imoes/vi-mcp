@@ -319,7 +319,10 @@ def debconf_config() -> str:
     reads main.cf) — so a dialog never offers a value the server no longer has. On an update the wiki network is not joined by default."""
     lines = ["#!/bin/sh", "# generated from vi_mcp/configure.py (QUESTIONS) — do not edit", "set -e", ". /usr/share/debconf/confmodule",
              'if [ -x /usr/bin/vi-mcp ] && [ -e /etc/vi-mcp/config.json ]; then',
-             '    /usr/bin/vi-mcp configure --debconf-current 2>/dev/null | while read -r key value; do db_set "vi-mcp/$key" "$value" || true; done',
+             # not through a pipe: debconf reads its answers from stdin, a piped loop would feed it our lines (found by the container test,
+             # 11.11.2026: "return: Illegal number: bind" on dpkg-reconfigure) — the values come on fd 4 from a file
+             '    _cur=$(mktemp); /usr/bin/vi-mcp configure --debconf-current 2>/dev/null >"$_cur" || true',
+             '    while read -r key value <&4; do db_set "vi-mcp/$key" "$value" || true; done 4<"$_cur"; rm -f "$_cur"',
              "fi",
              '# an update from before 0.48.0: the server is configured already — ask only questions later versions add',
              'if [ -n "$2" ] && [ ! -e /etc/vi-mcp/configure.json ] && [ -e /etc/vi-mcp/config.json ]; then',

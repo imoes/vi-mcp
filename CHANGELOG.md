@@ -3,6 +3,56 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.49.0 — 2026-11-11 — Fewer, better hints; feedback in one call; a hint lift that compares like with like
+
+Measured on production (7 days to 11.11.2026, `vi_stats`): three hints were shown before nearly every shell command; feedback came for 2
+of 10,673 shown hints; the raw hint lift said −20 points.
+
+### What is new
+
+- **`vi_feedback(helped=[ids], wrong=[ids], note)`**: one call after hints, no reason needed. Each id is booked on the latest action
+  before which that hint was shown (within 60 minutes); ids that were not shown are named in the answer, not dropped. The hint block
+  ends with one line asking for it, and the rules name it.
+- **Opening a shown hint counts as use.** `vi_object` on a hint shown in this conversation is recorded on the action
+  (`geoeffnet`); `vi_stats` B counts it.
+- **Matched hint lift** in `vi_stats` C and `vi_experience`: the Mantel-Haenszel risk difference within the same instance and tool.
+  Why: the raw −20 points was Simpson's paradox. claude-code alone showed 97 % vs 98 %; the centralstation `analyse` runs, nearly always
+  with a hint and with a low base rate, pulled the mixed average down while the hints helped them by about +9 points.
+
+### What has changed
+
+- **Before a shell command a hint must share more than the tool**: a host, a program, an error. The tool itself and common words (`grep`,
+  `sed`, `from`, `def`, `ssh` as transport, `curl`, `git` …, `intuition.GENERIC_SHELL_WORDS`) do not count. Hints held back are counted
+  in the "more hits" line: "N share only the tool or generic words, not shown". MCP tools keep their tool hints.
+- **A hint without measured benefit is shown at most 6 times a day per instance** (`DAILY_MAX`), across conversations; a restart resets
+  the count. Warnings (importance 3) and hints with a positive bandit advantage are not capped, so the analyses that profit keep them.
+  Held back with a count: "N shown 6× today already".
+
+*Proof:* `tests/test_hint_quality.py` (7): tool-only and generic-word hints stay away from a shell command and are counted, a host hint
+is shown; MCP tool hints stay; the cap per instance and day; useful hints and warnings are not capped; `vi_feedback` books one id and
+names one never shown, `vi_stats` counts it; opening a shown hint counts; a constructed Simpson case where the raw lift is negative and
+the matched lift positive. Four older tests that relied on tool-only hints now use a host or a program. Full suite: 601 passed.
+
+### What was fixed
+
+- **`dpkg-reconfigure vi-mcp` failed with exit 2** (`vi-mcp.config: 88: return: Illegal number: bind`, Debian 13; line 59 on Ubuntu
+  24.04), found by the container test of the CentralStation session. Cause: the generated config script read the current values
+  through a pipe into `while read`, and debconf's `db_set` reads its answer from stdin — it took the next pipe line as its answer. The
+  generator now reads through fd 4 from a temporary file. Affected every run of the config script with an existing configuration:
+  `dpkg-reconfigure` and probably updates from 0.48.0.
+  *Proof:* the same change applied by hand in a throw-away container (CentralStation session, 11.11.2026): exit 0, "port 9300 → 9400" in
+  config.json and debconf, token file byte-identical, token 0× in the log. `tests/test_configure.py` asserts that the generated script
+  contains no `| while read` and reads `<&4`.
+
+### What is missing
+
+- The effect on production is not measured yet: how many shown hints the specificity filter removes and whether feedback rises. After a
+  deploy, `vi_stats` B (feedback, opened) and C (matched lift) show it.
+- The generated debconf script with the fd-4 fix has not yet run in a container; only the hand-applied form has.
+- Observations of the container test, not changed: keys without a variable count as answered at the first installation (they took
+  their default, so an update does not ask them again); `instance_family` stays empty in debconf when no instance is created; the
+  dependency on `python3-sklearn` pulls about 175 packages on Debian 13, including gcc.
+
 ## 0.48.0 — 2026-11-11 — Configuring after installation: debconf on Debian, an ANSI menu on RPM, unattended via VI_MCP_ variables
 
 ### What is new
@@ -37,8 +87,10 @@ installation without a terminal; update of an older server asks nothing and neve
 
 ### What is missing
 
-- A real installation of the package in a fresh Debian container with `VI_MCP_` variables is handed to the CentralStation session.
-  Until its result is in, debconf and the variables are proven by unit tests and `sh -n`, not by `apt-get install`.
+- Container test by the CentralStation session (11.11.2026, Debian 13 and Ubuntu 24.04): unattended installation with `VI_MCP_PORT=9300
+  VI_MCP_WIKI=false VI_MCP_WEB=true VI_MCP_INSTANCE=max VI_MCP_INSTANCE_FAMILY=claude` passed (port, web, instance max, token file 0600,
+  token 0× in apt, dpkg and debconf files, no wiki network); installation without variables passed (joined the wiki network with the
+  vi-wiki.org start address, no token file). `dpkg-reconfigure` failed with exit 2 — fixed in 0.49.0.
 
 ## 0.47.0 — 2026-11-11 — The public wiki network vi-wiki.org by default; the AI tells the user and switches it on request
 
