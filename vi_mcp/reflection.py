@@ -58,8 +58,8 @@ def question(system: str, user: str, **extra) -> str:
     body = {"messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.2, "chat_template_kwargs": {"enable_thinking": False}}  # no max_tokens (CLAUDE.md)
     body.update(extra)
-    if config.get("modell"):
-        body["model"] = config["modell"]
+    if config.get("model"):  # 0.51.0: config key model (modell in older files, translated by config.normalize)
+        body["model"] = config["model"]
     req = urllib.request.Request(config["url"], data=json.dumps(body).encode(), headers=header)
     op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with op.open(req, timeout=TIMEOUT_S) as a:
@@ -140,7 +140,7 @@ def reflect(cluster: list[dict]) -> dict:
         evidence_list = [exps[i - 1] for i in ins["belege"]]
         o = g.new_object("erkenntnis", ins["satz"], sorted(set(ins["hashtags"]) | {host, skill, "modus:test", "herkunft:schlaf-llm"}),
                            {"quelle": f"sleep reflection (language model) from {len(evidence_list)} experiences — evidence edges", "belege_n": len(evidence_list),
-                            "ausgang": c.get("ausgang"), "modell": (config or {}).get("modell") or "llm"},
+                            "ausgang": c.get("ausgang"), "modell": (config or {}).get("model") or "llm"},
                            importance=1, who="vi", oid=rid, mode="test", reason="sleep: reflection by the language model, checked",
                            instance=g.SERVER_INSTANCE)
         for b in evidence_list:

@@ -60,16 +60,29 @@ def network_configs(directory: Path) -> dict[str, dict]:
     out = {}
     for f in sorted(Path(directory).glob("*.json")):
         try:
-            raw = json.loads(f.read_text(encoding="utf-8-sig"))
+            raw = nd.english_file(json.loads(f.read_text(encoding="utf-8-sig")))
         except (OSError, ValueError):
             continue
         out["standard" if f.stem == "config" else f.stem] = raw
     return out
 
 
+def _bound(port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sk:
+        try:
+            sk.bind(("127.0.0.1", port))
+        except OSError:
+            return True
+    return False
+
+
 def free_port(used: set[int], start: int = FIRST_LOCAL_PORT) -> int:
+    """The first port from start that no other network uses, that is not the embedding service's default port (8767 — before 0.51.0 a
+    second network got it too) and that nothing listens on right now."""
+    from . import embed_service
     p = start
-    while p in used:
+    while p in used or p == embed_service.DEFAULT_PORT or _bound(p):
         p += 1
     return p
 
@@ -80,11 +93,11 @@ def nginx_snippet(confs: dict[str, dict]) -> str:
              "# inside the server { listen 443 ssl; … } block; then: nginx -t && systemctl reload nginx"]
     n = 0
     for name, raw in sorted(confs.items()):
-        addr = str(raw.get("adresse") or "")
-        if raw.get("modus") != "peerhost" or urllib.parse.urlsplit(addr).path != f"{PUBLIC_PREFIX}/{name}":
+        addr = str(raw.get("address") or "")
+        if raw.get("mode") != "peerhost" or urllib.parse.urlsplit(addr).path != f"{PUBLIC_PREFIX}/{name}":
             continue
         n += 1
-        lines += [f"location {PUBLIC_PREFIX}/{name}/ {{  # network {name} ({raw.get('art', 'offen')})",
+        lines += [f"location {PUBLIC_PREFIX}/{name}/ {{  # network {name} ({raw.get('kind', 'open')})",
                   f"    proxy_pass http://{raw.get('bind') if raw.get('bind') not in (None, '0.0.0.0', '::') else '127.0.0.1'}:{int(raw.get('port', FIRST_LOCAL_PORT))}/;",
                   "    proxy_set_header Host $host;",
                   "    proxy_http_version 1.1;",
@@ -165,22 +178,22 @@ def _write(p: Path, raw: dict) -> None:
 
 def setup(o) -> int:
     p = nd.fpath()
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    raw = nd.english_file(json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {})  # 0.51.0: written in English
     k_old = nd.from_file(raw)
-    raw["modus"] = o.mode
-    for attr, key in (("address", "adresse"), ("bind", "bind"), ("port", "port"), ("tls_cert", "tls_cert"), ("tls_key", "tls_key"), ("ca_file", "ca_datei")):
+    raw["mode"] = o.mode
+    for attr, key in (("address", "address"), ("bind", "bind"), ("port", "port"), ("tls_cert", "tls_cert"), ("tls_key", "tls_key"), ("ca_file", "ca_file")):
         if getattr(o, attr) is not None:
             raw[key] = getattr(o, attr)
     if o.start:
         raw["startpeers"] = sorted(set(raw.get("startpeers", [])) | set(o.start))
     if o.http_allowed:
-        raw["http_erlaubt"] = True
+        raw["http_allowed"] = True
     if o.proxy is not None:
         raw["proxy"] = o.proxy or None
     if o.no_proxy:
-        raw["kein_proxy"] = sorted(set(raw.get("kein_proxy", [])) | set(o.no_proxy))
+        raw["no_proxy"] = sorted(set(raw.get("no_proxy", [])) | set(o.no_proxy))
     if o.torrent:
-        raw["torrent"] = {**raw.get("torrent", {}), "aktiv": True}
+        raw["torrent"] = {**raw.get("torrent", {}), "active": True}
     if o.mode == "standalone":
         _write(p, raw)
         if reason := _service("disable", "--now", SERVICE):
@@ -188,20 +201,20 @@ def setup(o) -> int:
         print("Mode standalone: the network service does not run. The logbook is kept.")
         return 0
     if NETWORK:  # 0.39.0: own directory, key, logbook and memory instance per network
-        kind = getattr(o, "kind", None) or raw.get("art")
-        if kind not in ("firma", "offen", "frei"):
-            print("A further network needs --kind frei (anyone may join, no invitation, anonymised), offen (anonymised, by invitation) or firma "
+        kind = config.net_kind(getattr(o, "kind", None) or raw.get("kind"))
+        if kind not in ("company", "open", "free"):
+            print("A further network needs --kind free (anyone may join, no invitation, anonymised), open (anonymised, by invitation) or company "
                   "(one organisation, internal names allowed, by invitation)", file=sys.stderr)
             return 2
-        if raw.get("art") and raw["art"] != kind:
-            print(f"Network {NETWORK} is {raw['art']}; the kind is not changed afterwards", file=sys.stderr)
+        if raw.get("kind") and raw["kind"] != kind:
+            print(f"Network {NETWORK} is {raw['kind']}; the kind is not changed afterwards", file=sys.stderr)
             return 2
-        raw.update(netz=NETWORK, art=kind)
+        raw.update(net=NETWORK, kind=kind)
         raw.setdefault("db", f"/var/lib/vi-p2p/{NETWORK}/netz.db")
         raw.setdefault("seed", f"/var/lib/vi-p2p/{NETWORK}/schluessel")
-        raw.setdefault("mcp_token_datei", f"/etc/vi-p2p/{NETWORK}-mcp-token")
-    elif getattr(o, "kind", None) == "firma":
-        print("The network standard is open (anonymised); a company network gets its own name: vi-mcp net --network NAME setup --kind firma …", file=sys.stderr)
+        raw.setdefault("mcp_token_file", f"/etc/vi-p2p/{NETWORK}-mcp-token")
+    elif config.net_kind(getattr(o, "kind", None)) == "company":
+        print("The network standard is open (anonymised); a company network gets its own name: vi-mcp net --network NAME setup --kind company …", file=sys.stderr)
         return 2
     seed = Path(raw.get("seed") or k_old.seed)
     if not seed.exists():
@@ -215,15 +228,15 @@ def setup(o) -> int:
     # the seed belongs to the service user; root reads it only to name the pseudonym
     pub = lb.public_hex(lb.private(seed))
     if o.found:
-        raw["gruender"] = sorted(set(raw.get("gruender", [])) | {pub})
+        raw["founders"] = sorted(set(raw.get("founders", [])) | {pub})
     if o.founders:
-        raw["gruender"] = sorted(set(raw.get("gruender", [])) | set(o.founders))
-    if raw.get("art") == "frei":  # 0.45.0: no founders, no invitation — the identity proof is computed at the first start of the service
-        raw.setdefault("arbeit_bits", lb.DEFAULT_POW_BITS)
+        raw["founders"] = sorted(set(raw.get("founders", [])) | set(o.founders))
+    if raw.get("kind") == "free":  # 0.45.0: no founders, no invitation — the identity proof is computed at the first start of the service
+        raw.setdefault("pow_bits", lb.DEFAULT_POW_BITS)
         if not o.start and not raw.get("startpeers") and o.mode != "peerhost":
             print("A free network needs --start https://<a server of the network> (or this server is a peerhost others start from)", file=sys.stderr)
             return 2
-    elif not raw.get("gruender"):
+    elif not raw.get("founders"):
         print("Founder missing: --found for a new network or --founder KEY to join", file=sys.stderr)
         return 2
     if getattr(o, "public", None):  # 0.40.0: published on 443 behind the reverse proxy
@@ -231,7 +244,7 @@ def setup(o) -> int:
             print("--public is for a peerhost and replaces --tls-self: TLS ends at the reverse proxy on 443", file=sys.stderr)
             return 2
         try:
-            raw["adresse"] = public_address(o.public, NETWORK or "standard")
+            raw["address"] = public_address(o.public, NETWORK or "standard")
         except ValueError as ex:
             print(ex, file=sys.stderr)
             return 2
@@ -241,9 +254,9 @@ def setup(o) -> int:
         if not o.port and "port" not in raw:
             used = {int(c.get("port", FIRST_LOCAL_PORT)) for n, c in network_configs(p.parent).items() if n != (NETWORK or "standard")}
             raw["port"] = free_port(used)
-        if (raw.get("torrent") or {}).get("aktiv"):
+        if (raw.get("torrent") or {}).get("active"):
             print("Hint: torrent uses its own port (not 443); for a network on 443 only, switch it off in " + str(p))
-    if o.mode == "peerhost" and not raw.get("adresse"):
+    if o.mode == "peerhost" and not raw.get("address"):
         print("peerhost needs --address https://name:port, otherwise nobody finds it", file=sys.stderr)
         return 2
     if o.tls_self:
@@ -253,12 +266,12 @@ def setup(o) -> int:
         dir_path = nd.data_dir(nd.NetConfig(db=raw.get("db") or k_old.db, seed=raw.get("seed") or k_old.seed))
         cert, key = dir_path / "tls-cert.pem", dir_path / "tls-key.pem"
         if not cert.exists():
-            _as_service(lambda: _create_certificate(raw["adresse"], cert, key) or 0)
+            _as_service(lambda: _create_certificate(raw["address"], cert, key) or 0)
         raw["tls_cert"], raw["tls_key"] = str(cert), str(key)
-    token_file = Path(raw.get("mcp_token_datei") or k_old.mcp_token_file)
+    token_file = Path(raw.get("mcp_token_file") or k_old.mcp_token_file)
     if not token_file.exists():
         if NETWORK:
-            _instance, token = config.set_network(NETWORK, raw["art"])
+            _instance, token = config.set_network(NETWORK, raw["kind"])
             token = token or config.create_instance(_instance)
         else:
             token = config.create_instance("p2p")
@@ -269,13 +282,13 @@ def setup(o) -> int:
             shutil.chown(token_file, "root", SERVICE_USER)
         if reason := _service("restart", "vi-mcp"):
             print(f"Hint: vi-mcp not restarted: {reason}")
-    if not raw.get("lokal_token_sha256"):  # 0.42.0: live search — the memory holds the token, the service its hash
-        used = {int(c.get("lokal_port") or 0) for n, c in network_configs(p.parent).items() if n != (NETWORK or "standard")}
-        raw["lokal_port"] = int(raw.get("lokal_port") or free_port(used, FIRST_SEARCH_PORT))
+    if not raw.get("local_token_sha256"):  # 0.42.0: live search — the memory holds the token, the service its hash
+        used = {int(c.get("local_port") or 0) for n, c in network_configs(p.parent).items() if n != (NETWORK or "standard")}
+        raw["local_port"] = int(raw.get("local_port") or free_port(used, FIRST_SEARCH_PORT))
         local_token = secrets.token_urlsafe(32)
-        raw["lokal_token_sha256"] = hashlib.sha256(local_token.encode()).hexdigest()
+        raw["local_token_sha256"] = hashlib.sha256(local_token.encode()).hexdigest()
         try:
-            config.set_net_local(NETWORK or "standard", f"http://127.0.0.1:{raw['lokal_port']}", local_token)
+            config.set_net_local(NETWORK or "standard", f"http://127.0.0.1:{raw['local_port']}", local_token)
         except (OSError, ValueError) as ex:
             print(f"Hint: live search not wired into the memory config: {ex}")
     _write(p, raw)
@@ -283,11 +296,11 @@ def setup(o) -> int:
         print(f"Hint: {reason}")
     if reason := _service("restart", SERVICE):
         print(f"Hint: {reason}")
-    print(f"Network {raw.get('netz', 'standard')} ({raw.get('art', 'offen')}) · mode {o.mode}. Key of this server: {pub}\nPseudonym: {lb.pseudonym(pub)}")
-    if raw.get("art") == "frei":
-        print(f"Free network: no invitation needed. The service computes its identity proof ({raw.get('arbeit_bits')} bits) at its first start, "
+    print(f"Network {raw.get('net', 'standard')} ({raw.get('kind', 'open')}) · mode {o.mode}. Key of this server: {pub}\nPseudonym: {lb.pseudonym(pub)}")
+    if raw.get("kind") == "free":
+        print(f"Free network: no invitation needed. The service computes its identity proof ({raw.get('pow_bits')} bits) at its first start, "
               "then finds the other servers through the start address.")
-    elif not o.found and pub not in raw["gruender"] and not getattr(o, "quiet", False):
+    elif not o.found and pub not in raw["founders"] and not getattr(o, "quiet", False):
         print("To join: a member runs:  vi-mcp net invite " + pub)
     return 0
 
@@ -353,8 +366,9 @@ def main(argv: list[str]) -> int:
     e.add_argument("--no-proxy", "--kein-proxy", dest="no_proxy", action="append", default=[], help="domain for which no proxy applies")
     e.add_argument("--public", "--oeffentlich", dest="public", help="publish this network on 443: https://HOST — reachable as "
                    "https://HOST/vi-p2p/<network> through the reverse proxy (vi-mcp net proxy-config prints its configuration)")
-    e.add_argument("--kind", "--art", dest="kind", choices=("firma", "offen", "frei"), help="with --network: firma = one organisation, internal names allowed, "
-                   "knowledge stays internal; offen = anonymised")
+    e.add_argument("--kind", "--art", dest="kind", type=config.net_kind, choices=("company", "open", "free"),
+                   help="with --network: company = one organisation, internal names allowed, knowledge stays internal; open = anonymised, by "
+                        "invitation; free = anyone may join (frei/offen/firma are still accepted)")
     for name, alias in (("invite", "einladen"), ("exclude", "ausschliessen")):
         x = cmd(name, alias)
         x.add_argument("key_", metavar="key")
@@ -370,7 +384,7 @@ def main(argv: list[str]) -> int:
     bt.add_argument("--http-allowed", "--http-erlaubt", dest="http_allowed", action="store_true")
     bt.add_argument("--port", type=int)
     bt.add_argument("--public", "--oeffentlich", dest="public")
-    bt.add_argument("--kind", "--art", dest="kind", choices=("firma", "offen"))
+    bt.add_argument("--kind", "--art", dest="kind", type=config.net_kind, choices=("company", "open"))
     wk = cmd("wiki", help="the public wiki network vi-wiki.org: on (join: free network, outgoing, start vi-wiki.org) · off (stop the service) · status")
     wk.add_argument("action", choices=("on", "off", "status"), nargs="?", default="status")
     cmd("peers")
@@ -405,7 +419,7 @@ def main(argv: list[str]) -> int:
             return 0
         e = argparse.Namespace(mode="peer", address=None, bind=None, port=None, tls_cert=None, tls_key=None, ca_file=None, found=False, founders=[],
                                start=[p2p.WIKI_START], http_allowed=False, torrent=False, tls_self=False, proxy=None, no_proxy=[], quiet=True,
-                               kind="frei", public=None)
+                               kind="free", public=None)
         return setup(e)
     if o.command == "setup":
         return setup(o)
@@ -449,10 +463,10 @@ def main(argv: list[str]) -> int:
             print("give a public key (64 hex) or an address https://…", file=sys.stderr)
             return 2
         p = nd.fpath()
-        raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
-        s = set(raw.get("sperren") or [])
+        raw = nd.english_file(json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {})
+        s = set(raw.get("blocked") or [])
         s = s | {t} if o.command == "block" else s - {t}
-        raw["sperren"] = sorted(s)
+        raw["blocked"] = sorted(s)
         _write(p, raw)
         if reason := _service("restart", SERVICE):
             print(f"Hint: {reason}")

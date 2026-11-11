@@ -88,7 +88,7 @@ def test_service_reports_version_backlog_and_snapshot(net):
     assert p["version"] == __version__ and p["fehlt_hier"] == 0 and p["fehlt_dort"] == 0
     b.run_round()  # the snapshot goes with the outbox call at the start of a round: it shows the previous round
     s = b.mcp.state
-    assert s["netz"] == "standard" and s["art"] == "offen" and s["version"] == __version__ and s["mitglieder"] == 2
+    assert s["netz"] == "standard" and s["art"] == "open" and s["version"] == __version__ and s["mitglieder"] == 2
     assert s["peers"][0]["erreichbar"] and s["peers"][0]["version"] == __version__
 
 
@@ -169,11 +169,11 @@ def test_tools_take_the_network_from_the_instance(nets):
     with pytest.raises(tools.Rejected, match="network service"):
         tools.call_tool("vi_net_outbox", {}, "a", False)
     st = p2p.status()["netze"]
-    assert st["firma"]["art"] == "firma" and st["firma"]["stand"]["mitglieder"] == 3
+    assert st["firma"]["kind"] == "company" and st["firma"]["stand"]["mitglieder"] == 3
     assert st["standard"]["stand"].startswith("not recorded")
     w = "\n".join(usage_stats.network_lines())
-    assert "standard (offen" in w and "not recorded" in w
-    assert "firma (firma): snapshot" in w and "peers 1 of 1 reachable" in w and "missing there 2" in w
+    assert "standard (open" in w and "not recorded" in w
+    assert "firma (company): snapshot" in w and "peers 1 of 1 reachable" in w and "missing there 2" in w
     with pytest.raises(tools.Rejected, match="unknown network"):
         tools.call_tool("vi_net_preview", {"network": "gibtsnicht"}, "a", False)
 
@@ -182,7 +182,7 @@ def test_set_network_registers_kind_and_instance(tmp_path, monkeypatch):
     cfg = tmp_path / "c.json"
     monkeypatch.setenv("VI_MCP_CONFIG", str(cfg))
     inst, token = config.set_network("firma", "firma")
-    assert inst == "netz-firma" and token and config.load().p2p["netze"]["firma"] == {"art": "firma", "instanz": "netz-firma"}
+    assert inst == "netz-firma" and token and config.load().p2p["networks"]["firma"] == {"kind": "company", "instance": "netz-firma"}
     assert config.set_network("firma", "firma") == ("netz-firma", None)
     with pytest.raises(ValueError, match="not changed afterwards"):
         config.set_network("firma", "offen")
@@ -204,7 +204,7 @@ def test_net_config_kind_is_checked(tmp_path):
     p = tmp_path / "n.json"
     p.write_text(json.dumps({"netz": "firma", "art": "firma"}))
     k = nd.load(p)
-    assert k.net == "firma" and k.kind == "firma"
+    assert k.net == "firma" and k.kind == "company"
     p.write_text(json.dumps({"art": "geheim"}))
-    with pytest.raises(ValueError, match="offen, firma or frei"):
+    with pytest.raises(ValueError, match="open, company or free"):
         nd.load(p)

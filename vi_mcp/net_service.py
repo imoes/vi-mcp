@@ -56,7 +56,7 @@ class NetConfig:
     mode: str = "standalone"
     #: 0.39.0: name of the network (shown in reports) and its kind: offen (anonymised) or firma (internal names allowed in relayed objects)
     net: str = "standard"
-    kind: str = "offen"
+    kind: str = "open"  # free, open or company (0.51.0; frei, offen, firma in older files)
     db: str = "/var/lib/vi-p2p/netz.db"
     seed: str = "/var/lib/vi-p2p/schluessel"
     bind: str = "0.0.0.0"
@@ -87,27 +87,52 @@ class NetConfig:
     blocked: list = field(default_factory=list)
     private_ok: bool = False
 
+    def __post_init__(self):
+        from . import config as cfg
+        self.kind = cfg.net_kind(self.kind)  # 0.51.0: frei/offen/firma (older files, callers) → free/open/company
+        if isinstance(self.torrent, dict):
+            self.torrent = english_file({"torrent": self.torrent})["torrent"]
+
 def fpath() -> Path:
     return Path(os.environ.get("VI_P2P_CONFIG") or DEFAULT_PATH)
 
 
-#: Keys of the config file (stored format, stays German so existing installations keep working) → NetConfig field.
-#: Keys not listed here have the same name in file and dataclass.
+#: German keys of config files written before 0.51.0 → NetConfig field. Since 0.51.0 the file uses the field names (English); the German
+#: keys are still read (english_file). Keys not listed here have the same name in file and dataclass.
 FILE_KEYS = {"modus": "mode", "adresse": "address", "ca_datei": "ca_file", "gruender": "founders", "takt_s": "tick_s",
              "min_runde_s": "min_round_s", "nachbarn": "neighbors", "http_erlaubt": "http_allowed", "glauben": "believe",
              "mcp_token_datei": "mcp_token_file", "kein_proxy": "no_proxy", "netz": "net", "art": "kind", "lokal_port": "local_port", "lokal_token_sha256": "local_token_sha256",
              "arbeit_bits": "pow_bits", "quote_neu": "new_quota", "sperren": "blocked", "privat_erlaubt": "private_ok"}
 
 
+TORRENT_KEYS = {"aktiv": "active", "verzeichnis": "directory"}
+
+
+def english_file(d: dict) -> dict:
+    """A config file's dict with English keys and network kind (0.51.0). If a file has both spellings, the English one wins. Pure."""
+    from . import config as cfg
+    out: dict = {}
+    for key, value in (d or {}).items():
+        new = FILE_KEYS.get(key, key)
+        if new != key and new in d:
+            continue
+        out[new] = value
+    if "kind" in out:
+        out["kind"] = cfg.net_kind(out["kind"])
+    if isinstance(out.get("torrent"), dict):
+        t = out["torrent"]
+        out["torrent"] = {TORRENT_KEYS.get(k, k): v for k, v in t.items() if not (TORRENT_KEYS.get(k, k) != k and TORRENT_KEYS[k] in t)}
+    return out
+
+
 def from_file(d: dict) -> NetConfig:
-    """NetConfig from the config file's dict. Accepts the stored German keys and the English field names;
+    """NetConfig from the config file's dict. Accepts the English field names and the German keys of older files;
     unknown keys are reported, not dropped silently."""
     fields = NetConfig.__dataclass_fields__
     kw, unknown = {}, []
-    for key, value in d.items():
-        name = FILE_KEYS.get(key, key)
-        if name in fields:
-            kw[name] = value
+    for key, value in english_file(d).items():
+        if key in fields:
+            kw[key] = value
         else:
             unknown.append(key)
     if unknown:
@@ -120,11 +145,11 @@ def load(p: Path | None = None) -> NetConfig:
     d = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
     k = from_file(d)
     if k.mode not in MODES:
-        raise ValueError(f"modus must be {', '.join(MODES)}")
-    if k.kind not in ("offen", "firma", "frei"):
-        raise ValueError("art must be offen, firma or frei")
-    if k.kind == "frei" and not lb.MIN_POW_BITS <= int(k.pow_bits) <= 40:
-        raise ValueError(f"arbeit_bits must be {lb.MIN_POW_BITS}–40")
+        raise ValueError(f"mode must be {', '.join(MODES)}")
+    if k.kind not in ("open", "company", "free"):
+        raise ValueError("kind must be open, company or free")
+    if k.kind == "free" and not lb.MIN_POW_BITS <= int(k.pow_bits) <= 40:
+        raise ValueError(f"pow_bits must be {lb.MIN_POW_BITS}–40")
     return k
 
 
@@ -187,10 +212,10 @@ def data_dir(k: "NetConfig") -> Path:
 class NetService:
     def __init__(self, k: NetConfig, mcp=None):
         self.k = k
-        self.free = k.kind == "frei"
+        self.free = k.kind == "free"
         self.trusted: set[str] = set()  # 0.45.0: publishers the memory measured as useful — full quota in a free network
         self.blocked_addresses = {b.rstrip("/") for b in k.blocked if "://" in str(b)}
-        self.log = lb.Logbook(k.db, Path(k.seed), k.founders, internal_ok=k.kind == "firma", free_bits=int(k.pow_bits) if self.free else None,
+        self.log = lb.Logbook(k.db, Path(k.seed), k.founders, internal_ok=k.kind == "company", free_bits=int(k.pow_bits) if self.free else None,
                               blocked={b for b in k.blocked if lb._HEX64.match(str(b))}, quota_of=self._quota if self.free else None,
                               schema=lb.schema_for(k.net))
         self.config_blocked = set(self.log.blocked)
@@ -211,10 +236,10 @@ class NetService:
         self.swarm = None
         self.paused = False  # 0.47.0: the memory switched this network off: no reconciliation, no inbox
         self.usage_stats = {"runden": 0, "per_https": 0, "per_torrent": 0}
-        if k.torrent.get("aktiv"):
+        if k.torrent.get("active"):
             from . import net_torrent
             if net_torrent.available():
-                self.swarm = net_torrent.Swarm(Path(k.torrent.get("verzeichnis") or data_dir(k) / "segmente"), int(k.torrent.get("port", 6881)), k.bind if k.mode == "peerhost" else "127.0.0.1")
+                self.swarm = net_torrent.Swarm(Path(k.torrent.get("directory") or data_dir(k) / "segmente"), int(k.torrent.get("port", 6881)), k.bind if k.mode == "peerhost" else "127.0.0.1")
                 for sha, ti, file in self.log.segments_local():
                     self.swarm.parts(ti, Path(file))
             else:
@@ -859,7 +884,7 @@ def main() -> int:
     if k.mode == "standalone":
         log("network: mode standalone, nothing to do")
         return 0
-    if not k.founders and k.kind != "frei":
+    if not k.founders and k.kind != "free":
         log("network: no founders configured (vi-mcp net setup)")
         return 2
     d = NetService(k, McpClient(k.mcp_url, k.mcp_token_file))

@@ -140,7 +140,7 @@ Peer ──TLS:443──▶ nginx  location /vi-p2p/standard/ → http://127.0.0
 
 ```bash
 sudo vi-mcp net setup --mode peerhost --found --public https://<host>                              # network standard (open)
-sudo vi-mcp net --network firma setup --mode peerhost --found --kind firma --public https://<host>  # company network
+sudo vi-mcp net --network firma setup --mode peerhost --found --kind company --public https://<host>  # company network
 sudo vi-mcp net proxy-config        # prints the location blocks for nginx
 nginx -t && systemctl reload nginx  # in a container: docker exec nginx nginx -t && docker exec nginx nginx -s reload
 ```
@@ -174,16 +174,16 @@ nginx (inside the `server` block on 443), when the page should live under `/web/
 location /web/ { proxy_pass http://127.0.0.1:8765/web/; proxy_set_header X-Forwarded-For $remote_addr; }
 ```
 
-The page is read-only and public on purpose. It shows only networks of kind `frei` and `offen`; `vi-mcp web off` switches it off.
+The page is read-only and public on purpose. It shows only networks of kind `free` and `open`; `vi-mcp web off` switches it off.
 Check: `curl -s https://<host>/web/ | grep -c "VI network"`.
 
 ### Free network (0.45.0)
 
 ```bash
 # the first server (reachable on 443 behind nginx)
-sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<host>
+sudo vi-mcp net --network welt setup --kind free --mode peerhost --public https://<host>
 # every further server: only a start address, no invitation
-sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<own host> --start https://<host>/vi-p2p/welt
+sudo vi-mcp net --network welt setup --kind free --mode peerhost --public https://<own host> --start https://<host>/vi-p2p/welt
 sudo vi-mcp net --network welt block <key|address>     # local; unblock to undo
 ```
 
@@ -219,14 +219,15 @@ The service keeps running without a login if lingering is enabled (`loginctl sho
 
 ## Configuration
 
-`$VI_MCP_CONFIG` or `~/.config/vi-mcp/config.json` (on Windows `%ProgramData%\vi-mcp\config.json`; the keys keep their German names, e.g. `instanzen`, `reflexe`):
+`$VI_MCP_CONFIG` or `~/.config/vi-mcp/config.json` (on Windows `%ProgramData%\vi-mcp\config.json`; English keys since 0.51.0 — the German keys of older files such as `instanzen`, `reflexe` are still read
+and rewritten in English at the next package install, a copy of the old file stays next to it):
 
 ```json
 {
   "bind": "127.0.0.1",
   "port": 8765,
   "db": "~/.local/share/vi-mcp/vi.db",
-  "instanzen": {"anna": {"token_sha256": "…", "reflexe": true}},
+  "instances": {"anna": {"token_sha256": "…", "reflexes": true}},
   "ttl": {"netbox_get_devices": 600},
   "origins": ["http://localhost", "http://127.0.0.1"]
 }

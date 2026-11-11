@@ -75,10 +75,12 @@ EXTRA_NAMES: tuple[str, ...] = ()
 
 
 def configure(p2p: dict | None) -> None:
-    """From the config: public domains (p2p.oeffentliche_domains), own names (p2p.interne_namen)."""
+    """From the config: public domains (p2p.public_domains), own names (p2p.internal_names)."""
     global PRIVATE_EXTRA, EXTRA_NAMES
-    PRIVATE_EXTRA = tuple(x.lower() for x in (p2p or {}).get("oeffentliche_domains", []))
-    EXTRA_NAMES = tuple((p2p or {}).get("interne_namen", []))
+    from . import config as cfg
+    p2p = cfg.normalize({"p2p": p2p or {}})[0]["p2p"]  # German keys of older configs (oeffentliche_domains, interne_namen) still count
+    PRIVATE_EXTRA = tuple(x.lower() for x in (p2p or {}).get("public_domains", []))
+    EXTRA_NAMES = tuple((p2p or {}).get("internal_names", []))
 
 
 def _public(host: str) -> bool:

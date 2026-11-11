@@ -17,7 +17,7 @@ system)
   "bind": "127.0.0.1",
   "port": $port,
   "db": "/var/lib/vi-mcp/vi.db",
-  "instanzen": {},
+  "instances": {},
   "ttl": {},
   "origins": ["http://localhost", "http://127.0.0.1"]
 }

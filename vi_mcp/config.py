@@ -4,12 +4,14 @@ Path: $VI_MCP_CONFIG or ~/.config/vi-mcp/config.json. Content:
   {
     "bind": "127.0.0.1" | ["127.0.0.1", "<docker-gateway>"], "port": 8765,
     "db": "~/.local/share/vi-mcp/vi.db",
-    "instanzen": {"<name>": {"token_sha256": "<hex>", "reflexe": false}},
+    "instances": {"<name>": {"token_sha256": "<hex>", "reflexes": false}},
     "ttl": {"<tool>": <seconds>},
     "origins": ["http://localhost", "http://127.0.0.1"],
-    "embed": {"url": "https://host/embed/v1/embeddings", "token": "", "modell": ""},      optional (stage 3, during sleep)
-    "llm":   {"url": "https://host/qwen/v1/chat/completions", "token": "", "modell": ""}  optional (stage 4, during sleep)
+    "embed": {"url": "https://host/embed/v1/embeddings", "token": "", "model": ""},      optional (stage 3, during sleep)
+    "llm":   {"url": "https://host/qwen/v1/chat/completions", "token": "", "model": ""}  optional (stage 4, during sleep)
   }
+Keys are English since 0.51.0; the German keys of older files (instanzen, offen, …, see normalize) are still read, and every write stores
+English.
 Tokens are stored only as SHA-256 in the file; the token itself is printed once on creation.
 Without an instance the server does not start (no open access by accident) — named, not silent.
 """
@@ -36,8 +38,87 @@ def default_path() -> Path:
     return DEFAULT_PATH
 
 
-#: Who comes without a token when `offen` is switched on: read, report actions, propose knowledge (quarantine). No rights.
+#: Who comes without a token when `open` is switched on (the instance keeps its stored name offen): read, report actions, propose knowledge (quarantine). No rights.
 OPEN = "offen"
+
+
+#: 0.51.0: the configuration speaks English (decided by the user, 11.11.2026). Older files used German keys and German network kinds;
+#: they are still read, every write stores English. One table per level, so the names inside a section (instances, networks, local users,
+#: tools) are never translated.
+TOP_KEYS = {"offen": "open", "instanzen": "instances", "pruefer_prompt": "reviewer_prompt", "lager_tage": "archive_days", "lokal": "local",
+            "web_basis": "web_base"}
+INSTANCE_KEYS = {"reflexe": "reflexes", "freigabe": "release", "mensch": "human", "familie": "family"}
+SERVICE_KEYS = {"modell": "model"}  # llm, embed
+P2P_KEYS = {"netze": "networks", "reflexe_von": "reflexes_from", "auto_freigabe": "auto_release", "oeffentliche_domains": "public_domains",
+            "interne_namen": "internal_names", "lokal": "local"}
+NETWORK_KEYS = {"art": "kind", "instanz": "instance", "auto_freigabe": "auto_release", "lokal": "local"}
+#: network kinds: free = anyone may join, open = by invitation, anonymised, company = one organisation, internal knowledge
+NET_KINDS = {"frei": "free", "offen": "open", "firma": "company"}
+
+
+def net_kind(value):
+    """A network kind in English; the German words of 0.39–0.50 are accepted (frei → free, offen → open, firma → company)."""
+    return NET_KINDS.get(value, value)
+
+
+def _rename(d: dict, table: dict, where: str, notes: list[str]) -> dict:
+    out: dict = {}
+    for key, value in d.items():
+        new = table.get(key, key)
+        if new != key:
+            if new in d:  # both spellings: the English one wins, the German one is dropped — named, not silent
+                notes.append(f"{where}{key} dropped ({new} is set)")
+                continue
+            notes.append(f"{where}{key} → {new}")
+        out[new] = value
+    return out
+
+
+def normalize(raw: dict) -> tuple[dict, list[str]]:
+    """German keys and network kinds → English. Returns the new dict and what was renamed. Pure."""
+    notes: list[str] = []
+    r = _rename(raw or {}, TOP_KEYS, "", notes)
+    if isinstance(r.get("instances"), dict):
+        r["instances"] = {n: _rename(d, INSTANCE_KEYS, f"instances.{n}.", notes) if isinstance(d, dict) else d for n, d in r["instances"].items()}
+    for section in ("llm", "embed"):
+        if isinstance(r.get(section), dict):
+            r[section] = _rename(r[section], SERVICE_KEYS, f"{section}.", notes)
+    if isinstance(r.get("p2p"), dict):
+        p2p = _rename(r["p2p"], P2P_KEYS, "p2p.", notes)
+        if isinstance(p2p.get("networks"), dict):
+            nets = {}
+            for n, d in p2p["networks"].items():
+                if isinstance(d, dict):
+                    d = _rename(d, NETWORK_KEYS, f"p2p.networks.{n}.", notes)
+                    if d.get("kind") in NET_KINDS:
+                        notes.append(f"p2p.networks.{n}.kind {d['kind']} → {NET_KINDS[d['kind']]}")
+                        d["kind"] = NET_KINDS[d["kind"]]
+                nets[n] = d
+            p2p["networks"] = nets
+        r["p2p"] = p2p
+    return r, notes
+
+
+def read_raw(p: Path | None = None) -> dict:
+    """The configuration file as a dict with English keys (older German files are translated on the fly)."""
+    p = p or fpath()
+    return normalize(json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {})[0]
+
+
+def migrate_file(p: Path | None = None) -> list[str]:
+    """Rewrite an older configuration with English keys (package update). A copy of the old file stays next to it. Returns the renames."""
+    import time
+    p = p or fpath()
+    if not p.exists():
+        return []
+    old = json.loads(p.read_text(encoding="utf-8-sig"))
+    new, notes = normalize(old)
+    if notes:
+        backup = p.with_name(f"{p.name}.bak-{time.strftime('%Y%m%d-%H%M%S')}-german-keys")
+        backup.write_bytes(p.read_bytes())
+        os.chmod(backup, os.stat(p).st_mode & 0o777)
+        _save_raw(new, p)
+    return notes
 
 
 @dataclass
@@ -95,7 +176,7 @@ def fpath() -> Path:
 
 def load(p: Path | None = None) -> Config:
     p = p or fpath()
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    raw = read_raw(p)
     k = Config()
     b = raw.get("bind", k.bind)
     k.bind = [b] if isinstance(b, str) else list(b)
@@ -106,17 +187,17 @@ def load(p: Path | None = None) -> Config:
     k.origins = list(raw.get("origins") or k.origins)
     k.embed = raw.get("embed") or None
     k.p2p = raw.get("p2p") or {}
-    k.reviewer_prompt = raw.get("pruefer_prompt")
-    k.archive_days = {a: int(t) for a, t in (raw.get("lager_tage") or {}).items()}
+    k.reviewer_prompt = raw.get("reviewer_prompt")
+    k.archive_days = {a: int(t) for a, t in (raw.get("archive_days") or {}).items()}
     k.llm = raw.get("llm") or None
-    k.open_ = bool(raw.get("offen", False))
+    k.open_ = bool(raw.get("open", False))
     k.socket = raw.get("socket") or os.environ.get("VI_MCP_SOCKET") or None
-    k.local = {str(u): str(i) for u, i in (raw.get("lokal") or {}).items()}
+    k.local = {str(u): str(i) for u, i in (raw.get("local") or {}).items()}
     k.web = bool(raw.get("web", False))
-    k.web_base = "/" + str(raw.get("web_basis") or "/web").strip("/")
-    for n, d in (raw.get("instanzen") or {}).items():
-        k.instances[n] = Instance(n, d["token_sha256"], bool(d.get("reflexe", False)), bool(d.get("freigabe", False)), bool(d.get("mensch", False)),
-                                  (d.get("familie") or None))
+    k.web_base = "/" + str(raw.get("web_base") or "/web").strip("/")
+    for n, d in (raw.get("instances") or {}).items():
+        k.instances[n] = Instance(n, d["token_sha256"], bool(d.get("reflexes", False)), bool(d.get("release", False)), bool(d.get("human", False)),
+                                  (d.get("family") or None))
     return k
 
 
@@ -127,9 +208,9 @@ def create_instance(name: str, reflexes: bool = False, p: Path | None = None, re
     if name == OPEN:
         raise ValueError(f"\"{OPEN}\" is reserved for access without a token")
     p = p or fpath()
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    raw = read_raw(p)
     token = secrets.token_urlsafe(32)
-    raw.setdefault("instanzen", {})[name] = {"token_sha256": hashlib.sha256(token.encode()).hexdigest(), "reflexe": reflexes, "freigabe": release, "mensch": human}
+    raw.setdefault("instances", {})[name] = {"token_sha256": hashlib.sha256(token.encode()).hexdigest(), "reflexes": reflexes, "release": release, "human": human}
     _save_raw(raw, p)
     return token
 
@@ -139,7 +220,7 @@ def set_port(port: int, p: Path | None = None) -> int:
     if not isinstance(port, int) or not 1024 <= port <= 65535:
         raise ValueError("port must be a number from 1024 to 65535")
     p = p or fpath()
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    raw = read_raw(p)
     old = int(raw.get("port", Config().port))
     raw["port"] = port
     _save_raw(raw, p)
@@ -151,15 +232,15 @@ def set_family(name: str, family: str | None, p: Path | None = None) -> str | No
     if family is not None and (not family or not all(c.isalnum() or c in "-_." for c in family)):
         raise ValueError("family: letters, digits, - _ .")
     p = p or fpath()
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
-    inst = (raw.get("instanzen") or {}).get(name)
+    raw = read_raw(p)
+    inst = (raw.get("instances") or {}).get(name)
     if inst is None:
         raise ValueError(f"instance {name!r} unknown")
-    old = inst.get("familie")
+    old = inst.get("family")
     if family:
-        inst["familie"] = family
+        inst["family"] = family
     else:
-        inst.pop("familie", None)
+        inst.pop("family", None)
     _save_raw(raw, p)
     return old
 
@@ -169,10 +250,10 @@ def set_local(user: str, instance: str | None, p: Path | None = None) -> str | N
     if not user or not all(c.isalnum() or c in "-_.$@" for c in user):
         raise ValueError("local user: letters, digits, - _ . $ @")
     p = p or fpath()
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
-    if instance is not None and instance not in (raw.get("instanzen") or {}):
+    raw = read_raw(p)
+    if instance is not None and instance not in (raw.get("instances") or {}):
         raise ValueError(f"instance {instance!r} unknown — first: vi-mcp instance {instance}")
-    m = raw.setdefault("lokal", {})
+    m = raw.setdefault("local", {})
     old = m.get(user)
     if instance:
         m[user] = instance
@@ -183,23 +264,24 @@ def set_local(user: str, instance: str | None, p: Path | None = None) -> str | N
 
 
 def set_network(name: str, kind: str, p: Path | None = None) -> tuple[str, str | None]:
-    """0.39.0: register a further network with its kind (firma or offen) and the instance its network service uses (netz-<name>).
+    """0.39.0: register a further network with its kind (free, open or company) and the instance its network service uses (netz-<name>).
     The memory, not the network service, decides the kind. Returns (instance, new token or None if the instance existed)."""
     import re
     if not re.fullmatch(r"[a-z][a-z0-9-]{1,30}", name or "") or name in ("standard", "config"):
         raise ValueError("network name: a-z, 0-9, -, 2–31 characters, not 'standard' (that is the network without a name)")
-    if kind not in ("firma", "offen", "frei"):
-        raise ValueError("network kind must be firma or offen")
+    kind = net_kind(kind)
+    if kind not in NET_KINDS.values():
+        raise ValueError("network kind must be free, open or company")
     p = p or fpath()
     instance = f"netz-{name}"
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
-    token = None if instance in (raw.get("instanzen") or {}) else create_instance(instance, p=p)
-    raw = json.loads(p.read_text(encoding="utf-8-sig"))
-    nets = raw.setdefault("p2p", {}).setdefault("netze", {})
-    if name in nets and nets[name].get("art") != kind:
-        raise ValueError(f"network {name} is already registered as {nets[name].get('art')}; the kind is not changed afterwards "
+    raw = read_raw(p)
+    token = None if instance in (raw.get("instances") or {}) else create_instance(instance, p=p)
+    raw = read_raw(p)
+    nets = raw.setdefault("p2p", {}).setdefault("networks", {})
+    if name in nets and nets[name].get("kind") != kind:
+        raise ValueError(f"network {name} is already registered as {nets[name].get('kind')}; the kind is not changed afterwards "
                          "(knowledge already exchanged would otherwise change its visibility)")
-    nets[name] = {"art": kind, "instanz": instance}
+    nets[name] = {"kind": kind, "instance": instance}
     _save_raw(raw, p)
     return instance, token
 
@@ -207,14 +289,14 @@ def set_network(name: str, kind: str, p: Path | None = None) -> tuple[str, str |
 def set_net_local(net: str, url: str, token: str, p: Path | None = None) -> None:
     """0.42.0: where the memory reaches the network service of `net` for live searches (local listener) and with which token."""
     p = p or fpath()
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    raw = read_raw(p)
     p2p = raw.setdefault("p2p", {})
     if net == "standard":
-        p2p["lokal"] = {"url": url, "token": token}
+        p2p["local"] = {"url": url, "token": token}
     else:
-        if net not in (p2p.get("netze") or {}):
+        if net not in (p2p.get("networks") or {}):
             raise ValueError(f"network {net} is not registered — first: vi-mcp net --network {net} setup --kind …")
-        p2p["netze"][net]["lokal"] = {"url": url, "token": token}
+        p2p["networks"][net]["local"] = {"url": url, "token": token}
     _save_raw(raw, p)
 
 
@@ -224,17 +306,17 @@ def set_web(on: bool, base: str | None = None, p: Path | None = None) -> None:
     if base is not None and not re.fullmatch(r"(/[A-Za-z0-9._-]+)+", base.rstrip("/") or "/x"):
         raise ValueError("web base: a path like /web or /vi-mcp/web")
     p = p or fpath()
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    raw = read_raw(p)
     raw["web"] = bool(on)
     if base is not None:
-        raw["web_basis"] = base.rstrip("/") or "/web"
+        raw["web_base"] = base.rstrip("/") or "/web"
     _save_raw(raw, p)
 
 
 def set_embed(embed: dict | None, p: Path | None = None) -> None:
     """0.28.0: set or clear the embedding service ({"url": ...}); the service reads it at start."""
     p = p or fpath()
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    raw = read_raw(p)
     if embed:
         raw["embed"] = embed
     else:

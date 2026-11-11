@@ -5,7 +5,7 @@ state: every imported object stays in quarantine until it is released. Before ea
 attack checks whether the model holds; otherwise nothing is reviewed. The answer field `kanarie` must always be ROT:
 if an object makes the model change it, that counts as an incident. A test line mixed into every object was rated
 by the real model as an attack by the object (measured 08.11.2026) and was dropped. The prompt lives outside the repo
-(config `pruefer_prompt`). Without prompt or model the object stays in quarantine with `pruefer:ausfall`.
+(config `reviewer_prompt`). Without prompt or model the object stays in quarantine with `pruefer:ausfall`.
 """
 from __future__ import annotations
 

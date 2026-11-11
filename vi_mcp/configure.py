@@ -13,7 +13,7 @@ reviewer and embedding.
 
 Unattended (as the Wazuh agent: WAZUH_MANAGER=… apt-get install …): every question has an environment variable VI_MCP_<KEY>, e.g.
   sudo VI_MCP_PORT=9000 VI_MCP_WIKI=false VI_MCP_INSTANCE=claude-code DEBIAN_FRONTEND=noninteractive apt-get install ./vi-mcp_….deb
-  sudo VI_MCP_WEB=true VI_MCP_NET_NAME=firma VI_MCP_NET_START=vinetz1.… dnf install ./vi-mcp-….rpm
+  sudo VI_MCP_WEB=true VI_MCP_NET_NAME=company VI_MCP_NET_KIND=company VI_MCP_NET_START=vinetz1.… dnf install ./vi-mcp-….rpm
 What is set is taken without asking (debconf marks it seen); what is not set is asked, or without a terminal takes its default.
 
 Never shown, never stored in debconf: tokens. A new instance's token goes to TOKEN_DIR/vi-mcp-token-<name> (0600, root) and only the
@@ -116,10 +116,10 @@ QUESTIONS = [
       "Proven, shared knowledge leaves this server anonymised; reviewed knowledge, wiki pages and questions of other servers come in. "
       "Outgoing connections only. The AI tells its users and can switch it off (vi_net_switch).", "true", priority="high"),
     Q("net_name", "Networks", "string", "A further network: name (empty = none)",
-      "E.g. firma for a company network. Leave empty to skip.", "", check=_net_name_or_empty, once=True),
+      "E.g. company for a company network. Leave empty to skip.", "", check=_net_name_or_empty, once=True),
     Q("net_kind", "Networks", "select", "A further network: kind",
-      "frei = anyone may join, anonymised · offen = by invitation, anonymised · firma = by invitation, internal knowledge, one organisation.",
-      "firma", choices=("frei", "offen", "firma"), once=True),
+      "free = anyone may join, anonymised · open = by invitation, anonymised · company = by invitation, internal knowledge, one organisation.",
+      "company", choices=("free", "open", "company"), once=True),
     Q("net_mode", "Networks", "select", "A further network: mode",
       "peer = outgoing only (behind a firewall) · peerhost = also reachable by others.", "peer", choices=("peer", "peerhost"), once=True),
     Q("net_public", "Networks", "string", "A further network: public address (peerhost, empty = none)",
@@ -151,15 +151,15 @@ BY_KEY = {q.key: q for q in QUESTIONS}
 
 def current() -> dict[str, str]:
     p = config.fpath()
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    raw = config.read_raw(p)
     b = raw.get("bind", "127.0.0.1")
     wiki = Path(os.environ.get("VI_P2P_DIR", "/etc/vi-p2p")) / "wiki.json"
     db = str(raw.get("db") or "")
-    return {"port": str(raw.get("port", 8765)), "bind": ",".join([b] if isinstance(b, str) else b), "open": _b(raw.get("offen", False)),
+    return {"port": str(raw.get("port", 8765)), "bind": ",".join([b] if isinstance(b, str) else b), "open": _b(raw.get("open", False)),
             "db": db if db.startswith(("postgresql://", "postgres://")) else "",
-            "wiki": _b(wiki.exists()), "web": _b(raw.get("web", False)), "web_base": raw.get("web_basis") or "/web",
-            "llm_url": (raw.get("llm") or {}).get("url", ""), "llm_model": (raw.get("llm") or {}).get("modell", ""),
-            "reviewer_prompt": raw.get("pruefer_prompt") or "", "embed_url": (raw.get("embed") or {}).get("url", ""),
+            "wiki": _b(wiki.exists()), "web": _b(raw.get("web", False)), "web_base": raw.get("web_base") or "/web",
+            "llm_url": (raw.get("llm") or {}).get("url", ""), "llm_model": (raw.get("llm") or {}).get("model", ""),
+            "reviewer_prompt": raw.get("reviewer_prompt") or "", "embed_url": (raw.get("embed") or {}).get("url", ""),
             **{q.key: q.default for q in QUESTIONS if q.once}}
 
 
@@ -197,6 +197,8 @@ def env_answers(environ=None) -> dict[str, str]:
             v = str(env[q.env]).strip()
             if q.kind == "boolean":
                 v = "true" if v.lower() in TRUE else "false" if v.lower() in FALSE else v
+            if q.key == "net_kind":
+                v = config.net_kind(v.lower())  # 0.51.0: frei/offen/firma still mean free/open/company
             out[q.key] = v
     if env.get("VI_MCP_KEIN_WIKI") and "wiki" not in out:
         out["wiki"] = "false"
@@ -249,16 +251,43 @@ def _db_target_not_ready(url: str, raw: dict) -> str | None:
     return None
 
 
+def migrate_configs() -> list[str]:
+    """0.51.0, at every package install/update: rewrite configuration files that still use German keys or network kinds in English.
+    A copy of each old file stays next to it (<file>.bak-<time>-german-keys). Returns one line per rewritten file."""
+    import time
+    from . import net_cli, net_service as nd
+    out = []
+    notes = config.migrate_file()
+    if notes:
+        out.append(f"{config.fpath()}: keys in English ({len(notes)} renamed: {', '.join(notes[:6])}{' …' if len(notes) > 6 else ''})")
+    d = Path(os.environ.get("VI_P2P_DIR", "/etc/vi-p2p"))
+    for f in sorted(d.glob("*.json")) if d.is_dir() else []:
+        try:
+            old = json.loads(f.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            continue
+        new = nd.english_file(old)
+        if new != old:
+            backup = f.with_name(f"{f.name}.bak-{time.strftime('%Y%m%d-%H%M%S')}-german-keys")
+            backup.write_bytes(f.read_bytes())
+            os.chmod(backup, os.stat(f).st_mode & 0o777)
+            net_cli._write(f, new)
+            out.append(f"{f}: keys in English")
+    return out
+
+
 def apply(answers: dict[str, str], restart: bool = True) -> list[str]:
     """Apply answers; only what differs from the running configuration. Returns what was done (for the screen and the log)."""
     answers = {k: str(v).strip() for k, v in answers.items() if k in BY_KEY}
+    if "net_kind" in answers:
+        answers["net_kind"] = config.net_kind(answers["net_kind"])  # 0.51.0: German kinds of older answers and debconf databases
     bad = validate(answers)
     if bad:
         raise ValueError("; ".join(f"{k}: {r}" for k, r in bad.items()))
     cur = current()
     done, need_restart = [], False
     p = config.fpath()
-    raw = json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {}
+    raw = config.read_raw(p)
     changed_raw = False
 
     def setraw(key, value, label):
@@ -284,11 +313,11 @@ def apply(answers: dict[str, str], restart: bool = True) -> list[str]:
             changed_raw = need_restart = True
             done.append("database → SQLite file (its content is as old as the last migration)")
     if "open" in answers and answers["open"] != cur["open"]:
-        setraw("offen", answers["open"] == "true", f"access without a token {'on' if answers['open'] == 'true' else 'off'}")
+        setraw("open", answers["open"] == "true", f"access without a token {'on' if answers['open'] == 'true' else 'off'}")
     if "web" in answers and answers["web"] != cur["web"]:
         setraw("web", answers["web"] == "true", f"web page {'on' if answers['web'] == 'true' else 'off'}")
     if "web_base" in answers and answers["web_base"].rstrip("/") != cur["web_base"]:
-        setraw("web_basis", answers["web_base"].rstrip("/"), f"web page path → {answers['web_base']}")
+        setraw("web_base", answers["web_base"].rstrip("/"), f"web page path → {answers['web_base']}")
     for key, section, label in (("llm_url", "llm", "language model"), ("embed_url", "embed", "embedding service")):
         if key in answers and answers[key] != cur[key]:
             if answers[key]:
@@ -300,28 +329,28 @@ def apply(answers: dict[str, str], restart: bool = True) -> list[str]:
     if "llm_model" in answers and answers["llm_model"] != cur["llm_model"] and (raw.get("llm") or answers.get("llm_url")):
         llm = dict(raw.get("llm") or {})
         if answers["llm_model"]:
-            llm["modell"] = answers["llm_model"]
+            llm["model"] = answers["llm_model"]
         else:
-            llm.pop("modell", None)
+            llm.pop("model", None)
         setraw("llm", llm, f"model name → {answers['llm_model'] or 'server default'}")
     if "reviewer_prompt" in answers and answers["reviewer_prompt"] != cur["reviewer_prompt"]:
         if answers["reviewer_prompt"]:
-            setraw("pruefer_prompt", answers["reviewer_prompt"], f"reviewer prompt → {answers['reviewer_prompt']}")
-        elif "pruefer_prompt" in raw:
-            raw.pop("pruefer_prompt")
+            setraw("reviewer_prompt", answers["reviewer_prompt"], f"reviewer prompt → {answers['reviewer_prompt']}")
+        elif "reviewer_prompt" in raw:
+            raw.pop("reviewer_prompt")
             changed_raw = need_restart = True
             done.append("reviewer prompt removed")
     if changed_raw:
         config._save_raw(raw, p)
     if answers.get("instance"):
         name = answers["instance"]
-        if name in (raw.get("instanzen") or {}):
+        if name in (raw.get("instances") or {}):
             done.append(f"instance {name} exists — not renewed here (a new token would lock its clients out: vi-mcp instance {name})")
         else:
             token = config.create_instance(name)
             if answers.get("instance_family", "undeclared") not in ("undeclared", "other"):
-                r2 = json.loads(p.read_text(encoding="utf-8-sig"))
-                r2["instanzen"][name]["familie"] = answers["instance_family"]
+                r2 = config.read_raw(p)
+                r2["instances"][name]["family"] = answers["instance_family"]
                 config._save_raw(r2, p)
             tf = TOKEN_DIR / f"vi-mcp-token-{name}"
             fd = os.open(tf, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -337,13 +366,13 @@ def apply(answers: dict[str, str], restart: bool = True) -> list[str]:
             code = net_cli.main(["wiki", "on" if answers["wiki"] == "true" else "off"])
             done.append(f"wiki network {'joined' if answers['wiki'] == 'true' else 'left'}" + ("" if code == 0 else f" — failed (exit {code})"))
     if answers.get("net_name"):
-        n, kind, mode = answers["net_name"], answers.get("net_kind", "firma"), answers.get("net_mode", "peer")
+        n, kind, mode = answers["net_name"], answers.get("net_kind", "company"), answers.get("net_mode", "peer")
         start, public = answers.get("net_start", ""), answers.get("net_public", "")
         if start.startswith("vinetz1."):
             argv = ["--network", n, "join", start, "--mode", mode, "--kind", kind] + (["--public", public] if public else [])
         else:
             argv = ["--network", n, "setup", "--kind", kind, "--mode", mode] + (["--public", public] if public else []) + (["--start", start] if start else [])
-            if not start and kind != "frei":
+            if not start and kind != "free":
                 argv.append("--found")
         code = net_cli.main(argv)
         done.append(f"network {n} ({kind}, {mode}) " + ("set up" if code == 0 else f"— setup failed (exit {code})"))
@@ -528,6 +557,9 @@ def main(argv: list[str]) -> int:
             if not BY_KEY[k].once:
                 print(f"{k} {v}")
         return 0
+    if argv[:1] in (["--apply-pairs"], ["--package"]):  # 0.51.0: package install/update — older German config files → English first
+        for line in migrate_configs():
+            print(f"vi-mcp configure: {line}")
     if argv[:1] == ["--apply-pairs"] and len(argv) == 2:  # postinst: "key value" per line from db_get (no JSON quoting in shell)
         pairs = {}
         for line in Path(argv[1]).read_text().splitlines():

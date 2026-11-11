@@ -3,7 +3,7 @@
 A separate SQLite file next to the memory (`<db>-lager.db`, 0600). The active store stays small and fast.
 Runs during sleep (step 5), i.e. in the one loop thread; there is still only one writer.
 
-What "no longer used" means (initial values in DAYS, changeable via the configuration `lager_tage`):
+What "no longer used" means (initial values in DAYS, changeable via the configuration `archive_days`):
   erfahrung                         30 days old, never recalled, is not evidence
   schlaf (reports)                  90 days old
   erkenntnis, regel, suche, skill  180 days neither recalled, changed nor shown as a hint

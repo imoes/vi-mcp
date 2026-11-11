@@ -302,6 +302,20 @@ _NAMES = {t["name"] for t in TOOLS}
 _SCHEMAS = {t["name"]: t["inputSchema"] for t in TOOLS}
 
 
+#: 0.51.0: what models guess for the search field of the tools that take a filter (reported 11.11.2026: vi_recall(query=…) was refused).
+#: Only for tools whose schema has `filter` and none of these names — vi_net_search keeps its own `query`.
+FILTER_GUESSES = ("query", "q", "search", "text")
+
+
+def _filter_alias(name: str, args: dict) -> dict:
+    props = (_SCHEMAS.get(name) or {}).get("properties", {})
+    if "filter" in props and "filter" not in args:
+        for guess in FILTER_GUESSES:
+            if guess in args and guess not in props:
+                return {**{k: v for k, v in args.items() if k != guess}, "filter": args[guess]}
+    return args
+
+
 def _required(name: str, args: dict) -> None:
     """0.20.4: reject missing required fields instead of silently answering with defaults (measured 09.11.: vi_recall with "text"
     instead of "filter" returned the five most important objects as if it had searched). Unknown fields are named as a hint."""
@@ -396,9 +410,10 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         raise Rejected(f"{name} needs an own instance with a token. Without a token you may read, report actions and propose knowledge with vi_learn.")
     if name.startswith("vi_reflex_") and name not in _NAMES:
         return reflexes.as_tool(name, args)
+    args = _filter_alias(name, args)
     _required(name, args)
     if name in REFLEX_PERMISSION and not reflex_permission:
-        raise Rejected(f"instance {instance} has no reflex right (configuration: instanzen.{instance}.reflexe)")
+        raise Rejected(f"instance {instance} has no reflex right (configuration: instances.{instance}.reflexes)")
     if name == "vi_before":
         if not (args.get("tool") or "").strip():
             raise Rejected("tool is required")
@@ -528,7 +543,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
     if name in ("vi_net_outbox", "vi_net_inbox"):
         net = p2p.network_of(instance)
         if not net:
-            raise Rejected("only the network service of a network (instance p2p or the one named in p2p.netze)")
+            raise Rejected("only the network service of a network (instance p2p or the one named in p2p.networks)")
         if name == "vi_net_outbox":
             p2p.record_state(net, args.get("state"))
             return json.dumps(p2p.outbox(net), ensure_ascii=False)

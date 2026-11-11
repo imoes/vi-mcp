@@ -58,9 +58,9 @@ def test_apply_changes_only_what_differs_and_restarts_once(cfg):
                             "llm_url": "http://127.0.0.1:8080/v1/chat/completions", "llm_model": "qwen", "embed_url": "http://127.0.0.1:8081/v1/embeddings",
                             "reviewer_prompt": "/etc/vi-mcp/pruefer.txt"})
     raw = json.loads(p.read_text())
-    assert raw["port"] == 9000 and raw["bind"] == ["127.0.0.1", "172.19.0.1"] and raw["offen"] is True and raw["web"] is True
-    assert raw["web_basis"] == "/vi-mcp/web" and raw["llm"] == {"url": "http://127.0.0.1:8080/v1/chat/completions", "modell": "qwen"}
-    assert raw["embed"]["url"].endswith("/embeddings") and raw["pruefer_prompt"] == "/etc/vi-mcp/pruefer.txt"
+    assert raw["port"] == 9000 and raw["bind"] == ["127.0.0.1", "172.19.0.1"] and raw["open"] is True and raw["web"] is True
+    assert raw["web_base"] == "/vi-mcp/web" and raw["llm"] == {"url": "http://127.0.0.1:8080/v1/chat/completions", "model": "qwen"}
+    assert raw["embed"]["url"].endswith("/embeddings") and raw["reviewer_prompt"] == "/etc/vi-mcp/pruefer.txt"
     assert calls["restart"] == 1 and "service restarted" in done and "port 8765 → 9000" in done
     with pytest.raises(ValueError, match="port"):
         configure.apply({"port": "80"})
@@ -73,7 +73,7 @@ def test_new_instance_token_goes_to_a_root_file_never_to_the_screen(cfg, capsys)
     token = tf.read_text().strip()
     assert oct(tf.stat().st_mode)[-3:] == "600" and token not in " ".join(done) and token not in capsys.readouterr().out
     raw = json.loads(p.read_text())
-    assert raw["instanzen"]["max"]["familie"] == "claude" and config.load().instance_for(token).name == "max"
+    assert raw["instances"]["max"]["family"] == "claude" and config.load().instance_for(token).name == "max"
     assert "not renewed" in " ".join(configure.apply({"instance": "max"}))  # a second run never locks max out
     assert tf.read_text().strip() == token
 
@@ -85,9 +85,9 @@ def test_wiki_and_networks_through_net_cli(cfg):
     configure.apply({"net_name": "welt", "net_kind": "frei", "net_mode": "peer", "net_start": "https://vi-wiki.org/vi-p2p/welt"})
     configure.apply({"net_name": "zu", "net_kind": "offen", "net_mode": "peer", "net_start": "vinetz1.CODE"})
     assert calls["net"] == [["wiki", "on"],
-                            ["--network", "firma", "setup", "--kind", "firma", "--mode", "peerhost", "--public", "https://h.example", "--found"],
-                            ["--network", "welt", "setup", "--kind", "frei", "--mode", "peer", "--start", "https://vi-wiki.org/vi-p2p/welt"],
-                            ["--network", "zu", "join", "vinetz1.CODE", "--mode", "peer", "--kind", "offen"]]
+                            ["--network", "firma", "setup", "--kind", "company", "--mode", "peerhost", "--public", "https://h.example", "--found"],
+                            ["--network", "welt", "setup", "--kind", "free", "--mode", "peer", "--start", "https://vi-wiki.org/vi-p2p/welt"],
+                            ["--network", "zu", "join", "vinetz1.CODE", "--mode", "peer", "--kind", "open"]]  # 0.51.0: German kinds still accepted
 
 
 def test_package_first_install_without_terminal_takes_env_then_defaults(cfg, monkeypatch):
@@ -109,10 +109,10 @@ def test_package_upgrade_of_a_server_configured_before_048_asks_nothing_and_neve
 
 def test_menu_logic():
     items = [configure.BY_KEY["wiki"], configure.BY_KEY["net_kind"], configure.BY_KEY["port"], None]
-    v = {"wiki": "true", "net_kind": "firma", "port": "8765"}
+    v = {"wiki": "true", "net_kind": "company", "port": "8765"}
     assert configure.step(v, items, 0, "enter")[1] is None and v["wiki"] == "false"
     configure.step(v, items, 1, "enter")
-    assert v["net_kind"] == "frei"
+    assert v["net_kind"] == "free"
     configure.step(v, items, 2, "enter", read_line=lambda prompt: "9000")
     assert v["port"] == "9000"
     assert configure.step(v, items, 3, "enter")[1] == "apply" and configure.step(v, items, 0, "esc")[1] == "quit"
@@ -125,7 +125,7 @@ def test_debconf_files_are_generated_and_valid(tmp_path):
     t = configure.debconf_templates()
     for q in configure.QUESTIONS:
         assert f"Template: vi-mcp/{q.key}\n" in t
-    assert "Choices: frei, offen, firma" in t
+    assert "Choices: free, open, company" in t
     c = configure.debconf_config()
     for q in configure.QUESTIONS:
         assert f"db_input {q.priority} vi-mcp/{q.key}" in c and f'if [ -n "${{{q.env}+x}}" ]' in c

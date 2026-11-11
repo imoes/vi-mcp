@@ -1,7 +1,7 @@
 """0.46.0: the web page of a server — a read-only window onto what the free and open networks carry: search, wiki, forum, knowledge.
 
 Decided by the user (11.11.2026): every vi-mcp server can serve it (config `web`, off by default), read-only, only content of networks of
-kind `frei` and `offen` — never a company network, never internal or private knowledge, never anything in quarantine. Server-side HTML,
+kind `free` and `open` — never a company network, never internal or private knowledge, never anything in quarantine. Server-side HTML,
 standard library only, no JavaScript.
 
 What is shown, and in which form:
@@ -11,7 +11,7 @@ What is shown, and in which form:
   knowledge imports from public networks after release (mode test/aktiv) and this server's own contributions in exactly the form the
             network gets (p2p export form: anonymised) — never the local original
 Everything is escaped; foreign text is marked as data. Links in text only http(s), rel="nofollow noopener noreferrer". Limited per
-client address. The base path for links comes from the config (`web_basis`, e.g. /vi-mcp/web behind the reverse proxy).
+client address. The base path for links comes from the config (`web_base`, e.g. /vi-mcp/web behind the reverse proxy).
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ REQUESTS_PER_MIN = 120
 _counter: dict[str, list[float]] = {}
 _own_cache: dict[str, tuple[float, list[dict]]] = {}
 OWN_CACHE_S = 300
-PUBLIC_KINDS = ("frei", "offen")
+PUBLIC_KINDS = ("free", "open")
 KNOWLEDGE_KINDS = ("erkenntnis", "regel", "suche", "skill")
 
 
@@ -45,7 +45,7 @@ def when(ts) -> str:
 
 def public_nets() -> dict[str, dict]:
     from . import p2p
-    return {n: d for n, d in p2p.networks().items() if d["art"] in PUBLIC_KINDS and p2p.is_on(n)}  # 0.47.0: a switched-off network is not shown
+    return {n: d for n, d in p2p.networks().items() if d["kind"] in PUBLIC_KINDS and p2p.is_on(n)}  # 0.47.0: a switched-off network is not shown
 
 
 # ---- text rendering: a small, safe subset (paragraphs, headings, lists, code, links) ----
@@ -277,7 +277,7 @@ def home(base: str) -> str:
     for n, d in nets.items():
         pages, threads = _pages(n), _threads(n)
         snap = (st.get(n) or {}).get("daten") or {}
-        cards.append(f'<div class="card"><span class="kind">{e(d["art"])}</span><h3>{e(n)}</h3>'
+        cards.append(f'<div class="card"><span class="kind">{e(d["kind"])}</span><h3>{e(n)}</h3>'
                      f'<p class="meta">{len(pages)} wiki page(s) · {len(threads)} thread(s) · {len(_imports(n, limit=500))} item(s) from other servers · '
                      f'{len(_own(n))} from this server · ' + (f'{e(snap["mitglieder"])} member(s)' if snap.get("mitglieder") is not None else "members not reported yet") + '</p>'
                      f'<p><a href="{e(base)}/wiki/{e(n)}">Wiki</a> · <a href="{e(base)}/forum/{e(n)}">Forum</a> · <a href="{e(base)}/wissen/{e(n)}">Knowledge</a></p></div>')
@@ -460,7 +460,7 @@ def networks_page(base: str) -> str:
     for n, d in public_nets().items():
         x = (st.get(n) or {}).get("daten") or {}
         peers = x.get("peers") or []
-        rows.append(f'<tr><td>{e(n)}</td><td>{e(d["art"])}</td><td>{e(x.get("mitglieder", "—"))}</td><td>{sum(1 for p in peers if p.get("erreichbar"))} of {len(peers)}</td>'
+        rows.append(f'<tr><td>{e(n)}</td><td>{e(d["kind"])}</td><td>{e(x.get("mitglieder", "—"))}</td><td>{sum(1 for p in peers if p.get("erreichbar"))} of {len(peers)}</td>'
                     f'<td>{e(x.get("version", "—"))}</td><td>{e((st.get(n) or {}).get("zeit", "not recorded")[:16])}</td></tr>')
     return _page(base, "Networks", '<h1>Networks</h1><p class="muted">The free and open networks this server takes part in, as its network service last reported.</p>'
                                     '<div class="table-wrap"><table><thead><tr><th>Network</th><th>Kind</th><th>Members</th><th>Peers reachable</th><th>Version</th><th>Reported</th></tr></thead>'

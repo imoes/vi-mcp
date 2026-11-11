@@ -8,11 +8,11 @@ Forgetting: every instance has a network token. Per object it yields a `netz_id`
 Whoever presents the object token proves authorship without the network knowing the instance; one object token opens no other object.
 Inbox flow: signature → fixed rules (checks.py) → quarantine → reviewer (reviewer.py) → release.
 Only source text is distributed, as a JSON field. Imported content is a text hint and triggers nothing; code runs only in the sandbox.
-Release: unremarkable objects by an instance with reflex permission or, if `p2p.auto_freigabe` is set, automatically during sleep. Reflexes, write access,
+Release: unremarkable objects by an instance with reflex permission or, if `p2p.auto_release` is set, automatically during sleep. Reflexes, write access,
 detected instructions and everything without a positive review verdict only by an instance with release permission, whose token stays on the server (vi-mcp release).
 
 0.39.0 — several networks. Every network has its own network service (own key, own logbook) and its own instance on this memory; the
-memory, not the service, decides what kind a network is (config `p2p.netze`), because the service reads foreign data:
+memory, not the service, decides what kind a network is (config `p2p.networks`), because the service reads foreign data:
   offen (open)   members from different organisations: only shared knowledge, anonymised; imports are shared (as before 0.39.0)
   firma (company) members of one organisation: shared and internal knowledge, not anonymised; imports are internal, never re-exported
 The network `standard` is the one that existed before 0.39.0: instance `p2p`, kind offen.
@@ -41,8 +41,9 @@ PROVEN_YES = 3
 EXPORT_KINDS = ("erkenntnis", "regel", "suche", "skill")
 RELEASE_STATUS_OK = "zulassen"
 
-#: {"reflexe_von": [pubkey], "auto_freigabe": bool, "oeffentliche_domains": [...], "interne_namen": [...],
-#:  "netze": {name: {"art": "firma"|"offen", "instanz": "netz-<name>"}}}
+#: {"reflexes_from": [pubkey], "auto_release": bool, "public_domains": [...], "internal_names": [...],
+#:  "networks": {name: {"kind": "free"|"open"|"company", "instance": "netz-<name>"}}}  (English since 0.51.0; config.normalize reads the
+#:  German keys of older files)
 config: dict = {}
 STANDARD = "standard"
 #: 0.47.0: the public wiki network every new installation joins (decided by the user, 11.11.2026). A free network; the start server at
@@ -51,20 +52,29 @@ WIKI_NET = "wiki"
 WIKI_HOME = "https://vi-wiki.org"
 WIKI_START = f"{WIKI_HOME}/vi-p2p/{WIKI_NET}"
 #: frei (0.45.0): like offen (shared, anonymised), but anyone may join — no invitation; see logbook identity proof
-NET_KINDS = ("offen", "firma", "frei")
+NET_KINDS = ("open", "company", "free")  # 0.51.0: English; config.net_kind translates frei/offen/firma
 NET_NAME = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
 
 
+def _conf() -> dict:
+    """The p2p section with English keys, also when it was set with the German keys of an older file (0.51.0)."""
+    from . import config as cfg
+    return cfg.normalize({"p2p": config or {}})[0]["p2p"]
+
+
 def networks() -> dict[str, dict]:
-    """Every network this memory takes part in: name → {art, instanz}. Unusable entries are reported, not used."""
-    out = {STANDARD: {"art": "offen", "instanz": "p2p", "auto_freigabe": False, "lokal": config.get("lokal") or None}}
-    for name, d in (config.get("netze") or {}).items():
-        if not isinstance(d, dict) or not NET_NAME.match(str(name)) or name == STANDARD or d.get("art") not in NET_KINDS \
-                or not isinstance(d.get("instanz"), str) or d["instanz"] in ("p2p",):
+    """Every network this memory takes part in: name → {kind, instance, auto_release, local}. Unusable entries are reported, not used."""
+    from . import config as cfg
+    conf = _conf()
+    out = {STANDARD: {"kind": "open", "instance": "p2p", "auto_release": False, "local": conf.get("local") or None}}
+    for name, d in (conf.get("networks") or {}).items():
+        kind = cfg.net_kind(d.get("kind")) if isinstance(d, dict) else None
+        if not isinstance(d, dict) or not NET_NAME.match(str(name)) or name == STANDARD or kind not in NET_KINDS \
+                or not isinstance(d.get("instance"), str) or d["instance"] in ("p2p",):
             from .log_output import log
-            log(f"p2p: network {name!r} ignored: needs a name a-z0-9-, art {' or '.join(NET_KINDS)} and its own instance")
+            log(f"p2p: network {name!r} ignored: needs a name a-z0-9-, kind {' or '.join(NET_KINDS)} and its own instance")
             continue
-        out[name] = {"art": d["art"], "instanz": d["instanz"], "auto_freigabe": bool(d.get("auto_freigabe")), "lokal": d.get("lokal") or None}
+        out[name] = {"kind": kind, "instance": d["instance"], "auto_release": bool(d.get("auto_release")), "local": d.get("local") or None}
     return out
 
 
@@ -104,10 +114,10 @@ def notice() -> str:
     switch one off on request. Empty if none is configured and on."""
     nets = networks()
     st = states()
-    live = [n for n, d in nets.items() if d["art"] in ("frei", "offen") and (n != STANDARD or n in st) and is_on(n)]
+    live = [n for n, d in nets.items() if d["kind"] in ("free", "open") and (n != STANDARD or n in st) and is_on(n)]
     if not live:
         return ""
-    names = ", ".join(f"{n} ({nets[n]['art']}{', ' + WIKI_HOME.split('//')[1] if n == WIKI_NET else ''})" for n in live)
+    names = ", ".join(f"{n} ({nets[n]['kind']}{', ' + WIKI_HOME.split('//')[1] if n == WIKI_NET else ''})" for n in live)
     return (f"[Network] This server takes part in the public network(s) {names}: proven, shared knowledge leaves it anonymised, reviewed "
             "knowledge, wiki pages and questions from other servers come in. Tell the user once when it matters (sharing, privacy, a question "
             "about the network); if they do not want it, switch it off: vi_net_switch(network, on=false, reason) — and on again with on=true.")
@@ -115,11 +125,11 @@ def notice() -> str:
 
 def network_of(instance: str) -> str | None:
     """The network whose service authenticates as this instance, or None."""
-    return next((n for n, d in networks().items() if d["instanz"] == instance), None)
+    return next((n for n, d in networks().items() if d["instance"] == instance), None)
 
 
 def is_company(net: str) -> bool:
-    return networks().get(net, {}).get("art") == "firma"
+    return networks().get(net, {}).get("kind") == "company"
 
 
 def _proven(o: g.MemoryObject) -> bool:
@@ -284,7 +294,7 @@ def preview(instance: str, limit: int = 10, net: str = STANDARD) -> dict:
     if net not in networks():
         raise ValueError(f"unknown network {net!r} — known: {', '.join(networks())}")
     mem_objects, withheld = _collect(instance, net)
-    return {"netz": net, "art": networks()[net]["art"], "anzahl": len(mem_objects), "zurueckgehalten": withheld, "beispiele": [r for _o, r in mem_objects[:limit]]}
+    return {"netz": net, "art": networks()[net]["kind"], "anzahl": len(mem_objects), "zurueckgehalten": withheld, "beispiele": [r for _o, r in mem_objects[:limit]]}
 
 
 def net_forget(instance: str, token: str, ids: list[str] | None, reason: str) -> dict:
@@ -374,7 +384,7 @@ def live_search(net: str, query: str, n: int = LIVE_MAX) -> dict:
         raise ValueError(f"unknown network {net!r} — known: {', '.join(nets)}")
     if not is_on(net):
         raise ValueError(f"network {net} is switched off on this server (vi_net_switch(network={net!r}, on=true) to switch it on)")
-    loc = nets[net].get("lokal") or {}
+    loc = nets[net].get("local") or {}
     if not loc.get("url") or not loc.get("token"):
         raise ValueError(f"network {net}: live search not set up — on the server: vi-mcp net{'' if net == STANDARD else ' --network ' + net} setup … (0.42.0 adds the local listener)")
     req = urllib.request.Request(loc["url"].rstrip("/") + "/lokal/suche", data=json.dumps({"q": query, "max": n}).encode(),
@@ -596,7 +606,7 @@ def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
             continue
         if header["typ"] != "objekt":
             continue
-        b = checks.check(raw, header["pub"] in (config.get("reflexe_von") or []), internal_ok=is_company(net))
+        b = checks.check(raw, header["pub"] in (_conf().get("reflexes_from") or []), internal_ok=is_company(net))
         if b.verdict != "ablehnen" and (b.mem_object["netz_id"] != header.get("netz_id") or b.mem_object["loesch_hash"] != header.get("loesch_hash")):
             b.reject("header and content name different objects")
         if b.verdict != "ablehnen" and b.mem_object["art"] == "reflex":
@@ -699,15 +709,15 @@ def without_blocked(mem_objects: list[g.MemoryObject]) -> list[g.MemoryObject]:
 
 
 def auto_approve() -> int:
-    """Only with `p2p.auto_freigabe`: what rules and reviewer find unremarkable becomes provisional (mode test). Sensitive items stay with a human."""
+    """Only with `p2p.auto_release`: what rules and reviewer find unremarkable becomes provisional (mode test). Sensitive items stay with a human."""
     nets = networks()
-    if not config.get("auto_freigabe") and not any(d["auto_freigabe"] for d in nets.values()):
+    if not _conf().get("auto_release") and not any(d["auto_release"] for d in nets.values()):
         return 0
     n = 0
     value = publisher_value(fresh=True)
     for _, o, _g in g.recall("modus:quarantaene", limit=MAX_OBJECTS, viewer=None):
         net = o.data["herkunft"].get("netz") or STANDARD
-        if not (config.get("auto_freigabe") or nets.get(net, {}).get("auto_freigabe")):  # 0.41.0: per network, e.g. only the company one
+        if not (_conf().get("auto_release") or nets.get(net, {}).get("auto_release")):  # 0.41.0: per network, e.g. only the company one
             continue
         if "pruefer:ausstehend" in o.hashtags or sensitive(o) or value.get(o.data["herkunft"]["herausgeber"], {}).get("gesperrt"):
             continue
@@ -725,7 +735,7 @@ def status() -> dict:
     nets = {}
     for n, d in networks().items():
         s = st.get(n)
-        nets[n] = {"art": d["art"], "instanz": d["instanz"], "an": is_on(n), "schalter": switch_state(n),
+        nets[n] = {"kind": d["kind"], "instance": d["instance"], "an": is_on(n), "schalter": switch_state(n),
                    "stand": ({"zeit": s["zeit"], **{k: s["daten"].get(k) for k in ("pseudonym", "version", "mitglieder", "peers", "transport", "unbekannte_typen", "wiki_sperre")}}
                              if s else "not recorded (the network service has not reported since 0.39.0)")}
     return {"netze": nets, "quarantaene": q, "grabsteine": gr, "herausgeber": publisher_value(fresh=True)}

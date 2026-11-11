@@ -3,6 +3,55 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.51.0 — 2026-11-11 — English configuration files; vi_recall understands query; the embedding model in the README
+
+### What has changed
+
+- **The configuration files speak English**, as the user decided ("Konfig + Netzarten", 11.11.2026; reported: the README showed
+  `"offen": true`).
+  - `/etc/vi-mcp/config.json`: `open`, `instances` (`reflexes`, `release`, `human`, `family`), `reviewer_prompt`, `archive_days`, `local`,
+    `web_base`, `llm.model`, `embed.model`, `p2p.networks` (`kind`, `instance`, `auto_release`, `local`), `p2p.reflexes_from`,
+    `p2p.auto_release`, `p2p.public_domains`, `p2p.internal_names`.
+  - `/etc/vi-p2p/<netz>.json`: the field names `mode`, `address`, `founders`, `kind`, `net`, `pow_bits`, `blocked`, `local_port`,
+    `mcp_token_file`, `http_allowed`, `no_proxy`, `torrent.active`, `torrent.directory`, ….
+  - **Network kinds** are `free`, `open`, `company` — in the configuration, `vi-mcp net … --kind`, `vi-mcp configure` (debconf choices,
+    `VI_MCP_NET_KIND`), `vi_net_status` and the web page.
+- **Older files keep working:** the German keys and kinds (`offen`, `instanzen`, `frei`, `firma`, …) are still read everywhere a
+  configuration comes in, and `--kind frei` still works. If a file has both spellings, the English one wins and the German one is named as
+  dropped.
+- **The package rewrites them once:** at every install and update (`dpkg -i`, `apt`, `dnf`, `rpm`), `configure` translates a German
+  `config.json` and every `/etc/vi-p2p/*.json`, keeps a copy of each old file next to it (`<file>.bak-<time>-german-keys`, same
+  permissions) and prints what it renamed. An English file is left alone.
+- **Unchanged on purpose:** stored formats stay German — database, hashtags (`art:erkenntnis`, `instanz:`, …), object fields, states of
+  questions, conversations and wiki revisions, the tokenless instance name `offen`, and the wire format between servers — so databases and
+  older peers keep working.
+- **`vi_recall` (and every tool that takes a `filter`) accepts `query`, `q`, `search` or `text` as the filter.** Reported by the user:
+  a client called `vi_recall(query=…)` and was refused. A tool with its own `query` (`vi_net_search`) keeps it; a really unknown field is
+  still refused with its name.
+- **A new network never gets the embedding service's port.** `free_port` skipped only the ports of other network configs, so a second
+  network got 8767 — the default port of `vi-embed`. It now skips 8767 and every port something listens on. Existing configs keep their port.
+
+### What is new
+
+- **README: "Embedding model (semantic search)"** (English and German), as the user asked: what it is for and what is missing without it,
+  `vi-mcp embed setup|status|remove`, `--cpu`, `--model-file`, `--no-switch` with `embed compare`, Windows `EMBED=1`, an external service
+  via `vi-mcp configure --set embed_url=…`.
+
+*Proof:* `tests/test_config_english.py` (4): every level translated but no name inside (instances, networks, users); a German file loads,
+migrates with a byte-identical backup and the same permissions, a second run does nothing; network service files incl. torrent keys, the
+German kind in `NetConfig`, `configure.migrate_configs` for both files; the German kinds in `VI_MCP_NET_KIND` and `--kind`.
+`tests/test_kern.py`: `query`, `q`, `search`, `text` find via `vi_recall`, `vi_net_search` keeps `query`, an unknown field is refused.
+`tests/test_netz_443.py`: 8767 skipped, a bound port skipped. Tests that wrote German configs still pass unchanged (aliases); tests that
+read written files now expect English. Full suite: 610 passed on SQLite, 612 on PostgreSQL 16.
+
+### What is missing
+
+- The rewrite of a real production config by the package has not run yet. Dry run on a production server's files (read only, 11.11.2026):
+  memory config 27 renames, every instance name kept, the loaded configuration identical before and after; network service config
+  3 renames (`adresse`, `gruender`, `modus`), the loaded `NetConfig` identical.
+- Tool outputs still carry German JSON keys in places (e.g. `vi_net_status`: `an`, `schalter`, `stand`) — outside the agreed scope
+  (configuration files and network kinds).
+
 ## 0.50.1 — 2026-11-11 — vi_feedback books exactly on its own action
 
 ### What has changed

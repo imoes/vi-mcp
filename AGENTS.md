@@ -19,9 +19,9 @@ Since 0.44.0 the hook also searches before every user prompt (`vi_prompt_context
 
 **The network** (since 0.39.0, `docs/ARCHITECTURE.md` from "P2P import" on). Servers form networks without a master: every server appends
 signed entries to its own logbook, the network service (`vi-p2p`, `vi-p2p@<netz>`) exchanges them, the memory checks them again.
-- Networks: `standard` (open, anonymised, by invitation) and further ones with `vi-mcp net --network NAME setup --kind frei|offen|firma`.
-  `frei` (0.45.0): anyone may join without invitation — identity proof of work as entry 1, quotas growing with measured benefit, local
-  block lists, peer exchange from a start address. `firma` carries internal knowledge to members of one organisation, by invitation. Published on 443 behind the reverse proxy (`--public https://HOST`,
+- Networks: `standard` (open, anonymised, by invitation) and further ones with `vi-mcp net --network NAME setup --kind free|open|company`.
+  `free` (0.45.0): anyone may join without invitation — identity proof of work as entry 1, quotas growing with measured benefit, local
+  block lists, peer exchange from a start address. `company` carries internal knowledge to members of one organisation, by invitation. Published on 443 behind the reverse proxy (`--public https://HOST`,
   `vi-mcp net proxy-config`).
 - Same meaning on several servers = one object with several holders (content hash), rated by every server's own measurements → network
   score (`net_score`); a content that keeps failing is no longer a hint.
@@ -34,13 +34,15 @@ signed entries to its own logbook, the network service (`vi-p2p`, `vi-p2p@<netz>
   on (`p2p.notice`); the AI tells the user and switches on request with `vi_net_switch` (memory-side switch `netz_schalter`: off = no
   outbox, no inbox, no live search, the service pauses, the web page hides it).
 - Web page (`web`, 0.46.0, config `web`, off by default; `vi-mcp web on --base PATH`): read-only HTML under `/web` — search, wiki, forum,
-  knowledge of the networks of kind `frei` and `offen` only. Never a company network, internal or private knowledge, quarantine or a local
+  knowledge of the networks of kind `free` and `open` only. Never a company network, internal or private knowledge, quarantine or a local
   instance name; own knowledge only in its anonymised export form. Server-side HTML, standard library, no JavaScript, strict CSP.
 - Logbook entry types: objekt, widerruf, einladung, ausschluss, adresse, bewertung, seite, beitrag. A new type needs every peer ≥ 0.39.0
   (`Logbook.peers_below(lb.RELAY_MIN)`): older peers would reject it and stop the publisher's whole chain.
 
 The MCP interface is English since 0.22.0 (tools, parameters, enum values); the German names remain valid as aliases (`vi_mcp/api_en.py`).
-Stored formats (database, hashtags, object data, P2P wire format, config keys) keep their German names.
+Stored formats (database, hashtags, object data, P2P wire format) keep their German names. The configuration files are English since
+0.51.0 (keys and the network kinds free/open/company); `config.normalize` and `net_service.english_file` still read the German keys of
+older files, and the package rewrites them in English at install (`configure.migrate_configs`, a copy of the old file stays).
 
 ## Installing and setting up
 

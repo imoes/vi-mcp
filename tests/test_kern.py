@@ -301,9 +301,15 @@ def test_missing_required_field_rejected_not_silently_answered(gd):
     """0.20.4: vi_erinnere with "text" instead of "filter" returned the most important objects as if it had searched."""
     import pytest
     from vi_mcp import tools
-    with pytest.raises(tools.Rejected, match="vi_recall: required field missing: filter — passed but unknown: text"):
-        tools.call_tool("vi_erinnere", {"text": "Lizenz Dongle"}, "a", True)
+    with pytest.raises(tools.Rejected, match="vi_recall: required field missing: filter — passed but unknown: suchtext"):
+        tools.call_tool("vi_erinnere", {"suchtext": "Lizenz Dongle"}, "a", True)
     tools.call_tool("vi_erinnere", {"filter": "Lizenz"}, "a", True)  # correctly named: works
+    # 0.51.0: the names models guess for the search field count as filter (reported 11.11.2026: vi_recall(query=…) was refused)
+    from vi_mcp import memory as g
+    g.new_object("erkenntnis", "Lizenz Dongle steckt am Host lic01", ["thema:lizenz"], {"quelle": "test"}, instance="a")
+    for guess in ("query", "q", "search", "text"):
+        assert "Lizenz Dongle" in tools.call_tool("vi_recall", {guess: "Dongle"}, "a", True), guess
+    assert tools._filter_alias("vi_net_search", {"query": "x"}) == {"query": "x"}  # a tool with its own query keeps it
     with pytest.raises(tools.Rejected, match="required field missing: id$"):
         tools.call_tool("vi_objekt", {}, "a", True)
 

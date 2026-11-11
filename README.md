@@ -165,8 +165,35 @@ vi-mcp setup --claude --hook --url http://127.0.0.1:8765/mcp --token-file <file>
 ```
 
 The port can be changed later on Linux and Windows with `vi-mcp port 9000` (restarts the service). Vectors for semantic search come from
-vi-mcp's own embedding service, installable at any time: `sudo vi-mcp embed setup` (llama.cpp + bge-m3, Vulkan or CPU; on Windows `EMBED=1`). On Windows there is no interactive setup
+an embedding model — see [Embedding model](#embedding-model-semantic-search) below. On Windows there is no interactive setup
 menu, no reflex sandbox (reflex code does not run) and no network service (P2P) — see [docs/OPERATIONS.md](docs/OPERATIONS.md#windows).
+
+### Embedding model (semantic search)
+
+Without an embedding model vi-mcp works, but searches only by words and hashtags (full text). With one it also finds knowledge by meaning
+(`vi_recall(semantic=true)`, the hybrid search of the prompt hook), links similar knowledge and gives the router meaning as a feature.
+vi-mcp brings its own embedding service — llama.cpp `llama-server` with the model bge-m3 — and installs it on request:
+
+```bash
+sudo vi-mcp embed setup             # download, check, start the service vi-embed on 127.0.0.1:8767, point embed.url to it, restart vi-mcp
+sudo vi-mcp embed setup --cpu       # without a GPU (default: Vulkan build, the CPU build if Vulkan does not start)
+vi-mcp embed status                 # installed? running? which URL does the configuration use?
+sudo vi-mcp embed remove            # stop and remove the service; the configuration keeps working with full text only
+```
+
+- **What it downloads:** llama.cpp release b11938 from GitHub and `bge-m3-Q4_K_M.gguf` from Hugging Face (`gpustack/bge-m3-GGUF`), both
+  checked by SHA256 — a file with a different hash is refused. The download uses the proxy from the environment (`https_proxy`).
+- **Offline:** `--model-file PATH` takes a local copy of the model (accepted only with the same hash). `--port N` chooses another port.
+- **Where it runs:** its own process, so embedding a backlog never blocks answers. Linux: `/var/lib/vi-mcp/embed`, systemd unit `vi-embed`
+  (user `vi-mcp`, groups `render video` for the GPU). Windows: `%ProgramData%\vi-mcp\embed`, scheduled task `vi-embed`
+  (`msiexec /i vi-mcp-<version>-x64.msi EMBED=1` installs it with the package).
+- **Already using another embedding service?** `sudo vi-mcp embed setup --no-switch` installs without switching; `sudo -u vi-mcp vi-mcp embed
+  compare` re-embeds 30 stored texts with the new service and compares (cosine). Switch only if it reports the same vectors — otherwise every
+  stored vector would have to be computed again.
+- **An external service instead** (any OpenAI-compatible `/v1/embeddings`): `sudo vi-mcp configure --set embed_url=http://HOST:PORT/v1/embeddings`,
+  or `VI_MCP_EMBED_URL=…` at installation.
+
+Details: [docs/OPERATIONS.md](docs/OPERATIONS.md#own-embedding-service-vectors).
 
 **Check a release before installing.** From v0.15.0 on, `SHA256SUMS` is signed with the release key (Ed25519, `SHA256SUMS.sig`). Keep your own copy of
 [`deploy/release-schluessel.pem`](deploy/release-schluessel.pem) and compare its fingerprint once through a channel you trust:
@@ -186,7 +213,7 @@ sha256sum --ignore-missing -c SHA256SUMS
 | Mode | Who | What |
 |---|---|---|
 | **Token** (default) | every instance has its own token | full use according to its rights |
-| **Open wiki** (`"offen": true` in `/etc/vi-mcp/config.json`) | anyone who can reach the server, no token | read everything shared, get hints before actions, report own actions, **propose** knowledge |
+| **Open wiki** (`"open": true` in `/etc/vi-mcp/config.json`) | anyone who can reach the server, no token | read everything shared, get hints before actions, report own actions, **propose** knowledge |
 
 The knowledge is open; writing it is not. In the open wiki mode a proposal from `vi_learn` goes into quarantine like an import from the network: rules, the review model, then release by an instance with rights.
 Confirming, refuting, questions to other instances, reflexes, releases and the network need a token, otherwise any machine could plant instructions in everyone else's AI sessions.
@@ -287,9 +314,9 @@ the review model, release.
 
 | Kind | Who may join | What travels |
 |---|---|---|
-| **`frei`** — free network (0.45.0) | anyone, **no invitation**: a server needs nothing but the address of one server of the network | shared knowledge, anonymised |
-| `offen` — open network | by invitation (join code) | shared knowledge, anonymised |
-| `firma` — company network | by invitation, members of one organisation | shared **and internal** knowledge, not anonymised; never re-exported |
+| **`free`** — free network (0.45.0) | anyone, **no invitation**: a server needs nothing but the address of one server of the network | shared knowledge, anonymised |
+| `open` — open network | by invitation (join code) | shared knowledge, anonymised |
+| `company` — company network | by invitation, members of one organisation | shared **and internal** knowledge, not anonymised; never re-exported |
 
 A server can be in several networks at once; each runs its own network service (`vi-p2p@<network>`), key and logbook. The network
 without a name (`standard`) is an open one.
@@ -305,12 +332,12 @@ existing servers change nothing.
 
 ```bash
 # the first server, reachable on 443 behind the reverse proxy
-sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<host>
+sudo vi-mcp net --network welt setup --kind free --mode peerhost --public https://<host>
 sudo vi-mcp net proxy-config        # nginx location blocks for every network on 443
 
 # every further server: only a start address
-sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<own host> --start https://<host>/vi-p2p/welt
-sudo vi-mcp net --network welt setup --kind frei --mode peer --start https://<host>/vi-p2p/welt    # behind a firewall, outgoing only
+sudo vi-mcp net --network welt setup --kind free --mode peerhost --public https://<own host> --start https://<host>/vi-p2p/welt
+sudo vi-mcp net --network welt setup --kind free --mode peer --start https://<host>/vi-p2p/welt    # behind a firewall, outgoing only
 ```
 
 - **Finding each other.** After every exchange a server asks for the addresses its neighbour reached recently (peer exchange) and
@@ -326,7 +353,7 @@ sudo vi-mcp net --network welt setup --kind frei --mode peer --start https://<ho
 sudo vi-mcp net setup --mode peerhost --found --public https://<host>         # first server of the network standard
 sudo vi-mcp net invitation --hours 24                                         # one-time join code, treat it like a password
 sudo vi-mcp net join <code>                                                   # every further server
-sudo vi-mcp net --network firma setup --kind firma --mode peerhost --found --public https://<host>   # a company network
+sudo vi-mcp net --network firma setup --kind company --mode peerhost --found --public https://<host>   # a company network
 ```
 
 A join code contains the founders' keys, the address and certificate pin of the issuing peerhost, and a one-time secret that expires.

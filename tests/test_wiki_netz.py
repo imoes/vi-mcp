@@ -55,7 +55,7 @@ def test_switch_rules(wnet):
 
 def test_notice_names_the_wiki_network_and_disappears_when_off(wnet):
     n = p2p.notice()
-    assert "wiki (frei, vi-wiki.org)" in n and "vi_net_switch" in n
+    assert "wiki (free, vi-wiki.org)" in n and "vi_net_switch" in n
     p2p.switch("wiki", False, "ki@a", "test")
     assert p2p.notice() == ""
 
@@ -93,7 +93,7 @@ def test_instructions_carry_the_notice(tmp_path, monkeypatch):
     threading.Thread(target=s.serve_forever, daemon=True).start()
     try:
         _, _, a = request(s.server_address[1], "POST", {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"clientInfo": {"name": "t"}}}, tok)
-        assert "[Network] This server takes part in the public network(s) wiki (frei, vi-wiki.org)" in a["result"]["instructions"]
+        assert "[Network] This server takes part in the public network(s) wiki (free, vi-wiki.org)" in a["result"]["instructions"]
     finally:
         s.shutdown()
         s.server_close()
@@ -108,8 +108,8 @@ def test_cli_wiki_on_sets_up_the_free_network(tmp_path, monkeypatch, capsys):
     (tmp_path / "wiki.json").write_text(json.dumps({"db": str(tmp_path / "w" / "netz.db"), "seed": str(tmp_path / "w" / "schluessel"), "mcp_token_datei": str(token)}))
     assert net_cli.main(["wiki", "on"]) == 0
     raw = json.loads((tmp_path / "wiki.json").read_text())
-    assert raw["art"] == "frei" and raw["netz"] == "wiki" and raw["modus"] == "peer" and raw["startpeers"] == ["https://vi-wiki.org/vi-p2p/wiki"]
-    assert nd.load(tmp_path / "wiki.json").kind == "frei"
+    assert raw["kind"] == "free" and raw["net"] == "wiki" and raw["mode"] == "peer" and raw["startpeers"] == ["https://vi-wiki.org/vi-p2p/wiki"]
+    assert nd.load(tmp_path / "wiki.json").kind == "free"
     assert net_cli.main(["wiki", "status"]) == 0 and "configured" in capsys.readouterr().out
 
 

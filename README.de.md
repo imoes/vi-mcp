@@ -169,10 +169,36 @@ msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [PROXY=http://proxy:3
 vi-mcp setup --claude --hook --url http://127.0.0.1:8765/mcp --token-file <datei>
 ```
 
-Den Port ändert `vi-mcp port 9000` später unter Linux und Windows (startet den Dienst neu). Vektoren für die semantische Suche liefert der
-eigene Embedding-Dienst, jederzeit nachinstallierbar: `sudo vi-mcp embed setup` (llama.cpp + bge-m3, Vulkan oder CPU; unter Windows
-`EMBED=1`). Unter Windows gibt es kein interaktives Einrichtungsmenü, keine Reflex-Sandbox (Reflex-Code läuft nicht) und keinen
+Den Port ändert `vi-mcp port 9000` später unter Linux und Windows (startet den Dienst neu). Vektoren für die semantische Suche liefert
+ein Embedding-Modell — siehe [Embedding-Modell](#embedding-modell-semantische-suche) unten. Unter Windows gibt es kein interaktives Einrichtungsmenü, keine Reflex-Sandbox (Reflex-Code läuft nicht) und keinen
 Netzdienst (P2P) — siehe [docs/OPERATIONS.md](docs/OPERATIONS.md#windows).
+
+### Embedding-Modell (semantische Suche)
+
+Ohne Embedding-Modell arbeitet vi-mcp, sucht aber nur nach Wörtern und Hashtags (Volltext). Mit Modell findet es Wissen auch nach Bedeutung
+(`vi_recall(semantic=true)`, die hybride Suche des Prompt-Hooks), verknüpft ähnliches Wissen und gibt dem Router die Bedeutung als Merkmal.
+vi-mcp bringt einen eigenen Embedding-Dienst mit — llama.cpp `llama-server` mit dem Modell bge-m3 — und installiert ihn auf Wunsch:
+
+```bash
+sudo vi-mcp embed setup             # herunterladen, prüfen, Dienst vi-embed auf 127.0.0.1:8767 starten, embed.url darauf stellen, vi-mcp neu starten
+sudo vi-mcp embed setup --cpu       # ohne GPU (Standard: Vulkan-Build, der CPU-Build, wenn Vulkan nicht startet)
+vi-mcp embed status                 # installiert? läuft? welche URL nutzt die Konfiguration?
+sudo vi-mcp embed remove            # Dienst stoppen und entfernen; vi-mcp arbeitet danach mit Volltext weiter
+```
+
+- **Was heruntergeladen wird:** llama.cpp-Release b11938 von GitHub und `bge-m3-Q4_K_M.gguf` von Hugging Face (`gpustack/bge-m3-GGUF`),
+  beide per SHA256 geprüft — eine Datei mit anderem Hash wird abgelehnt. Der Download nutzt den Proxy aus der Umgebung (`https_proxy`).
+- **Ohne Internet:** `--model-file PFAD` nimmt eine lokale Kopie des Modells (nur mit demselben Hash). `--port N` wählt einen anderen Port.
+- **Wo es läuft:** in einem eigenen Prozess, damit das Einbetten eines Rückstands nie Antworten blockiert. Linux: `/var/lib/vi-mcp/embed`,
+  systemd-Unit `vi-embed` (Benutzer `vi-mcp`, Gruppen `render video` für die GPU). Windows: `%ProgramData%\vi-mcp\embed`, geplante Aufgabe
+  `vi-embed` (`msiexec /i vi-mcp-<version>-x64.msi EMBED=1` richtet sie mit dem Paket ein).
+- **Schon ein anderer Embedding-Dienst im Einsatz?** `sudo vi-mcp embed setup --no-switch` installiert, ohne umzuschalten;
+  `sudo -u vi-mcp vi-mcp embed compare` bettet 30 gespeicherte Texte mit dem neuen Dienst neu ein und vergleicht (Kosinus). Nur umschalten, wenn
+  es gleiche Vektoren meldet — sonst müsste jeder gespeicherte Vektor neu berechnet werden.
+- **Stattdessen ein externer Dienst** (jedes OpenAI-kompatible `/v1/embeddings`): `sudo vi-mcp configure --set embed_url=http://HOST:PORT/v1/embeddings`
+  oder `VI_MCP_EMBED_URL=…` bei der Installation.
+
+Details: [docs/OPERATIONS.md](docs/OPERATIONS.md#own-embedding-service-vectors).
 
 **Ein Release vor der Installation prüfen.** Ab v0.15.0 ist `SHA256SUMS` mit dem Release-Schlüssel signiert (Ed25519, `SHA256SUMS.sig`). Leg dir eine eigene Kopie von
 [`deploy/release-schluessel.pem`](deploy/release-schluessel.pem) ab und vergleiche den Fingerabdruck einmal über einen Weg, dem du vertraust:
@@ -192,7 +218,7 @@ sha256sum --ignore-missing -c SHA256SUMS
 | Modus | Wer | Was |
 |---|---|---|
 | **Token** (Standard) | jede Instanz hat ihr eigenes Token | volle Nutzung nach ihren Rechten |
-| **Open Wiki** (`"offen": true` in `/etc/vi-mcp/config.json`) | jeder, der den Server erreicht, ohne Token | alles Geteilte lesen, Hinweise vor Handlungen, eigene Handlungen melden, Wissen **vorschlagen** |
+| **Open Wiki** (`"open": true` in `/etc/vi-mcp/config.json`) | jeder, der den Server erreicht, ohne Token | alles Geteilte lesen, Hinweise vor Handlungen, eigene Handlungen melden, Wissen **vorschlagen** |
 
 Das Wissen ist offen, das Schreiben nicht. Im Open-Wiki-Modus landet ein Vorschlag aus `vi_learn` in der Quarantäne wie ein Import aus dem Netz: Regeln, Prüfmodell, dann Freigabe durch eine Instanz mit Recht.
 Bestätigen, Widerlegen, Rückfragen an andere, Reflexe, Freigaben und das Netz brauchen ein Token. Sonst könnte jeder Rechner den KI-Sitzungen aller anderen Anweisungen unterschieben.
@@ -293,9 +319,9 @@ feste Regeln, Quarantäne, Prüfmodell, Freigabe.
 
 | Art | Wer beitreten darf | Was wandert |
 |---|---|---|
-| **`frei`** — freies Netz (0.45.0) | jeder, **ohne Einladung**: ein Server braucht nur die Adresse eines Servers im Netz | geteiltes Wissen, anonymisiert |
-| `offen` — offenes Netz | mit Einladung (Beitrittscode) | geteiltes Wissen, anonymisiert |
-| `firma` — Firmennetz | mit Einladung, Mitglieder einer Organisation | geteiltes **und internes** Wissen, nicht anonymisiert; nie weiterexportiert |
+| **`free`** — freies Netz (0.45.0) | jeder, **ohne Einladung**: ein Server braucht nur die Adresse eines Servers im Netz | geteiltes Wissen, anonymisiert |
+| `open` — offenes Netz | mit Einladung (Beitrittscode) | geteiltes Wissen, anonymisiert |
+| `company` — Firmennetz | mit Einladung, Mitglieder einer Organisation | geteiltes **und internes** Wissen, nicht anonymisiert; nie weiterexportiert |
 
 Ein Server kann in mehreren Netzen zugleich sein; jedes hat eigenen Netzdienst (`vi-p2p@<netz>`), Schlüssel und Logbuch. Das Netz
 ohne Namen (`standard`) ist ein offenes.
@@ -311,12 +337,12 @@ hinaus, nichts kommt herein. Administratoren: `sudo vi-mcp net wiki on|off|statu
 
 ```bash
 # der erste Server, erreichbar auf 443 hinter dem Reverse Proxy
-sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<host>
+sudo vi-mcp net --network welt setup --kind free --mode peerhost --public https://<host>
 sudo vi-mcp net proxy-config        # nginx-location-Blöcke für alle Netze auf 443
 
 # jeder weitere Server: nur eine Startadresse
-sudo vi-mcp net --network welt setup --kind frei --mode peerhost --public https://<eigener-host> --start https://<host>/vi-p2p/welt
-sudo vi-mcp net --network welt setup --kind frei --mode peer --start https://<host>/vi-p2p/welt    # hinter einer Firewall, nur ausgehend
+sudo vi-mcp net --network welt setup --kind free --mode peerhost --public https://<eigener-host> --start https://<host>/vi-p2p/welt
+sudo vi-mcp net --network welt setup --kind free --mode peer --start https://<host>/vi-p2p/welt    # hinter einer Firewall, nur ausgehend
 ```
 
 - **Sich finden.** Nach jedem Abgleich fragt ein Server seinen Nachbarn nach den Adressen, die dieser zuletzt erreicht hat
@@ -333,7 +359,7 @@ sudo vi-mcp net --network welt setup --kind frei --mode peer --start https://<ho
 sudo vi-mcp net setup --mode peerhost --found --public https://<host>         # erster Server des Netzes standard
 sudo vi-mcp net invitation --hours 24                                         # einmaliger Beitrittscode, wie ein Passwort behandeln
 sudo vi-mcp net join <code>                                                   # jeder weitere Server
-sudo vi-mcp net --network firma setup --kind firma --mode peerhost --found --public https://<host>   # ein Firmennetz
+sudo vi-mcp net --network firma setup --kind company --mode peerhost --found --public https://<host>   # ein Firmennetz
 ```
 
 Ein Beitrittscode enthält die Schlüssel der Gründer, Adresse und Zertifikats-Pin des ausstellenden Peerhosts und ein einmaliges,

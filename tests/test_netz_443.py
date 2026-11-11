@@ -23,8 +23,18 @@ def test_public_address_is_https_on_443_only():
             net_cli.public_address(bad, "firma")
 
 
-def test_free_port_and_proxy_config(tmp_path):
+def test_free_port_and_proxy_config(tmp_path, monkeypatch):
+    import socket
+    monkeypatch.setattr(net_cli, "_bound", lambda port: False)
     assert net_cli.free_port({8766, 8767}) == 8768
+    # 0.51.0: 8767 is the embedding service's default port — a new network never takes it; a port something listens on neither
+    assert net_cli.free_port({8766}) == 8768
+    monkeypatch.undo()
+    with socket.socket() as sk:
+        sk.bind(("127.0.0.1", 0))
+        sk.listen()
+        taken = sk.getsockname()[1]
+        assert net_cli._bound(taken) and net_cli.free_port(set(), taken) != taken
     (tmp_path / "config.json").write_text(json.dumps({"modus": "peerhost", "adresse": "https://w.example/vi-p2p/standard", "port": 8766, "bind": "127.0.0.1"}))
     (tmp_path / "firma.json").write_text(json.dumps({"modus": "peerhost", "adresse": "https://w.example/vi-p2p/firma", "port": 8767, "art": "firma"}))
     (tmp_path / "alt.json").write_text(json.dumps({"modus": "peerhost", "adresse": "https://w.example:8766", "port": 8768}))  # own TLS: not proxied
@@ -32,7 +42,7 @@ def test_free_port_and_proxy_config(tmp_path):
     assert set(confs) == {"standard", "firma", "alt"}
     s = net_cli.nginx_snippet(confs)
     assert "location /vi-p2p/standard/ {" in s and "proxy_pass http://127.0.0.1:8766/;" in s
-    assert "location /vi-p2p/firma/ {  # network firma (firma)" in s and "proxy_pass http://127.0.0.1:8767/;" in s
+    assert "location /vi-p2p/firma/ {  # network firma (company)" in s and "proxy_pass http://127.0.0.1:8767/;" in s
     assert "8768" not in s and "client_max_body_size 2m" in s
     assert "no network is published" in net_cli.nginx_snippet({})
 
@@ -117,6 +127,7 @@ def test_two_networks_share_one_tls_port(net, tmp_path):
 
 def test_setup_public_and_proxy_config_commands(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("VI_MCP_KEIN_DIENST", "1")
+    monkeypatch.setattr(net_cli, "_bound", lambda port: False)  # the ports of this machine must not decide the test
     token = tmp_path / "mcp-token"
     token.write_text("t\n")
     monkeypatch.setenv("VI_P2P_CONFIG", str(tmp_path / "config.json"))
@@ -127,10 +138,10 @@ def test_setup_public_and_proxy_config_commands(tmp_path, monkeypatch, capsys):
     assert net_cli.main(["--network", "firma", "setup", "--mode", "peerhost", "--found", "--kind", "firma", "--public", "https://wiki.example.org:8443"]) == 2
     assert net_cli.main(["--network", "firma", "setup", "--mode", "peerhost", "--found", "--kind", "firma", "--public", "https://wiki.example.org"]) == 0
     raw = json.loads((tmp_path / "firma.json").read_text())
-    assert raw["adresse"] == "https://wiki.example.org/vi-p2p/firma" and raw["bind"] == "127.0.0.1" and raw["port"] == 8767  # 8766 is taken
-    assert raw["netz"] == "firma" and raw["art"] == "firma" and "Network firma (firma)" in capsys.readouterr().out
+    assert raw["address"] == "https://wiki.example.org/vi-p2p/firma" and raw["bind"] == "127.0.0.1" and raw["port"] == 8768  # 8766 is taken, 8767 is the embedding service's
+    assert raw["net"] == "firma" and raw["kind"] == "company" and "Network firma (company)" in capsys.readouterr().out
     assert net_cli.main(["proxy-config"]) == 0
     out = capsys.readouterr().out
-    assert "location /vi-p2p/firma/ {" in out and "proxy_pass http://127.0.0.1:8767/;" in out
+    assert "location /vi-p2p/firma/ {" in out and "proxy_pass http://127.0.0.1:8768/;" in out
     monkeypatch.setenv("VI_P2P_CONFIG", str(tmp_path / "config.json"))  # --network set it to firma.json for that call
     assert net_cli.main(["setup", "--mode", "peerhost", "--found", "--kind", "firma", "--public", "https://wiki.example.org"]) == 2  # standard stays open

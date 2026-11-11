@@ -172,7 +172,7 @@ def test_http_calls_land_in_usage_stats(srv):
     port, tok_a, _tok_b = srv
     sa = init(port, tok_a, "statistik-client")
     call_tool(port, tok_a, sa, "vi_erinnere", {"filter": "nichtsdergleichen"})  # old German name (alias) …
-    assert call_tool(port, tok_a, sa, "vi_recall", {"text": "falsch benannt"})["isError"]  # … and the English one count under one name
+    assert call_tool(port, tok_a, sa, "vi_recall", {"suchtext": "falsch benannt"})["isError"]  # … and the English one count under one name
     d = usage_stats.data(1)["nutzung"]
     assert d["je_werkzeug"]["vi_recall"]["n"] == 2 and d["je_werkzeug"]["vi_recall"]["abgelehnt"] == 1
     assert any(c.startswith("statistik-client") for c in d["clients"])

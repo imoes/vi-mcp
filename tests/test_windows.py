@@ -61,7 +61,8 @@ def test_port_is_configurable(tmp_path, monkeypatch):
     os.chmod(p, 0o640)
     assert config.set_port(9100, p) == 8765
     raw = json.loads(p.read_text())
-    assert raw["port"] == 9100 and raw["instanzen"] == {"a": {"token_sha256": "x"}} and (os.stat(p).st_mode & 0o777) == 0o640
+    # 0.51.0: a German file is written back in English
+    assert raw["port"] == 9100 and raw["instances"] == {"a": {"token_sha256": "x"}} and (os.stat(p).st_mode & 0o777) == 0o640
     for bad in (80, 70000, "9000"):
         try:
             config.set_port(bad, p)

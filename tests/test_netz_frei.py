@@ -146,7 +146,7 @@ def test_identity_must_be_entry_one(tmp_path):
 
 def test_memory_tells_whom_it_trusts(gd, monkeypatch):
     monkeypatch.setattr(p2p, "config", {"netze": {"welt": {"art": "frei", "instanz": "netz-welt"}}})
-    assert p2p.networks()["welt"]["art"] == "frei" and not p2p.is_company("welt")
+    assert p2p.networks()["welt"]["kind"] == "free" and not p2p.is_company("welt")
     good_pub, bad_pub = "a" * 64, "b" * 64
     for pub, ja, nein in ((good_pub, 30, 2), (bad_pub, 1, 30)):
         name = lb.pseudonym(pub)
@@ -167,9 +167,9 @@ def test_setup_free_network_without_founder_and_block_commands(tmp_path, monkeyp
     assert net_cli.main(["--network", "welt", "setup", "--mode", "peer", "--kind", "frei"]) == 2  # needs a start address
     assert net_cli.main(["--network", "welt", "setup", "--mode", "peer", "--kind", "frei", "--start", "https://vinetz.example/vi-p2p/welt"]) == 0
     raw = json.loads((tmp_path / "welt.json").read_text())
-    assert raw["art"] == "frei" and "gruender" not in raw and raw["arbeit_bits"] == lb.DEFAULT_POW_BITS
-    assert nd.load(tmp_path / "welt.json").kind == "frei"
+    assert raw["kind"] == "free" and "founders" not in raw and raw["pow_bits"] == lb.DEFAULT_POW_BITS
+    assert nd.load(tmp_path / "welt.json").kind == "free"
     assert net_cli.main(["--network", "welt", "block", "c" * 64]) == 0
-    assert json.loads((tmp_path / "welt.json").read_text())["sperren"] == ["c" * 64]
+    assert json.loads((tmp_path / "welt.json").read_text())["blocked"] == ["c" * 64]
     assert net_cli.main(["--network", "welt", "unblock", "c" * 64]) == 0
-    assert json.loads((tmp_path / "welt.json").read_text())["sperren"] == []
+    assert json.loads((tmp_path / "welt.json").read_text())["blocked"] == []

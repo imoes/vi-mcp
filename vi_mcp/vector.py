@@ -39,7 +39,7 @@ PROXIMITY_MAX = 10
 VECTOR_KINDS = ("erkenntnis", "regel", "suche", "skill", "bild", "seite")  # bild: its key statement
 TIMEOUT_S = 120
 
-#: Configuration: {"url": "https://host/embed/v1/embeddings", "token": "...", "modell": "..."} or None
+#: Configuration: {"url": "https://host/embed/v1/embeddings", "token": "...", "model": "..."} or None
 config: dict | None = None
 #: Replaceable embedding function (tests): texts → list of vectors
 embed_fn = None
@@ -68,8 +68,8 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     if config.get("token"):
         header["Authorization"] = f"Bearer {config['token']}"
     body = {"input": texts}
-    if config.get("modell"):
-        body["model"] = config["modell"]
+    if config.get("model"):  # 0.51.0: config key model (modell in older files, translated by config.normalize)
+        body["model"] = config["model"]
     req = urllib.request.Request(config["url"], data=json.dumps(body).encode(), headers=header)
     op = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # host service, never via a corporate proxy
     with op.open(req, timeout=TIMEOUT_S) as a:
@@ -152,7 +152,7 @@ def catch_up(max_s: float | None = None) -> dict:
             f"SELECT o.id, o.text FROM objekt o LEFT JOIN vektor v ON v.id = o.id WHERE v.id IS NULL AND o.art IN ({','.join('?' * len(VECTOR_KINDS))}) "
             "AND o.modus NOT IN ('widerlegt', 'archiviert', 'quarantaene') AND length(o.text) > 0 ORDER BY o.zeit DESC", VECTOR_KINDS).fetchall()
     n, error, end, paused = 0, None, time.monotonic() + (CATCHUP_MAX_S if max_s is None else max_s), 0.0
-    model = (config or {}).get("modell") or "embed"
+    model = (config or {}).get("model") or "embed"
     for i in range(0, len(missing), BATCH):
         if time.monotonic() > end:
             break  # the rest follows in the next sleep; "offen" names it

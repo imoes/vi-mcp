@@ -220,7 +220,7 @@ def network_lines(days: float = 7) -> list[str]:
     from . import p2p
     from . import net_score
     nets, st = p2p.networks(), p2p.states()
-    out = [f"W Network: {len(nets)} network(s) (source: snapshot of each network service, sent with its outbox call; config p2p.netze)"]
+    out = [f"W Network: {len(nets)} network(s) (source: snapshot of each network service, sent with its outbox call; config p2p.networks)"]
     sc = net_score.stats()  # 0.40.0
     out.append(f"    contents by hash: {sc['inhalte']} known on the network, {sc['halterzeilen']} holder lines, {sc['dedupliziert']} arrivals deduplicated "
                f"(same meaning from a further server) · holders per content " + ", ".join(f"{k}: {v}" for k, v in sc["halter_verteilung"].items())
@@ -261,7 +261,7 @@ def network_lines(days: float = 7) -> list[str]:
     for name, d in nets.items():
         s = st.get(name)
         if not s:
-            out.append(f"    {name} ({d['art']}, instance {d['instanz']}): not recorded — its network service has not reported (not running, or older than 0.39.0)")
+            out.append(f"    {name} ({d['kind']}, instance {d['instance']}): not recorded — its network service has not reported (not running, or older than 0.39.0)")
             continue
         x = s["daten"]
         peers = x.get("peers") or []
@@ -270,7 +270,7 @@ def network_lines(days: float = 7) -> list[str]:
         here = sum(p.get("fehlt_hier") or 0 for p in peers)
         there = sum(p.get("fehlt_dort") or 0 for p in peers)
         tr = x.get("transport") or {}
-        out.append(f"    {name} ({d['art']}): snapshot {_age(s['zeit'])} old · {x.get('pseudonym', '?')} {x.get('modus', '?')} {x.get('version', '?')} · "
+        out.append(f"    {name} ({d['kind']}): snapshot {_age(s['zeit'])} old · {x.get('pseudonym', '?')} {x.get('modus', '?')} {x.get('version', '?')} · "
                    f"{x.get('mitglieder', '?')} members · peers {reach} of {len(peers)} reachable · versions "
                    + (", ".join(f"{v} {n}" for v, n in versions.items()) or "—")
                    + f" · backlog: missing here {here}, missing there {there} entries (after the last exchange) · since service start {tr.get('runden', 0)} rounds, "

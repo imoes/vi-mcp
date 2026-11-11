@@ -50,8 +50,9 @@ access goes through one process, a later switch is a change in `memory.py`, not 
 
 > **Stored formats keep their German names** — table and column names (`objekt`, `art`, `zeit`, `daten`, `sicht`, …), JSON keys in
 > object data (`quelle`, `inhalt`, …), hashtag kinds and values (`thema:`, `modus:aktiv`, `ok:ja`, `herkunft:offen`, …), stored enum
-> values (`geteilt`, `intern`, `privat`, …), object kinds (`erkenntnis`, `erfahrung`, `regel`, …), the P2P wire format and the config
-> file keys — so existing databases and peers keep working. The MCP interface (tool names, parameters, enum values) is English since
+> values (`geteilt`, `intern`, `privat`, …), object kinds (`erkenntnis`, `erfahrung`, `regel`, …) and the P2P wire format — so existing
+> databases and peers keep working. The configuration files are English since 0.51.0 (keys and network kinds `free`/`open`/`company`); the
+> German keys of older files are still read (`config.normalize`, `net_service.english_file`) and rewritten in English at package install. The MCP interface (tool names, parameters, enum values) is English since
 > 0.22.0; the German names are accepted as aliases and English enum values are translated to the stored German values (`api_en.py`).
 
 **Everything is an object** (`memory.MemoryObject`, table `objekt`; mapping without an ORM): fixed fields `id`, `art` (kind),
@@ -285,7 +286,7 @@ Sleep remains responsible for what needs a language model or condenses experienc
 ## Visibilities
 
 `privat` (private: only the owning instance), `geteilt` (shared: everyone, including the tokenless instance `offen`, and every network), `intern`
-(internal, since 0.20.0: all instances with a token, never `offen`; never an open network — since 0.39.0 a company network (`art: firma`)
+(internal, since 0.20.0: all instances with a token, never `offen`; never an open network — since 0.39.0 a company network (kind `company`)
 carries it to its members, `p2p._collect` takes `intern` only there). For company knowledge
 such as Confluence: in open-wiki mode it would otherwise be readable without login, including what has read protection in Confluence. Set via
 `vi_learn(visibility="internal")`; checked in `memory.visible_to` and `memory._filter_sql` (one place for search, hints, semantic search).
@@ -496,7 +497,7 @@ If it matches, it is marked as used and the peerhost writes an invitation into i
 **Several networks (0.39.0).** One net service per network: `vi-p2p` is the network `standard` (config `/etc/vi-p2p/config.json`,
 memory instance `p2p`); every further one runs as `vi-p2p@<name>` with `/etc/vi-p2p/<name>.json`, `/var/lib/vi-p2p/<name>/` and the
 memory instance `netz-<name>`. The kind is set in the memory (`p2p.netze`: `{name: {art, instanz}}`), never by the service, because the
-service reads foreign data: `offen` exports only `geteilt`, anonymised; `firma` exports `geteilt` and `intern` unanonymised
+service reads foreign data: `open` exports only `geteilt`, anonymised; `company` exports `geteilt` and `intern` unanonymised
 (`p2p._company_form`), imports become `intern` with the fixed hashtag `netz:<name>`, and `!herkunft:p2p` keeps them out of every export.
 `netz_id` and object token are derived per network (`HMAC(token, "id|<netz>|"+oid)`; the network `standard` keeps the form without a
 scope, so existing entries stay revocable). The service's own relay check (`Logbook(internal_ok=…)`, `checks.check(internal_ok=…)`)
@@ -633,7 +634,7 @@ Requests:
 
 `web.py`, served by the memory server under `/web` when the config says `web: true`; links use `web_basis` (the path the browser sees).
 - **What may appear** (decided by the user: read-only, only free and open networks):
-  - page views of networks of kind `frei`/`offen`;
+  - page views of networks of kind `free`/`open`;
   - their forum threads (questions sent from here or received and released, with the answers this server holds);
   - released imports of those networks (mode `test`/`aktiv`, visibility `geteilt`, not forum answers);
   - this server's own knowledge in exactly the export form the network gets (`p2p._collect`, cached 300 s).
@@ -651,7 +652,7 @@ Requests:
 ## Default wiki network and switch (0.47.0)
 
 `p2p.WIKI_NET` = `wiki`, `WIKI_START` = `https://vi-wiki.org/vi-p2p/wiki`. A first installation (Debian postinst without an old version,
-RPM `.erstinstallation`) runs `nach-installation.sh wiki` → `vi-mcp net wiki on` → `net_cli.setup` with kind `frei`, mode `peer` and
+RPM `.erstinstallation`) runs `nach-installation.sh wiki` → `vi-mcp net wiki on` → `net_cli.setup` with kind `free`, mode `peer` and
 the start address; `VI_MCP_KEIN_WIKI` skips it.
 
 The memory-side switch `netz_schalter(netz, an, zeit, wer, grund)` (`p2p.switch`, tool `vi_net_switch`, any instance with a token,
@@ -709,7 +710,7 @@ has failed, and also protects `vi.db`, although the child runs as the same user.
 
 ## Open-wiki mode
 
-`"offen": true` assigns requests without `Authorization` to the fixed instance `offen` (`config.OPEN`, reserved as a name). A wrong token stays 401.
+`"open": true` (before 0.51.0 `"offen"`) assigns requests without `Authorization` to the fixed instance `offen` (`config.OPEN`, reserved as a name). A wrong token stays 401.
 `offen` only sees the tools in `tools.OPEN_ALLOWED`: reading, `vi_before`/`vi_after`, `vi_learn`. A `vi_learn` from `offen` becomes an object in quarantine with
 `herkunft:offen`, a rule finding (`checks.directives`) and a pending review; it goes through the same path as a network import (`p2p.sensitive`, `p2p.approve`, `p2p.auto_approve`).
 `offen` has no answer store: all guests share one instance, remembered answers would give a colleague's result to everyone.

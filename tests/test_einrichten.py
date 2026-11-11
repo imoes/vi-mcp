@@ -238,8 +238,8 @@ def test_automatic_tokens_on_the_server(ongoing, target, tmp_path, monkeypatch):
     monkeypatch.setattr(e, "check", lambda u, t, timeout=4: ("erreichbar", "x") if t is None else ("token_ok", "x"))
     r = e.setup(["claude", "hook"], target, url, None)
     assert all(x.ok for x in r), r
-    inst = json.loads(cfg.read_text())["instanzen"]
-    assert set(inst) == {f"{target.name}-claude", f"{target.name}-nutzer"} and inst[f"{target.name}-nutzer"]["mensch"] and not inst[f"{target.name}-claude"]["mensch"]
+    inst = json.loads(cfg.read_text())["instances"]
+    assert set(inst) == {f"{target.name}-claude", f"{target.name}-nutzer"} and inst[f"{target.name}-nutzer"]["human"] and not inst[f"{target.name}-claude"]["human"]
     assert (target.home / ".config/vi-mcp/token-claude").read_text().strip() == e._claude_token(target)  # hook and MCP use the same instance
 
 

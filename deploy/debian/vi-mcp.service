@@ -10,7 +10,7 @@ User=vi-mcp
 Group=vi-mcp
 Environment=VI_MCP_CONFIG=/etc/vi-mcp/config.json
 Environment=PYTHONUNBUFFERED=1
-# 0.36.0: local socket for `vi-mcp stdio` (no token: the kernel names the user; config "lokal" maps users to instances)
+# 0.36.0: local socket for `vi-mcp stdio` (no token: the kernel names the user; config "local" maps users to instances)
 Environment=VI_MCP_SOCKET=/run/vi-mcp/mcp.sock
 RuntimeDirectory=vi-mcp
 RuntimeDirectoryMode=0755
