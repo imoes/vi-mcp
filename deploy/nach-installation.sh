@@ -37,7 +37,7 @@ import json, time, urllib.request
 port = json.load(open("/etc/vi-mcp/config.json")).get("port", 8765)
 for _ in range(40):
     try:
-        urllib.request.build_opener(urllib.request.ProxyHandler({})).open(f"http://127.0.0.1:{port}/gesund", timeout=1).close()
+        urllib.request.build_opener(urllib.request.ProxyHandler({})).open(f"http://127.0.0.1:{port}/health", timeout=1).close()
         break
     except OSError:
         time.sleep(0.5)

@@ -119,9 +119,9 @@ def test_no_connections_to_private_addresses_learned_from_others(net):
     seed, _ = net.key_()
     strict = net.build(seed, [], mode="peer", kind="frei", net="welt", pow_bits=BITS, private_ok=False)
     with pytest.raises(ValueError, match="not a public address"):
-        strict._request("http://127.0.0.1:9", "GET", "/netz/gesund")
+        strict._request("http://127.0.0.1:9", "GET", "/netz/health")
     with pytest.raises(ValueError, match="not a public address"):
-        strict._request("https://10.1.2.3", "GET", "/netz/gesund")
+        strict._request("https://10.1.2.3", "GET", "/netz/health")
 
 
 def test_closed_networks_stay_closed(net):

@@ -634,13 +634,16 @@ def check(url: str, token: str | None, timeout: float = 4) -> tuple[str, str]:
         kind, text = _initialize(url, {}, timeout)
         if kind == "token_ok":
             return "offen", text.replace("token valid", "open, usable without a token")
-        try:
-            with _urlopen(urllib.request.Request(url.rsplit("/mcp", 1)[0] + "/gesund"), timeout) as a:
-                return "erreichbar", a.read(200).decode("utf-8", "replace").strip()
-        except urllib.error.HTTPError as e:
-            return "keine_mcp_antwort", f"HTTP {e.code} on /gesund"
-        except (urllib.error.URLError, OSError, TimeoutError) as e:
-            return "nicht_erreichbar", str(getattr(e, "reason", e))[:160]
+        for path in ("/health", "/gesund"):  # 0.59.1: /health; a server before 0.59.1 knows only /gesund
+            try:
+                with _urlopen(urllib.request.Request(url.rsplit("/mcp", 1)[0] + path), timeout) as a:
+                    return "erreichbar", a.read(200).decode("utf-8", "replace").strip()
+            except urllib.error.HTTPError as e:
+                if e.code == 404 and path == "/health":
+                    continue
+                return "keine_mcp_antwort", f"HTTP {e.code} on {path}"
+            except (urllib.error.URLError, OSError, TimeoutError) as e:
+                return "nicht_erreichbar", str(getattr(e, "reason", e))[:160]
     return _initialize(url, {"Authorization": f"Bearer {token}"}, timeout)
 
 

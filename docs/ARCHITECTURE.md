@@ -511,7 +511,7 @@ follows its configured kind; the memory checks again with the kind it knows.
 **Forward compatibility (0.39.0).** An entry of an unknown type (`[a-z_]{2,20}`) is accepted when signature, chain, membership and quota
 hold; its content is checked against checksum and size only, stored, relayed and counted (`unbekannte_typen`), but has no effect.
 Up to four extra header fields and extra fields in `adresse` are tolerated likewise; `einladung`, `ausschluss` and `widerruf` stay
-exact. `/netz/gesund` reports the version; `peer.version` keeps it, and `Logbook.peers_below(v)` names the peers that would not yet
+exact. `/netz/health` reports the version; `peer.version` keeps it, and `Logbook.peers_below(v)` names the peers that would not yet
 understand a new type — new types are written only when that list is empty. With every outbox call the service sends a snapshot
 (peers, versions, backlog both ways, transport counts); the memory keeps the last one per network (`netz_stand`) for `vi_net_status` and
 section W of `vi_stats`.

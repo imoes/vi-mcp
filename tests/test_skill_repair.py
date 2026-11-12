@@ -66,7 +66,7 @@ def test_deploy_scripts_read_both_key_names_and_start_the_memory_first():
     system = nach[nach.index("systemctl daemon-reload"):nach.index("\nwiki)")]  # the part of "system)" that (re)starts the services
     assert "c.get('instances') or c.get('instanzen')" in system
     assert system.index("systemctl restart vi-mcp.service") < system.index("systemctl restart vi-p2p.service")  # the memory first
-    assert "/gesund" in system  # and waited for
+    assert "/health" in system  # and waited for
     assert "c.get('instances') or c.get('instanzen')" in (ROOT / "deploy/install.sh").read_text()
     assert "$raw.instances -or $raw.instanzen" in (ROOT / "deploy/windows/install.ps1").read_text()
     assert " db " in (ROOT / "deploy/debian/postinst").read_text()  # 0.50.0's question db is read from debconf too

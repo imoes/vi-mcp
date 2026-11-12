@@ -254,7 +254,7 @@ def _raw(d, method, fpath, header=None, body=None):
 def test_only_members_get_an_answer(net):
     (sa, a_pub), (_sz, _z) = net.key_(), net.key_()
     a = net.build(sa, [a_pub])
-    assert _raw(a, "GET", "/netz/gesund") == 200
+    assert _raw(a, "GET", "/netz/health") == 200 and _raw(a, "GET", "/netz/gesund") == 200  # 0.59.1: both names
     assert _raw(a, "GET", f"/netz/log/{a_pub}?ab=0") == 401
     foreign = lb.private(_sz)
     assert _raw(a, "GET", f"/netz/log/{a_pub}?ab=0", {"Authorization": nd._sign(foreign, "GET", f"/netz/log/{a_pub}?ab=0", b"")}) == 403
@@ -304,7 +304,7 @@ def test_http_to_foreign_host_is_forbidden(net):
     (sa, a_pub) = net.key_()
     a = net.build(sa, [a_pub], mode="peer")
     with pytest.raises(ValueError, match="unencrypted"):
-        a._request("http://peer.example", "GET", "/netz/gesund")
+        a._request("http://peer.example", "GET", "/netz/health")
 
 
 def _certificate(tmp_path):

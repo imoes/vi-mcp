@@ -3,6 +3,27 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.59.1 — 2026-11-12 — Health endpoint in English: `/health`
+
+The user: "ändere den endpunkt gesund in health".
+
+### What has changed
+
+- **`GET /health`** is the health endpoint of the memory server (`ok vi-mcp <version>`), **`GET /netz/health`** that of the network
+  service (`{"zustand": "ok", "version": …}`). The old names `/gesund` and `/netz/gesund` are still answered, so existing monitors,
+  reverse-proxy checks and peers before 0.59.1 keep working.
+- Callers use the new name first and fall back to the old one only on 404: `vi-mcp setup` checking a server without a token, and the
+  network service asking a peer for its version (a peer before 0.59.1 knows only `/netz/gesund`). The installers (`deploy/install.sh`,
+  `deploy/nach-installation.sh`, Windows `install.ps1`) start the new version and wait for `/health`.
+
+*Proof:* `tests/test_http.py` (both names 200 with `ok vi-mcp …`), `tests/test_netz.py` (both network names 200 without signature),
+`tests/test_skill_repair.py` (the post-install script waits for `/health`); `scripts/gen_reference.py --check` lists `/health` and
+`/netz/health` and names the old ones.
+
+### What is missing
+
+- The old names are not yet scheduled for removal: monitoring configurations outside the package may still call them.
+
 ## 0.59.0 — 2026-11-12 — More feedback: implicit when a hint is used, and one request at the end of a session
 
 The user, after "the strongest learning signal is missing" (feedback on 3 % of shown hints, 0 of 24 search hits opened): "gut, dann mache

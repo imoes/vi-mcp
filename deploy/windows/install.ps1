@@ -195,11 +195,11 @@ try {
         $up = $false
         foreach ($i in 1..30) {
             try {
-                $r = Invoke-WebRequest -Uri "http://127.0.0.1:$ServerPort/gesund" -UseBasicParsing -TimeoutSec 2
+                $r = Invoke-WebRequest -Uri "http://127.0.0.1:$ServerPort/health" -UseBasicParsing -TimeoutSec 2
                 if ($r.Content -like "ok vi-mcp*") { $up = $true; Log "server: $($r.Content.Trim())"; break }
             } catch { Start-Sleep -Seconds 1 }
         }
-        if (-not $up) { Log "WARNING: server did not answer /gesund within 30 s - see Task Scheduler, task vi-mcp, and $Data\server.log" }
+        if (-not $up) { Log "WARNING: server did not answer /health within 30 s - see Task Scheduler, task vi-mcp, and $Data\server.log" }
         if ($Embed -eq "1") {
             Log "setting up the embedding service (vi-mcp embed setup; downloads llama.cpp and bge-m3, ~470 MB)"
             $code = Invoke-Logged $vpy @("-I", "-m", "vi_mcp", "embed", "setup")

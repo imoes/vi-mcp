@@ -1,6 +1,6 @@
 # vi-mcp reference
 
-Generated from the code of vi-mcp 0.59.0 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
+Generated from the code of vi-mcp 0.59.1 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
 
 Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server configuration](#server-configuration-configjson) · [Network service configuration](#network-service-configuration-etcvi-p2pnetworkjson) · [Configuration catalogue](#configuration-catalogue-debconf-vi-mcp-configure-vi_mcp_key) · [Environment variables](#environment-variables) · [HTTP endpoints](#http-endpoints) · [Modules](#modules-vi_mcp)
 
@@ -893,10 +893,10 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 |---|---|---|---|
 | memory server | POST | `/mcp` | MCP over Streamable HTTP (JSON-RPC): initialize, tools/list, tools/call. Bearer token = instance. |
 | memory server | DELETE | `/mcp` | End the conversation (`Mcp-Session-Id`). |
-| memory server | GET | `/gesund` | Health: `ok vi-mcp <version>`. |
+| memory server | GET | `/health` | Health: `ok vi-mcp <version>`. Old name `/gesund` still answered. |
 | memory server | POST | `/signal` | User signals from the hook (correction, grade) — token of a human instance. |
 | memory server | GET | `/web` | Read-only web page of the free and open networks (config `web`). |
-| network service | GET | `/netz/gesund` | Health and version (peers gate new entry types on it). |
+| network service | GET | `/netz/health` | Health and version (peers gate new entry types on it). Old name `/netz/gesund` still answered. |
 | network service | POST | `/netz/koepfe` | Exchange heads: the highest sequence number per publisher. |
 | network service | GET | `/netz/log/<pub>` | Entries of one publisher from `ab`, at most `max`. |
 | network service | POST | `/netz/eintraege` | Push entries (a peer behind a firewall pushes its own). |

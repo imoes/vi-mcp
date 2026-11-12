@@ -73,8 +73,11 @@ def test_protection(srv):
     assert request(port, "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, tok, "gibtsnicht")[0] == 404
     assert request(port, "GET", None, tok)[0] == 405
     c = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
-    c.request("GET", "/gesund")
-    assert c.getresponse().status == 200
+    for path in ("/health", "/gesund"):  # 0.59.1: English name, the old one stays for monitors
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        c.request("GET", path)
+        r = c.getresponse()
+        assert r.status == 200 and r.read().decode().startswith("ok vi-mcp ")
 
 
 def test_two_sessions_two_conversations(srv):

@@ -104,10 +104,10 @@ ENV_VARS = {
 ENDPOINTS = [
     ("memory server", "POST", "/mcp", "MCP over Streamable HTTP (JSON-RPC): initialize, tools/list, tools/call. Bearer token = instance."),
     ("memory server", "DELETE", "/mcp", "End the conversation (`Mcp-Session-Id`)."),
-    ("memory server", "GET", "/gesund", "Health: `ok vi-mcp <version>`."),
+    ("memory server", "GET", "/health", "Health: `ok vi-mcp <version>`. Old name `/gesund` still answered."),
     ("memory server", "POST", "/signal", "User signals from the hook (correction, grade) — token of a human instance."),
     ("memory server", "GET", "/web", "Read-only web page of the free and open networks (config `web`)."),
-    ("network service", "GET", "/netz/gesund", "Health and version (peers gate new entry types on it)."),
+    ("network service", "GET", "/netz/health", "Health and version (peers gate new entry types on it). Old name `/netz/gesund` still answered."),
     ("network service", "POST", "/netz/koepfe", "Exchange heads: the highest sequence number per publisher."),
     ("network service", "GET", "/netz/log/<pub>", "Entries of one publisher from `ab`, at most `max`."),
     ("network service", "POST", "/netz/eintraege", "Push entries (a peer behind a firewall pushes its own)."),
@@ -258,10 +258,13 @@ def gaps() -> list[str]:
             out.append(f"environment variable {v}")
     served = "\n".join((ROOT / "vi_mcp" / f).read_text() for f in ("server.py", "net_service.py"))
     listed = {p for _w, _m, p, _d in ENDPOINTS}
-    for p in sorted(set(re.findall(r'"(/(?:netz|lokal|signal|gesund|mcp)[a-z/_]*)"', served))):
-        if p not in listed and not any(x.startswith(p) for x in listed):
+    for p in sorted(set(re.findall(r'"(/(?:netz|lokal|signal|gesund|health|mcp)[a-z/_]*)"', served))):
+        if p not in listed and p not in OLD_NAMES and not any(x.startswith(p) for x in listed):
             out.append(f"endpoint {p}")
     return out
+
+
+OLD_NAMES = {"/gesund", "/netz/gesund"}  # 0.59.1: still answered, described next to /health
 
 
 def main(argv: list[str]) -> int:

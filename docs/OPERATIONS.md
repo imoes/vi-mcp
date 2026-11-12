@@ -50,9 +50,9 @@ Client ──TLS──▶ nginx (container, <docker-network>, certificate <certi
   (no restart). vi-mcp does the authentication itself; no API key from nginx. The block needs `client_max_body_size 8m` (= `server.MAX_BODY`):
   since 0.35.0 an image of up to 5 MiB arrives base64-encoded in one request, and nginx's default of 1 MiB would refuse it with 413.
 - **Assumption with observation point:** the gateway stays `<docker-gateway>` as long as the Docker network `<docker-network>`
-  is not recreated. If it changes, `https://<host>/vi-mcp/gesund` returns 502 — then
+  is not recreated. If it changes, `https://<host>/vi-mcp/health` returns 502 — then
   `docker network inspect <docker-network>` and adjust `bind` in `/etc/vi-mcp/config.json` + `proxy_pass`.
-- Check: `curl -s https://<host>/vi-mcp/gesund` → `ok vi-mcp <version>`.
+- Check: `curl -s https://<host>/vi-mcp/health` → `ok vi-mcp <version>`.
 
 ### PostgreSQL (optional, 0.50.0)
 
@@ -154,7 +154,7 @@ nginx -t && systemctl reload nginx  # in a container: docker exec nginx nginx -t
 - If nginx runs in a container, it cannot reach the host's `127.0.0.1`: give `--bind <docker-gateway>`; `proxy-config` then names that
   address.
 - Torrent for large backlogs uses its own port and is off unless switched on; for a network on 443 only, leave it off.
-- Check: `curl -s https://<host>/vi-p2p/firma/netz/gesund` → `{"zustand": "ok", "version": "…"}`.
+- Check: `curl -s https://<host>/vi-p2p/firma/netz/health` → `{"zustand": "ok", "version": "…"}`.
 
 ### Public wiki network vi-wiki.org (0.47.0)
 
@@ -220,7 +220,7 @@ deploy/install.sh            # instance $USER (with reflex permission), set up a
 1. If the instance does not exist yet: `python3 -m vi_mcp instance $USER --reflexes` → configuration
    `~/.config/vi-mcp/config.json` (0600, only the SHA-256 of the token) and token file `~/.config/vi-mcp/token-$USER` (0600).
 2. `deploy/vi-mcp.service` → `~/.config/systemd/user/vi-mcp.service`, `enable --now`, `restart`.
-3. Checks `GET /gesund`.
+3. Checks `GET /health`.
 
 The service keeps running without a login if lingering is enabled (`loginctl show-user $USER -p Linger`).
 
@@ -272,7 +272,7 @@ New sessions then see the tools `mcp__vi-mcp__vi_*`. Every Claude Code session i
 
 | Question | Command |
 |---|---|
-| Is it running? | `systemctl --user status vi-mcp` · `curl -s http://127.0.0.1:8765/gesund` |
+| Is it running? | `systemctl --user status vi-mcp` · `curl -s http://127.0.0.1:8765/health` |
 | What does it say? | `journalctl --user -u vi-mcp -f` (one line per session start/end, errors, loop rules) |
 | Exactly one process on the file? | `fuser -v ~/.local/share/vi-mcp/vi.db` |
 | Memory status | tool `vi_status` (open conversations, objects, loop errors) |

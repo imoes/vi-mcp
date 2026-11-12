@@ -390,7 +390,12 @@ class NetService:
         new = 0
         try:
             try:  # 0.39.0: the peer's version — a new entry type is only written once every peer understands it
-                h = self._request(address, "GET", "/netz/gesund")
+                try:  # 0.59.1: /netz/health; a peer before 0.59.1 knows only /netz/gesund
+                    h = self._request(address, "GET", "/netz/health")
+                except ValueError as ex:
+                    if "404" not in str(ex):
+                        raise
+                    h = self._request(address, "GET", "/netz/gesund")
                 self.log.peer_state(address, version=str((h or {}).get("version") or "?"))
             except (ValueError, OSError, TypeError, AttributeError):
                 pass
@@ -951,7 +956,7 @@ class NetService:
 
             def do_GET(self):
                 u = urllib.parse.urlsplit(self.path)
-                if u.path == "/netz/gesund":  # version since 0.39.0: peers gate new entry types on it
+                if u.path in ("/netz/health", "/netz/gesund"):  # version since 0.39.0: peers gate new entry types on it; /netz/health since 0.59.1
                     return self._send(200, {"zustand": "ok", "version": __version__})
                 if not self._authenticate(b""):
                     return None

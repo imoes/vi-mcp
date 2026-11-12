@@ -9,7 +9,7 @@ Session: `initialize` assigns `Mcp-Session-Id`; every further request needs it (
 Protection: bearer token per instance (401 without/with wrong token), Origin check against DNS rebinding (403),
 bind 127.0.0.1 by default; several addresses possible (e.g. additionally the gateway of a Docker network through
 which a reverse proxy in a container connects) — all share the same process, the same memory.
-Additionally `GET /gesund` without authentication: only "ok" + version, for systemd/monitoring.
+Additionally `GET /health` without authentication (old name `/gesund` still answered): only "ok" + version, for systemd/monitoring.
 0.36.0: the same handler also on a local Unix socket (Linux, config `socket` or $VI_MCP_SOCKET) for `vi-mcp stdio`: there the kernel
 names the connecting user (SO_PEERCRED) and config `lokal` maps the user to an instance — no token. Unlisted users get 403 with the reason.
 """
@@ -144,6 +144,9 @@ def _training_notice() -> str:
         return ""
 
 
+
+HEALTH_PATHS = ("/health", "/gesund")  # 0.59.1: English name first; the old one stays valid
+
 class Server(ThreadingHTTPServer):
     daemon_threads = True
     request_queue_size = 64  # Python's default of 5 is too small for many simultaneous clients
@@ -253,7 +256,7 @@ class Handler(BaseHTTPRequestHandler):
         return inst
 
     def do_GET(self):
-        if self.path == "/gesund":
+        if self.path in HEALTH_PATHS:  # 0.59.1: /health, the German /gesund stays for monitors and older installers
             self._send(200, f"ok vi-mcp {__version__}\n")
         elif self.k.web and (self.path == "/web" or self.path.startswith(("/web/", "/web?"))):  # 0.46.0: read-only web page
             from . import web
@@ -273,7 +276,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.rstrip("/") == "/mcp":
             self._send(405, "GET is not supported: the server sends nothing on its own", {"Allow": "POST, DELETE"})
         else:
-            self._send(404, "only /mcp, /gesund" + (" and /web" if self.k.web else ""))
+            self._send(404, "only /mcp, /health" + (" and /web" if self.k.web else ""))
 
     def do_DELETE(self):
         if self.path.rstrip("/") != "/mcp":
