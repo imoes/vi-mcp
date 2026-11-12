@@ -6,6 +6,23 @@
 Each session keeps its own conversation context, like time slices on a processor. All of them share the same memory: what one session learns shows up as a hint for the next one, right before the relevant action.
 The language model itself is never changed. Learning happens in the memory, and the memory stays readable.
 
+## What this is: a search for the best prompt
+
+vi-mcp does not train a language model. It learns, from the measured outcome of every action of every connected agent, *which context to
+put in front of the model next*: which hints, rules and solutions, in which order. That is a search for the best prompt — not one master
+prompt, but the few right lines for each situation (tool, host, error, project). A model retrained every day chooses them, and random
+choices check it.
+
+*Measured (12.11.2026, production):*
+- **Finding:** the search finds known knowledge — MRR 0.735 with meaning plus full text, against 0.364 with full text only (133 known
+  targets × 2 queries, daily).
+- **Predicting:** the model recognises the actions that will fail — 51 % of the warned actions failed, 3 % of the others (AUC 0.88).
+- **Choosing:** the hint it chooses beats a randomly chosen one by 12.6 ± 5.3 points of success (randomized, so causal).
+
+*Being measured (since 0.61.0):* how much showing hints at all raises the success of an action. Comparing actions with and without hints
+cannot tell — hints appear on the hard ones. So on a random 5 % of the actions with hints, the hints are held back, and `vi_stats` compares
+them with the rest. A difference of a few points needs a few hundred held-back actions: weeks, not days.
+
 ## Vision
 
 **An open network of knowledge, in which AI teaches itself.** Every server learns from its own work: which hint helped, which solution held up, what a person corrected.

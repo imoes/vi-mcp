@@ -37,6 +37,8 @@ STATE_DEPENDENT = re.compile(r"(^|_)(browser|playwright|wait|wait_for|sleep|snap
 def state_dependent(tool: str) -> bool:
     return bool(STATE_DEPENDENT.search(tool or ""))
 TTL_MAX = 3600
+#: 0.61.0: share of actions with hints whose hints are held back at random (config hold_back; 0 = off)
+HOLD_BACK = 0.05
 HINT_BUDGET = 4
 #: 0.24.0: a hint is shown at most once per conversation within this many seconds
 REPEAT_S = 3600
@@ -335,6 +337,14 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
         shown_obj = (shown_obj[:-1] if len(shown_obj) >= HINT_BUDGET else shown_obj) + [_random.choice(rest)]
         exploration = True
     offer = propensities([o.id for o in regular[:HINT_BUDGET]], [o.id for o in rest], learning.EPSILON, full=len(regular) >= HINT_BUDGET)
+    # 0.61.0: the total effect of hints — with probability HOLD_BACK the hints of this action are held back (the risk warning stays). Only
+    # this coin flip makes "with hints" against "without" causal: hints appear on hard actions, so comparing actions with and without
+    # them mixes the effect with the difficulty (matched lift −1 point, 12.11.2026, not interpretable). The answer does not say it —
+    # the agent would act differently; the experience records what was held back (vorher.zurueckgehalten).
+    eligible = bool(shown_obj)
+    held: list[str] = []
+    if eligible and HOLD_BACK > 0 and _random.random() < HOLD_BACK:
+        held, shown_obj, exploration = [o.id for o in shown_obj], [], False
     if s is not None:
         shown_at = time.monotonic()
         for o in shown_obj:
@@ -406,6 +416,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     access = {"reize": rz, "warnung": bool(warn), "gefunden": found, "gezeigt": [o.id for o in shown_obj], "kandidaten": candidate_ids,
                "router": router, "exploration": exploration, "rest_n": len(rest), "suchen": search, "aus_gedaechtnis": answer is not None,
                "angebot": offer, **({"arm": layer_arm} if layer_arm else {}),
+               **({"haltewahrscheinlichkeit": HOLD_BACK, "zurueckgehalten": held} if eligible else {}),
                "repeat_suppressed": [o.id for o in repeated]}
     before_id = secrets.token_hex(8)
     if answer is not None:

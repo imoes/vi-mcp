@@ -214,6 +214,43 @@ def exploration_effect(hours: float = 168, viewer: str | None = None) -> dict:
             "schichten": used, "urteil": f"exploration − regular {d * 100:+.1f} ± {se * 100:.1f} points ({n_e} vs {n_r} actions, {used} strata): {verdict}"}
 
 
+def holdback_effect(hours: float = 24 * 30, viewer: str | None = None) -> dict:
+    """0.61.0: the total effect of showing hints — over actions that had hints to show, those whose hints were held back by the coin flip
+    (vorher.zurueckgehalten) against those that showed them. Success shown minus held back, Mantel-Haenszel within (instance, tool),
+    with its standard error. Positive = hints raise the success of an action. Causal, because holding back is random."""
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
+    strata: dict[tuple, dict] = {}
+    for _, o, _g in g.recall("art:erfahrung (ok:ja OR ok:nein)", limit=50000, viewer=viewer):
+        v = o.data.get("vorher") or {}
+        if o.ts < since or v.get("aus_gedaechtnis") or "haltewahrscheinlichkeit" not in v:
+            continue
+        held = bool(v.get("zurueckgehalten"))
+        t = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
+        c = strata.setdefault((o.instance or "?", t), {True: [0, 0], False: [0, 0]})[not held]
+        c[0] += _ok(o)
+        c[1] += 1
+    num = den = var = 0.0
+    n_s = n_h = used = 0
+    for c in strata.values():
+        (a, n1), (b, n0) = c[True], c[False]
+        if not n1 or not n0:
+            continue
+        w = n1 * n0 / (n1 + n0)
+        p1, p0 = a / n1, b / n0
+        num += w * (p1 - p0)
+        den += w
+        var += w * w * (p1 * (1 - p1) / n1 + p0 * (1 - p0) / n0)
+        n_s, n_h, used = n_s + n1, n_h + n0, used + 1
+    if not den or n_h < 30:
+        return {"zustand": "zu_wenig", "zurueckgehalten": n_h,
+                "urteil": f"{n_h} actions with hints held back in comparable strata — at least 30 needed (about 5 % of the actions with hints)"}
+    d, se = num / den, math.sqrt(var) / den
+    verdict = ("hints raise the success of an action" if d > 2 * se else "hints lower the success of an action" if d < -2 * se
+               else "no difference beyond 2 standard errors")
+    return {"zustand": "gemessen", "differenz": round(d, 4), "standardfehler": round(se, 4), "gezeigt": n_s, "zurueckgehalten": n_h,
+            "schichten": used, "urteil": f"shown − held back {d * 100:+.1f} ± {se * 100:.1f} points ({n_s} vs {n_h} actions, {used} strata): {verdict}"}
+
+
 def ips_lift(hours: float = 24 * 30, viewer: str | None = None, min_shown: int = 5) -> dict[str, dict]:
     """0.57.0: per hint, the effect of showing it, from the logged propensities (self-normalised inverse propensity scoring,
     Swaminathan & Joachims 2015): over the actions where it was offered with 0 < p < 1, the weighted success when shown (weight 1/p)

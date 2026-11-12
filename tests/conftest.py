@@ -39,6 +39,14 @@ def _no_model_downloads(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_hold_back(monkeypatch):
+    """0.61.0: hints are held back on a random 5 % of actions — tests that pin random.random would hit it. Off by default; the tests of it
+    (tests/test_holdback.py) switch it on."""
+    from vi_mcp import intuition
+    monkeypatch.setattr(intuition, "HOLD_BACK", 0.0)
+
+
+@pytest.fixture(autouse=True)
 def _isolated_config(tmp_path, monkeypatch):
     """No test may write the real configuration (~/.config/vi-mcp/config.json): net setup registers networks and live search there."""
     import os

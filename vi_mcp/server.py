@@ -386,6 +386,7 @@ def build(k: config.Config) -> list[Server]:
     reviewer.prompt_path = Path(k.reviewer_prompt) if k.reviewer_prompt else None
     vector.config = k.embed
     vector.rerank_config = k.rerank
+    intuition.HOLD_BACK = k.hold_back  # 0.61.0
     reflection.config = k.llm
     handler = type("KHandler", (Handler,), {"k": k})
     srvs = [Server((addr, k.port), handler) for addr in k.bind]

@@ -314,6 +314,9 @@ def report(days: float = 7) -> str:
     z.append("    " + metrics.matched_line(metrics.hint_lift_matched(24 * days, viewer=None)))  # 0.49.0: the raw lift mixes instances
     ex = metrics.exploration_effect(24 * days)  # 0.57.0: the randomized comparison — causal, unlike the two lines above
     z.append(f"    randomized (ε-exploration, last slot random vs ranked): {ex['urteil']}")
+    from . import intuition
+    hb = metrics.holdback_effect(24 * max(days, 30))  # 0.61.0: the total effect needs weeks — always over at least 30 days
+    z.append(f"    randomized (hints held back on a random {intuition.HOLD_BACK * 100:g} % of actions, 30 d): {hb['urteil']}")
     from . import learning, weight_writer
     m_ = learning.model()
     if m_ is not None and weight_writer.layer(m_):  # 0.58.0
@@ -358,5 +361,7 @@ def measurement_lines(limit: int = 7) -> list[str]:
         out.append(f"    {e['zeit'][:10]}: " + " · ".join(parts) + f" · router AUC {rt.get('auc', '—')} log loss {rt.get('log_loss', '—')} "
                    f"champion {rt.get('champion', '—')}" + (f" · hint lift matched {lift}" if lift is not None else "")
                    + (f" · exploration − ranked {e['exploration']['differenz'] * 100:+.1f} ± {e['exploration']['standardfehler'] * 100:.1f} points"
-                      if (e.get("exploration") or {}).get("differenz") is not None else ""))
+                      if (e.get("exploration") or {}).get("differenz") is not None else "")
+                   + (f" · hints shown − held back {e['zurueckhalten']['differenz'] * 100:+.1f} ± {e['zurueckhalten']['standardfehler'] * 100:.1f} points"
+                      if (e.get("zurueckhalten") or {}).get("differenz") is not None else ""))
     return out

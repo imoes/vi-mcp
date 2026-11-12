@@ -9,6 +9,7 @@ Path: $VI_MCP_CONFIG or ~/.config/vi-mcp/config.json. Content:
     "origins": ["http://localhost", "http://127.0.0.1"],
     "embed": {"url": "https://host/embed/v1/embeddings", "token": "", "model": ""},      optional (stage 3, during sleep)
     "rerank": {"url": "https://host/rerank/v1/rerank", "token": "", "model": ""},        optional (0.57.0, vi_recall)
+    "hold_back": 0.05,                                     share of actions whose hints are held back at random (0.61.0; 0 = off)
     "llm":   {"url": "https://host/qwen/v1/chat/completions", "token": "", "model": ""}  optional (stage 4, during sleep)
   }
 Keys are English since 0.51.0; the German keys of older files (instanzen, offen, …, see normalize) are still read, and every write stores
@@ -145,6 +146,7 @@ class Config:
     origins: list[str] = field(default_factory=lambda: ["http://localhost", "http://127.0.0.1"])
     embed: dict | None = None
     rerank: dict | None = None  # 0.57.0: cross-encoder for vi_recall (optional)
+    hold_back: float = 0.05  # 0.61.0: hints held back at random to measure their total effect (intuition.HOLD_BACK)
     archive_days: dict[str, int] = field(default_factory=dict)
     p2p: dict = field(default_factory=dict)
     reviewer_prompt: str | None = None
@@ -189,6 +191,10 @@ def load(p: Path | None = None) -> Config:
     k.origins = list(raw.get("origins") or k.origins)
     k.embed = raw.get("embed") or None
     k.rerank = raw.get("rerank") or None
+    try:  # 0.61.0: at most a quarter — it is an experiment, not a switch
+        k.hold_back = min(0.25, max(0.0, float(raw.get("hold_back", 0.05))))
+    except (TypeError, ValueError):
+        k.hold_back = 0.05
     k.p2p = raw.get("p2p") or {}
     k.reviewer_prompt = raw.get("reviewer_prompt")
     k.archive_days = {a: int(t) for a, t in (raw.get("archive_days") or {}).items()}

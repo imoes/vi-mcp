@@ -237,6 +237,10 @@ def nightly(now: str | None = None) -> dict:
         entry["exploration"] = {k: v for k, v in metrics.exploration_effect(168).items() if k != "urteil"}  # 0.57.0
     except Exception as ex:  # noqa: BLE001
         entry["exploration"] = {"fehler": f"{type(ex).__name__}: {ex}"}
+    try:  # 0.61.0
+        entry["zurueckhalten"] = {k: v for k, v in metrics.holdback_effect(24 * 30).items() if k != "urteil"}
+    except Exception as ex:  # noqa: BLE001
+        entry["zurueckhalten"] = {"fehler": f"{type(ex).__name__}: {ex}"}
     try:
         entry["hinweis_lift"] = metrics.hint_lift_matched(168)
     except Exception as ex:  # noqa: BLE001 — named, the measurement of the search stands

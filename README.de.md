@@ -6,6 +6,24 @@
 **MCP (Streamable HTTP)** anschließen. Jede Sitzung hat ihren eigenen Gesprächskontext, wie Zeitscheiben eines Prozessors. Alle teilen dasselbe Gedächtnis: Was eine Sitzung lernt,
 erscheint der nächsten vor der passenden Handlung als Hinweis. Das Sprachmodell wird dabei nicht verändert. Gelernt wird im Gedächtnis, und das bleibt lesbar.
 
+## Was das ist: eine Suche nach dem besten Prompt
+
+vi-mcp trainiert kein Sprachmodell. Es lernt aus dem gemessenen Ausgang jeder Handlung aller angeschlossenen Agenten, *welcher Kontext als
+Nächstes vor das Modell gehört*: welche Hinweise, Regeln und Lösungen, in welcher Reihenfolge. Das ist eine Suche nach dem besten Prompt —
+kein einzelner Master-Prompt, sondern die richtigen paar Zeilen für jede Situation (Werkzeug, Host, Fehler, Projekt). Gewählt werden sie von
+einem täglich neu trainierten Modell, geprüft gegen Zufallswahl.
+
+*Gemessen (12.11.2026, Produktion):*
+- **Finden:** Die Suche findet bekanntes Wissen — MRR 0,735 mit Bedeutung plus Volltext, gegen 0,364 nur mit Volltext (133 bekannte Ziele ×
+  2 Anfragen, täglich).
+- **Vorhersagen:** Das Modell erkennt die Aktionen, die scheitern werden — von den gewarnten scheiterten 51 %, von den übrigen 3 % (AUC 0,88).
+- **Auswählen:** Der gewählte Hinweis schlägt einen zufällig gewählten um 12,6 ± 5,3 Punkte Erfolg (per Zufall verglichen, also kausal).
+
+*Wird gerade gemessen (seit 0.61.0):* wie viel das Zeigen von Hinweisen überhaupt am Erfolg einer Aktion ändert. Ein Vergleich von Aktionen
+mit und ohne Hinweise kann das nicht klären — Hinweise erscheinen bei den schwierigen. Deshalb werden bei zufälligen 5 % der Aktionen mit
+Hinweisen die Hinweise zurückgehalten, und `vi_stats` vergleicht diese mit den übrigen. Ein Unterschied von wenigen Punkten braucht einige
+hundert zurückgehaltene Aktionen: Wochen, nicht Tage.
+
 ## Vision
 
 **Ein offenes Netz aus Wissen, in dem sich KI selbst trainiert.** Jeder Server lernt aus seiner eigenen Arbeit: welcher Hinweis geholfen hat, welche Lösung gehalten hat, was ein Mensch korrigiert hat.
