@@ -460,6 +460,8 @@ def _save(report: dict, weights: dict, intercept: float, mode: str, new_champion
 
 #: 0.55.0: a challenger is compared with the champion on at least this many holdout observations the champion has not seen
 CHAMPION_MIN_N = 200
+#: 0.59.0: worse by more than this many standard errors of the paired difference rejects the challenger
+CHAMPION_SE = 2.0
 
 
 def champion() -> dict | None:
@@ -481,7 +483,7 @@ def compare_champion(champ: dict | None, weights: dict, intercept: float, holdou
     """0.55.0: champion / challenger. Both models predict the holdout observations that arose after the champion was trained (it has not
     seen them; the challenger has not either — they are its holdout). Paired difference of the log loss per observation (scikit-learn
     model_evaluation: log loss is the proper scoring rule for probabilities); the challenger is `schlechter` when its mean loss is higher
-    by more than one standard error of that difference. Exhaustive: kein_champion · nicht_bestimmbar · schlechter · nicht_schlechter."""
+    by more than CHAMPION_SE standard errors of that difference. Exhaustive: kein_champion · nicht_bestimmbar · schlechter · nicht_schlechter."""
     if not champ or not champ.get("gewichte"):
         return {"zustand": "kein_champion", "urteil": "no model of an earlier sleep to compare with"}
     since = str(champ.get("trainiert") or "")
@@ -500,12 +502,14 @@ def compare_champion(champ: dict | None, weights: dict, intercept: float, holdou
     d = [loss(n, f, y) - loss(c, f, y) for f, y in unseen]
     mean = sum(d) / len(d)
     se = math.sqrt(sum((x - mean) ** 2 for x in d) / (len(d) - 1) / len(d))
-    worse = mean > 0 and mean > se
+    # 0.59.0: two standard errors like the other gates — with one, equal models were rejected by chance about one training in six
+    # (production 12.11.2026: +0.0035 ± 0.0026 over 226 observations rejected a challenger; on-demand training runs every minute)
+    worse = mean > 0 and mean > CHAMPION_SE * se
     lc = sum(loss(c, f, y) for f, y in unseen) / len(unseen)
     return {"zustand": "schlechter" if worse else "nicht_schlechter", "n": len(unseen), "seit": since[:16],
             "log_loss_champion": round(lc, 4), "log_loss_neu": round(lc + mean, 4), "differenz": round(mean, 4), "standardfehler": round(se, 4),
             "urteil": f"log loss new {lc + mean:.4f} vs champion {lc:.4f} on {len(unseen)} observations since {since[:16]} "
-                      f"(difference {mean:+.4f} ± {se:.4f})" + (" — worse by more than one standard error" if worse else "")}
+                      f"(difference {mean:+.4f} ± {se:.4f})" + (f" — worse by more than {CHAMPION_SE:g} standard errors" if worse else "")}
 
 
 def holdout_metrics(clf, Xte, yte) -> dict:

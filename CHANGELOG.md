@@ -27,6 +27,18 @@ das auch mit den Rückmeldungen".
 is no option), `tests/test_hook.py` (request once; not after feedback; not with fewer than three hints; not in a continued turn; off by
 environment).
 
+### What was fixed
+
+- **The champion gate rejected equal models by chance.** A challenger was rejected when its log loss was worse by more than one standard
+  error — on production (12.11.2026 11:43 UTC) +0.0035 ± 0.0026 over 226 observations; with on-demand training every minute that keeps
+  an older model by noise about one training in six. Now two standard errors, like the other gates.
+
+### Checked and rejected
+
+- **Damping host features** (value 0.5 or 0.3 instead of 1.0), which helped CentralStation's relevance model (AUC 0.722 → 0.740): on the
+  router (production copy) AUC 0.894 → 0.902 and log loss 0.400 → 0.392, but the ranking gap fell from +42.4 ± 2.7 to +33.6 ± 2.8 points —
+  the ranking is what the router is for.
+
 ### What is missing
 
 - Only positive implicit feedback: taking a hint over and then failing is not counted as "wrong" — the failure may have other causes.
