@@ -389,10 +389,20 @@ PROMPT_SHOWN_MAX = 200
 MAX_SKILLS = 8000
 
 
+#: 0.59.2: a message the harness delivers as a prompt ("[Cross-session idle notice] …", "[SYSTEM NOTIFICATION …]") is no question of
+#: the user — searching on it showed four unrelated hints (12.11.2026). Narrow on purpose: "[Bug] login fails" is still a question.
+HARNESS_NOTICE = re.compile(r"^\[[^\]\n]{0,60}\b(?:notice|notification)\b[^\]\n]{0,60}\]", re.I)
+
+
+def from_harness(prompt: str) -> bool:
+    text = (prompt or "").lstrip()
+    return text.startswith("<") or bool(HARNESS_NOTICE.match(text))
+
+
 def prompt_context(session: str, cwd: str | None, prompt: str) -> str | None:
     """0.44.0: hints for the user's question. Ids already shown in this session are not repeated."""
     text = (prompt or "").strip()
-    if not text or text.startswith(("/", "<")):
+    if not text or text.startswith("/") or from_harness(text):
         return None
     state = read("prompt", session) or {"gezeigt": []}
     v = call_tool(session, cwd, "vi_prompt_context", {"prompt": mask(text)[:MAX_PROMPT], "shown": state["gezeigt"][-PROMPT_SHOWN_MAX:]})
@@ -440,6 +450,8 @@ def process(e: dict) -> dict | None:
     if event == "PostToolUseFailure":
         return after_tool(e, ok=False)
     if event == "UserPromptSubmit":
+        if from_harness(e.get("prompt") or ""):  # 0.59.2: no search, no signal — the user did not write it
+            return None
         ctx = prompt_context(e["session_id"], e.get("cwd"), e.get("prompt") or "")
         note_hints(e["session_id"], [ctx or ""])  # 0.59.0
         try:

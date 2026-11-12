@@ -73,3 +73,4 @@ INSERT INTO `Control` (`Dialog_`, `Control`, `Type`, `X`, `Y`, `Width`, `Height`
 INSERT INTO `Control` (`Dialog_`, `Control`, `Type`, `X`, `Y`, `Width`, `Height`, `Attributes`, `Text`) VALUES ('FatalError', 'Text', 'Text', 15, 42, 340, 100, 131075, 'Setup failed and was rolled back: nothing new was installed, and a version that was installed before is restored. The reason is in %ProgramData%\vi-mcp\install.log.')
 INSERT INTO `Control` (`Dialog_`, `Control`, `Type`, `X`, `Y`, `Width`, `Height`, `Attributes`, `Text`) VALUES ('FatalError', 'Finish', 'PushButton', 285, 170, 75, 18, 3, '&Finish')
 INSERT INTO `ControlEvent` (`Dialog_`, `Control_`, `Event`, `Argument`, `Condition`, `Ordering`) VALUES ('FatalError', 'Finish', 'EndDialog', 'Exit', '1', 1)
+INSERT INTO `ActionText` (`Action`, `Description`, `Template`) VALUES ('RunInstall', 'Installing packages - the first run can take 15 minutes, please wait', '')

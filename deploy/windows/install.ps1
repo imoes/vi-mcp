@@ -141,7 +141,11 @@ try {
     # 0.38.2: import the server module too, so code that cannot run on Windows fails HERE and the MSI rolls back to the previous version.
     # 0.36.0-0.38.1 passed this check (only the package was imported), then the server died at start: socketserver has no UnixStreamServer
     # on Windows (test VM 10.11.2026: msiexec exit 0, /gesund unreachable, AttributeError in server.log).
+    # 0.59.2: the first import of scipy/sklearn can take minutes - in the test VM about 8 s per library while Defender checked it (12.11.2026)
+    Log "checking that vi_mcp, scikit-learn and numpy import (the first time can take up to 15 minutes while a virus scanner checks every new library)"
+    $t0 = Get-Date
     & $vpy -I -c "import vi_mcp, vi_mcp.server, vi_mcp.tools, sklearn, numpy, cryptography, yaml; print(vi_mcp.__version__)" | ForEach-Object { Log "vi_mcp $_ importable" }
+    Log ("import check took {0:N0} s" -f ((Get-Date) - $t0).TotalSeconds)
     if ($LASTEXITCODE -ne 0) { throw "vi_mcp (server) is not importable in the venv - see $Log" }
 
     $path = [Environment]::GetEnvironmentVariable("Path", "Machine")

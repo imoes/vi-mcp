@@ -3,6 +3,37 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.59.2 — 2026-11-12 — The Windows setup shows its dialog again
+
+The user: "das msi paket lässt sich nicht mehr installieren".
+
+### What was fixed
+
+- **The MSI setup dialog was gone since 0.58.1.** A double click on `vi-mcp-0.58.1/0.59.0/0.59.1-x64.msi` showed no setup window — the
+  installation ran unseen in the background, which looked like nothing happened. Cause: Windows Installer needs every table stored in
+  primary-key order; msitools keeps the rows in the order they were inserted while the string ids they are sorted by shift from build to
+  build. From 0.58.1 on, exactly `InstallUISequence` came out with one row out of order, and Windows refused to open it ("OpenView,Sql";
+  msiexec log: "UI Sequence table 'InstallUISequence' is missing or empty"). 0.54.1 had a row out of order in `Control` (the dialog still
+  showed), 0.57.0 none. New `deploy/windows/sort-msi-tables.py` (standard library only) sorts the rows of every table in place after the
+  build, and `build.sh` fails if a table is still unsorted.
+  *Proof (Windows 11 test VM, 12.11.2026):* Windows Installer COM opened all 41 tables of 0.57.0 and failed on `InstallUISequence` alone
+  in 0.58.1; ruled out on the way: string data over 8 KiB, file size over 768 sectors (0.57.0 padded to 804 sectors still showed the
+  dialog), version, the added file, OLE chains, directory tree, string pool. The sorted 0.59.2 shows welcome → progress → "Setup is
+  complete", server answers `ok vi-mcp 0.59.2`.
+- **Harness notices are no user questions** (Claude Code hook): a prompt such as `[Cross-session idle notice] …` or
+  `[SYSTEM NOTIFICATION …]` no longer triggers a memory search or a correction/grade signal — an idle notice had drawn four unrelated
+  hints. A user's own bracket (`[Bug] …`) is still a question. *Proof:* `tests/test_prompt_context.py`.
+
+### What has changed
+
+- **The setup says that the first run takes time.** The progress line of the MSI reads "Installing packages - the first run can take 15
+  minutes, please wait", and `install.log` names the import check and its duration. *Measured in the test VM:* the first import of
+  scipy/scikit-learn took 14 min (about 8 s for each of 20 libraries while Windows Defender checked it; every later run 10 s).
+
+### What is missing
+
+- The embedding service (`vi-mcp embed setup`) chooses Vulkan or CPU only; NVIDIA (CUDA) and AMD (ROCm) builds and a reranker are next.
+
 ## 0.59.1 — 2026-11-12 — Health endpoint in English: `/health`
 
 The user: "ändere den endpunkt gesund in health".

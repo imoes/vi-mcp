@@ -79,6 +79,10 @@ fi
 # so patch-msi.sh sets it after the build (SQL UPDATE with msibuild) and checks it
 cp deploy/windows/patch-msi.sh deploy/windows/ui.sql "$work/"
 docker run --rm -v "$work":/w -w /w "$image" sh -c "wixl -a x64 -o vi-mcp.msi vi-mcp.wxs 1>&2 && sh patch-msi.sh vi-mcp.msi"
+# 0.59.2: Windows Installer needs every table stored in primary-key order; libmsi keeps insertion order while the string ids change from
+# build to build, and in 0.58.1-0.59.1 InstallUISequence came out unsorted - the setup then ran without any dialog. Sort, then check.
 
 cp "$work/vi-mcp.msi" "$out"
+python3 -I deploy/windows/sort-msi-tables.py "$out" >&2  # the container's file belongs to root; the copy is ours
+python3 -I deploy/windows/sort-msi-tables.py --check "$out" >&2
 echo "$out"

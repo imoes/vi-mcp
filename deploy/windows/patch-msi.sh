@@ -25,4 +25,7 @@ if [ -f ui.sql ]; then
         msibuild "$msi" -q "$q" || { echo "ui.sql failed: $(printf %s "$q" | cut -c1-120)" >&2; exit 1; }
     done < ui.sql
     [ "$(msiinfo export "$msi" Dialog | tail -n +4 | wc -l)" -eq 6 ] || { echo "ui.sql: expected 6 dialogs" >&2; exit 1; }
+    # 0.59.2: the progress line of RunInstall — the first import of scipy/sklearn took 14 min in the test VM (about 8 s per library while
+    # Defender checked it), and a dialog without a word for that long looks hung
+    msiinfo export "$msi" ActionText | tr -d '\r' | grep -q "^RunInstall	" || { echo "ui.sql: no ActionText for RunInstall" >&2; exit 1; }
 fi

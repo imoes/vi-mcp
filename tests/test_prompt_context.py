@@ -94,6 +94,18 @@ def test_hook_user_prompt_submit_gives_context_once(h):
     assert k2.id in out["hookSpecificOutput"]["additionalContext"]
 
 
+def test_harness_notices_are_no_questions(h):
+    # 0.59.2: an idle notice of another session arrived as a prompt and drew four unrelated hints (12.11.2026)
+    k = _k("ssh to the build host hangs at the password prompt without -i; use the key file", ["tool:ssh"])
+    ev = {"hook_event_name": "UserPromptSubmit", "session_id": "cc-7", "cwd": "/tmp"}
+    for notice in ['[Cross-session idle notice] "peer" is idle now — ssh build host hangs at the password prompt',
+                   "[SYSTEM NOTIFICATION - NOT USER INPUT] ssh build host hangs",
+                   "<task-notification>ssh build host hangs</task-notification>"]:
+        assert h.process({**ev, "prompt": notice}) is None
+    out = h.process({**ev, "prompt": "[Bug] ssh build host hangs at the password prompt"})  # a user's own bracket is still a question
+    assert k.id in out["hookSpecificOutput"]["additionalContext"]
+
+
 def test_prompt_is_masked_and_not_stored(h):
     _k("ssh to the build host hangs at the password prompt without -i", ["tool:ssh"])
     h.process({"hook_event_name": "UserPromptSubmit", "session_id": "cc-8", "cwd": "/tmp", "prompt": "ssh build host hangs password=geheim123"})
