@@ -131,6 +131,7 @@ def test_propensities_of_the_offer():
     p = intuition.propensities(["a", "b", "c", "d"], ["e", "f"], 0.1)
     assert p == {"a": 1.0, "b": 1.0, "c": 1.0, "d": 0.9, "e": 0.05, "f": 0.05}
     assert intuition.propensities(["a", "b"], [], 0.1) == {"a": 1.0, "b": 1.0}
+    assert intuition.propensities(["a"], ["e"], 0.1, full=False) == {"a": 1.0, "e": 0.1}  # a free slot: nothing is displaced
 
 
 def test_exploration_effect_and_ips_lift_from_logged_offers(gd):

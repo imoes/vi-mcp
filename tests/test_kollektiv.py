@@ -222,7 +222,7 @@ def test_hint_lift_measurement_point(gd):
         v = intuition.before("checkmk_get_host", {"host": "web8", "i": i}, "a")
         intuition.after("checkmk_get_host", {"host": "web8", "i": i}, i < 4, 1, None if i < 4 else "Timeout", "ok" if i < 4 else None, v["vorher_id"], "a")
     l = metrics.hint_lift(24, viewer=None)
-    assert l["mit"] == {"n": 12, "ok": 10} and l["ohne"] == {"n": 12, "ok": 4} and l["urteil"] == "hints help"
+    assert l["mit"] == {"n": 12, "ok": 10} and l["ohne"] == {"n": 12, "ok": 4} and l["urteil"].startswith("higher with hints — raw")
     assert "+50 points" in metrics.line(l)
     assert "too little data" in metrics.hint_lift(24, tool="gibtsnicht", viewer=None)["urteil"]
     assert "Hint lift" in tools.call_tool("vi_status", {}, "a", True)

@@ -56,6 +56,10 @@ _daily: dict[tuple[str, str], list[float]] = {}
 # 0.26.0: company docs and manuals count as reference material too — documentation now carries host:/thema: triggers
 LOOKUP = ("art_wissen:doku-extern", "art_wissen:firmendoku", "art_wissen:handbuch")
 LOOKUP_MAX = 1
+#: 0.57.1: imported company and vendor documentation only via exploration, not regularly — measured on production (bandit, success over the
+#: tool's base rate, 12.11.2026): Confluence imports −12.3 ± 3.5 points over 52 showings, Docker docs −4.8 ± 0.8 over 314, while the
+#: skill manuals (~/skills) stood at +7.0 ± 5.6 over 40. They stay findable with vi_recall; the ε slot keeps measuring them (propensities).
+LOOKUP_EXPLORE_ONLY = ("art_wissen:doku-extern", "art_wissen:firmendoku")
 HOSTKEYS = ("host", "hostname", "host_name", "node", "device")
 OPEN_MAX_S = 3600
 
@@ -230,14 +234,15 @@ def error_hints(tool: str, args: dict, error: str, instance: str | None) -> list
             for _w, o in best]
 
 
-def propensities(top: list[str], rest: list[str], epsilon: float) -> dict[str, float]:
+def propensities(top: list[str], rest: list[str], epsilon: float, full: bool = True) -> dict[str, float]:
     """0.57.0: the probability with which each candidate was shown, given the ranking (Li et al. 2011, Dudík et al. 2011: without it,
     logged exploration says nothing causal). The first HINT_BUDGET − 1 places are certain; the last regular place is replaced with
     probability ε by a uniformly drawn candidate from further back. Candidates outside top and rest were never possible (0, not logged).
     For the bandit router the ranking itself is a random draw — the values are then conditional on that draw. Pure."""
     out = {h: 1.0 for h in top}
-    if rest and top:
-        out[top[-1]] = round(1.0 - epsilon, 6)
+    if rest:
+        if top and full:  # only a full budget gives up its last place (0.57.1)
+            out[top[-1]] = round(1.0 - epsilon, 6)
         for h in rest:
             out[h] = round(epsilon / len(rest), 6)
     return out
@@ -317,14 +322,17 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
         cand = [o for o in cand if o not in capped]
     # never show surplus manual paragraphs regularly, only via exploration (so the bandit learns whether they help after all)
     surplus = {o.id for o in [o for o in cand if any(t in o.hashtags for t in LOOKUP)][LOOKUP_MAX:]}
+    surplus |= {o.id for o in cand if any(t in o.hashtags for t in LOOKUP_EXPLORE_ONLY)}
     regular = [o for o in cand if o.id not in surplus]
     shown_obj = regular[:HINT_BUDGET]
     exploration = False
     rest = regular[HINT_BUDGET:] + [o for o in cand if o.id in surplus]
     if rest and _random.random() < learning.EPSILON:  # ε-exploration: one slot for a random candidate from further back
-        shown_obj = shown_obj[:-1] + [_random.choice(rest)]
+        # 0.57.1: with a free slot the random candidate is added; only a full budget gives up its last place (before, the only matching
+        # hint could be replaced by a random documentation paragraph)
+        shown_obj = (shown_obj[:-1] if len(shown_obj) >= HINT_BUDGET else shown_obj) + [_random.choice(rest)]
         exploration = True
-    offer = propensities([o.id for o in regular[:HINT_BUDGET]], [o.id for o in rest], learning.EPSILON)
+    offer = propensities([o.id for o in regular[:HINT_BUDGET]], [o.id for o in rest], learning.EPSILON, full=len(regular) >= HINT_BUDGET)
     if s is not None:
         shown_at = time.monotonic()
         for o in shown_obj:

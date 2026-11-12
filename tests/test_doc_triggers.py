@@ -62,3 +62,19 @@ def test_too_common_triggers_and_link_hosts_are_skipped(gd, monkeypatch):
     assert "mariadb" in r["zu_haeufig"]  # in every Stibo title: says nothing specific
     assert not any(t.startswith("host:") for t in g.load(docs[0].id).hashtags)  # host only in a link
     assert "host:db0137.example.org" in g.load(special.id).hashtags
+
+
+def test_imported_docs_only_via_exploration_manuals_regularly(gd, monkeypatch):
+    # 0.57.1: company and vendor documentation is no regular hint before an action (measured negative), a skill manual still is
+    import random
+    monkeypatch.setattr(random, "random", lambda: 0.99)  # no exploration in this action
+    _known()
+    company = _doc("Confluence IT: db0137 Wartung", "db0137 wird freitags gewartet")
+    company.hashtags = company.hashtags + ["thema:mysql"]
+    g.save(company)
+    manual = g.new_object("erkenntnis", "Handbuch mysql: Verbindung zu db0137", ["art_wissen:handbuch", "thema:mysql"], {"quelle": "skills"}, instance="m")
+    s = session.begin("a", "t")
+    with session.on_behalf(s):
+        v = intuition.before("Bash", {"command": "mysql -h db0137.example.org"}, "a", False)
+    assert manual.id in v["zugriff"]["gezeigt"] and company.id not in v["zugriff"]["gezeigt"]
+    assert company.id in v["zugriff"]["angebot"] and 0 < v["zugriff"]["angebot"][company.id] < 1  # offered with a propensity: still measured

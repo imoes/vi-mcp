@@ -102,9 +102,10 @@ def _rate(d: dict) -> dict:
     if d["mit"]["n"] < AT_LEAST or d["ohne"]["n"] < AT_LEAST:
         verdict = f"too little data (at least {AT_LEAST} per side)"
     elif qm > qo + 0.05:
-        verdict = "hints help"
+        verdict = "higher with hints — raw, not a verdict (see the matched and randomized lines)"
     elif qm < qo - 0.05:
-        verdict = "hints hurt — assumption refuted, check weighting"
+        # 0.57.1: the raw comparison mixes populations (Simpson) — it is no verdict on the hints; the matched and the randomized lines are
+        verdict = "lower with hints — raw, mixes instances and tools, not a verdict (see the matched and randomized lines)"
     else:
         verdict = "no measurable difference"
     return {"quote_mit": qm, "quote_ohne": qo, "lift": (qm - qo) if qm is not None and qo is not None else None, "urteil": verdict}

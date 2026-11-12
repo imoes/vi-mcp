@@ -60,7 +60,14 @@ def _hits(tool_parts: str, text: str) -> tuple[int | None, str | None]:
     text = text or ""
     m = re.search(r"(\d+) (?:objects? for|Objekte? zu)", text)
     n = int(m.group(1)) if m else (0 if re.search(r"\b(?:no|0) (?:objects|hits)\b|\bnothing in memory\b|\b(?:keine|0) (?:Objekte|Treffer)", text, re.I) else None)
-    kind = "hybrid" if ("semantic hybrid" in text or "semantisch hybrid" in text) else ("oder" if ("OR search" in text or "ODER-Suche" in text) else "volltext")
+    # 0.57.1: the default hybrid of 0.57.0 says "default hybrid" — it was counted as full text
+    if re.search(r"(?:semantic|default|semantisch) hybrid \(embedding", text):
+        kind = "hybrid"
+    elif "OR search" in text or "ODER-Suche" in text:
+        kind = "oder"
+    else:
+        q = re.search(r"(?:objects? for|Objekte? zu|nothing in memory for) “([^”·]*)", text)
+        kind = "tags" if q and not g.parse_filter(q.group(1).strip(), g.known_kinds())[2] else "volltext"  # hashtags only: no full text ran
     return n, kind
 
 

@@ -81,3 +81,11 @@ def test_search_log_and_clicks_with_rank(gd):
     assert st["suchen"] == 1 and st["mit_klick"] == 1 and sum(st["je_rang"].values()) == 1
     tools.call_tool("vi_object", {"id": a.id}, "other-instance", False)  # another instance's opening is not this search's click
     assert sum(evaluation.click_stats(1)["je_rang"].values()) == 1
+
+
+def test_usage_log_names_the_search_kind():
+    # 0.57.1: the default hybrid of 0.57.0 was counted as full text; a hashtag-only filter is no full-text search
+    from vi_mcp import usage_stats
+    assert usage_stats._hits("vi_recall", "3 objects for “borg lock · default hybrid (embedding 5 ms, 3 of 3 candidates”")[1] == "hybrid"
+    assert usage_stats._hits("vi_recall", "2 objects for “borg lock · semantic hybrid (embedding 5 ms”")[1] == "hybrid"
+    assert usage_stats._hits("vi_recall", "1 object for “borg lock”")[1] == "volltext"

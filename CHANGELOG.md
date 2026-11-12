@@ -3,6 +3,43 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.57.1 — 2026-11-12 — Imported documentation no longer pushes into the hints; honest statistics
+
+From the first hourly analysis of production after 0.57.0 (the user's loop "test and analyse the statistics to improve the system").
+
+### What has changed
+
+- **Imported company and vendor documentation (`art_wissen:firmendoku`, `art_wissen:doku-extern`) is no regular hint before an
+  action any more**, only through the random exploration slot — where its effect keeps being measured with propensities. It stays
+  findable with `vi_recall`. Skill manuals (`art_wissen:handbuch`) keep one regular slot as before.
+  *Evidence (production, bandit counters: success after showing over the tool's base rate, 12.11.2026 ~10:05 UTC):*
+
+  | origin of the hint | objects | shown | effect |
+  |---|---|---|---|
+  | Confluence imports | 22 | 52 | −12.3 ± 3.5 points |
+  | Docker documentation | 26 | 314 | −4.8 ± 0.8 points |
+  | skill manuals (~/skills) | 17 | 40 | +7.0 ± 5.6 points |
+  | the VI's own loop rules | 5 | 4,557 | +13.9 ± 0.7 points |
+
+  Observational, not randomized — the exploration slot will tell whether the decision holds.
+
+### What was fixed
+
+- `vi_stats` section E counted the default hybrid search of 0.57.0 as full text (it recognised only "semantic hybrid"); a search with
+  hashtags only is now counted as `tags`, not as full text.
+- `vi_stats` section C called the raw comparison "hints hurt — assumption refuted" (24 h: −41 points). That line mixes instances and
+  tools (Simpson): matched within instance and tool it is −1 point, and the randomized comparison of 0.57.0 shows the ranked hint
+  beating a random one by 12.3 ± 5.4 points (52 vs 495 actions). The raw line now says "raw, not a verdict" and points to the other two.
+
+- With fewer than four regular hints the exploration slot replaced the last one — often the only matching hint — by a random
+  candidate; now it is added when a slot is free (found by a test that failed only sometimes, under PostgreSQL).
+
+### What is missing
+
+- Hosts in arguments such as `mysql -h host` are not recognised as a trigger (only `ssh` and friends) — found while testing.
+- CentralStation's own findings shown before its `analyse` stand at −6.9 ± 1.0 points (326 objects, 2,425 showings); not changed yet —
+  observational, and they may be shown exactly when an analysis is hard. The exploration slot measures it.
+
 ## 0.57.0 — 2026-11-12 — The search finds twice as well; the VI measures whether its hints help
 
 ### What has changed

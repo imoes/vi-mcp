@@ -350,3 +350,17 @@ def test_recall_without_reinforcement(gd):
     assert (after.accesses, after.last_at) == (before.accesses, before.last_at)
     tools.call_tool("vi_recall", {"filter": "thema:nginx"}, "a", False)  # default: reinforced as before
     assert g.load(o.id).accesses == before.accesses + 1
+
+
+def test_exploration_adds_a_slot_instead_of_displacing_the_only_hint(gd, monkeypatch):
+    # 0.57.1: forced exploration with one regular hint — the matching hint stays, the random candidate comes on top
+    import random
+    from vi_mcp import tools
+    for i in range(3):
+        tools.call_tool("vi_learn", {"text": f"Docker docs, section {i}: general text", "hashtags": ["skill:docker", "art_wissen:doku-extern"],
+                                    "source": "vendor docs"}, "a", False)
+    tools.call_tool("vi_learn", {"text": "ssh to web1 only with key and BatchMode", "hashtags": ["host:web1.example", "tool:ssh"], "source": "experience"}, "a", False)
+    monkeypatch.setattr(random, "random", lambda: 0.0)
+    z = intuition.before("Bash", {"command": "ssh web1.example 'docker logs nginx'"}, "a", False)["zugriff"]
+    assert z["exploration"] is True and len(z["gezeigt"]) == 2
+    assert any("ssh to web1" in g.load(i).text for i in z["gezeigt"])
