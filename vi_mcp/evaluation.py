@@ -86,10 +86,28 @@ def run(questions: list[dict], variant: Callable[[str, int], list[str]], styles:
             ms = int((time.monotonic() - t0) * 1000)
             m = query_metrics(page_ranking(ids), q["group"])
             rows.append({"target": q.get("target"), "stratum": q.get("stratum", "-"), "style": style, "query": query, "ms": ms,
-                         **m, **({"fehler": err} if err else {})})
+                         "index": _index_of_target(q.get("target")), **m, **({"fehler": err} if err else {})})
     return {"gesamt": summarize(rows), "je_stil": {s: summarize([r for r in rows if r["style"] == s]) for s in styles},
             "je_schicht": {s: summarize([r for r in rows if r["stratum"] == s]) for s in sorted({r["stratum"] for r in rows})},
-            "zeilen": rows}
+            "je_index": _per_index(rows), "zeilen": rows}
+
+
+#: 0.61.0: a per-index figure needs this many queries, below it the index is named as too small
+INDEX_MIN_QUERIES = 20
+
+
+def _index_of_target(oid: str | None) -> str:
+    o = g.load(oid) if oid else None
+    return o.idx if o is not None else "global"
+
+
+def _per_index(rows: list[dict]) -> dict:
+    out = {}
+    for ix in sorted({r.get("index", "global") for r in rows}):
+        part = [r for r in rows if r.get("index", "global") == ix]
+        out[ix] = summarize(part) if len(part) >= INDEX_MIN_QUERIES else {"zustand": "zu_wenig", "n": len(part),
+                                                                         "urteil": f"{len(part)} queries — at least {INDEX_MIN_QUERIES} for a figure"}
+    return out
 
 
 def summarize(rows: list[dict]) -> dict:

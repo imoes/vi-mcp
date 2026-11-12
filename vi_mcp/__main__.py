@@ -16,6 +16,9 @@
                                           [--port N] [--model-file F] [--no-switch]
                                           own embedding service and reranker (llama.cpp + bge-m3 + bge-reranker-v2-m3); the GPU is
                                           detected (CUDA, Vulkan, CPU). auto = what the packages run: never replaces an external service
+  python3 -m vi_mcp index list|move ID INDEX|rename OLD NEW|backfill [--apply]|train INDEX   (--reason for move/rename)
+                                          indexes (0.61.0): projects and special VIs — every object belongs to one; a project's
+                                          index comes first in search and hints; an index with enough data trains its own model
   python3 -m vi_mcp family INSTANCE [FAMILY|-]
                                           show or declare the model family of an instance (claude, gpt, qwen …); confirmations and
                                           refutations of one family count as one independent line. "-" removes it. Restarts the service.
@@ -180,6 +183,9 @@ def _cli(argv: list[str]) -> int:
     if command == "embed":
         from . import embed_service
         return embed_service.main(argv[1:])
+    if command == "index":  # 0.61.0
+        from . import indexes
+        return indexes.main(argv[1:])
     if command == "family" and len(argv) in (2, 3):
         k = config.load()
         if argv[1] not in k.instances:

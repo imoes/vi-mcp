@@ -314,7 +314,9 @@ def report(days: float = 7) -> str:
     z.append("    " + metrics.matched_line(metrics.hint_lift_matched(24 * days, viewer=None)))  # 0.49.0: the raw lift mixes instances
     ex = metrics.exploration_effect(24 * days)  # 0.57.0: the randomized comparison — causal, unlike the two lines above
     z.append(f"    randomized (ε-exploration, last slot random vs ranked): {ex['urteil']}")
-    from . import intuition
+    from . import indexes, intuition
+    z.append("    indexes (0.61.0): " + " · ".join(f"{e['index']} {e['erfahrungen']} exp./{e['wissen']} knowledge, model {e['modell']}"
+                                                  for e in indexes.summary()[:8]))
     hb = metrics.holdback_effect(24 * max(days, 30))  # 0.61.0: the total effect needs weeks — always over at least 30 days
     z.append(f"    randomized (hints held back on a random {intuition.HOLD_BACK * 100:g} % of actions, 30 d): {hb['urteil']}")
     from . import learning, weight_writer

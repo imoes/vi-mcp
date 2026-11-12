@@ -6,7 +6,7 @@ Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server co
 
 ## MCP tools
 
-55 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
+56 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
 
 ### `vi_before`
 
@@ -323,6 +323,10 @@ VI: store knowledge as an object. When: a non-obvious problem was solved, a last
 | `image` | string |  | optional: an image as base64 — stored as a memory of its own kind (art:bild); e.g. a screenshot (png, jpeg, gif or webp, at most 5 MiB; a data: URL is fine). text = what it shows in one sentence, content = the complete description. For a file use the command line instead of pasting base64: vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F] |
 | `regions` | array of object |  | optional, with image: what is where, in the output format of SAM 3 (Segment Anything with Concepts) — one entry per instance found |
 
+### `vi_indexes`
+
+VI: the indexes of the memory — projects and special VIs: objects, experiences, knowledge per index and the state of an index's own router model (used for its project only if it beats the shared one). vi_recall(index=…) searches one.
+
 ### `vi_context`
 
 VI, for hooks: note that the next vi_learn/vi_recall of this instance comes from the project of this session (its working directory). Called by the Claude Code hook right before those tools; an agent does not need it.
@@ -540,6 +544,9 @@ python3 -m vi_mcp embed setup|auto|compare|status|remove [--backend auto|cuda|vu
                                         [--port N] [--model-file F] [--no-switch]
                                         own embedding service and reranker (llama.cpp + bge-m3 + bge-reranker-v2-m3); the GPU is
                                         detected (CUDA, Vulkan, CPU). auto = what the packages run: never replaces an external service
+python3 -m vi_mcp index list|move ID INDEX|rename OLD NEW|backfill [--apply]|train INDEX   (--reason for move/rename)
+                                        indexes (0.61.0): projects and special VIs — every object belongs to one; a project's
+                                        index comes first in search and hints; an index with enough data trains its own model
 python3 -m vi_mcp family INSTANCE [FAMILY|-]
                                         show or declare the model family of an instance (claude, gpt, qwen …); confirmations and
                                         refutations of one family count as one independent line. "-" removes it. Restarts the service.

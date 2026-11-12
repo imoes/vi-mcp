@@ -210,6 +210,10 @@ TOOLS = [
                                                                                    "score": {"type": "number", "description": "0–1"},
                                                                                    "mask": {"type": "object", "description": "optional: COCO RLE {size: [height, width], counts}"}},
                                                   "required": ["concept", "box", "score"]}}}, ["text", "hashtags", "source"])},
+    {"name": "vi_indexes",
+     "description": "VI: the indexes of the memory — projects and special VIs: objects, experiences, knowledge per index and the state of an "
+                    "index's own router model (used for its project only if it beats the shared one). vi_recall(index=…) searches one.",
+     "inputSchema": _schema({})},
     {"name": "vi_context",
      "description": "VI, for hooks: note that the next vi_learn/vi_recall of this instance comes from the project of this session (its working "
                     "directory). Called by the Claude Code hook right before those tools; an agent does not need it.",
@@ -988,6 +992,9 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         return (f"learned {o.id} with {', '.join(o.hashtags)} — {len(o.edges())} edges to objects with shared hashtags"
                 + (f" · {images.summary(o)} (sha256 {o.data['bild']['sha'][:12]}…)" if o.data.get("bild") else "")
                 + (" · visibility internal (instances with a token only; never an open network, only a company network)" if o.visibility == "intern" else ""))
+    if name == "vi_indexes":  # 0.61.0
+        from . import indexes
+        return "Indexes (objects · experiences · knowledge · own model):\n" + "\n".join(indexes.lines())
     if name == "vi_context":  # 0.61.0
         s = session.current()
         if s is not None and s.project:

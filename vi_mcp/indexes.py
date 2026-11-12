@@ -78,3 +78,143 @@ def from_project(project: str | None, cfg: dict | None = None) -> str:
 def index_for(explicit: str | None, project: str | None, cfg: dict | None = None) -> str:
     """An explicit index wins; otherwise the project's; otherwise global."""
     return normalize(explicit) or from_project(project, cfg)
+
+
+# ── administration (vi-mcp index …, vi_indexes) ────────────────────────────
+
+def summary() -> list[dict]:
+    """Every index: objects, experiences, knowledge, its own model's state. global first, then by size."""
+    from . import learning
+    from . import memory as g
+    with g.lock:
+        rows = g.db().execute("SELECT idx, art, COUNT(*) FROM objekt WHERE modus NOT IN ('widerlegt', 'aufgegangen') GROUP BY idx, art").fetchall()
+    per: dict[str, dict] = {}
+    for idx, art, n in rows:
+        e = per.setdefault(idx, {"index": idx, "objekte": 0, "erfahrungen": 0, "wissen": 0})
+        e["objekte"] += n
+        if art == "erfahrung":
+            e["erfahrungen"] += n
+        elif art in ("erkenntnis", "regel", "skill", "bild", "seite"):
+            e["wissen"] += n
+    for idx, e in per.items():
+        m = g.load(learning.model_id(idx)) if idx != GLOBAL else learning.model()
+        e["modell"] = "—" if m is None else f"{m.mode}" + (f", AUC {m.data.get('auc_holdout')}" if m.data.get("auc_holdout") is not None else "")
+        if m is not None and idx != GLOBAL:
+            e["modell_urteil"] = str(m.data.get("urteil") or "")[:200]
+    return sorted(per.values(), key=lambda e: (e["index"] != GLOBAL, -e["objekte"]))
+
+
+def lines() -> list[str]:
+    out = []
+    for e in summary():
+        out.append(f"  {e['index']:24} {e['objekte']:7} objects · {e['erfahrungen']:7} experiences · {e['wissen']:6} knowledge · model {e['modell']}")
+        if e.get("modell_urteil"):
+            out.append(f"    {e['modell_urteil']}")
+    return out or ["  — no objects"]
+
+
+def move(oid: str, index: str, who: str, reason: str) -> str:
+    from . import memory as g
+    new = normalize(index) or GLOBAL
+    o = g.load(oid)
+    if o is None:
+        raise ValueError(f"{oid}: unknown")
+    if o.idx == new:
+        return f"{oid} is already in {new}"
+    o.change(who, f"index {o.idx} → {new}", reason)
+    old, o.idx = o.idx, new
+    g.save(o)
+    return f"{oid}: index {old} → {new}"
+
+
+def rename(old: str, new: str, who: str, reason: str) -> str:
+    """Rename or (if `new` exists) merge an index. The own model of `old` is set to test — it was trained on another set — and is
+    retrained in the next sleep under the new name. Counted, never silent."""
+    from . import learning
+    from . import memory as g
+    a, b = normalize(old), normalize(new)
+    if not a or not b or a == GLOBAL or a == b:
+        raise ValueError("give two different indexes; global cannot be renamed")
+    if not (reason or "").strip():
+        raise ValueError("a reason is required")
+    with g.lock:
+        n = g.db().execute("UPDATE objekt SET idx = ? WHERE idx = ? AND id <> ?", (b, a, learning.model_id(a))).rowcount
+        g.db().commit()
+    m = g.load(learning.model_id(a))
+    if m is not None and m.mode != "test":
+        m.mode = "test"
+        m.change(who, f"index {a} → {b}: model set to test, retrained under {b} in the next sleep", reason)
+        g.save(m)
+    return f"{n} object(s) moved from index {a} to {b}" + (f"; model {m.id} set to test" if m is not None else "")
+
+
+def backfill(apply: bool = False) -> dict:
+    """Give existing experiences and knowledge the index of the project their conversation came from (the hook recorded it on the
+    conversation object since 0.24.0). Without apply only counts, per index. Objects not in global are left alone."""
+    from . import memory as g
+    cfg = _config()
+    with g.lock:
+        projects = {s: p for s, p in g.db().execute(
+            "SELECT json_extract(daten, '$.serial'), json_extract(daten, '$.project') FROM objekt WHERE art = 'gespraech' "
+            "AND json_extract(daten, '$.project') IS NOT NULL").fetchall() if s}
+        rows = g.db().execute("SELECT id, gespraech, art FROM objekt WHERE idx = 'global' AND gespraech IS NOT NULL "
+                              "AND art IN ('erfahrung', 'erkenntnis', 'bild')").fetchall()
+    per: dict[str, dict[str, int]] = {}
+    moves: list[tuple[str, str]] = []
+    for oid, serial, art in rows:
+        p = projects.get(serial)
+        idx = from_project(p, cfg) if p else GLOBAL
+        if idx == GLOBAL:
+            continue
+        per.setdefault(idx, {}).setdefault(art, 0)
+        per[idx][art] += 1
+        moves.append((idx, oid))
+    if apply and moves:
+        with g.lock:
+            for i in range(0, len(moves), 500):
+                g.db().executemany("UPDATE objekt SET idx = ? WHERE id = ?", moves[i:i + 500])
+            g.db().commit()
+    return {"angewendet": bool(apply), "objekte": len(moves), "je_index": dict(sorted(per.items(), key=lambda kv: -sum(kv[1].values())))}
+
+
+def main(argv: list[str]) -> int:
+    import argparse
+    import json
+    a = argparse.ArgumentParser(prog="vi-mcp index", description="indexes of the memory: projects and special VIs")
+    u = a.add_subparsers(dest="cmd", required=True)
+    u.add_parser("list", help="every index with its objects, experiences, knowledge and own model")
+    mv = u.add_parser("move", help="move one object to another index")
+    mv.add_argument("id")
+    mv.add_argument("index")
+    mv.add_argument("--reason", required=True)
+    rn = u.add_parser("rename", help="rename an index, or merge it into an existing one")
+    rn.add_argument("old")
+    rn.add_argument("new")
+    rn.add_argument("--reason", required=True)
+    bf = u.add_parser("backfill", help="existing experiences and knowledge into their conversation's project index (counts without --apply)")
+    bf.add_argument("--apply", action="store_true")
+    tr = u.add_parser("train", help="train the own model of one index now (otherwise sleep step 8d does it)")
+    tr.add_argument("index")
+    o = a.parse_args(argv)
+    from . import config
+    from . import memory as g
+    g.open_db(config.load().db)
+    try:
+        if o.cmd == "list":
+            print("\n".join(lines()))
+        elif o.cmd == "move":
+            print(move(o.id, o.index, "admin", o.reason))
+        elif o.cmd == "rename":
+            print(rename(o.old, o.new, "admin", o.reason))
+        elif o.cmd == "backfill":
+            print(json.dumps(backfill(o.apply), indent=2, ensure_ascii=False))
+        else:
+            from . import learning
+            r = learning.train_index(normalize(o.index) or GLOBAL, "admin")
+            print(json.dumps({k: r.get(k) for k in ("index", "zustand", "n", "auc_holdout", "urteil", "gegen_gemeinsam")}, indent=2, ensure_ascii=False))
+    except ValueError as e:
+        print(f"vi-mcp index {o.cmd}: {e}")
+        return 1
+    finally:
+        g.close_db()
+    return 0

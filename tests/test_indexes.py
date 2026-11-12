@@ -169,3 +169,24 @@ def test_an_index_like_all_others_keeps_the_shared_model_and_the_project_ranks_w
     with session.on_behalf(s):
         z = intuition.before("rsync", {"src": "a"}, "a", False)["zugriff"]
     assert z["router"] == "modell@cue-print"
+
+
+def test_backfill_puts_old_project_data_into_its_index_and_rename_merges(gd, monkeypatch):
+    from vi_mcp import session
+    monkeypatch.setattr(indexes, "_config", lambda: {"ignore": ["scratch"]})
+    s = session.begin("a", "claude-code-hook 1", "cue-print")  # before 0.61.0 the session recorded its project, objects stayed global
+    t = session.begin("a", "claude-code-hook 1", "scratch")
+    e1 = g.new_object("erfahrung", "rsync 1", ["tool:rsync", "ok:ja"], {}, instance="a", conversation=s.serial, index="global")
+    k1 = g.new_object("erkenntnis", "learned in cue-print", ["thema:a"], {"quelle": "t"}, instance="a", conversation=s.serial, index="global")
+    e2 = g.new_object("erfahrung", "rsync 2", ["tool:rsync", "ok:ja"], {}, instance="a", conversation=t.serial, index="global")
+    dry = indexes.backfill()
+    assert dry == {"angewendet": False, "objekte": 2, "je_index": {"cue-print": {"erfahrung": 1, "erkenntnis": 1}}}
+    assert g.load(e1.id).idx == "global"  # counting changes nothing
+    indexes.backfill(apply=True)
+    assert (g.load(e1.id).idx, g.load(k1.id).idx, g.load(e2.id).idx) == ("cue-print", "cue-print", "global")
+    assert indexes.rename("cue-print", "cue", "admin", "short name").startswith("2 object(s) moved from index cue-print to cue") and g.load(k1.id).idx == "cue"
+    listing = tools.call_tool("vi_indexes", {}, "a", False)
+    assert "cue " in listing and "global" in listing
+    assert "index cue → ansible" in indexes.move(k1.id, "ansible", "admin", "belongs to the special VI")
+    with pytest.raises(ValueError, match="reason"):
+        indexes.rename("cue", "x", "admin", "")
