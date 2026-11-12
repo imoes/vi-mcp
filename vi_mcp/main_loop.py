@@ -55,6 +55,8 @@ def step() -> int:
     expired_questions = questions.let_expire()
     from . import usage_stats
     usage_stats.cleanup()  # usage entries older than RETENTION_DAYS
+    from . import evaluation
+    evaluation.cleanup_log()  # 0.57.0: the search log, same retention
     from . import sleep_cycle
     sleep_reason = None if sleep_cycle.running() else sleep_cycle.due()
     if sleep_reason:

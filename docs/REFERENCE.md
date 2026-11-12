@@ -1,6 +1,6 @@
 # vi-mcp reference
 
-Generated from the code of vi-mcp 0.56.0 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
+Generated from the code of vi-mcp 0.57.0 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
 
 Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server configuration](#server-configuration-configjson) · [Network service configuration](#network-service-configuration-etcvi-p2pnetworkjson) · [Configuration catalogue](#configuration-catalogue-debconf-vi-mcp-configure-vi_mcp_key) · [Environment variables](#environment-variables) · [HTTP endpoints](#http-endpoints) · [Modules](#modules-vi_mcp)
 
@@ -789,6 +789,7 @@ options:
 | `ttl` | `{}` (120 s each) | Validity of remembered tool answers per tool in seconds (at most 3600). |
 | `origins` | localhost | Allowed `Origin` headers for browser clients; requests without Origin are allowed. |
 | `embed` | — | Embedding service `{url, token, model}` [`modell`]: OpenAI-compatible `/v1/embeddings` for vectors (semantic search). `vi-mcp embed setup` sets it. |
+| `rerank` | — | Cross-encoder `{url, token, model}` (0.57.0): OpenAI/Jina-style `/v1/rerank`; `vi_recall` orders its best 30 hybrid hits by it. Off without it — measured: MRR 0.75 → 0.82, but ~2.3 s per search instead of ~0.65 s. |
 | `llm` | — | Language model `{url, token, model}` [`modell`]: OpenAI-compatible chat endpoint for sleep, scorer and reviewer. |
 | `p2p` | `{}` | The memory side of the networks: `networks` [`netze`] `{name: {kind, instance, auto_release, local, start}}` (`start`: the server the network starts from, written by `net wiki on --start`, 0.54.1), `reflexes_from` [`reflexe_von`], `auto_release` [`auto_freigabe`], `public_domains` [`oeffentliche_domains`], `internal_names` [`interne_namen`], `local` [`lokal`] (URL and token of the standard network's local listener). Kinds: `free`, `open`, `company` [`frei`, `offen`, `firma`]. |
 | `reviewer_prompt` | — | [`pruefer_prompt`] Path of the reviewer's system prompt for foreign content; without it imports wait for a person. |

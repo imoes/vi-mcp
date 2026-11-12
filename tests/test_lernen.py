@@ -47,7 +47,7 @@ def test_exploration_is_tagged(gd, monkeypatch):
     monkeypatch.setattr(learning, "EPSILON", 1.0)
     v = intuition.before("Bash", {"host": "web3"}, "a", False)
     assert v["zugriff"]["exploration"] is True and len(v["zugriff"]["gezeigt"]) == intuition.HINT_BUDGET
-    assert any("(exploration)" in h for h in v["hinweise"]) and len(v["zugriff"]["kandidaten"]) == 8
+    assert any("(exploration: a random pick" in h for h in v["hinweise"]) and len(v["zugriff"]["kandidaten"]) == 8
     assert v["zugriff"]["gezeigt"][-1] not in v["zugriff"]["kandidaten"][:intuition.HINT_BUDGET]
     monkeypatch.setattr(learning, "EPSILON", 0.0)
     v = intuition.before("Bash", {"host": "web3"}, "a", False)
@@ -353,3 +353,11 @@ def test_champion_challenger_on_unseen_observations(gd):
     assert learning.compare_champion(champ, {"tool:Bash": 3.0}, 0.0, holdout)["zustand"] == "nicht_schlechter"
     few = learning.compare_champion(champ, {"tool:Bash": 3.0}, 0.0, holdout[:20])
     assert few["zustand"] == "nicht_bestimmbar"
+
+
+def test_training_notice_is_early_in_the_instructions(gd):
+    # 0.57.0: the AI learns how the hints are chosen and what the marker means, before clients cut long instructions
+    from vi_mcp import learning, server
+    t = learning.training_notice()
+    assert t.startswith("[Training]") and "no model yet" in t and "vi_solved" in t and "measured +X pts/N×" in t and len(t) <= 600
+    assert server._training_notice() == t

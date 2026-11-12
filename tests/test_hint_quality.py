@@ -123,3 +123,28 @@ def test_feedback_with_before_id_books_exactly_that_action(gd):
     assert "not shown before the action vorher:gibt-es-nicht" in out  # no fallback to the most recent action
     tools.call_tool("vi_feedback", {"wrong": [k.id]}, "cs", False)  # without before_id: the most recent action, as before
     assert g.load(second_exp).data["rueckmeldung"] == {k.id: -1}
+
+
+def test_propensities_of_the_offer():
+    # 0.57.0: given the ranking, the first places are certain, the last regular place 1 − ε, each candidate further back ε / n
+    from vi_mcp import intuition
+    p = intuition.propensities(["a", "b", "c", "d"], ["e", "f"], 0.1)
+    assert p == {"a": 1.0, "b": 1.0, "c": 1.0, "d": 0.9, "e": 0.05, "f": 0.05}
+    assert intuition.propensities(["a", "b"], [], 0.1) == {"a": 1.0, "b": 1.0}
+
+
+def test_exploration_effect_and_ips_lift_from_logged_offers(gd):
+    # actions where the ranked hint "d" was shown succeed, explorations that showed "e" instead fail
+    from vi_mcp import metrics
+    offer = {"a": 1.0, "d": 0.9, "e": 0.1}
+    for i in range(60):
+        expl = i % 2 == 0
+        shown = ["a", "e"] if expl else ["a", "d"]
+        ok = not expl
+        g.new_object("erfahrung", f"Bash {i}", ["tool:Bash", f"ok:{'ja' if ok else 'nein'}"],
+                     {"vorher": {"gezeigt": shown, "rest_n": 1, "exploration": expl, "router": "modell", "angebot": offer}}, instance="a")
+    metrics._GRADES["db"] = None
+    ex = metrics.exploration_effect(24)
+    assert ex["zustand"] == "gemessen" and ex["differenz"] == -1.0 and "ranked hint beats a random candidate" in ex["urteil"]
+    lift = metrics.ips_lift(24)
+    assert lift["d"]["lift"] == 1.0 and lift["e"]["lift"] == -1.0 and "a" not in lift  # "a" was always shown: no counterfactual

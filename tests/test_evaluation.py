@@ -67,3 +67,17 @@ def test_nightly_without_language_model_names_it(gd, tmp_path, monkeypatch):
     monkeypatch.setattr(reflection, "config", {})
     r = evaluation.nightly()
     assert r["zustand"] == "fragen_fehlen" and r["erzeugung"]["zustand"] == "uebersprungen"
+
+
+def test_search_log_and_clicks_with_rank(gd):
+    # 0.57.0: a real vi_recall is logged with its ranking; an opened hit is marked with its rank; a measurement is not logged
+    from vi_mcp import tools
+    a = g.new_object("erkenntnis", "Borg needs BORG_PASSCOMMAND for unattended backup runs", ["tool:borg"], {"quelle": "t"})
+    b = g.new_object("erkenntnis", "Borg prune keeps the last seven daily archives", ["tool:borg"], {"quelle": "t"})
+    tools.call_tool("vi_recall", {"filter": "borg"}, "a", False)
+    tools.call_tool("vi_recall", {"filter": "borg", "reinforce": False}, "a", False)
+    tools.call_tool("vi_object", {"id": b.id}, "a", False)
+    st = evaluation.click_stats(1)
+    assert st["suchen"] == 1 and st["mit_klick"] == 1 and sum(st["je_rang"].values()) == 1
+    tools.call_tool("vi_object", {"id": a.id}, "other-instance", False)  # another instance's opening is not this search's click
+    assert sum(evaluation.click_stats(1)["je_rang"].values()) == 1

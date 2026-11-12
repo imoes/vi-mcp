@@ -62,7 +62,10 @@ def test_semantic_search(fake):
     sleep_cycle.run("Test")
     r = tools.call_tool("vi_erinnere", {"filter": "Verbindung haengt", "semantisch": True}, "a", True)
     assert r.splitlines()[1].strip().startswith(f"[{a.id}]") and "semantic hybrid (embedding" in r
-    assert "nothing in memory" in tools.call_tool("vi_erinnere", {"filter": "Verbindung haengt"}, "a", True)  # FTS does not find it
+    assert "nothing in memory" in tools.call_tool("vi_erinnere", {"filter": "Verbindung haengt", "semantisch": False}, "a", True)  # FTS does not find it
+    # 0.57.0: without semantic the search is hybrid by default when an embedding service is configured
+    d = tools.call_tool("vi_erinnere", {"filter": "Verbindung haengt"}, "a", True)
+    assert d.splitlines()[1].strip().startswith(f"[{a.id}]") and "default hybrid" in d
     with pytest.raises(tools.Rejected, match="free text"):
         tools.call_tool("vi_erinnere", {"filter": "host:cue1", "semantisch": True}, "a", True)
 
@@ -127,3 +130,28 @@ def test_fulltext_with_hashtag_filter_searches_only_filtered(gd):
         g.new_object("erkenntnis", f"timeout auf web{i}", [f"host:web{i}"], {"quelle": "x"}, reason="T")
     target = g.new_object("erkenntnis", "timeout auf cue1", ["host:cue1"], {"quelle": "x"}, reason="T")
     assert [o.id for _, o, _g in g.recall("host:cue1 timeout")] == [target.id]
+
+
+
+def test_default_hybrid_falls_back_to_full_text_when_embedding_fails(fake, monkeypatch):
+    a = g.new_object("erkenntnis", "graylog Timeout auf cue1", ["host:cue1"], {"quelle": "x"}, reason="T")
+    vector.catch_up(max_s=600)
+
+    def slow(texts):
+        raise TimeoutError("embedding service busy")
+    monkeypatch.setattr(vector, "embed_fn", slow)
+    r = tools.call_tool("vi_recall", {"filter": "graylog timeout"}, "a", True)
+    assert a.id in r and "meaning search unavailable (TimeoutError), full text only" in r
+    with pytest.raises(tools.Rejected, match="embedding service failed"):
+        tools.call_tool("vi_recall", {"filter": "graylog timeout", "semantic": True}, "a", True)
+
+
+def test_reranker_orders_the_hybrid_hits(fake, monkeypatch):
+    a = g.new_object("erkenntnis", "proxy timeout on the gateway", ["host:a"], {"quelle": "x"}, reason="T")
+    b = g.new_object("erkenntnis", "proxy disk full on the gateway", ["host:b"], {"quelle": "y"}, reason="T")
+    vector.catch_up(max_s=600)
+    monkeypatch.setattr(vector, "rerank_fn", lambda q, docs: [10.0 if "disk" in d else 0.0 for d in docs])
+    r = tools.call_tool("vi_recall", {"filter": "proxy gateway"}, "a", True)
+    assert r.splitlines()[1].strip().startswith(f"[{b.id}]") and "reranked 2 in" in r
+    monkeypatch.setattr(vector, "rerank_fn", lambda q, docs: (_ for _ in ()).throw(OSError("down")))
+    assert "reranker unavailable (OSError)" in tools.call_tool("vi_recall", {"filter": "proxy gateway"}, "a", True)

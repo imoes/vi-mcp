@@ -224,8 +224,23 @@ def error_hints(tool: str, args: dict, error: str, instance: str | None) -> list
     best = sorted(found.values(), key=lambda x: -x[0])[:ERROR_HINTS]
     if not best:
         return []
-    return [f"After this error — known in the VI: [{o.id}] {' '.join(o.text.split())[:240]}" + (" — vi_object for the full content" if o.data.get("inhalt") else "")
+    from . import bandit
+    return [f"After this error — known in the VI: [{o.id}] ({'solution' if 'herkunft:episode' in o.hashtags else o.kind}, {bandit.mark(o)}) "
+            f"{' '.join(o.text.split())[:240]}" + (" — vi_object for the full content" if o.data.get("inhalt") else "")
             for _w, o in best]
+
+
+def propensities(top: list[str], rest: list[str], epsilon: float) -> dict[str, float]:
+    """0.57.0: the probability with which each candidate was shown, given the ranking (Li et al. 2011, Dudík et al. 2011: without it,
+    logged exploration says nothing causal). The first HINT_BUDGET − 1 places are certain; the last regular place is replaced with
+    probability ε by a uniformly drawn candidate from further back. Candidates outside top and rest were never possible (0, not logged).
+    For the bandit router the ranking itself is a random draw — the values are then conditional on that draw. Pure."""
+    out = {h: 1.0 for h in top}
+    if rest and top:
+        out[top[-1]] = round(1.0 - epsilon, 6)
+        for h in rest:
+            out[h] = round(epsilon / len(rest), 6)
+    return out
 
 
 def _question(tool: str, args: dict) -> str:
@@ -309,6 +324,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     if rest and _random.random() < learning.EPSILON:  # ε-exploration: one slot for a random candidate from further back
         shown_obj = shown_obj[:-1] + [_random.choice(rest)]
         exploration = True
+    offer = propensities([o.id for o in regular[:HINT_BUDGET]], [o.id for o in rest], learning.EPSILON)
     if s is not None:
         shown_at = time.monotonic()
         for o in shown_obj:
@@ -321,8 +337,9 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
             _daily.clear()
     for i, o in enumerate(shown_obj):
         found.append(o.id)
-        provenance = f"from {o.instance}" + (f", confirmed by {o.foreign_confirmations()} independent line(s)" if o.foreign_confirmations() else "")
-        ins = " (exploration)" if exploration and i == len(shown_obj) - 1 else ""
+        provenance = (f"from {o.instance}" + (f", confirmed by {o.foreign_confirmations()} independent line(s)" if o.foreign_confirmations() else "")
+                      + f", {bandit.mark(o)}")  # 0.57.0: what the VI measured about it
+        ins = " (exploration: a random pick from further back)" if exploration and i == len(shown_obj) - 1 else ""
         if o.kind == "skill":
             from . import skills
             from_memory.append(f"{skills.line(o)}{ins} [{o.id}]")
@@ -378,6 +395,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
                 answer, age_s = o.data.get("ergebnis", ""), int(age)
     access = {"reize": rz, "warnung": bool(warn), "gefunden": found, "gezeigt": [o.id for o in shown_obj], "kandidaten": candidate_ids,
                "router": router, "exploration": exploration, "rest_n": len(rest), "suchen": search, "aus_gedaechtnis": answer is not None,
+               "angebot": offer,
                "repeat_suppressed": [o.id for o in repeated]}
     before_id = secrets.token_hex(8)
     if answer is not None:
@@ -680,7 +698,8 @@ def prompt_hints(text: str, instance: str | None, shown: list[str] | None = None
     for s, _rank, o in sorted(scored, key=lambda x: (x[0], x[1])):
         if -s < best and -s <= 2:
             continue
-        provenance = f"from {o.instance}" if o.instance else "from the server"
+        from . import bandit
+        provenance = (f"from {o.instance}" if o.instance else "from the server") + f", {bandit.mark(o)}"  # 0.57.0
         label = {"regel": "Rule", "skill": "Skill", "bild": "Image", "seite": "Wiki page", "suche": "Search"}.get(o.kind, "Learned")
         out.append({"id": o.id, "zeile": f"{label} [{o.id}] ({provenance}): {o.text[:300]} — vi_object {o.id} for the complete content "
                                          f"[Source: {str(o.data.get('quelle', '—'))[:120]}]"})

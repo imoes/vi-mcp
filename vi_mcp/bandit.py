@@ -185,6 +185,16 @@ def lift(o: g.MemoryObject) -> float | None:
     return (z.get("ok", 0) - z.get("erwartet", 0)) / n if n and "erwartet" in z else None
 
 
+def mark(o: g.MemoryObject) -> str:
+    """0.57.0: the compact marker on every hint line — what the VI has measured about this hint, so the reading AI can weigh it:
+    "measured +12 pts/40×" (success after showing over the tool's base rate, N showings) or "unmeasured". Pure apart from the object."""
+    z = o.data.get("nuetzlich") or {}
+    n = int(z.get("n", 0))
+    if not n or "erwartet" not in z:
+        return "unmeasured"
+    return f"measured {lift(o) * 100:+.0f} pts/{n}×"
+
+
 def line(o: g.MemoryObject) -> str:
     z = o.data.get("nuetzlich") or {}
     n = int(z.get("n", 0))

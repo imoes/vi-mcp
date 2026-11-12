@@ -234,6 +234,10 @@ def nightly(now: str | None = None) -> dict:
         entry["router"] = {"zustand": d.get("zustand"), "auc": d.get("auc_holdout"), "log_loss": d.get("log_loss_holdout"),
                            "champion": (d.get("champion") or {}).get("zustand")}
     try:
+        entry["exploration"] = {k: v for k, v in metrics.exploration_effect(168).items() if k != "urteil"}  # 0.57.0
+    except Exception as ex:  # noqa: BLE001
+        entry["exploration"] = {"fehler": f"{type(ex).__name__}: {ex}"}
+    try:
         entry["hinweis_lift"] = metrics.hint_lift_matched(168)
     except Exception as ex:  # noqa: BLE001 — named, the measurement of the search stands
         entry["hinweis_lift"] = {"fehler": f"{type(ex).__name__}: {ex}"}
@@ -243,3 +247,73 @@ def nightly(now: str | None = None) -> dict:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     p.chmod(0o600)
     return {"zustand": "gemessen", **{k: (v.get("gesamt") if isinstance(v, dict) and "gesamt" in v else v) for k, v in entry["suche"].items()}}
+
+
+# ── 0.57.0: the search log — what a search returned at which rank, and what was opened afterwards ─────────────────────────────────────
+#: an opening within this many seconds after the search counts as a click on it (the agent read the hit)
+CLICK_WINDOW_S = 600
+
+
+def _log_table() -> None:
+    with g.lock:
+        g.db().execute("CREATE TABLE IF NOT EXISTS suche_log (zeit TEXT NOT NULL, instanz TEXT NOT NULL, gespraech TEXT, anfrage TEXT NOT NULL, "
+                       "suchart TEXT, treffer TEXT NOT NULL, geoeffnet TEXT)")
+        g.db().execute("CREATE INDEX IF NOT EXISTS suche_log_zeit ON suche_log (zeit)")
+        g.db().commit()
+
+
+def log_search(instance: str, conversation: str | None, query: str, kind: str | None, ids: list[str]) -> None:
+    """One vi_recall: the query (masked text as the client sent it; internal like the rest of the memory) and the ids in rank order.
+    Kept USAGE retention days (usage_stats.RETENTION_DAYS) — the data for learning a ranker from what agents open (Joachims 2017)."""
+    _log_table()
+    with g.lock:
+        g.db().execute("INSERT INTO suche_log (zeit, instanz, gespraech, anfrage, suchart, treffer) VALUES (?, ?, ?, ?, ?, ?)",
+                       (g.now(), instance, conversation, query[:500], kind, json.dumps(ids[:50])))
+        g.db().commit()
+
+
+def log_open(instance: str, oid: str) -> None:
+    """vi_object after a search: marks the hit as opened in the newest search of this instance within CLICK_WINDOW_S that returned it."""
+    from datetime import datetime, timedelta, timezone
+    _log_table()
+    since = (datetime.now(timezone.utc) - timedelta(seconds=CLICK_WINDOW_S)).isoformat(timespec="milliseconds")
+    with g.lock:
+        rows = g.db().execute("SELECT rowid, treffer, geoeffnet FROM suche_log WHERE instanz = ? AND zeit >= ? ORDER BY zeit DESC LIMIT 5",
+                              (instance, since)).fetchall()
+        for rowid, hits, opened in rows:
+            if oid in json.loads(hits):
+                o = json.loads(opened) if opened else []
+                if oid not in o:
+                    g.db().execute("UPDATE suche_log SET geoeffnet = ? WHERE rowid = ?", (json.dumps(o + [oid]), rowid))
+                    g.db().commit()
+                return
+
+
+def click_stats(days: float = 7) -> dict:
+    """Searches, share with at least one opened hit, opened hits by rank (position bias — the first places are looked at more)."""
+    from datetime import datetime, timedelta, timezone
+    _log_table()
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
+    with g.lock:
+        rows = g.db().execute("SELECT treffer, geoeffnet FROM suche_log WHERE zeit >= ?", (since,)).fetchall()
+    by_rank: dict[int, int] = {}
+    with_click = 0
+    for hits, opened in rows:
+        h, o = json.loads(hits), json.loads(opened) if opened else []
+        with_click += bool(o)
+        for x in o:
+            if x in h:
+                r = h.index(x) + 1
+                by_rank[r] = by_rank.get(r, 0) + 1
+    return {"suchen": len(rows), "mit_klick": with_click, "je_rang": dict(sorted(by_rank.items()))}
+
+
+def cleanup_log() -> int:
+    from datetime import datetime, timedelta, timezone
+    from .usage_stats import RETENTION_DAYS
+    _log_table()
+    bound = (datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)).isoformat(timespec="seconds")
+    with g.lock:
+        n = g.db().execute("DELETE FROM suche_log WHERE zeit < ?", (bound,)).rowcount
+        g.db().commit()
+    return n

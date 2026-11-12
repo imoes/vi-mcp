@@ -3,6 +3,62 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.57.0 — 2026-11-12 — The search finds twice as well; the VI measures whether its hints help
+
+### What has changed
+
+- **`vi_recall` searches by meaning and full text by default** when an embedding service is configured and the filter has free text
+  (before: only with `semantic=true`, used in 118 of 1,528 searches in 7 days). `semantic=false` forces full text. If the query's
+  vector does not come within 8 s (the embedding service is shared), the search falls back to full text and says so.
+- **Full-text candidates by rank**: of the 500 best full-text hits the best by rank are rated, not the 400 most recently used — an old
+  exact hit could drop out before (`memory.recall`).
+- **Optional cross-encoder** (config `rerank`, OpenAI/Jina-style `/v1/rerank`, e.g. bge-reranker-v2-m3): orders the best 30 hybrid hits
+  against the query alone. Off by default — it costs about 1.6 s per search.
+- **Every hint line says what was measured**: `measured +X pts/N×` (success after showing it over the tool's base rate) or `unmeasured`;
+  exploration is marked as "a random pick from further back". Also on hints before a prompt and after an error (there with "solution"
+  for a solution from an episode).
+- **A `[Training]` block near the top of the instructions**: who chooses the hints (a model retrained daily on the outcomes of all
+  agents, with its state, AUC and size), that vi_after and vi_feedback are its labels, what the marker means, and that a solution found on
+  the web belongs into `vi_solved`. Rule 1 no longer asks for `semantic=true`.
+
+### What is new
+
+- **The VI measures whether its hints help, causally**: every action logs the probability with which each candidate hint was shown
+  (`vorher.angebot`; the last slot is a random candidate from further back with probability ε). `vi_stats` section C compares actions
+  with and without that random slot (a coin flip, so a causal comparison; Li et al. 2010), and `metrics.ips_lift` estimates per hint the
+  effect of showing it (inverse propensity weighting, Swaminathan & Joachims 2015).
+- **Search log** (`suche_log`): the query, the hits in rank order and which hit was opened afterwards (within 10 min) — the data for
+  learning a ranker from what agents open; `vi_stats` section E shows opened hits by rank. Kept 90 days like the usage log.
+
+*Proof (12.11.2026, copy of production, 150 known targets × 2 queries, page level):*
+
+| search | MRR | Hit@1 | Hit@5 | Hit@10 | median |
+|---|---|---|---|---|---|
+| full text before (0.56.0) | 0.336 | 0.247 | 0.463 | 0.523 | 108 ms |
+| full text, candidates by rank | 0.420 | 0.297 | 0.590 | 0.687 | 109 ms |
+| **hybrid (new default)** | **0.754** | 0.663 | 0.880 | 0.917 | 651 ms |
+| hybrid + cross-encoder (`rerank`) | 0.817 | 0.733 | 0.917 | 0.940 | 2,259 ms |
+
+For natural questions alone: hybrid 0.699, with the cross-encoder 0.823. Relative comparisons only — the questions were written from the
+targets' own text (Rahmani et al. 2025: synthetic sets distort absolute scores).
+
+- Randomized comparison on the production copy (actions where the random slot was possible, 7 days before the copy): exploration −
+  ranked −7.2 ± 3.9 points (116 vs 882 actions, Mantel-Haenszel over instance, tool, router) — the ranked hint tends to beat a random
+  one, but not yet beyond two standard errors.
+- Tests: `tests/test_vektor.py` (default hybrid, fallback on a timeout, reranker order and failure), `tests/test_hint_quality.py`
+  (propensities, exploration effect, IPS lift), `tests/test_evaluation.py` (search log and clicks by rank), training block test.
+
+### Checked and rejected
+
+- Full text with the cross-encoder instead of hybrid: MRR 0.644 — the meaning search finds candidates the full text never offers.
+- Sorting full-text hits by relevance alone scored MRR 0.625 against 0.420 for the fixed formula (relevance + recency + importance),
+  but recency matters for facts that change; left to the learned ranker, which needs the search log first.
+
+### What is missing
+
+- A learned ranker for the search (needs clicks with propensities: a small share of randomized result orders is not built yet).
+- Per-hint causal estimates need weeks of logged offers; until then `metrics.ips_lift` returns few hints.
+
 ## 0.56.0 — 2026-11-12 — One label for router, bandit and metrics, weighted by its source
 
 ### What has changed

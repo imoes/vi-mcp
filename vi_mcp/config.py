@@ -8,6 +8,7 @@ Path: $VI_MCP_CONFIG or ~/.config/vi-mcp/config.json. Content:
     "ttl": {"<tool>": <seconds>},
     "origins": ["http://localhost", "http://127.0.0.1"],
     "embed": {"url": "https://host/embed/v1/embeddings", "token": "", "model": ""},      optional (stage 3, during sleep)
+    "rerank": {"url": "https://host/rerank/v1/rerank", "token": "", "model": ""},        optional (0.57.0, vi_recall)
     "llm":   {"url": "https://host/qwen/v1/chat/completions", "token": "", "model": ""}  optional (stage 4, during sleep)
   }
 Keys are English since 0.51.0; the German keys of older files (instanzen, offen, …, see normalize) are still read, and every write stores
@@ -80,7 +81,7 @@ def normalize(raw: dict) -> tuple[dict, list[str]]:
     r = _rename(raw or {}, TOP_KEYS, "", notes)
     if isinstance(r.get("instances"), dict):
         r["instances"] = {n: _rename(d, INSTANCE_KEYS, f"instances.{n}.", notes) if isinstance(d, dict) else d for n, d in r["instances"].items()}
-    for section in ("llm", "embed"):
+    for section in ("llm", "embed", "rerank"):
         if isinstance(r.get(section), dict):
             r[section] = _rename(r[section], SERVICE_KEYS, f"{section}.", notes)
     if isinstance(r.get("p2p"), dict):
@@ -143,6 +144,7 @@ class Config:
     ttl: dict[str, int] = field(default_factory=dict)
     origins: list[str] = field(default_factory=lambda: ["http://localhost", "http://127.0.0.1"])
     embed: dict | None = None
+    rerank: dict | None = None  # 0.57.0: cross-encoder for vi_recall (optional)
     archive_days: dict[str, int] = field(default_factory=dict)
     p2p: dict = field(default_factory=dict)
     reviewer_prompt: str | None = None
@@ -186,6 +188,7 @@ def load(p: Path | None = None) -> Config:
     k.ttl = {w: int(s) for w, s in (raw.get("ttl") or {}).items()}
     k.origins = list(raw.get("origins") or k.origins)
     k.embed = raw.get("embed") or None
+    k.rerank = raw.get("rerank") or None
     k.p2p = raw.get("p2p") or {}
     k.reviewer_prompt = raw.get("reviewer_prompt")
     k.archive_days = {a: int(t) for a, t in (raw.get("archive_days") or {}).items()}

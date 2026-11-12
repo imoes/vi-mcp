@@ -59,7 +59,7 @@ def available() -> bool:
     return embed_fn is not None or bool(config and config.get("url"))
 
 
-def embed_texts(texts: list[str]) -> list[list[float]]:
+def embed_texts(texts: list[str], timeout: float | None = None) -> list[list[float]]:
     if embed_fn is not None:
         return embed_fn(texts)
     if not config or not config.get("url"):
@@ -72,7 +72,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         body["model"] = config["model"]
     req = urllib.request.Request(config["url"], data=json.dumps(body).encode(), headers=header)
     op = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # host service, never via a corporate proxy
-    with op.open(req, timeout=TIMEOUT_S) as a:
+    with op.open(req, timeout=timeout or TIMEOUT_S) as a:
         d = json.load(a)
     data = sorted(d["data"], key=lambda x: x.get("index", 0))
     return [x["embedding"] for x in data]
@@ -242,9 +242,9 @@ def cap(per_object: int | None = None) -> int:
     return deleted
 
 
-def similar(text: str, candidates: list[str], limit: int = 10) -> list[tuple[str, float]]:
-    """Embed free text now and order candidates by cosine (takes time — only on explicit request)."""
-    q = np.asarray(embed_texts([text])[0], dtype=np.float32)
+def similar(text: str, candidates: list[str], limit: int = 10, timeout: float | None = None) -> list[tuple[str, float]]:
+    """Embed free text now and order candidates by cosine (vi_recall: by default since 0.57.0, with QUERY_TIMEOUT_S)."""
+    q = np.asarray(embed_texts([text], timeout=timeout)[0], dtype=np.float32)
     n = float(np.linalg.norm(q)) or 1.0
     vs = all_()
     ids, m = _matrix({k: vs[k] for k in candidates if k in vs and len(vs[k]) == len(q)})
@@ -252,3 +252,41 @@ def similar(text: str, candidates: list[str], limit: int = 10) -> list[tuple[str
         return []
     proximity = m @ (q / n)
     return sorted(((ids[i], float(proximity[i])) for i in range(len(ids))), key=lambda x: -x[1])[:limit]
+
+
+# ── 0.57.0: cross-encoder reranker (optional) ──────────────────────────────────────────────────────────────────────────────────────
+#: the query's vector within this time, else vi_recall falls back to full text (named): the embedding service is shared — measured
+#: 09.11.2026, a live request waited ~20 s while a batch was embedded
+QUERY_TIMEOUT_S = 8.0
+#: Configuration: {"url": "https://host/rerank/v1/rerank", "token": "...", "model": "..."} or None (config key rerank)
+rerank_config: dict | None = None
+#: how many of the best hybrid hits the reranker orders (it-aikb: the reranker judges against the question alone)
+RERANK_TOP = 30
+RERANK_TIMEOUT_S = 15.0
+RERANK_CHARS = 2000
+#: Replaceable rerank function (tests): (query, documents) -> scores
+rerank_fn = None
+
+
+def rerank_available() -> bool:
+    return rerank_fn is not None or bool(rerank_config and rerank_config.get("url"))
+
+
+def rerank_scores(query: str, documents: list[str]) -> list[float]:
+    """Relevance of each document for the query from a cross-encoder (llama.cpp /v1/rerank, Jina/Cohere form). Raises on failure."""
+    if rerank_fn is not None:
+        return rerank_fn(query, documents)
+    header = {"Content-Type": "application/json"}
+    if rerank_config.get("token"):
+        header["Authorization"] = f"Bearer {rerank_config['token']}"
+    body = {"query": query, "documents": [d[:RERANK_CHARS] for d in documents], "top_n": len(documents)}
+    if rerank_config.get("model"):
+        body["model"] = rerank_config["model"]
+    req = urllib.request.Request(rerank_config["url"], data=json.dumps(body).encode(), headers=header)
+    op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with op.open(req, timeout=RERANK_TIMEOUT_S) as a:
+        d = json.load(a)
+    scores = [float("-inf")] * len(documents)
+    for item in d.get("results", []):
+        scores[int(item["index"])] = float(item["relevance_score"])
+    return scores

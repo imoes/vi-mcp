@@ -7,6 +7,7 @@ search), compared with actions without a hint. If it does not rise, the assumpti
 """
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta, timezone
 
 from . import memory as g
@@ -168,3 +169,70 @@ def age_line(l: dict) -> str:
     return (f"Hints by age {l['stunden'] / 24:g} d: new (≤ {l['neu_tage']:g} d) {l['neu']['n']} shown, advantage over the tool's base rate "
             f"{f(l['neu'])}; older {l['alt']['n']} shown, {f(l['alt'])}"
             + (f"; {l['unbekannt']['n']} of hints that no longer exist" if l["unbekannt"]["n"] else "") + f" → {l['urteil']}")
+
+
+def _randomized(hours: float, viewer: str | None):
+    """Actions in which the ε-exploration could have happened (a candidate further back existed), with their label. Pure apart from reading."""
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
+    for _, o, _g in g.recall("art:erfahrung (ok:ja OR ok:nein)", limit=50000, viewer=viewer):
+        v = o.data.get("vorher") or {}
+        if o.ts < since or v.get("aus_gedaechtnis") or not v.get("rest_n") or not v.get("gezeigt"):
+            continue
+        yield o, v, _ok(o)
+
+
+def exploration_effect(hours: float = 168, viewer: str | None = None) -> dict:
+    """0.57.0: the one randomized experiment the VI runs — with probability ε the last hint slot goes to a random candidate from further
+    back. Success of actions with exploration minus without, Mantel-Haenszel within (instance, tool, router), with its standard error.
+    Negative = the ranked hint beats a random one (the ranking helps); about 0 = the ranking adds nothing over chance. Causal, because
+    whether an action explores is a coin flip (Li et al. 2010, arXiv:1003.0146)."""
+    strata: dict[tuple, dict] = {}
+    for o, v, ok in _randomized(hours, viewer):
+        t = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
+        c = strata.setdefault((o.instance or "?", t, v.get("router")), {True: [0, 0], False: [0, 0]})[bool(v.get("exploration"))]
+        c[0] += ok
+        c[1] += 1
+    num = den = var = 0.0
+    n_e = n_r = used = 0
+    for c in strata.values():
+        (a, n1), (b, n0) = c[True], c[False]
+        if not n1 or not n0:
+            continue
+        w = n1 * n0 / (n1 + n0)
+        p1, p0 = a / n1, b / n0
+        num += w * (p1 - p0)
+        den += w
+        var += w * w * (p1 * (1 - p1) / n1 + p0 * (1 - p0) / n0)
+        n_e, n_r, used = n_e + n1, n_r + n0, used + 1
+    if not den or n_e < 30:
+        return {"zustand": "zu_wenig", "explorationen": n_e, "urteil": f"{n_e} exploration actions in comparable strata — at least 30 needed"}
+    d, se = num / den, math.sqrt(var) / den
+    verdict = ("the ranked hint beats a random candidate" if d < -2 * se else "a random candidate beats the ranked hint" if d > 2 * se
+               else "no difference beyond 2 standard errors")
+    return {"zustand": "gemessen", "differenz": round(d, 4), "standardfehler": round(se, 4), "explorationen": n_e, "regulaer": n_r,
+            "schichten": used, "urteil": f"exploration − regular {d * 100:+.1f} ± {se * 100:.1f} points ({n_e} vs {n_r} actions, {used} strata): {verdict}"}
+
+
+def ips_lift(hours: float = 24 * 30, viewer: str | None = None, min_shown: int = 5) -> dict[str, dict]:
+    """0.57.0: per hint, the effect of showing it, from the logged propensities (self-normalised inverse propensity scoring,
+    Swaminathan & Joachims 2015): over the actions where it was offered with 0 < p < 1, the weighted success when shown (weight 1/p)
+    minus when not shown (weight 1/(1 − p)). Only the randomized offers count — a hint that was always shown has no counterfactual."""
+    acc: dict[str, list[float]] = {}
+    for _o, v, ok in _randomized(hours, viewer):
+        shown = set(v.get("gezeigt") or [])
+        for h, p in (v.get("angebot") or {}).items():
+            if not 0.0 < p < 1.0:
+                continue
+            a = acc.setdefault(h, [0.0, 0.0, 0.0, 0.0, 0])  # yes-weighted shown, weight shown, yes-weighted not shown, weight not, n shown
+            if h in shown:
+                a[0] += ok / p
+                a[1] += 1 / p
+                a[4] += 1
+            else:
+                a[2] += ok / (1 - p)
+                a[3] += 1 / (1 - p)
+    out = {}
+    for h, (ys, ws, yn, wn, n) in acc.items():
+        if n >= min_shown and ws and wn:
+            out[h] = {"lift": round(ys / ws - yn / wn, 4), "gezeigt": n}
+    return out

@@ -302,6 +302,8 @@ def report(days: float = 7) -> str:
     z.append(f"C Hints: {h['gezeigt']} shown · {metrics.line(lift)} · warnings {h['warnung']['n']} (succeeded afterwards "
              f"{_pct(h['warnung']['ok'], h['warnung']['n'])}; without warning {_pct(h['ohne_warnung']['ok'], h['ohne_warnung']['n'])})")
     z.append("    " + metrics.matched_line(metrics.hint_lift_matched(24 * days, viewer=None)))  # 0.49.0: the raw lift mixes instances
+    ex = metrics.exploration_effect(24 * days)  # 0.57.0: the randomized comparison — causal, unlike the two lines above
+    z.append(f"    randomized (ε-exploration, last slot random vs ranked): {ex['urteil']}")
     z.append("    " + metrics.age_line(metrics.lift_by_age(24 * days, viewer=None)))  # 0.29.0: cold-start observation point
     z.append(f"D Knowledge: {w['neu']} new (" + ", ".join(f"{k} {v}" for k, v in w["neu_je_art"].items()) + "; visibility "
              + ", ".join(f"{k} {v}" for k, v in w["neu_je_sicht"].items()) + "; origin " + ", ".join(f"{k} {v}" for k, v in list(w["neu_je_quelle"].items())[:5])
@@ -312,6 +314,10 @@ def report(days: float = 7) -> str:
              + (f"; {s['treffer_unbekannt']} older ones without a hit count" if s["treffer_unbekannt"] else "") + ") · search kind "
              + (", ".join(f"{k} {v}" for k, v in s["je_art"].items()) or "—") + " · median "
              + (", ".join(f"{k} {v} ms" for k, v in s["ms_median"].items()) or "—"))
+    from . import evaluation
+    ck = evaluation.click_stats(days)  # 0.57.0
+    z.append(f"    opened afterwards (suche_log since 0.57.0): {ck['mit_klick']} of {ck['suchen']} searches · opened hits by rank "
+             + (", ".join(f"#{r} {n}" for r, n in ck["je_rang"].items()) or "—"))
     m = learning.model()
     z.append(f"F Cleanup: {a['schlaefe']} sleeps (median {a['schlaf_ms_median'] // 1000} s, {a['neue_erkenntnisse']} new insights, {a['fehler']} step errors) · "
              f"{on_demand.line()} · router AUC {m.data.get('auc_holdout') if m else '—'} · semantic edges {a['semantische_kanten']}")
@@ -336,5 +342,7 @@ def measurement_lines(limit: int = 7) -> list[str]:
         rt = e.get("router") or {}
         lift = (e.get("hinweis_lift") or {}).get("differenz_punkte", (e.get("hinweis_lift") or {}).get("lift"))
         out.append(f"    {e['zeit'][:10]}: " + " · ".join(parts) + f" · router AUC {rt.get('auc', '—')} log loss {rt.get('log_loss', '—')} "
-                   f"champion {rt.get('champion', '—')}" + (f" · hint lift matched {lift}" if lift is not None else ""))
+                   f"champion {rt.get('champion', '—')}" + (f" · hint lift matched {lift}" if lift is not None else "")
+                   + (f" · exploration − ranked {e['exploration']['differenz'] * 100:+.1f} ± {e['exploration']['standardfehler'] * 100:.1f} points"
+                      if (e.get("exploration") or {}).get("differenz") is not None else ""))
     return out

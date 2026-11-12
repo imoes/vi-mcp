@@ -129,10 +129,19 @@ def _initialize(msg: dict, inst: config.Instance, announced: str | None = None) 
         "serverInfo": {"name": SERVER_NAME, "version": __version__},
         "instructions": (f"VI memory, conversation {s.serial}, instance {inst.name}. Report vi_before before an action and vi_after "
                          "afterwards; vi_recall/vi_drilldown to look things up, vi_object reads one object completely. vi_learn with a source to learn: code, API tables and commands belong unabridged into the field content, otherwise memory has gaps.\n"
+                         + _training_notice() + "\n"  # 0.57.0: early, clients cut long instructions
                          + tools.RULES + "\n"
                          + (tools.RULES_WITHOUT_TOKEN + "\n" if inst.name == config.OPEN else "") + self_model.hint()
                          + (f"\n{ix}" if (ix := index.text(inst.name)) else "")
                          + (f"\n{nt}" if (nt := _network_notice()) else ""))}), s  # 0.38.0: the memory index, like a MEMORY.md
+
+
+def _training_notice() -> str:
+    from . import learning
+    try:
+        return learning.training_notice()
+    except Exception:  # noqa: BLE001 — a broken model object must never cost the initialize
+        return ""
 
 
 class Server(ThreadingHTTPServer):
@@ -373,6 +382,7 @@ def build(k: config.Config) -> list[Server]:
     anonymize.configure(k.p2p)
     reviewer.prompt_path = Path(k.reviewer_prompt) if k.reviewer_prompt else None
     vector.config = k.embed
+    vector.rerank_config = k.rerank
     reflection.config = k.llm
     handler = type("KHandler", (Handler,), {"k": k})
     srvs = [Server((addr, k.port), handler) for addr in k.bind]

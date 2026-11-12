@@ -772,7 +772,13 @@ def recall(filter_text: str, limit: int = 10, kinds: tuple[str, ...] = (), viewe
                 for w in words:
                     sql += " AND text LIKE ?"
                     par.append(f"%{w}%")
-        ids = [r[0] for r in db().execute(sql + f" ORDER BY zuletzt DESC LIMIT {max(400, int(limit))}", par)]
+        if word_hits:
+            # 0.57.0: with words, the candidates are the best by full-text rank, not the most recently used — before, of the 500 best
+            # BM25 hits the 400 most recently touched were kept, so an old exact hit could drop out before it was rated
+            matching = [r[0] for r in db().execute(sql, par)]
+            ids = sorted(matching, key=lambda i: -word_hits.get(i, 0.0))[:max(400, int(limit))]
+        else:
+            ids = [r[0] for r in db().execute(sql + f" ORDER BY zuletzt DESC LIMIT {max(400, int(limit))}", par)]
     word_search.set(search_kind)
     now_dt = datetime.now(timezone.utc)
     rated = []

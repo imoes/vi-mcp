@@ -533,6 +533,22 @@ def _keep_champion(report: dict) -> None:
     g.save(m)
 
 
+def training_notice() -> str:
+    """0.57.0: the short [Training] block at the top of the instructions — what an AI needs to read the hints: who chooses them, from
+    what they learn, what the marker on each line means, and what to do with a solution found elsewhere. With the model's own numbers."""
+    m = model()
+    if m is None:
+        state = "the router has no model yet (heuristic order)"
+    else:
+        d = m.data
+        word = {"aktiv": "active", "test": "in test, not used", "zu_wenig_daten": "too little data"}.get(d.get("zustand", m.mode), d.get("zustand", m.mode))
+        state = f"router {word}, AUC {d.get('auc_holdout', '—')}, {d.get('n', 0)} observations, trained {str(d.get('trainiert', '—'))[:10]}"
+    return ("[Training] Hints and error solutions are chosen by a model retrained daily on the outcomes of all agents (" + state + "); "
+            "your vi_after outcomes and vi_feedback are its labels. Each hint says what was measured: \"measured +X pts/N×\" = success "
+            "after showing it over the tool's base rate, \"unmeasured\" = no data yet, \"exploration\" = a random pick to learn from. "
+            "Solved something via web or docs: vi_solved with the URL. vi_why <id> explains a hint.")
+
+
 def explanation(limit: int = 12) -> str:
     m = model()
     if not m:

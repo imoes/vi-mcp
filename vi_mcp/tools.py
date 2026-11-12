@@ -32,7 +32,7 @@ _TAGS = {"type": "array", "items": _S}
 TEXT_MAX = 1000
 #: 0.20.7: When an AI asks the VI and when it learns — goes with the instructions to every client (server._initialize). One source.
 RULES = """Rules for the VI — apply in every session:
-ASK (vi_recall with semantic=true for free text, or kind:value; then vi_object for the full content):
+ASK (vi_recall with free text — meaning and full text, hybrid by default — or kind:value; then vi_object for the full content):
 1. At the start of every task and for every new question in a conversation — follow-up questions too, not only the first message: search for the hosts, systems, products and error messages it names — before planning or changing anything.
 2. Before any changing action on a system (deploy, restart, configuration, playbook, delete), unless step 1 already covered it.
 3. On an error or unexpected result: search for the tool and the error text before looking for the cause yourself.
@@ -890,12 +890,15 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         f = args.get("filter") or ""
         as_text = g.as_text_tokens(f)  # 0.26.0: named in the answer instead of emptying the search silently
         hits = g.recall(f, limit=min(int(args.get("limit") or 10), 50), or_fallback=True)
-        if not args.get("semantic") and g.word_search.get() == "oder":
-            f += " · OR search: no or too few objects contain all words, filled up by number of matching words (BM25)"
-        if args.get("semantic"):
+        groups, remove, words = g.parse_filter(f, g.known_kinds())
+        # 0.57.0: meaning + full text by default when an embedding service is configured and the filter has free text — measured on a
+        # production copy (150 known targets × 2 queries): full text MRR 0.42, hybrid 0.75. semantic=false forces full text only.
+        explicit = args.get("semantic")
+        semantic = bool(explicit) if explicit is not None else (vector.available() and bool(words))
+        kind_used = g.word_search.get() or ("tags" if not words else "volltext")
+        if semantic:
             if not vector.available():
                 raise Rejected("semantic: no embedding service configured (config: embed)")
-            groups, remove, words = g.parse_filter(f, g.known_kinds())
             if not words:
                 raise Rejected("semantic needs free text in the filter (words without kind:)")
             # candidates: only the hashtag conditions (without free text), then order by closeness of meaning
@@ -903,27 +906,55 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             # all visible objects for the filter, no upper limit: the cosine over a few thousand vectors costs milliseconds
             cand = g.ids_for_filter(tags_only, kinds=() if groups else ("erkenntnis", "regel", "suche", "bild", "seite"))
             bound = min(int(args.get("limit") or 10), 50)
+            pool = max(bound, vector.RERANK_TOP if vector.rerank_available() else bound)
             t0 = time.monotonic()
-            near = vector.similar(" ".join(words), cand, limit=bound * 3)
+            try:
+                near = vector.similar(" ".join(words), cand, limit=pool * 3, timeout=None if explicit else vector.QUERY_TIMEOUT_S)
+            except Exception as ex:  # noqa: BLE001 — the default must never cost the search: full text, named
+                if explicit:
+                    raise Rejected(f"semantic: embedding service failed ({type(ex).__name__}: {str(ex)[:120]})") from None
+                near = None
+                f += f" · meaning search unavailable ({type(ex).__name__}), full text only"
             ms = int((time.monotonic() - t0) * 1000)
-            # Hybrid: add the full-text ranking (Reciprocal Rank Fusion, Cormack et al. 2009, k = 60). Freshly learned knowledge has no vector
-            # until the next sleep and would be unfindable exactly then; exact terms (error messages, options) are found better by full text.
-            fulltext = [o.id for _, o, _g in g.recall(f, limit=bound * 3, kinds=() if groups else ("erkenntnis", "regel", "suche", "bild", "seite"), or_fallback=True)]
-            rrf: dict[str, float] = {}
-            for leaderboard in ([i for i, _c in near], fulltext):
-                for rank_pos, oid in enumerate(leaderboard):
-                    rrf[oid] = rrf.get(oid, 0.0) + 1.0 / (RRF_K + rank_pos + 1)
-            cos = dict(near)
-            best_ids = sorted(rrf, key=lambda i: -rrf[i])[:bound]
-            by = g.load_many(best_ids)
-            hits = [(rrf[i], by[i], {"relevanz": round(cos[i], 2) if i in cos else "–(full text)", "aktualitaet": 0, "wichtigkeit": 0}) for i in best_ids if i in by]
-            with_vector = vector.present(cand)
-            text_only = sum(1 for i in best_ids if i not in cos)
-            f += (f" · semantic hybrid (embedding {ms} ms, {with_vector} of {len(cand)} candidates with a vector; meaning and full text by rank fusion"
-                  + (f"; {text_only} hits via full text only" if text_only else "") + ")")
+            if near is not None:
+                # Hybrid: add the full-text ranking (Reciprocal Rank Fusion, Cormack et al. 2009, k = 60). Freshly learned knowledge has no
+                # vector until the next sleep and would be unfindable exactly then; exact terms (error messages, options) are found better by full text.
+                fulltext = [o.id for _, o, _g in g.recall(f, limit=pool * 3, kinds=() if groups else ("erkenntnis", "regel", "suche", "bild", "seite"), or_fallback=True)]
+                rrf: dict[str, float] = {}
+                for leaderboard in ([i for i, _c in near], fulltext):
+                    for rank_pos, oid in enumerate(leaderboard):
+                        rrf[oid] = rrf.get(oid, 0.0) + 1.0 / (RRF_K + rank_pos + 1)
+                cos = dict(near)
+                best_ids = sorted(rrf, key=lambda i: -rrf[i])[:pool]
+                by = g.load_many(best_ids)
+                ranked = [i for i in best_ids if i in by]
+                note = ""
+                if vector.rerank_available() and ranked:  # 0.57.0: the cross-encoder judges the best ones against the query alone
+                    t1 = time.monotonic()
+                    try:
+                        sc = vector.rerank_scores(" ".join(words), [f"{by[i].text}\n{by[i].data.get('inhalt') or ''}" for i in ranked])
+                        ranked = [i for _s, i in sorted(zip(sc, ranked), key=lambda x: -x[0])]
+                        note = f"; reranked {len(sc)} in {int((time.monotonic() - t1) * 1000)} ms"
+                    except Exception as ex:  # noqa: BLE001
+                        note = f"; reranker unavailable ({type(ex).__name__}), order by rank fusion"
+                ranked = ranked[:bound]
+                hits = [(rrf[i], by[i], {"relevanz": round(cos[i], 2) if i in cos else "–(full text)", "aktualitaet": 0, "wichtigkeit": 0}) for i in ranked]
+                with_vector = vector.present(cand)
+                text_only = sum(1 for i in ranked if i not in cos)
+                f += (f" · {'semantic' if explicit else 'default'} hybrid (embedding {ms} ms, {with_vector} of {len(cand)} candidates with a vector; "
+                      "meaning and full text by rank fusion" + (f"; {text_only} hits via full text only" if text_only else "") + note + ")")
+                kind_used = "hybrid"
+        if not semantic or kind_used != "hybrid":
+            if g.word_search.get() == "oder":
+                f += " · OR search: no or too few objects contain all words, filled up by number of matching words (BM25)"
         # 0.31.0: a measurement must not change what it measures — a benchmark of 49 questions reinforced 733 objects once each
         # (10.11.2026), making them look more used and more recent than real use justifies. reinforce=false only reads.
         reinforce = args.get("reinforce", True) is not False
+        if reinforce:  # 0.57.0: a real search is logged with its ranking; a measurement (reinforce=false) is not
+            from . import evaluation
+            s_log = session.current()
+            evaluation.log_search(instance, s_log.serial if s_log else None, args.get("filter") or "",
+                                  kind_used, [o.id for _, o, _g in hits])
         if reinforce:
             for _, o, _g in hits:
                 o.access()
@@ -950,6 +981,8 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         s_now = session.current()
         if s_now is not None and o.id in s_now.shown:  # 0.49.0: a shown hint was opened — a weak signal of use, counted apart
             intuition.opened(instance, o.id)
+        from . import evaluation
+        evaluation.log_open(instance, o.id)  # 0.57.0: a search hit opened → click with its rank (suche_log)
         z = [_line(o), f"  author {o.instance} · visibility {o.visibility} · importance {o.importance} · confirmed {o.confirmed} "
                         f"(independent lines: {o.foreign_confirmations()} — one per model family, not from the object's own source) · refuted {o.refuted} · accesses {o.accesses} · "
                         f"last {o.last_at[:16]} · conversation {o.conversation or '—'}"]
