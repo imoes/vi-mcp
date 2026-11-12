@@ -64,6 +64,18 @@ DEFAULT_PORT = 8767
 #: the same server parameters as the service the existing vectors came from (pooling and context decide the vector)
 SERVER_ARGS = ["--embedding", "--pooling", "mean", "--ctx-size", "8192", "--batch-size", "2048", "--ubatch-size", "2048", "-ngl", "99"]
 SERVICE = "vi-embed"
+#: 0.60.0: the reranker (cross-encoder) — the very file and parameters of the service the search was measured with (MRR 0.754 → 0.817 on
+#: a production copy, 0.57.0): bge-reranker-v2-m3 Q4_K_M, sha256 checked against the production copy and Hugging Face (12.11.2026)
+RERANK_MODEL_FILE = "bge-reranker-v2-m3-Q4_K_M.gguf"
+RERANK_MODEL_URL = "https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q4_K_M.gguf"
+RERANK_MODEL_SHA256 = "e186a244ed455b4ab66ec64339ce7427a6ae13f5c0b5e544de96e50f0f8b3673"
+RERANK_PORT = 8768
+RERANK_SERVICE = "vi-rerank"
+RERANK_ARGS = ["--embedding", "--pooling", "rank", "-c", "4096", "--parallel", "4", "--batch-size", "2048", "--ubatch-size", "2048", "-ngl", "99"]
+#: a search waits for the reranker (vector.RERANK_TIMEOUT_S); one that needs longer than this for RERANK_TOP documents is installed but
+#: not switched on — measured at setup, named in the report
+RERANK_MAX_S = 5.0
+RERANK_MODES = ("auto", "force", "off")
 
 
 def system() -> str:
@@ -171,8 +183,10 @@ def _driver_major(g: dict) -> int | None:
         return None
 
 
-def choose_backends(gpus: list[dict], requested: str = "auto") -> list[tuple[str, str]]:
-    """[(variant, why)] in the order to try. `requested` other than auto means exactly that backend — no silent fallback."""
+def choose_backends(gpus: list[dict], requested: str = "auto", smi_error: str | None = None) -> list[tuple[str, str]]:
+    """[(variant, why)] in the order to try. `requested` other than auto means exactly that backend — no silent fallback.
+    `smi_error`: why nvidia-smi gave no driver version — named in the reason (a host after a driver update without reboot:
+    "Driver/library version mismatch", 12.11.2026)."""
     nvidia = [g for g in gpus if g["vendor"] == "nvidia"]
     drivers = [d for d in (_driver_major(g) for g in nvidia) if d is not None]
     driver = max(drivers) if drivers else None
@@ -198,6 +212,8 @@ def choose_backends(gpus: list[dict], requested: str = "auto") -> list[tuple[str
         return cuda + [("vulkan", "Vulkan if no CUDA build runs"), ("cpu", "CPU if no GPU build runs")]
     if nvidia:
         why = "NVIDIA card, but no driver version from nvidia-smi (proprietary driver missing?) — Vulkan"
+        if smi_error:
+            why = f"NVIDIA card, but nvidia-smi failed ({smi_error.splitlines()[0][:120]}; a driver update needs a reboot?) — Vulkan"
         if driver is not None:
             why = f"NVIDIA driver {driver} < {CUDA12_MIN_DRIVER}: too old for CUDA 12 — Vulkan"
         return [("vulkan", why), ("cpu", "CPU if Vulkan does not run")]
@@ -326,13 +342,14 @@ def _starts(exe: Path) -> tuple[bool, str]:
     return r.returncode == 0, (r.stderr or r.stdout).strip()[-300:]
 
 
-def command(exe: Path, model: Path, port: int) -> list[str]:
-    return [str(exe), "-m", str(model), "--host", "127.0.0.1", "--port", str(port), *SERVER_ARGS]
+def command(exe: Path, model: Path, port: int, args: list[str] | None = None) -> list[str]:
+    return [str(exe), "-m", str(model), "--host", "127.0.0.1", "--port", str(port), *(SERVER_ARGS if args is None else args)]
 
 
-def _service_linux(exe: Path, model: Path, port: int) -> None:
+def _service_linux(exe: Path, model: Path, port: int, name: str = SERVICE, args: list[str] | None = None) -> None:
+    what = "reranker" if name == RERANK_SERVICE else "embedding service"
     unit = f"""[Unit]
-Description=vi-embed — embedding service of vi-mcp (llama.cpp {LLAMA_TAG}, bge-m3 Q4_K_M) on 127.0.0.1:{port}
+Description={name} — {what} of vi-mcp (llama.cpp {LLAMA_TAG}, {model.name}) on 127.0.0.1:{port}
 After=network.target
 
 [Service]
@@ -340,7 +357,7 @@ User=vi-mcp
 Group=vi-mcp
 SupplementaryGroups=render video
 Environment=LD_LIBRARY_PATH={exe.parent}
-ExecStart={" ".join(command(exe, model, port))}
+ExecStart={" ".join(command(exe, model, port, args))}
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=yes
@@ -351,13 +368,14 @@ ReadOnlyPaths={exe.parent.parent} {model.parent}
 [Install]
 WantedBy=multi-user.target
 """
-    Path(f"/etc/systemd/system/{SERVICE}.service").write_text(unit)
-    for c in (["systemctl", "daemon-reload"], ["systemctl", "enable", SERVICE], ["systemctl", "restart", SERVICE]):
+    Path(f"/etc/systemd/system/{name}.service").write_text(unit)
+    for c in (["systemctl", "daemon-reload"], ["systemctl", "enable", name], ["systemctl", "restart", name]):
         subprocess.run(c, check=True, capture_output=True, timeout=60)
 
 
-def _service_windows(exe: Path, model: Path, port: int) -> None:
-    args = " ".join(f'"{a}"' if " " in a else a for a in command(exe, model, port)[1:])
+def _service_windows(exe: Path, model: Path, port: int, name: str = SERVICE, args: list[str] | None = None) -> None:
+    SERVICE = name  # noqa: N806 — the task name below
+    args = " ".join(f'"{a}"' if " " in a else a for a in command(exe, model, port, args)[1:])
     ps = (f"$a = New-ScheduledTaskAction -Execute '{exe}' -Argument '{args}' -WorkingDirectory '{exe.parent}';"
           "$t = New-ScheduledTaskTrigger -AtStartup;"
           "$p = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest;"
@@ -403,14 +421,68 @@ def _install(d: Path, variant: str) -> Path:
     return exe
 
 
-def _start_service(exe: Path, model: Path, port: int) -> None:
+def _start_service(exe: Path, model: Path, port: int, name: str = SERVICE, args: list[str] | None = None) -> None:
     if system() == "linux":
-        _service_linux(exe, model, port)
+        _service_linux(exe, model, port, name, args)
     else:
-        _service_windows(exe, model, port)
+        _service_windows(exe, model, port, name, args)
 
 
-def setup(port: int = DEFAULT_PORT, cpu: bool = False, model_file: Path | None = None, switch: bool = True, backend: str = "auto") -> dict:
+RERANK_QUERY = "why does the agent lose its connection after the upgrade"
+#: RERANK_TOP documents of the length vi_recall sends (vector.RERANK_CHARS) — the measured case is the real one
+RERANK_DOCS = [(f"Document {i}: after the upgrade of the service the agent reconnects to port {8000 + i}; the log shows a timeout, "
+                "the configuration was kept and the restart order matters. ") * 12 for i in range(30)]
+
+
+def rerank_probe(port: int, query: str, documents: list[str], timeout_s: float = 120) -> list[float]:
+    """Wait for the reranker and score `documents` (llama.cpp /v1/rerank, Jina form — what vector.rerank_scores sends)."""
+    url = f"http://127.0.0.1:{port}/v1/rerank"
+    end = time.monotonic() + timeout_s
+    op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    last = ""
+    while time.monotonic() < end:
+        try:
+            body = json.dumps({"query": query, "documents": documents, "top_n": len(documents)}).encode()
+            with op.open(urllib.request.Request(url, body, {"Content-Type": "application/json"}), timeout=120) as r:
+                res = json.load(r)["results"]
+            scores = [0.0] * len(documents)
+            for item in res:
+                scores[int(item["index"])] = float(item["relevance_score"])
+            return scores
+        except Exception as e:  # noqa: BLE001 — still starting
+            last = str(e)
+            time.sleep(2)
+    raise RuntimeError(f"{url} did not answer within {timeout_s:.0f} s: {last}")
+
+
+def setup_reranker(d: Path, exe: Path, variant: str, mode: str, switch: bool, port: int = RERANK_PORT) -> dict:
+    """The reranker on the build the embedding service runs on. Switched on (config rerank.url) only if RERANK_TOP documents take at most
+    RERANK_MAX_S — or with mode force; otherwise installed, not used, and the report says why."""
+    if mode == "off":
+        return {"state": "not installed (--rerank off)"}
+    model = d / RERANK_MODEL_FILE
+    _download(RERANK_MODEL_URL, model, RERANK_MODEL_SHA256)
+    _start_service(exe, model, port, RERANK_SERVICE, RERANK_ARGS)
+    rerank_probe(port, RERANK_QUERY, RERANK_DOCS[:2])  # waits until the model is loaded
+    t0 = time.monotonic()
+    scores = rerank_probe(port, RERANK_QUERY, RERANK_DOCS)
+    took = time.monotonic() - t0
+    out = {"service": f"{RERANK_SERVICE} on 127.0.0.1:{port}", "model": f"{RERANK_MODEL_FILE} sha256 {RERANK_MODEL_SHA256[:12]}…",
+           "seconds_for_30_documents": round(took, 2), "scored": len(scores)}
+    url = f"http://127.0.0.1:{port}/v1/rerank"
+    if took > RERANK_MAX_S and mode != "force":
+        out["state"] = f"installed, not used: {len(RERANK_DOCS)} documents took {took:.1f} s on {variant} (limit {RERANK_MAX_S:.0f} s; --rerank force uses it anyway)"
+    elif switch:
+        out["previous_url"] = (config.load().rerank or {}).get("url")
+        config.set_rerank({"url": url})
+        out["state"] = "used (rerank.url)"
+    else:
+        out["state"] = "installed, rerank.url unchanged (--no-switch)"
+    return out
+
+
+def setup(port: int = DEFAULT_PORT, cpu: bool = False, model_file: Path | None = None, switch: bool = True, backend: str = "auto",
+          rerank: str = "auto") -> dict:
     """0.60.0: the backend is chosen from the GPUs found (CUDA → Vulkan → CPU) and accepted only when llama-server lists a device of its
     kind, the service answers and the speed is measured — "it starts" alone said nothing (a Vulkan build without a GPU starts and lists
     "(none)", measured 12.11.2026). The report names cards, backend, device, the reason and every rejected try."""
@@ -422,7 +494,7 @@ def setup(port: int = DEFAULT_PORT, cpu: bool = False, model_file: Path | None =
                       for g in gpus] or "none found"
     if errors:
         report["detect_errors"] = errors
-    candidates = choose_backends(gpus, "cpu" if cpu else backend)
+    candidates = choose_backends(gpus, "cpu" if cpu else backend, errors.get("nvidia-smi"))
     model = d / MODEL_FILE
     if model_file:  # an existing local copy (e.g. of the old service) — accepted only with the pinned hash
         if _sha256(model_file) != MODEL_SHA256:
@@ -456,23 +528,32 @@ def setup(port: int = DEFAULT_PORT, cpu: bool = False, model_file: Path | None =
             probe(port, TIMING_TEXTS)
             ms = (time.monotonic() - t0) * 1000 / len(TIMING_TEXTS)
             tried[variant] = "ok"
-            chosen = (variant, why, dev, ms)
+            chosen = (variant, why, dev, ms, exe)
             break
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as e:
             tried[variant] = f"{type(e).__name__}: {str(e)[:200]}"
     report["tried"] = tried
     if chosen is None:
         raise RuntimeError(f"no backend works: {report}")
-    variant, why, dev, ms = chosen
+    variant, why, dev, ms, exe = chosen
     report["backend"], report["why"] = variant, why
     report["device"] = dev["name"] + (f" ({dev['memory_mib']} MiB)" if dev.get("memory_mib") else "")
     report["ms_per_text"] = round(ms, 1)
     report["service"] = f"{SERVICE} on 127.0.0.1:{port}, dimension {MODEL_DIM}"
+    try:
+        report["reranker"] = setup_reranker(d, exe, variant, rerank, switch)
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as e:  # the vectors work without it
+        report["reranker"] = {"state": f"failed: {type(e).__name__}: {str(e)[:200]}"}
     if switch:
         report["previous_url"] = (config.load().embed or {}).get("url")
         config.set_embed({"url": f"http://127.0.0.1:{port}/v1/embeddings"})
         from . import setup as _setup
         report["restart"] = _setup._restart() or "ok"
+    report["time"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    try:  # 0.60.0: status shows it; an update decides from it whether setup must run again
+        (d / "setup.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))
+    except OSError:
+        pass
     return report
 
 
@@ -501,34 +582,59 @@ def compare(port: int = DEFAULT_PORT, sample: int = 30) -> dict:
             "verdict": "same vectors" if ok and len(ok) == len(cos) and min(ok) >= 0.99 else "different — do not switch"}
 
 
+def _service_state(name: str) -> str:
+    if system() == "linux":
+        r = subprocess.run(["systemctl", "is-active", name], capture_output=True, text=True)
+        return r.stdout.strip() or r.stderr.strip()
+    r = subprocess.run(["schtasks", "/Query", "/TN", name], capture_output=True, text=True)
+    return "registered" if r.returncode == 0 else "not registered"
+
+
 def status() -> dict:
     k = config.load()
-    url = (k.embed or {}).get("url")
-    out: dict = {"embed.url": url or "— (no vectors)", "dir": str(home())}
-    if system() == "linux":
-        r = subprocess.run(["systemctl", "is-active", SERVICE], capture_output=True, text=True)
-        out["service"] = r.stdout.strip() or r.stderr.strip()
-    else:
-        r = subprocess.run(["schtasks", "/Query", "/TN", SERVICE], capture_output=True, text=True)
-        out["service"] = "registered" if r.returncode == 0 else "not registered"
+    out: dict = {"embed.url": (k.embed or {}).get("url") or "— (no vectors)", "rerank.url": (k.rerank or {}).get("url") or "— (no reranker)",
+                 "dir": str(home())}
+    out["service"] = _service_state(SERVICE)
+    out["reranker_service"] = _service_state(RERANK_SERVICE)
+    try:
+        last = json.loads((home() / "setup.json").read_text())
+        out["last_setup"] = {k2: last.get(k2) for k2 in ("backend", "device", "why", "ms_per_text", "time")}
+    except (OSError, ValueError):
+        out["last_setup"] = "— (no setup.json)"
     return out
 
 
+def _local(url: str, suffix: str) -> bool:
+    return url.startswith("http://127.0.0.1:") and url.endswith(suffix)
+
+
 def remove() -> dict:
-    """Stop and remove the service and its files; embed.url is cleared only if it pointed to this service."""
+    """Stop and remove both services and their files; embed.url / rerank.url are cleared only if they pointed to these services."""
+    for name in (SERVICE, RERANK_SERVICE):
+        if system() == "linux":
+            subprocess.run(["systemctl", "disable", "--now", name], capture_output=True, timeout=60)
+            Path(f"/etc/systemd/system/{name}.service").unlink(missing_ok=True)
+        else:
+            subprocess.run(["schtasks", "/End", "/TN", name], capture_output=True)
+            subprocess.run(["schtasks", "/Delete", "/TN", name, "/F"], capture_output=True)
     if system() == "linux":
-        subprocess.run(["systemctl", "disable", "--now", SERVICE], capture_output=True, timeout=60)
-        Path(f"/etc/systemd/system/{SERVICE}.service").unlink(missing_ok=True)
         subprocess.run(["systemctl", "daemon-reload"], capture_output=True, timeout=60)
-    else:
-        subprocess.run(["schtasks", "/End", "/TN", SERVICE], capture_output=True)
-        subprocess.run(["schtasks", "/Delete", "/TN", SERVICE, "/F"], capture_output=True)
     shutil.rmtree(home(), ignore_errors=True)
-    url = (config.load().embed or {}).get("url") or ""
-    if url.startswith("http://127.0.0.1:") and url.endswith("/v1/embeddings"):
+    k = config.load()
+    out: dict = {"removed": True}
+    url = (k.embed or {}).get("url") or ""
+    if _local(url, "/v1/embeddings"):
         config.set_embed(None)
-        return {"removed": True, "embed.url": "cleared"}
-    return {"removed": True, "embed.url": url or "—"}
+        out["embed.url"] = "cleared"
+    else:
+        out["embed.url"] = url or "—"
+    rurl = (k.rerank or {}).get("url") or ""
+    if _local(rurl, "/v1/rerank"):
+        config.set_rerank(None)
+        out["rerank.url"] = "cleared"
+    else:
+        out["rerank.url"] = rurl or "—"
+    return out
 
 
 def main(argv: list[str]) -> int:
@@ -540,6 +646,8 @@ def main(argv: list[str]) -> int:
     s.add_argument("--backend", choices=BACKENDS, default="auto",
                    help="auto (default): CUDA with an NVIDIA driver, else Vulkan with a GPU, else CPU — each accepted only if it lists its device")
     s.add_argument("--cpu", action="store_true", help="same as --backend cpu")
+    s.add_argument("--rerank", choices=RERANK_MODES, default="auto",
+                   help=f"reranker (bge-reranker-v2-m3): auto = install, use it if {len(RERANK_DOCS)} documents take ≤ {RERANK_MAX_S:.0f} s; force; off")
     s.add_argument("--model-file", type=Path, help="use this local copy of bge-m3-Q4_K_M.gguf (checked by SHA256) instead of downloading")
     s.add_argument("--no-switch", action="store_true", help="install and start, but keep embed.url as it is (to compare first)")
     c = u.add_parser("compare", help="compare stored vectors with the service (read-only), before switching")
@@ -552,7 +660,7 @@ def main(argv: list[str]) -> int:
         if o.cmd == "setup":
             if not 1024 <= o.port <= 65535:
                 raise ValueError("port must be a number from 1024 to 65535")
-            r = setup(o.port, o.cpu, o.model_file, not o.no_switch, o.backend)
+            r = setup(o.port, o.cpu, o.model_file, not o.no_switch, o.backend, o.rerank)
         elif o.cmd == "compare":
             r = compare(o.port, o.sample)
         elif o.cmd == "status":

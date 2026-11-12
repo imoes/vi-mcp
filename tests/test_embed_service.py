@@ -59,7 +59,8 @@ def test_setup_falls_back_to_cpu_and_switches(tmp_path, monkeypatch):
     monkeypatch.setattr(es, "detect_gpus", lambda: ([{"vendor": "amd", "name": "Radeon", "memory_mib": None, "driver": None}], {}))
     monkeypatch.setattr(es, "_devices", lambda exe: [])
     services = []
-    monkeypatch.setattr(es, "_service_linux", lambda exe, model, port: services.append((exe, port)))
+    monkeypatch.setattr(es, "_service_linux", lambda exe, model, port, name=es.SERVICE, args=None: services.append((exe, port)))
+    monkeypatch.setattr(es, "rerank_probe", lambda port, q, docs, timeout_s=120: [0.5] * len(docs))
     monkeypatch.setattr(es, "probe", lambda port, texts, timeout_s=120: [[0.0] * es.MODEL_DIM])
     monkeypatch.setattr(es.os, "geteuid", lambda: 1000)
     from vi_mcp import setup as _setup

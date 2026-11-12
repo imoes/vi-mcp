@@ -338,6 +338,17 @@ def set_embed(embed: dict | None, p: Path | None = None) -> None:
     _save_raw(raw, p)
 
 
+def set_rerank(rerank: dict | None, p: Path | None = None) -> None:
+    """0.60.0: set or clear the cross-encoder for vi_recall ({"url": ...}); read at start, like embed."""
+    p = p or fpath()
+    raw = read_raw(p)
+    if rerank:
+        raw["rerank"] = rerank
+    else:
+        raw.pop("rerank", None)
+    _save_raw(raw, p)
+
+
 def _save_raw(raw: dict, p: Path) -> None:
     """Atomic write of the configuration; keeps owner and permissions of an existing file, a new one is 0600."""
     p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
