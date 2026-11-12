@@ -311,6 +311,10 @@ def report(days: float = 7) -> str:
     z.append("    " + metrics.matched_line(metrics.hint_lift_matched(24 * days, viewer=None)))  # 0.49.0: the raw lift mixes instances
     ex = metrics.exploration_effect(24 * days)  # 0.57.0: the randomized comparison — causal, unlike the two lines above
     z.append(f"    randomized (ε-exploration, last slot random vs ranked): {ex['urteil']}")
+    from . import learning, weight_writer
+    m_ = learning.model()
+    if m_ is not None and weight_writer.layer(m_):  # 0.58.0
+        z.append(f"    {weight_writer.line(m_)} · online: {metrics.arm_effect(since=weight_writer.layer(m_).get('ab_seit'))['urteil']}")
     z.append("    " + metrics.age_line(metrics.lift_by_age(24 * days, viewer=None)))  # 0.29.0: cold-start observation point
     z.append(f"D Knowledge: {w['neu']} new (" + ", ".join(f"{k} {v}" for k, v in w["neu_je_art"].items()) + "; visibility "
              + ", ".join(f"{k} {v}" for k, v in w["neu_je_sicht"].items()) + "; origin " + ", ".join(f"{k} {v}" for k, v in list(w["neu_je_quelle"].items())[:5])

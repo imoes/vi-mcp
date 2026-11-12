@@ -143,6 +143,8 @@ def _run(reason: str) -> g.MemoryObject:
         step("7d_hinweise", lambda: _hints_new())
         step("8_lernen", lambda: _learning())
         step("8b_gewichte_pruefen", lambda: _weight_audit())  # 0.29.0: read the new weights, never write them
+        from . import weight_writer
+        step("8c_llm_gewichte", lambda: weight_writer.run())  # 0.58.0: the language model may propose a weight layer — measured before it acts
     from . import evaluation
     step("9_pruefung", lambda: evaluation.nightly())  # 0.55.0: once a day the fixed question set and the router numbers
     duration = int((time.monotonic() - t0) * 1000)

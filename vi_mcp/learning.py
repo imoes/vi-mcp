@@ -446,6 +446,8 @@ def _save(report: dict, weights: dict, intercept: float, mode: str, new_champion
         data["champion_modell"] = {"gewichte": weights, "achsenabschnitt": round(intercept, 4), "trainiert": report.get("trainiert")}
     elif m is not None and m.data.get("champion_modell"):
         data["champion_modell"] = m.data["champion_modell"]
+    if m is not None and m.data.get("llm_schicht"):  # 0.58.0: the LLM layer lives beside the fitted weights, the fit never overwrites it
+        data["llm_schicht"] = m.data["llm_schicht"]
     text = (f"Router model ({report.get('zustand')}): {report.get('n', 0)} observations, {report.get('merkmale', 0)} features, "
             f"AUC {report.get('auc_holdout', '—')} — {report.get('urteil', report.get('grund', ''))}")
     if m is None:
@@ -526,7 +528,8 @@ def _keep_champion(report: dict) -> None:
         return
     data = {**report, "gewichte": champ["gewichte"], "achsenabschnitt": champ["achsenabschnitt"], "champion_modell": champ,
             "zustand": "aktiv", "herausforderer_verworfen": report.get("trainiert"),
-            "warnung": m.data.get("warnung") or {"zustand": "aus", "grund": "champion kept without a warning threshold"}}
+            "warnung": m.data.get("warnung") or {"zustand": "aus", "grund": "champion kept without a warning threshold"},
+            **({"llm_schicht": m.data["llm_schicht"]} if m.data.get("llm_schicht") else {})}
     m.text = (f"Router model (aktiv, champion of {str(champ.get('trainiert'))[:16]}): challenger rejected — {report['champion']['urteil']}")
     m.data, m.mode = {**data, "versionen": m.data.get("versionen", 0) + 1}, "aktiv"
     m.change("vi", "challenger rejected, champion kept", report.get("grund", "learning"))
@@ -557,6 +560,8 @@ def explanation(limit: int = 12) -> str:
     z = [m.text, f"  trained {str(d.get('trainiert', '—'))[:16]} · sklearn {d.get('sklearn', '—')} · ok {d.get('ok', 0)} / not ok {d.get('nicht_ok', 0)} "
                  f"· features {d.get('merkmale', 0)} (dropped {d.get('verworfen', 0)}: < {MIN_PER_FEATURE} occurrences) · holdout {d.get('holdout', 0)} "
                  f"({d.get('holdout_fehler', '—')} failures) · direct feedback on hints {d.get('rueckmeldungen', 0)}"]
+    from . import weight_writer
+    z.append("  " + weight_writer.line(m))  # 0.58.0
     if d.get("C") is not None:  # 0.55.0
         cw = d.get("c_wahl") or {}
         z.append(f"  Regularisation C {d['C']} (" + (f"chosen by log loss on the newest {cw.get('n')} training observations: {cw.get('log_loss_validierung')}"

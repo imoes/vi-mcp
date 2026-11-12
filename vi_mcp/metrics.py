@@ -237,3 +237,35 @@ def ips_lift(hours: float = 24 * 30, viewer: str | None = None, min_shown: int =
         if n >= min_shown and ws and wn:
             out[h] = {"lift": round(ys / ws - yn / wn, 4), "gezeigt": n}
     return out
+
+
+def arm_effect(since: str | None = None, viewer: str | None = None) -> dict:
+    """0.58.0: the randomized test of the LLM weight layer — actions ranked with the layer (arm llm) minus without (arm basis), Mantel-
+    Haenszel within (instance, tool). Which arm an action is in is a coin flip (weight_writer.AB_SHARE), so the difference is causal."""
+    strata: dict[tuple, dict] = {}
+    for _, o, _g in g.recall("art:erfahrung (ok:ja OR ok:nein)", limit=50000, viewer=viewer):
+        v = o.data.get("vorher") or {}
+        a = v.get("arm")
+        if a not in ("llm", "basis") or (since and o.ts < since) or v.get("aus_gedaechtnis"):
+            continue
+        t = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
+        c = strata.setdefault((o.instance or "?", t), {"llm": [0, 0], "basis": [0, 0]})[a]
+        c[0] += _ok(o)
+        c[1] += 1
+    num = den = var = 0.0
+    n_l = n_b = 0
+    for c in strata.values():
+        (a1, n1), (b0, n0) = c["llm"], c["basis"]
+        if not n1 or not n0:
+            continue
+        w = n1 * n0 / (n1 + n0)
+        p1, p0 = a1 / n1, b0 / n0
+        num += w * (p1 - p0)
+        den += w
+        var += w * w * (p1 * (1 - p1) / n1 + p0 * (1 - p0) / n0)
+        n_l, n_b = n_l + n1, n_b + n0
+    if not den:
+        return {"zustand": "zu_wenig", "llm": n_l, "basis": n_b, "urteil": "no comparable actions in both arms yet"}
+    d, se = num / den, math.sqrt(var) / den
+    return {"zustand": "gemessen", "differenz": round(d, 4), "standardfehler": round(se, 4), "llm": n_l, "basis": n_b,
+            "urteil": f"with LLM layer − without {d * 100:+.1f} ± {se * 100:.1f} points ({n_l} vs {n_b} actions)"}

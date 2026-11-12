@@ -3,6 +3,53 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.58.0 — 2026-11-12 — Hybrid: the language model may write a weight layer on the fitted router — only after measurement
+
+The user asked why the language model does not write weights as in weight-space programming (Takehi, Teoh, Zhang, Khattab, MIT CSAIL,
+blog 02.11.2026, read in full: writing weights worked where data was missing and edits were kept only "if it wins more"; no evidence
+that it beats a fitted model where data is plentiful) — "das wäre doch genau das Scoring" — and decided: "hybrid — einmal unser scikit
+learn stack und dann die KI". And: "weil die Gewichte in JSON vorliegen, kann man Gewichte auch löschen, was bei normalen LLMs wie Qwen
+nicht funktioniert".
+
+### What is new
+
+- **LLM weight layer** (`vi_mcp/weight_writer.py`, sleep step `8c_llm_gewichte`, once a day): the language model gets a model card
+  (feature names, fitted weights, audit findings, numbers from the training part only; texts of new hints only from own instances, never
+  from the network) and may propose up to 20 changes — a delta |Δ| ≤ 1 or a **deletion** of a weight the audit flagged — for flagged
+  features and for new hints the fit has not seen (cold start). Fixed rules check the answer (editable, bounds, reason, count).
+- **It acts only after measurement:** offline the model with and without the layer is compared on the holdout (paired log loss, ranking
+  utility); not worse → a randomized online test, 20 % of actions ranked with the layer (`vorher.arm`, `metrics.arm_effect`, Mantel-
+  Haenszel); ≥ 300 actions per arm and better beyond 2 standard errors → active for all; worse → rejected. Re-checked every day. The daily
+  fit never overwrites the layer (stored beside the fitted weights).
+- `vi_model`, `vi_stats` C and `vi_why` (through the ranking) show the layer, its changes with reasons, the gate states and the online
+  comparison.
+
+### What has changed
+
+- The rule "taught through labels, never through weights" (0.29.0) is now "labels train the fitted weights; an LLM weight layer acts only
+  after offline and randomized online measurement" (ARCHITECTURE, AGENTS). "Language-model verdicts only tighten" stays for releases and
+  reviews.
+
+*Proof — four real runs with the local Qwen3.6-35B on a copy of production (12.11.2026, same holdout of 2,792 observations):*
+
+| run | changes accepted | log loss with − without (per observation) | ranking gap | gate |
+|---|---|---|---|---|
+| 1 card with the bandit's counters | 15 | −0.00099 ± 0.00026 | 0.424 → 0.437 | passed — **a leak**: the counters include the holdout |
+| 2 numbers from the training part only | 4 | −0.00014 ± 0.00014 | 0.424 → 0.424 | passed, no difference |
+| 3 new hints judged by content (no numbers) | 19 | −0.00029 ± 0.00024 | 0.424 → 0.437 | passed, no difference beyond 1.2 SE |
+| 4 + "positive = helps the action succeed" | 15 | +0.00187 ± 0.00085 | 0.424 → 0.422 | **rejected** (worse by 2.2 SE) |
+
+So far the language model's edits bring no measurable gain on this router, and its judgements move with the prompt (run 3 weighted
+severity, run 4 gave almost every finding +1.0); the gate stops what is worse, and only the randomized online test can show a gain. Run 1
+found a real flaw that is fixed: the model card must not show outcomes from the holdout period.
+Tests: `tests/test_weight_writer.py` (rules incl. deletion, network texts never in the card, the layer survives the fit and counts only
+in its arm, offline gate passes a helpful and rejects a harmful layer, arm effect and ranking with the layer).
+
+### What is missing
+
+- No online result yet — it needs ≥ 300 actions per arm after the layer is in test on production.
+- The skill `/vi-entwickeln` describes the hybrid; the CentralStation relevance model could use the same pattern (offered to its session).
+
 ## 0.57.1 — 2026-11-12 — Imported documentation no longer pushes into the hints; honest statistics
 
 From the first hourly analysis of production after 0.57.0 (the user's loop "test and analyse the statistics to improve the system").

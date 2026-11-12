@@ -351,9 +351,14 @@ which context — docs/TRAINING.md 4a/4b.
   almost every command via `skill:` and pushed experience knowledge (warnings, pitfalls) out of the budget.
 - *Observation point:* hint lift (`vi_experience`) before/after `router: modell`. If it does not rise, the model is not
   better than the heuristic → back to `test`.
-- **Taught through labels, never through weights** (0.29.0). The teacher is already there: the scorer's verdicts (language model) and the
-  direct feedback on a shown hint are the labels. Writing weights from outside (as in "weight space programming") would not survive the
-  next training (scikit-learn regularises towards 0) and would replace measurement with opinion. Weights are read: `vi_why` lays open one
+- **Taught through labels; an LLM weight layer only after measurement** (0.29.0, changed 0.58.0 on the user's decision "hybrid — unser
+  scikit-learn-Stack und dann die KI"). The labels (scorer verdicts, direct feedback) train the fitted weights. On top, the language model
+  may propose a small layer (`weight_writer.py`): deltas |Δ| ≤ 1 or deletions, only for features the audit flagged or for new hints the fit
+  has not seen; stored beside the fitted weights (`llm_schicht`), so the daily fit does not overwrite it; acting only after an offline gate
+  (paired log loss and ranking utility with/without, on the holdout — the card the model sees holds only numbers from the training part)
+  and a randomized online test (20 % of actions, arm `vorher.arm`); re-checked daily. "Language-model verdicts only tighten" stays for
+  releases and reviews; for weights the rule is "acts only after measurement". Before 0.58.0: writing weights from outside would not have
+  survived the next training and would have replaced measurement with opinion — the layer answers both. Weights are read: `vi_why` lays open one
   decision (contributions weight × value; they plus the intercept are the logit), and after training the sleep step `8b_gewichte_pruefen`
   (`weight_audit.py`) applies fixed rules — `dominant`, `contradicts` (weight against the bandit's measured lift), `network` (unconfirmed
   hint from the network with a strong weight), `hour` (time of day among the strongest weights, post hoc). It reports, it never changes.

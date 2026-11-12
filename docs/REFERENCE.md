@@ -1,6 +1,6 @@
 # vi-mcp reference
 
-Generated from the code of vi-mcp 0.57.1 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
+Generated from the code of vi-mcp 0.58.0 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
 
 Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server configuration](#server-configuration-configjson) · [Network service configuration](#network-service-configuration-etcvi-p2pnetworkjson) · [Configuration catalogue](#configuration-catalogue-debconf-vi-mcp-configure-vi_mcp_key) · [Environment variables](#environment-variables) · [HTTP endpoints](#http-endpoints) · [Modules](#modules-vi_mcp)
 
@@ -966,5 +966,6 @@ First line of each module's docstring.
 | `vector` | Vectors — meaning instead of identical words (stage 3, docs/TRAINING.md 4c; Park et al. 2023, section 4.1: relevance |
 | `web` | 0.46.0: the web page of a server — a read-only window onto what the free and open networks carry: search, wiki, forum, knowledge. |
 | `weight_audit` | Weight audit (0.29.0) — fixed rules that read the router weights after training and name what looks wrong. |
+| `weight_writer` | LLM weight layer (0.58.0) — weight-space programming for the router, hybrid with the fitted model. |
 | `wiki` | 0.41.0: the network wiki — pages every member of a network may edit, without a master. |
 | `wiki_merge` | 0.41.0: the view of a network wiki page — pure functions, no database. |

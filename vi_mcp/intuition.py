@@ -284,8 +284,10 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     cand = p2p.without_blocked(cand)
     router = "heuristik"
     m = learning.active()
+    from . import weight_writer
+    layer_arm = weight_writer.arm(m) if m is not None else None  # 0.58.0: LLM weight layer — coin flip while it is tested
     if m is not None and cand:
-        rank_pos = dict(learning.ranking(m, search_triggers, [o.id for o in cand]))
+        rank_pos = dict(learning.ranking(weight_writer.effective(m, layer_arm == "llm"), search_triggers, [o.id for o in cand]))
         cand.sort(key=lambda o: -rank_pos.get(o.id, 0.0))
         router = "modell"
     elif bandit.has_counter(cand):  # stage 2: Thompson sampling as soon as any candidate has been rated
@@ -403,7 +405,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
                 answer, age_s = o.data.get("ergebnis", ""), int(age)
     access = {"reize": rz, "warnung": bool(warn), "gefunden": found, "gezeigt": [o.id for o in shown_obj], "kandidaten": candidate_ids,
                "router": router, "exploration": exploration, "rest_n": len(rest), "suchen": search, "aus_gedaechtnis": answer is not None,
-               "angebot": offer,
+               "angebot": offer, **({"arm": layer_arm} if layer_arm else {}),
                "repeat_suppressed": [o.id for o in repeated]}
     before_id = secrets.token_hex(8)
     if answer is not None:
