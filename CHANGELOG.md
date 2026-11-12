@@ -3,6 +3,72 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.55.0 — 2026-11-12 — The VI measures its search daily and learns solutions with their content
+
+The user's idea: train the VI like the large labs train their models — a scorer grades the work of a network of agents every day and
+the grades train the next model. The language model stays untrained (AGENTS.md); what is trained are the VI's small, readable models.
+This release lays the base: a fixed measuring instrument, a model that may only replace the previous one when it is not worse, and
+problem → solution knowledge with its content, including solutions an AI found on the web ("wenn eine KI eine Lösung per Websuche
+gelöst hat, muss diese Information trainiert werden").
+
+### What is new
+
+- **A measuring instrument for the search** (`vi_mcp/evaluation.py`, `scripts/eval_recall.py`), taken over from it-aikb: a question set
+  with a known target, judged at page level (several parts of one imported page count as one), MRR, Hit@1/5/10, nDCG@10, latency, per
+  query style (natural question, keywords) and per origin. Every later change to the search is measured with it before it stays.
+- **Sleep measures once a day** (step `9_pruefung`): it writes the question set in portions with the language model (at most 300 s per
+  sleep, 150 targets, stratified by origin, file `eval/recall.json` next to the database, 0600, never in the repository), runs every
+  available search variant over it and adds the router's holdout numbers and the matched hint lift; one line per day in
+  `eval/verlauf.jsonl`. `vi_stats` section **P** shows the course.
+- **Champion / challenger for the router**: a newly trained model replaces the model of the last sleep only if its log loss on the
+  observations that model has not seen is not worse by more than one standard error (paired difference, at least 200 observations).
+  Otherwise the champion's weights stay active and the rejected challenger is named in `vi_model`. Before, every training replaced the
+  previous model unseen (ARCHITECTURE "no comparison against the previous model").
+- **More honest holdout numbers** (scikit-learn user guide, model_evaluation): `vi_model` shows log loss, Brier score and average
+  precision for failures besides the AUC — `class_weight="balanced"` shifts the probabilities, which the AUC alone does not show.
+- **Problem → solution with content** (`vi_mcp/solutions.py`, sleep step 4c): an episode error → steps → success becomes a solution
+  `skill:loesung-<hash>` holding problem, cause, solution, the working commands and the sources — written by the language model from the
+  failed call and its error, what was done in between (a restart, an edit), what was looked up (web search, fetched pages, documents)
+  and the call that then worked; without a language model a template from the same evidence. Visible `intern` (company knowledge),
+  mode test, tagged `herkunft:episode` and, with web sources, `herkunft:web`. The same measure for the same error evolves the solution;
+  another measure is another solution (sleep proposes merging). An episode without content — the same call simply repeated — is counted,
+  not stored. Before, a recovery became a skill with only the tool sequence ("Bash → browser_navigate → …").
+- **Web results reach the VI**: the hook sends an excerpt (4,000 characters, masked) of WebSearch and WebFetch results; the experience
+  keeps it as `auszug`. Before, built-in tools sent only their arguments, so a solution found on the web was lost.
+- After an error, a solution with content ranks first among the hints (`intuition.error_hints`); the router gets the error signature
+  (`fehler:`) as a feature. Rule 5 asks for `vi_solved` with the URL when a solution came from the web or documentation.
+
+*Proof (12.11.2026):*
+- Baseline on a copy of production (backup 07:33 UTC, 23,928 objects), 150 targets × 2 queries written by the local language model,
+  page level:
+
+  | search | MRR | Hit@1 | Hit@5 | Hit@10 | median |
+  |---|---|---|---|---|---|
+  | full text (what `vi_recall` does by default) | 0.336 | 0.247 | 0.463 | 0.523 | 108 ms |
+  | — natural questions only | 0.167 | 0.107 | 0.247 | 0.333 | |
+  | hybrid (`semantic=true`: meaning + full text) | 0.673 | 0.570 | 0.810 | 0.863 | 634 ms |
+
+  The hybrid search finds the target twice as well and was used in 118 of 1,528 searches (`vi_stats`, 7 days) — the next release makes
+  it the default. Caveat: the questions were written from the target's own text, which favours full text, so the gap is if anything
+  understated.
+- Tests: `tests/test_evaluation.py` (metrics, a measurement does not reinforce, nightly portions and once a day, missing language model
+  named), `tests/test_solutions.py` (web episode → solution with command and URL, the same error afterwards shows it first, template,
+  same fix evolves, repeat counted, invisible characters rejected), champion test in `tests/test_lernen.py`; whole suite SQLite 665
+  passed, 4 skipped; PostgreSQL 667 passed, 2 skipped.
+
+### What has changed
+
+- The question set is written inside sleep instead of by a command (`vi-mcp eval generate` in the plan): a second process would have
+  had to open the database next to the running service.
+
+### What is missing
+
+- The model-based scorer still does not count for training (0 human grades); one label function for router, bandit and metrics with
+  source weights follows (plan phase 2).
+- Hybrid search by default, candidates by rank instead of recency, a cross-encoder reranker and a learned ranker follow, each measured
+  with this instrument (plan phase 3).
+- Hint lines and instructions do not yet say what the model has measured (plan phase 4).
+
 ## 0.54.1 — 2026-11-12 — The Windows setup asks for the wiki server
 
 ### What is new

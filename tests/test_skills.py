@@ -49,14 +49,15 @@ def test_skill_from_recovery_in_sleep(gd):
     assert [x["tool"] for x in sk.data["loesung"]["schritte"]] == ["checkmk_get_host", "Bash", "checkmk_get_host"]
     assert {"tool:checkmk_get_host", "host:cue1"} <= set(sk.data["problem"]["reize"]) and any(t.startswith("fehler:") for t in sk.data["problem"]["reize"])
     assert len(sk.edges()) >= 4
-    # second recovery from the same problem → version 2, no second skill
+    assert "herkunft:episode" in sk.hashtags and sk.visibility == "intern" and "Then this call worked" in str(sk.data.get("inhalt") or sk.data["loesung"]["text"])
+    # 0.56.0: a second recovery of the same problem with another measure is another solution (the helper's arguments differ) —
+    # same problem key, so sleep proposes merging them; the same measure evolves the solution (tests/test_solutions.py)
     s2 = session.begin("b", "t")
     action(s2, "checkmk_get_host", False, "ConnectionError: refused")
-    action(s2, "Bash", True)  # again did something to the system; a mere "tried again" does not develop the path further
+    action(s2, "Bash", True)
     action(s2, "checkmk_get_host", True)
-    b2 = sleep_cycle.run("Test 2")
-    assert b2.data["schritte"]["4c_skills"] == {"neu": 0, "weiterentwickelt": 1, "strittig": 0, "vorschlaege": 0}
-    assert g.load(sk.id).data["version"] == 2
+    v = sleep_cycle.run("Test 2").data["schritte"]["4c_skills"]
+    assert v["neu"] == 1 and v["weiterentwickelt"] == 0 and v["vorschlaege"] == 2
 
 
 def test_skill_becomes_disputed_when_useless(gd):

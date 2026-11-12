@@ -49,7 +49,7 @@ UTILITY_SE = 2.0
 #: 0.32.0 (generality problem of reliabilism): "advantage over the base rate" depends on the reference class. The gate must hold for
 #: each of them — the tool alone, and tool plus host — so that no single arbitrary choice decides.
 REFERENCE_CLASSES = ("tool", "tool+host")
-TRIGGER_KINDS = ("tool:", "skill:", "host:", "thema:")
+TRIGGER_KINDS = ("tool:", "skill:", "host:", "thema:", "fehler:")  # 0.56.0: fehler: — which solution helps which error
 
 
 def action_features(triggers: list[str], ts: str) -> dict:
@@ -217,12 +217,19 @@ def train(reason: str = "sleep") -> dict:
     u = utility(weights, float(clf.intercept_[0]), obs[-n_test:], obs[:-n_test])
     report["nutzen_holdout"] = u
     report["untrennbar"] = inseparable(obs)
+    report.update(holdout_metrics(clf, Xte, yte))
+    # 0.55.0: champion / challenger — the model of the last sleep against the new one, on what the champion has not seen
+    report["champion"] = compare_champion(champion(), weights, float(clf.intercept_[0]), obs[-n_test:])
     if auc is None or auc <= AUC_MIN:
         report.update(zustand="test", urteil=f"holdout AUC {auc} ≤ {AUC_MIN} or not determinable — model saved, router stays heuristic")
         mode = "test"
     elif u["zustand"] != "nutzen":  # 0.30.0: classification alone is not enough, the order has to pay off
         report.update(zustand="test", urteil=f"holdout AUC {auc:.3f} > {AUC_MIN}, but ranking utility {u['zustand']}: "
                                              f"{u.get('urteil') or u.get('grund')} — model saved, router stays heuristic/bandit")
+        mode = "test"
+    elif report["champion"]["zustand"] == "schlechter":
+        report.update(zustand="test", urteil=f"holdout AUC {auc:.3f} > {AUC_MIN} and ranking pays off, but worse than the model of the last "
+                                             f"sleep: {report['champion']['urteil']} — the previous weights stay in use")
         mode = "test"
     else:
         report.update(zustand="aktiv", urteil=f"holdout AUC {auc:.3f} > {AUC_MIN} and ranking pays off ({u['urteil']}) — router uses the model")
@@ -231,7 +238,10 @@ def train(reason: str = "sleep") -> dict:
     auc_ok = auc is not None and auc > AUC_MIN
     report["warnung"] = _warn_threshold(clf, vec, obs[-n_test:]) if auc_ok else {"zustand": "aus", "grund": f"holdout AUC {auc} ≤ {AUC_MIN}"}
     report["quoten"] = _ratios(obs, kept)
-    _save(report, weights, float(clf.intercept_[0]), mode)
+    if mode == "test" and report["champion"]["zustand"] == "schlechter":
+        _keep_champion(report)  # the worse challenger is recorded, the champion's weights stay active
+    else:
+        _save(report, weights, float(clf.intercept_[0]), mode, new_champion=(reason == "sleep" and mode == "aktiv"))
     log(f"Learning: {report['zustand']} — n {len(obs)}, features {len(kept)}, AUC {report.get('auc_holdout')}, "
         f"warning {report['warnung'].get('zustand')}")
     return report
@@ -392,9 +402,14 @@ def warning(triggers: list[str], ts: str | None = None) -> str | None:
             f"{w['scheiterten']} of {w['gewarnt']} actions classified this way failed ({w['praezision_pct']} %). Check arguments, paths and reachability first.")
 
 
-def _save(report: dict, weights: dict, intercept: float, mode: str) -> g.MemoryObject:
+def _save(report: dict, weights: dict, intercept: float, mode: str, new_champion: bool = False) -> g.MemoryObject:
     m = g.load(MODEL)
     data = {**report, "gewichte": weights, "achsenabschnitt": round(intercept, 4)}
+    # 0.55.0: the champion is the model of the last sleep in which it went active; carried over by every other training
+    if new_champion:
+        data["champion_modell"] = {"gewichte": weights, "achsenabschnitt": round(intercept, 4), "trainiert": report.get("trainiert")}
+    elif m is not None and m.data.get("champion_modell"):
+        data["champion_modell"] = m.data["champion_modell"]
     text = (f"Router model ({report.get('zustand')}): {report.get('n', 0)} observations, {report.get('merkmale', 0)} features, "
             f"AUC {report.get('auc_holdout', '—')} — {report.get('urteil', report.get('grund', ''))}")
     if m is None:
@@ -405,6 +420,83 @@ def _save(report: dict, weights: dict, intercept: float, mode: str) -> g.MemoryO
     return g.save(m)
 
 
+#: 0.55.0: a challenger is compared with the champion on at least this many holdout observations the champion has not seen
+CHAMPION_MIN_N = 200
+
+
+def champion() -> dict | None:
+    """The model of the last sleep in which a model went active (weights, intercept, trained) — or None."""
+    m = model()
+    return (m.data.get("champion_modell") or None) if m else None
+
+
+def _times(oids: list[str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    with g.lock:
+        for i in range(0, len(oids), 500):
+            part = oids[i:i + 500]
+            out.update({r[0]: r[1] for r in g.db().execute(f"SELECT id, zeit FROM objekt WHERE id IN ({','.join('?' * len(part))})", part)})
+    return out
+
+
+def compare_champion(champ: dict | None, weights: dict, intercept: float, holdout: list) -> dict:
+    """0.55.0: champion / challenger. Both models predict the holdout observations that arose after the champion was trained (it has not
+    seen them; the challenger has not either — they are its holdout). Paired difference of the log loss per observation (scikit-learn
+    model_evaluation: log loss is the proper scoring rule for probabilities); the challenger is `schlechter` when its mean loss is higher
+    by more than one standard error of that difference. Exhaustive: kein_champion · nicht_bestimmbar · schlechter · nicht_schlechter."""
+    if not champ or not champ.get("gewichte"):
+        return {"zustand": "kein_champion", "urteil": "no model of an earlier sleep to compare with"}
+    since = str(champ.get("trainiert") or "")
+    ts = _times([o for _f, _y, o in holdout])
+    unseen = [(f, y) for f, y, o in holdout if ts.get(o, "") > since]
+    if len(unseen) < CHAMPION_MIN_N:
+        return {"zustand": "nicht_bestimmbar", "n": len(unseen), "seit": since[:16],
+                "urteil": f"{len(unseen)} holdout observations since the champion ({since[:16]}) — at least {CHAMPION_MIN_N} needed"}
+    c = type("M", (), {"data": champ})()
+    n = type("M", (), {"data": {"gewichte": weights, "achsenabschnitt": intercept}})()
+    eps = 1e-12
+
+    def loss(m, f, y):
+        p = min(1 - eps, max(eps, prediction(m, f)))
+        return -math.log(p if y else 1 - p)
+    d = [loss(n, f, y) - loss(c, f, y) for f, y in unseen]
+    mean = sum(d) / len(d)
+    se = math.sqrt(sum((x - mean) ** 2 for x in d) / (len(d) - 1) / len(d))
+    worse = mean > 0 and mean > se
+    lc = sum(loss(c, f, y) for f, y in unseen) / len(unseen)
+    return {"zustand": "schlechter" if worse else "nicht_schlechter", "n": len(unseen), "seit": since[:16],
+            "log_loss_champion": round(lc, 4), "log_loss_neu": round(lc + mean, 4), "differenz": round(mean, 4), "standardfehler": round(se, 4),
+            "urteil": f"log loss new {lc + mean:.4f} vs champion {lc:.4f} on {len(unseen)} observations since {since[:16]} "
+                      f"(difference {mean:+.4f} ± {se:.4f})" + (" — worse by more than one standard error" if worse else "")}
+
+
+def holdout_metrics(clf, Xte, yte) -> dict:
+    """0.55.0: besides AUC (ranking of ok/not ok) the proper scoring rules for the probabilities and the precision-recall summary
+    (scikit-learn model_evaluation). class_weight='balanced' shifts the probabilities, so log loss and Brier show the miscalibration too."""
+    from sklearn.metrics import average_precision_score, brier_score_loss, log_loss
+    if len(set(yte.tolist())) < 2:
+        return {}
+    p = clf.predict_proba(Xte)[:, 1]
+    return {"log_loss_holdout": round(float(log_loss(yte, p, labels=[0, 1])), 4), "brier_holdout": round(float(brier_score_loss(yte, p)), 4),
+            # average precision for the minority class "not ok" — the warning works on it
+            "ap_fehler_holdout": round(float(average_precision_score(1 - yte, 1 - p)), 4)}
+
+
+def _keep_champion(report: dict) -> None:
+    """A challenger worse than the champion: record its report, keep the champion's weights active (named in the model text)."""
+    m = g.load(MODEL)
+    champ = champion()
+    if m is None or not champ:
+        return
+    data = {**report, "gewichte": champ["gewichte"], "achsenabschnitt": champ["achsenabschnitt"], "champion_modell": champ,
+            "zustand": "aktiv", "herausforderer_verworfen": report.get("trainiert"),
+            "warnung": m.data.get("warnung") or {"zustand": "aus", "grund": "champion kept without a warning threshold"}}
+    m.text = (f"Router model (aktiv, champion of {str(champ.get('trainiert'))[:16]}): challenger rejected — {report['champion']['urteil']}")
+    m.data, m.mode = {**data, "versionen": m.data.get("versionen", 0) + 1}, "aktiv"
+    m.change("vi", "challenger rejected, champion kept", report.get("grund", "learning"))
+    g.save(m)
+
+
 def explanation(limit: int = 12) -> str:
     m = model()
     if not m:
@@ -413,6 +505,11 @@ def explanation(limit: int = 12) -> str:
     z = [m.text, f"  trained {str(d.get('trainiert', '—'))[:16]} · sklearn {d.get('sklearn', '—')} · ok {d.get('ok', 0)} / not ok {d.get('nicht_ok', 0)} "
                  f"· features {d.get('merkmale', 0)} (dropped {d.get('verworfen', 0)}: < {MIN_PER_FEATURE} occurrences) · holdout {d.get('holdout', 0)} "
                  f"({d.get('holdout_fehler', '—')} failures) · direct feedback on hints {d.get('rueckmeldungen', 0)}"]
+    if d.get("log_loss_holdout") is not None:  # 0.55.0
+        z.append(f"  Holdout probabilities: log loss {d['log_loss_holdout']} · Brier {d.get('brier_holdout')} · average precision for "
+                 f"failures {d.get('ap_fehler_holdout')}")
+    if d.get("champion"):  # 0.55.0
+        z.append(f"  Champion / challenger: {d['champion']['zustand']} — {d['champion'].get('urteil', '')}")
     u = d.get("nutzen_holdout")
     if u:  # 0.30.0
         z.append(f"  Ranking utility on the holdout: {u['zustand']} — {u.get('urteil') or u.get('grund')}")

@@ -143,6 +143,8 @@ def _run(reason: str) -> g.MemoryObject:
         step("7d_hinweise", lambda: _hints_new())
         step("8_lernen", lambda: _learning())
         step("8b_gewichte_pruefen", lambda: _weight_audit())  # 0.29.0: read the new weights, never write them
+    from . import evaluation
+    step("9_pruefung", lambda: evaluation.nightly())  # 0.55.0: once a day the fixed question set and the router numbers
     duration = int((time.monotonic() - t0) * 1000)
     state = "fehler" if report["fehler"] else "fertig"
     text = (f"Sleep {'finished' if state == 'fertig' else 'finished with errors'} ({reason}): {len(new_items)} new experiences, {len(report.get('cluster', []))} clusters, "
@@ -244,8 +246,8 @@ def _scorer() -> dict:
 
 
 def _skills(since: str) -> dict:
-    from . import skills
-    r = skills.from_recovery(since)
+    from . import skills, solutions
+    r = solutions.from_episodes(since)  # 0.56.0: solutions with content instead of bare tool sequences (skills.from_recovery)
     r.update(skills.rate())
     r.update(skills.fusion_proposals())
     return r

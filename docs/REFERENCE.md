@@ -1,6 +1,6 @@
 # vi-mcp reference
 
-Generated from the code of vi-mcp 0.54.1 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
+Generated from the code of vi-mcp 0.55.0 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
 
 Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server configuration](#server-configuration-configjson) · [Network service configuration](#network-service-configuration-etcvi-p2pnetworkjson) · [Configuration catalogue](#configuration-catalogue-debconf-vi-mcp-configure-vi_mcp_key) · [Environment variables](#environment-variables) · [HTTP endpoints](#http-endpoints) · [Modules](#modules-vi_mcp)
 
@@ -928,6 +928,7 @@ First line of each module's docstring.
 | `db_migrate` | Move a SQLite database to PostgreSQL (0.50.0): `vi-mcp db migrate`, `vi-mcp db status`. |
 | `doc_triggers` | Triggers for documentation (0.26.0): imported documentation gets host: and thema: hashtags so it can appear before matching actions. |
 | `embed_service` | Own embedding service (0.28.0): `vi-mcp embed setup\|status\|remove` — vectors without a foreign stack. |
+| `evaluation` | Evaluation (0.55.0) — a fixed measuring instrument for the search, so every change to it is measured before it stays. |
 | `forum` | 0.43.0: AIs talk in the network — questions and answers between servers, what vi_ask/vi_answer already do between the instances of |
 | `image_cli` | 0.35.0: `vi-mcp image` — put an image file with its description into memory, or fetch one back. |
 | `images` | 0.35.0: images in memory — an image with its description and its regions in the format of SAM 3 (Meta, Segment Anything with Concepts). |
@@ -957,6 +958,7 @@ First line of each module's docstring.
 | `setup` | Setup — registers vi-mcp in Claude Code, Codex CLI and Hermes Agent. ANSI menu or switches, standard library + PyYAML only. |
 | `skills` | Skills — solution paths that arise when something counts as solved (stage 6; procedural memory, docs/FORSCHUNG.md A3). |
 | `sleep_cycle` | Sleep — the consolidation run (docs/FORSCHUNG.md A4, A5, C2). |
+| `solutions` | Solutions (0.56.0) — which problem was solved by what, with its content, to keep company knowledge. |
 | `stdio_bridge` | 0.36.0: `vi-mcp stdio` — MCP over stdio for clients on the server host, without a token. |
 | `tools` | The MCP tools of the VI. Groups: |
 | `usage_stats` | Usage statistics — is the VI used, and does it work as intended? (0.21.0) |

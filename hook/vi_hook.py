@@ -22,7 +22,9 @@ reason is in the log file (named, not silent). The memory's own tools (vi_*) are
 
 Data minimisation: secrets in arguments and errors are masked before sending. Results go to the server only for
 MCP tools, because only there a remembered answer is possible; built-in tools (Bash, Read, …) and
-tools for credentials report only the outcome. Long arguments of built-in tools are truncated.
+tools for credentials report only the outcome. Exception since 0.56.0: WebSearch and WebFetch send an excerpt of their result
+(WEB_EXCERPT characters, masked) — public web content that may be the solution of a problem. Long arguments of built-in tools are
+truncated.
 
 Environment:
   VI_MCP_URL         default http://127.0.0.1:8765/mcp
@@ -83,6 +85,9 @@ CORRECTION = re.compile(r"^\s*(nein\b|falsch\b|das (ist|war) falsch\b|das stimmt
 GRADE = re.compile(r"(?:^|\s)#note\s+(0(?:[.,]\d+)?|1(?:[.,]0+)?)(?=\s|$)", re.I)
 GOOD, BAD = re.compile(r"(?:^|\s)#gut(?=\s|$)", re.I), re.compile(r"(?:^|\s)#schlecht(?=\s|$)", re.I)
 MAX_RESULT = 200_000
+#: 0.56.0: built-in web tools whose result goes to the server as an excerpt (public web content, masked) — the solution of an episode
+WEB_TOOLS = ("WebSearch", "WebFetch")
+WEB_EXCERPT = 4000
 MAX_ARG_BUILTIN = 300
 MAX_ARG_MCP = 2000
 SECRET_TOOL = re.compile(r"pwdepot|passw|secret|credential|_auth_|token", re.I)
@@ -325,6 +330,8 @@ def after_tool(e: dict, ok: bool) -> dict | None:
     if ok:
         if read_only is None:  # only here can an answer be remembered; otherwise the result stays in the session
             notify["result"] = _result_text(e.get("tool_response"))
+        elif tool_name in WEB_TOOLS:  # 0.56.0: what a web search found may be the solution of an episode — an excerpt, masked
+            notify["result"] = _result_text(e.get("tool_response"))[:WEB_EXCERPT]
     else:
         error = e.get("error") or e.get("tool_response") or "unbekannter Fehler"
         error = mask(error) if isinstance(error, str) else error

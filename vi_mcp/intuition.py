@@ -219,6 +219,7 @@ def error_hints(tool: str, args: dict, error: str, instance: str | None) -> list
             tagged = sig in o.hashtags
             if tagged or (shared_words >= 2 and (shared_tags or shared_words >= 3)) or (shared_tags and shared_words >= 1):
                 weight = shared_words + 2 * shared_tags + (3 if tagged else 0) - (4 if o.instance == g.SERVER_INSTANCE and o.kind == "regel" else 0)
+                weight += 2 if "herkunft:episode" in o.hashtags else 0  # 0.56.0: a solution with cause, command and source
                 found[o.id] = (weight, o)
     best = sorted(found.values(), key=lambda x: -x[0])[:ERROR_HINTS]
     if not best:
@@ -587,8 +588,11 @@ def experience(tool: str, args: dict, ok: bool | None, duration_ms: int, error: 
     tags = [t for t in tags if g.TAG.match(t)]
     text = f"{tool}({json.dumps(args, ensure_ascii=False)[:300]}) → " + (f"error: {error[:300]}" if error else "no result reported (vi_after missing)" if ok is None
                                                                        else f"ok, {len(result or '')} chars, {duration_ms} ms")
+    from .solutions import EXCERPT_MAX, WEB_TOOLS
+    # 0.56.0: what a web search or a fetched page returned is kept as an excerpt — the solution of an episode may come from it
+    web = {"auszug": result[:EXCERPT_MAX]} if ok and result and tool in WEB_TOOLS else {}
     o = g.new_object("erfahrung", text, tags, {"args": args, "dauer_ms": duration_ms, "fehler": error, "vorher": access,
-                                                  "ueberraschung": {"stufe": level, "grund": reason_u}},
+                                                  "ueberraschung": {"stufe": level, "grund": reason_u}, **web},
                        importance=SURPRISE[level], reason=f"tool call · surprise {level}: {reason_u}", instance=instance)
     for oid in access.get("gefunden", []):
         o.link(oid, "recalled before the action")

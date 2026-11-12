@@ -23,6 +23,7 @@ The German command names (`instanz`, `--reflexe`, `einrichten`, `netz`, …) rem
 | Service | `vi-mcp.service` (system), user/group `vi-mcp`, hardened (`ProtectSystem=strict`, `ProtectHome`, no capabilities; `systemd-analyze security`: 3.6 OK) |
 | Configuration | `/etc/vi-mcp/config.json` — `root:vi-mcp 0640`, directory `0750`; `vi-mcp instance` keeps these permissions |
 | Memory | `/var/lib/vi-mcp/vi.db` — `vi-mcp:vi-mcp 0600`, directory `0700` |
+| Measurement (0.55.0) | `/var/lib/vi-mcp/eval/recall.json` (question set, internal content, 0600) and `verlauf.jsonl` (one line per day); written by sleep step `9_pruefung` |
 | Log | `journalctl -u vi-mcp` |
 | Hook script for clients | `/usr/share/vi-mcp/hook/vi_hook.py` |
 
@@ -273,6 +274,7 @@ New sessions then see the tools `mcp__vi-mcp__vi_*`. Every Claude Code session i
 | What does it say? | `journalctl --user -u vi-mcp -f` (one line per session start/end, errors, loop rules) |
 | Exactly one process on the file? | `fuser -v ~/.local/share/vi-mcp/vi.db` |
 | Memory status | tool `vi_status` (open conversations, objects, loop errors) |
+| Does the search find what it should? | `vi_stats` section P (daily measurement); by hand against a copy: `python3 scripts/eval_recall.py --db COPY.db --questions recall.json [--embed-url URL]` |
 | Tests | `python3 -m pytest -q tests` |
 
 ## Merging repeated findings (one-time)

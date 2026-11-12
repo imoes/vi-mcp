@@ -11,6 +11,7 @@ no text. Retention RETENTION_DAYS, after that the loop deletes (`cleanup`).
   D Knowledge     How much knowledge was added (kind, visibility, origin) — and how much of it is ever recalled?
   E Search        How often does a search find nothing, which search kind ran, how long did it take?
   F Cleanup       Sleep, training, edges, long-term archive.
+  P Measurement   0.55.0: does the search find the known target (fixed question set, daily), and how does the router do on its holdout?
 """
 from __future__ import annotations
 
@@ -314,5 +315,26 @@ def report(days: float = 7) -> str:
     m = learning.model()
     z.append(f"F Cleanup: {a['schlaefe']} sleeps (median {a['schlaf_ms_median'] // 1000} s, {a['neue_erkenntnisse']} new insights, {a['fehler']} step errors) · "
              f"{on_demand.line()} · router AUC {m.data.get('auc_holdout') if m else '—'} · semantic edges {a['semantische_kanten']}")
+    z += measurement_lines()
     z += network_lines(days)
     return "\n".join(z)
+
+
+def measurement_lines(limit: int = 7) -> list[str]:
+    """0.55.0: section P — the daily measurements of sleep step 9_pruefung (eval/verlauf.jsonl next to the database)."""
+    from . import evaluation
+    h = evaluation.history(limit)
+    if not h:
+        return ["P Measurement: not recorded yet — sleep step 9_pruefung writes the question set first (eval/recall.json, "
+                f"at least {evaluation.EVAL_MIN} targets) and measures once a day"]
+    out = [f"P Measurement: {len(h)} day(s), question set {h[-1].get('fragen')} targets × 2 queries, page level (source: eval/verlauf.jsonl)"]
+    for e in h:
+        parts = []
+        for name, r in (e.get("suche") or {}).items():
+            gs = r.get("gesamt") if isinstance(r, dict) else None
+            parts.append(f"{name} MRR {gs['mrr']} Hit@5 {gs['hit5']} ({gs['ms_median']} ms)" if gs else f"{name} {r.get('zustand', '—')}")
+        rt = e.get("router") or {}
+        lift = (e.get("hinweis_lift") or {}).get("differenz_punkte", (e.get("hinweis_lift") or {}).get("lift"))
+        out.append(f"    {e['zeit'][:10]}: " + " · ".join(parts) + f" · router AUC {rt.get('auc', '—')} log loss {rt.get('log_loss', '—')} "
+                   f"champion {rt.get('champion', '—')}" + (f" · hint lift matched {lift}" if lift is not None else ""))
+    return out

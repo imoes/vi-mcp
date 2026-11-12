@@ -336,3 +336,20 @@ def test_inseparable_hints_are_named():
     obs += [({"hinweis:C": 1.0}, 0, f"y{i}") for i in range(3)]
     r = learning.inseparable(obs)
     assert r == {"gruppen": 1, "hinweise": 2, "beispiele": [["A", "B"]]}
+
+
+def test_champion_challenger_on_unseen_observations(gd):
+    # 0.55.0: the model of the last sleep against the new one, only on observations after the champion was trained
+    from vi_mcp import learning
+    old = [g.new_object("erfahrung", f"old {i}", ["tool:Bash"], {}) for i in range(5)]
+    time.sleep(0.01)
+    champ = {"gewichte": {"tool:Bash": 2.0}, "achsenabschnitt": 0.0, "trainiert": g.now()}
+    time.sleep(0.01)
+    new = [g.new_object("erfahrung", f"new {i}", ["tool:Bash"], {}) for i in range(learning.CHAMPION_MIN_N)]
+    holdout = [({"tool:Bash": 1.0}, 1, o.id) for o in old + new]
+    assert learning.compare_champion(None, {}, 0.0, holdout)["zustand"] == "kein_champion"
+    worse = learning.compare_champion(champ, {"tool:Bash": -2.0}, 0.0, holdout)  # predicts failure where everything succeeded
+    assert worse["zustand"] == "schlechter" and worse["n"] == learning.CHAMPION_MIN_N  # the 5 older ones are not counted
+    assert learning.compare_champion(champ, {"tool:Bash": 3.0}, 0.0, holdout)["zustand"] == "nicht_schlechter"
+    few = learning.compare_champion(champ, {"tool:Bash": 3.0}, 0.0, holdout[:20])
+    assert few["zustand"] == "nicht_bestimmbar"
