@@ -2,7 +2,8 @@
 
 Until 0.27.0 vectors came only from an external OpenAI-compatible service (config `embed.url`). This module installs one that belongs to
 vi-mcp, on Linux and Windows, and can be added later:
-- llama.cpp `llama-server` from a pinned GitHub release (Vulkan build, the CPU build if Vulkan does not start), SHA256 checked;
+- llama.cpp `llama-server` from a pinned GitHub release, SHA256 checked — since 0.60.0 the build fits the hardware: CUDA with an NVIDIA
+  driver, Vulkan with another GPU, else CPU, each accepted only if it lists its device (`detect_gpus`, `choose_backends`);
 - the model bge-m3 Q4_K_M from a pinned Hugging Face file, SHA256 checked — byte-identical with the file the existing vectors were made with
   (checked 10.11.2026), so stored vectors stay valid and nothing has to be embedded again;
 - a service of its own (systemd unit `vi-embed` / scheduled task `vi-embed`) on 127.0.0.1:<port>, separate from the vi-mcp process so
@@ -28,13 +29,33 @@ from . import config
 
 LLAMA_TAG = "b11938"  # llama.cpp release of 27.10.2026
 _GH = f"https://github.com/ggml-org/llama.cpp/releases/download/{LLAMA_TAG}/"
-#: (system, variant) → (file, SHA256 from the GitHub release)
+#: (system, variant) → [(file, SHA256 from the GitHub release)]; the first archive holds llama-server, further ones (the CUDA runtime) are
+#: put next to it. SHA256 from the release's asset digests (gh api repos/ggml-org/llama.cpp/releases/tags/b11938, 12.11.2026).
 BUILDS = {
-    ("linux", "vulkan"): (f"llama-{LLAMA_TAG}-bin-ubuntu-vulkan-x64.tar.gz", "9d78c8eae0be03d36665753d1a1a7f360fd18186265f1064e07d8f64eff71f3c"),
-    ("linux", "cpu"): (f"llama-{LLAMA_TAG}-bin-ubuntu-x64.tar.gz", "0206adf559a226dfcafadf8051a91f1f813cf53b2ad570b1262658f1fddaefa4"),
-    ("win32", "vulkan"): (f"llama-{LLAMA_TAG}-bin-win-vulkan-x64.zip", "9ecd072c6e785fa2b932229c86f845695198195c4f29b99b85ed42dccb022aa6"),
-    ("win32", "cpu"): (f"llama-{LLAMA_TAG}-bin-win-cpu-x64.zip", "9e2fc62604446d86809ca09094d3c7a7329b723bda636e4bbd23c3ce62cb77dc"),
+    ("linux", "cuda-13"): [(f"llama-{LLAMA_TAG}-bin-ubuntu-cuda-13.4-x64.tar.gz", "c129309799928e7c5483ff7cc9195e1ca3bec807f41bef13b839598b43bddfc1"),
+                           (f"cudart-llama-{LLAMA_TAG}-bin-ubuntu-cuda-13.4-x64.tar.gz", "844ff9a6f2b8378cff323ad1b64be4b68edcde21e05e23720e8cbd2e73a1ae2f")],
+    ("linux", "cuda-12"): [(f"llama-{LLAMA_TAG}-bin-ubuntu-cuda-12.8-x64.tar.gz", "9e3c3f657f4708bf4bdc038dc22183d54035bb6e9b5baa9e4897c88701eb4c56"),
+                           (f"cudart-llama-{LLAMA_TAG}-bin-ubuntu-cuda-12.8-x64.tar.gz", "739ef042b1b77bf8db0f65709840fbdc102951b04ae9806c7919e7c035134505")],
+    ("linux", "rocm"): [(f"llama-{LLAMA_TAG}-bin-ubuntu-rocm-10.0-x64.tar.gz", "b5b1ccec697c41f7f3bbc64dc54b55c9cbc04df0b02f2b6deeec97ef19844105")],
+    ("linux", "vulkan"): [(f"llama-{LLAMA_TAG}-bin-ubuntu-vulkan-x64.tar.gz", "9d78c8eae0be03d36665753d1a1a7f360fd18186265f1064e07d8f64eff71f3c")],
+    ("linux", "cpu"): [(f"llama-{LLAMA_TAG}-bin-ubuntu-x64.tar.gz", "0206adf559a226dfcafadf8051a91f1f813cf53b2ad570b1262658f1fddaefa4")],
+    ("win32", "cuda-13"): [(f"llama-{LLAMA_TAG}-bin-win-cuda-13.4-x64.zip", "1bae5e2f84b0b6f7cd95683f755bc4fc1ca2790d16c022cf8cb91ca83038ff56"),
+                           ("cudart-llama-bin-win-cuda-13.4-x64.zip", "738f8c251ac22b70c3ae6f83a10cf222725df0395246a2cf58f32bdb85fbe668")],
+    ("win32", "cuda-12"): [(f"llama-{LLAMA_TAG}-bin-win-cuda-12.4-x64.zip", "91e8c63d59c080ea1b4f042911489b27d3ee019f323bc0556111c83dcab410c8"),
+                           ("cudart-llama-bin-win-cuda-12.4-x64.zip", "8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6")],
+    ("win32", "rocm"): [(f"llama-{LLAMA_TAG}-bin-win-rocm-10.0-x64.zip", "1ba99610e93f351db1dec73a7639b94a2edc8d82d2854ec2bea52bbbda180c56")],
+    ("win32", "vulkan"): [(f"llama-{LLAMA_TAG}-bin-win-vulkan-x64.zip", "9ecd072c6e785fa2b932229c86f845695198195c4f29b99b85ed42dccb022aa6")],
+    ("win32", "cpu"): [(f"llama-{LLAMA_TAG}-bin-win-cpu-x64.zip", "9e2fc62604446d86809ca09094d3c7a7329b723bda636e4bbd23c3ce62cb77dc")],
 }
+#: 0.60.0: minimum NVIDIA driver (major) for CUDA minor version compatibility — "CUDA 13.x >= 580", "CUDA 12.x >= 525"
+#: (https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html, Table 3, read 12.11.2026)
+CUDA13_MIN_DRIVER = 580
+CUDA12_MIN_DRIVER = 525
+BACKENDS = ("auto", "cuda", "vulkan", "rocm", "cpu")
+#: PCI vendor ids
+VENDORS = {"10de": "nvidia", "1002": "amd", "8086": "intel"}
+#: adapters that are no GPU to compute on: virtual displays and software renderers
+NOT_A_GPU = ("microsoft basic", "basic render", "llvmpipe", "swiftshader", "qemu", "virtualbox", "vmware svga", "standard vga", "hyper-v")
 MODEL_FILE = "bge-m3-Q4_K_M.gguf"
 MODEL_URL = "https://huggingface.co/gpustack/bge-m3-GGUF/resolve/main/bge-m3-Q4_K_M.gguf"
 MODEL_SHA256 = "6d39681b26c61279ac1f82db35a04a05009e94c415b51c858ff571489a82fc06"
@@ -53,6 +74,137 @@ def home() -> Path:
     if system() == "win32":
         return Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "vi-mcp" / "embed"
     return Path("/var/lib/vi-mcp/embed") if os.geteuid() == 0 else Path("~/.local/share/vi-mcp/embed").expanduser()
+
+
+def parse_nvidia_smi(text: str) -> list[dict]:
+    """`nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits` → one dict per card."""
+    out = []
+    for line in (text or "").splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) >= 3 and parts[0]:
+            mem = int(float(parts[1])) if parts[1].replace(".", "", 1).isdigit() else None
+            out.append({"vendor": "nvidia", "name": parts[0], "memory_mib": mem, "driver": parts[2], "source": "nvidia-smi"})
+    return out
+
+
+def parse_sysfs(root: Path = Path("/sys/class/drm")) -> list[dict]:
+    """Linux: the PCI vendor of every DRM card (card0, card1 …; not the connectors card0-HDMI-A-1)."""
+    out = []
+    for card in sorted(root.glob("card*")):
+        if not card.name[4:].isdigit():
+            continue
+        dev = card / "device"
+        try:
+            vendor = (dev / "vendor").read_text().strip().lower().removeprefix("0x")
+        except OSError:
+            continue
+        mem = None
+        try:
+            mem = int((dev / "mem_info_vram_total").read_text().strip()) // (1 << 20)  # amdgpu only
+        except (OSError, ValueError):
+            pass
+        name = VENDORS.get(vendor, "other")
+        try:
+            device = (dev / "device").read_text().strip()
+        except OSError:
+            device = "?"
+        out.append({"vendor": name, "name": f"{name} {vendor}:{device.removeprefix('0x')} ({card.name})", "memory_mib": mem, "driver": None,
+                    "source": "sysfs"})
+    return out
+
+
+def parse_win_video(text: str) -> list[dict]:
+    """Windows: `Get-CimInstance Win32_VideoController | Select-Object Name, PNPDeviceID, DriverVersion | ConvertTo-Json`."""
+    try:
+        data = json.loads(text or "[]")
+    except ValueError:
+        return []
+    out = []
+    for c in (data if isinstance(data, list) else [data]):
+        name, pnp = str(c.get("Name") or ""), str(c.get("PNPDeviceID") or "").upper()
+        vendor = next((v for k, v in VENDORS.items() if f"VEN_{k.upper()}" in pnp), "other")
+        out.append({"vendor": vendor, "name": name, "memory_mib": None, "driver": c.get("DriverVersion"), "source": "Win32_VideoController"})
+    return out
+
+
+def is_gpu(g: dict) -> bool:
+    """A card to compute on — not a virtual display adapter or a software renderer."""
+    name = (g.get("name") or "").lower()
+    return g.get("vendor") in ("nvidia", "amd", "intel") and not any(x in name for x in NOT_A_GPU)
+
+
+def _run_text(cmd: list[str], timeout: int = 20) -> str:
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if r.returncode != 0:
+        raise RuntimeError(f"{cmd[0]} exit {r.returncode}: {(r.stderr or r.stdout).strip()[:160]}")
+    return r.stdout
+
+
+def detect_gpus() -> tuple[list[dict], dict]:
+    """(GPUs to compute on, {source: error}) — every source on its own; one that fails is named, the others still count.
+    nvidia-smi knows the driver version (which CUDA build runs); the other sources only say that a card of a vendor is there."""
+    gpus, errors = [], {}
+    smi = shutil.which("nvidia-smi")
+    if smi:
+        try:
+            gpus += parse_nvidia_smi(_run_text([smi, "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader,nounits"]))
+        except (OSError, RuntimeError, subprocess.TimeoutExpired) as e:
+            errors["nvidia-smi"] = str(e)[:200]
+    try:
+        if system() == "linux":
+            other = parse_sysfs()
+        else:
+            other = parse_win_video(_run_text(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                                               "Get-CimInstance Win32_VideoController | Select-Object Name, PNPDeviceID, DriverVersion | ConvertTo-Json"]))
+        if any(g["vendor"] == "nvidia" for g in gpus):  # nvidia-smi already named them, with the driver
+            other = [g for g in other if g["vendor"] != "nvidia"]
+        gpus += other
+    except (OSError, RuntimeError, subprocess.TimeoutExpired) as e:
+        errors["sysfs" if system() == "linux" else "Win32_VideoController"] = str(e)[:200]
+    return [g for g in gpus if is_gpu(g)], errors
+
+
+def _driver_major(g: dict) -> int | None:
+    try:
+        return int(str(g.get("driver") or "").split(".")[0])
+    except ValueError:
+        return None
+
+
+def choose_backends(gpus: list[dict], requested: str = "auto") -> list[tuple[str, str]]:
+    """[(variant, why)] in the order to try. `requested` other than auto means exactly that backend — no silent fallback."""
+    nvidia = [g for g in gpus if g["vendor"] == "nvidia"]
+    drivers = [d for d in (_driver_major(g) for g in nvidia) if d is not None]
+    driver = max(drivers) if drivers else None
+    cuda: list[tuple[str, str]] = []
+    if driver is not None and driver >= CUDA13_MIN_DRIVER:
+        cuda = [("cuda-13", f"NVIDIA driver {driver} ≥ {CUDA13_MIN_DRIVER}: CUDA 13"), ("cuda-12", "CUDA 12 if the CUDA 13 build does not run")]
+    elif driver is not None and driver >= CUDA12_MIN_DRIVER:
+        cuda = [("cuda-12", f"NVIDIA driver {driver} ≥ {CUDA12_MIN_DRIVER} and < {CUDA13_MIN_DRIVER}: CUDA 12")]
+    if requested == "cpu":
+        return [("cpu", "requested")]
+    if requested == "vulkan":
+        return [("vulkan", "requested")]
+    if requested == "rocm":
+        return [("rocm", "requested (needs ROCm installed)")]
+    if requested == "cuda":
+        if cuda:
+            return cuda
+        raise ValueError("--backend cuda: no NVIDIA card with nvidia-smi and a driver ≥ "
+                         f"{CUDA12_MIN_DRIVER} found" + (f" (driver {driver})" if driver is not None else ""))
+    if requested != "auto":
+        raise ValueError(f"--backend must be one of {', '.join(BACKENDS)}")
+    if cuda:
+        return cuda + [("vulkan", "Vulkan if no CUDA build runs"), ("cpu", "CPU if no GPU build runs")]
+    if nvidia:
+        why = "NVIDIA card, but no driver version from nvidia-smi (proprietary driver missing?) — Vulkan"
+        if driver is not None:
+            why = f"NVIDIA driver {driver} < {CUDA12_MIN_DRIVER}: too old for CUDA 12 — Vulkan"
+        return [("vulkan", why), ("cpu", "CPU if Vulkan does not run")]
+    if gpus:
+        kinds = ", ".join(sorted({g["vendor"] for g in gpus}))
+        return [("vulkan", f"{kinds} card: Vulkan (ROCm only with --backend rocm)"), ("cpu", "CPU if Vulkan does not run")]
+    return [("cpu", "no GPU found")]
 
 
 def _sha256(p: Path) -> str:
@@ -101,6 +253,67 @@ def _extract(archive: Path, into: Path) -> Path:
     if system() != "win32":
         exe.chmod(0o755)
     return exe
+
+
+def _add_libraries(archive: Path, exe: Path) -> int:
+    """The CUDA runtime archive: its libraries (.dll / .so*) go next to llama-server, where the loader looks. Returns how many."""
+    tmp = exe.parent.parent / f".{archive.name}.unpack"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    try:
+        root = tmp.resolve()
+        if archive.suffix == ".zip":
+            with zipfile.ZipFile(archive) as z:
+                for n in z.namelist():
+                    if not (root / n).resolve().is_relative_to(root):
+                        raise ValueError(f"{archive.name}: member {n} leaves the target directory")
+                z.extractall(tmp)
+        else:
+            with tarfile.open(archive) as t:
+                t.extractall(tmp, filter="data")
+        n = 0
+        for p in tmp.rglob("*"):
+            if p.is_file() and (p.suffix.lower() == ".dll" or ".so" in p.name):
+                shutil.copy2(p, exe.parent / p.name)
+                n += 1
+        return n
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+#: device prefix in `llama-server --list-devices` per variant (CUDA0, Vulkan0, ROCm0)
+DEVICE_PREFIX = {"cuda-13": ("CUDA",), "cuda-12": ("CUDA",), "vulkan": ("Vulkan",), "rocm": ("ROCm", "HIP")}
+
+
+def parse_devices(text: str) -> list[dict]:
+    """`llama-server --list-devices`: "Available devices:" then one line per device, "  (none)" without any.
+    Measured without a GPU (12.11.2026, b11938, Vulkan and CPU build): "Available devices:\\n  (none)". A device line is read as
+    "  NAME: DESCRIPTION (TOTAL MiB, FREE MiB free)"; the memory part is optional."""
+    import re
+    out = []
+    for line in (text or "").splitlines():
+        m = re.match(r"^\s+([A-Za-z]+\d+):\s*(.*?)\s*(?:\((\d+) MiB,\s*(\d+) MiB free\))?\s*$", line)
+        if m:
+            out.append({"id": m.group(1), "name": m.group(2), "memory_mib": int(m.group(3)) if m.group(3) else None,
+                        "free_mib": int(m.group(4)) if m.group(4) else None})
+    return out
+
+
+def _devices(exe: Path) -> list[dict]:
+    env = {**os.environ, "LD_LIBRARY_PATH": str(exe.parent)} if system() == "linux" else None
+    r = subprocess.run([str(exe), "--list-devices"], capture_output=True, text=True, timeout=60, env=env)
+    return parse_devices((r.stdout or "") + "\n" + (r.stderr or ""))
+
+
+def device_for(variant: str, devices: list[dict]) -> dict | None:
+    """The device a GPU build will compute on — None if it lists none of its kind (it would run on the CPU) or only a software renderer."""
+    if variant == "cpu":
+        return {"id": "CPU", "name": "CPU", "memory_mib": None, "free_mib": None}
+    want = DEVICE_PREFIX.get(variant, ())
+    for d in devices:
+        if d["id"].startswith(want) and not any(x in d["name"].lower() for x in NOT_A_GPU):
+            return d
+    return None
 
 
 def _starts(exe: Path) -> tuple[bool, str]:
@@ -175,10 +388,41 @@ def probe(port: int, texts: list[str], timeout_s: float = 120) -> list[list[floa
     raise RuntimeError(f"{url} did not answer within {timeout_s:.0f} s: {last}")
 
 
-def setup(port: int = DEFAULT_PORT, cpu: bool = False, model_file: Path | None = None, switch: bool = True) -> dict:
+#: texts for the speed measurement after setup (the time per text goes into the report)
+TIMING_TEXTS = [f"vi-mcp timing text {i}: the service restarts after the upgrade and the agent reconnects to port {8000 + i}" for i in range(32)]
+
+
+def _install(d: Path, variant: str) -> Path:
+    """Download (SHA256 checked) and unpack the build of `variant`; the CUDA runtime goes next to llama-server."""
+    files = BUILDS[(system(), variant)]
+    archives = [_download(_GH + name, d / name, sha) for name, sha in files]
+    exe = _extract(archives[0], d / f"llama-{LLAMA_TAG}-{variant}")
+    for extra in archives[1:]:
+        if not _add_libraries(extra, exe):
+            raise ValueError(f"{extra.name}: no libraries inside")
+    return exe
+
+
+def _start_service(exe: Path, model: Path, port: int) -> None:
+    if system() == "linux":
+        _service_linux(exe, model, port)
+    else:
+        _service_windows(exe, model, port)
+
+
+def setup(port: int = DEFAULT_PORT, cpu: bool = False, model_file: Path | None = None, switch: bool = True, backend: str = "auto") -> dict:
+    """0.60.0: the backend is chosen from the GPUs found (CUDA → Vulkan → CPU) and accepted only when llama-server lists a device of its
+    kind, the service answers and the speed is measured — "it starts" alone said nothing (a Vulkan build without a GPU starts and lists
+    "(none)", measured 12.11.2026). The report names cards, backend, device, the reason and every rejected try."""
     d = home()
     d.mkdir(parents=True, exist_ok=True)
     report: dict = {"dir": str(d), "llama": LLAMA_TAG}
+    gpus, errors = detect_gpus()
+    report["gpus"] = [f"{g['name']}" + (f", {g['memory_mib']} MiB" if g.get("memory_mib") else "") + (f", driver {g['driver']}" if g.get("driver") else "")
+                      for g in gpus] or "none found"
+    if errors:
+        report["detect_errors"] = errors
+    candidates = choose_backends(gpus, "cpu" if cpu else backend)
     model = d / MODEL_FILE
     if model_file:  # an existing local copy (e.g. of the old service) — accepted only with the pinned hash
         if _sha256(model_file) != MODEL_SHA256:
@@ -188,28 +432,42 @@ def setup(port: int = DEFAULT_PORT, cpu: bool = False, model_file: Path | None =
     else:
         _download(MODEL_URL, model, MODEL_SHA256)
     report["model"] = f"{MODEL_FILE} sha256 {MODEL_SHA256[:12]}…"
-    exe = None
-    for variant in (["cpu"] if cpu else ["vulkan", "cpu"]):
-        name, sha = BUILDS[(system(), variant)]
-        archive = _download(_GH + name, d / name, sha)
-        candidate = _extract(archive, d / f"llama-{LLAMA_TAG}-{variant}")
-        ok, msg = _starts(candidate)
-        report[f"start_{variant}"] = "ok" if ok else msg
-        if ok:
-            exe, report["variant"] = candidate, variant
+    if system() == "linux" and os.geteuid() == 0:
+        shutil.chown(d, "vi-mcp", "vi-mcp")
+    tried: dict[str, str] = {}
+    chosen = None
+    for variant, why in candidates:
+        try:
+            exe = _install(d, variant)
+            ok, msg = _starts(exe)
+            if not ok:
+                tried[variant] = f"does not start: {msg}"
+                continue
+            dev = device_for(variant, _devices(exe))
+            if dev is None:
+                tried[variant] = "starts, but lists no device of its kind (it would compute on the CPU)"
+                continue
+            _start_service(exe, model, port)
+            v = probe(port, ["vi-mcp embedding test"])[0]
+            if len(v) != MODEL_DIM:
+                tried[variant] = f"unexpected dimension {len(v)} (expected {MODEL_DIM})"
+                continue
+            t0 = time.monotonic()
+            probe(port, TIMING_TEXTS)
+            ms = (time.monotonic() - t0) * 1000 / len(TIMING_TEXTS)
+            tried[variant] = "ok"
+            chosen = (variant, why, dev, ms)
             break
-    if exe is None:
-        raise RuntimeError(f"llama-server does not start: {report}")
-    if system() == "linux":
-        if os.geteuid() == 0:
-            shutil.chown(d, "vi-mcp", "vi-mcp")
-        _service_linux(exe, model, port)
-    else:
-        _service_windows(exe, model, port)
-    v = probe(port, ["vi-mcp embedding test"])[0]
-    if len(v) != MODEL_DIM:
-        raise RuntimeError(f"unexpected dimension {len(v)} (expected {MODEL_DIM})")
-    report["service"] = f"{SERVICE} on 127.0.0.1:{port}, dimension {len(v)}"
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as e:
+            tried[variant] = f"{type(e).__name__}: {str(e)[:200]}"
+    report["tried"] = tried
+    if chosen is None:
+        raise RuntimeError(f"no backend works: {report}")
+    variant, why, dev, ms = chosen
+    report["backend"], report["why"] = variant, why
+    report["device"] = dev["name"] + (f" ({dev['memory_mib']} MiB)" if dev.get("memory_mib") else "")
+    report["ms_per_text"] = round(ms, 1)
+    report["service"] = f"{SERVICE} on 127.0.0.1:{port}, dimension {MODEL_DIM}"
     if switch:
         report["previous_url"] = (config.load().embed or {}).get("url")
         config.set_embed({"url": f"http://127.0.0.1:{port}/v1/embeddings"})
@@ -279,7 +537,9 @@ def main(argv: list[str]) -> int:
     u = a.add_subparsers(dest="cmd", required=True)
     s = u.add_parser("setup", help="install or update the service and use it")
     s.add_argument("--port", type=int, default=DEFAULT_PORT)
-    s.add_argument("--cpu", action="store_true", help="CPU build only (default: Vulkan, CPU if Vulkan does not start)")
+    s.add_argument("--backend", choices=BACKENDS, default="auto",
+                   help="auto (default): CUDA with an NVIDIA driver, else Vulkan with a GPU, else CPU — each accepted only if it lists its device")
+    s.add_argument("--cpu", action="store_true", help="same as --backend cpu")
     s.add_argument("--model-file", type=Path, help="use this local copy of bge-m3-Q4_K_M.gguf (checked by SHA256) instead of downloading")
     s.add_argument("--no-switch", action="store_true", help="install and start, but keep embed.url as it is (to compare first)")
     c = u.add_parser("compare", help="compare stored vectors with the service (read-only), before switching")
@@ -292,7 +552,7 @@ def main(argv: list[str]) -> int:
         if o.cmd == "setup":
             if not 1024 <= o.port <= 65535:
                 raise ValueError("port must be a number from 1024 to 65535")
-            r = setup(o.port, o.cpu, o.model_file, not o.no_switch)
+            r = setup(o.port, o.cpu, o.model_file, not o.no_switch, o.backend)
         elif o.cmd == "compare":
             r = compare(o.port, o.sample)
         elif o.cmd == "status":

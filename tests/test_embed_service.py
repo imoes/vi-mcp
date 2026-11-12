@@ -56,6 +56,8 @@ def test_setup_falls_back_to_cpu_and_switches(tmp_path, monkeypatch):
     monkeypatch.setattr(es, "_download", lambda url, target, sha: target)
     monkeypatch.setattr(es, "_extract", lambda archive, into: into / "llama-server")
     monkeypatch.setattr(es, "_starts", lambda exe: (exe.parent.name.endswith("-cpu"), "libvulkan.so.1: cannot open"))
+    monkeypatch.setattr(es, "detect_gpus", lambda: ([{"vendor": "amd", "name": "Radeon", "memory_mib": None, "driver": None}], {}))
+    monkeypatch.setattr(es, "_devices", lambda exe: [])
     services = []
     monkeypatch.setattr(es, "_service_linux", lambda exe, model, port: services.append((exe, port)))
     monkeypatch.setattr(es, "probe", lambda port, texts, timeout_s=120: [[0.0] * es.MODEL_DIM])
@@ -63,7 +65,7 @@ def test_setup_falls_back_to_cpu_and_switches(tmp_path, monkeypatch):
     from vi_mcp import setup as _setup
     monkeypatch.setattr(_setup, "_restart", lambda: None)
     r = es.setup(port=8767, switch=False)
-    assert r["variant"] == "cpu" and "libvulkan" in r["start_vulkan"] and services[0][1] == 8767
+    assert r["backend"] == "cpu" and "libvulkan" in r["tried"]["vulkan"] and services[0][1] == 8767 and r["device"] == "CPU"
     assert config.load(cfg).embed == {"url": "https://old/embed/v1/embeddings"}  # --no-switch keeps the old service
     r = es.setup(port=8767)
     assert config.load(cfg).embed == {"url": "http://127.0.0.1:8767/v1/embeddings"} and r["previous_url"] == "https://old/embed/v1/embeddings"
