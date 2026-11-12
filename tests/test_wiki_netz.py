@@ -123,3 +123,62 @@ def test_install_scripts_join_on_new_installations_only():
     assert "VI_MCP_KEIN_WIKI" in sh and "vi-mcp net wiki on" in sh and "[ ! -e /etc/vi-p2p/wiki.json ]" in sh
     r = subprocess.run(["sh", "-n", str(ROOT / "deploy/nach-installation.sh")], capture_output=True)
     assert r.returncode == 0, r.stderr
+
+
+def test_wiki_start_takes_a_host_or_an_https_address():
+    # 0.54.1: the MSI dialog and net wiki on --start take the wiki server as a user writes it
+    assert net_cli.wiki_start(None) == net_cli.wiki_start("") == p2p.WIKI_START
+    assert net_cli.wiki_start("wiki.example.org") == "https://wiki.example.org/vi-p2p/wiki"
+    assert net_cli.wiki_start(" https://Wiki.Example.org:8443/ ") == "https://wiki.example.org:8443/vi-p2p/wiki"
+    assert net_cli.wiki_start("https://wiki.example.org/vi-p2p/wiki") == "https://wiki.example.org/vi-p2p/wiki"
+    for bad in ("http://wiki.example.org", "wiki example", "https://", "https://u:p@wiki.example.org", "https://w.example.org?x=1",
+                "wiki.example.org:port", "ftp://wiki.example.org"):
+        with pytest.raises(ValueError, match="wiki server"):
+            net_cli.wiki_start(bad)
+
+
+def test_cli_wiki_on_with_start_replaces_the_server(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("VI_MCP_KEIN_DIENST", "1")
+    token = tmp_path / "tok"
+    token.write_text("t\n")
+    monkeypatch.setenv("VI_P2P_CONFIG", str(tmp_path / "wiki.json"))
+    (tmp_path / "wiki.json").write_text(json.dumps({"db": str(tmp_path / "w" / "netz.db"), "seed": str(tmp_path / "w" / "schluessel"), "mcp_token_datei": str(token)}))
+    recorded = []
+    monkeypatch.setattr(config, "set_net_start", lambda net, url: recorded.append((net, url)))
+    assert net_cli.main(["wiki", "on"]) == 0
+    assert net_cli.main(["wiki", "on", "--start", "wiki.example.org"]) == 0
+    raw = json.loads((tmp_path / "wiki.json").read_text())
+    assert raw["startpeers"] == ["https://wiki.example.org/vi-p2p/wiki"]  # replaced, vi-wiki.org is not kept as a second start
+    assert recorded[-1] == ("wiki", "https://wiki.example.org/vi-p2p/wiki")
+    capsys.readouterr()
+    assert net_cli.main(["wiki", "status"]) == 0 and "wiki network (https://wiki.example.org/vi-p2p/wiki): configured" in capsys.readouterr().out
+    assert net_cli.main(["wiki", "on", "--start", "http://wiki.example.org"]) == 2 and "wiki server" in capsys.readouterr().err
+    assert json.loads((tmp_path / "wiki.json").read_text())["startpeers"] == ["https://wiki.example.org/vi-p2p/wiki"]
+
+
+def test_notice_names_the_own_wiki_server(gd, monkeypatch, tmp_path):
+    monkeypatch.setattr(p2p, "config", {"netze": {"wiki": {"art": "frei", "instanz": "netz-wiki", "start": "https://wiki.example.org/vi-p2p/wiki"}}})
+    assert "wiki (free, wiki.example.org)" in p2p.notice()
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"instances": {}}))
+    config.set_network("wiki", "free", p=p)
+    config.set_net_start("wiki", "https://wiki.example.org/vi-p2p/wiki", p=p)
+    config.set_network("wiki", "free", p=p)  # a second setup keeps the start
+    assert config.read_raw(p)["p2p"]["networks"]["wiki"]["start"] == "https://wiki.example.org/vi-p2p/wiki"
+    with pytest.raises(ValueError):
+        config.set_net_start("other", "https://x.example.org/vi-p2p/other", p=p)
+
+
+def test_cli_wiki_on_again_keeps_the_own_server(tmp_path, monkeypatch):
+    # 0.54.1: on again without --start (a reinstall on Windows) neither adds vi-wiki.org nor changes the server
+    monkeypatch.setenv("VI_MCP_KEIN_DIENST", "1")
+    token = tmp_path / "tok"
+    token.write_text("t\n")
+    monkeypatch.setenv("VI_P2P_CONFIG", str(tmp_path / "wiki.json"))
+    (tmp_path / "wiki.json").write_text(json.dumps({"db": str(tmp_path / "w" / "netz.db"), "seed": str(tmp_path / "w" / "schluessel"), "mcp_token_datei": str(token)}))
+    recorded = []
+    monkeypatch.setattr(config, "set_net_start", lambda net, url: recorded.append(url))
+    assert net_cli.main(["wiki", "on", "--start", "wiki.example.org"]) == 0
+    assert net_cli.main(["wiki", "on"]) == 0
+    assert json.loads((tmp_path / "wiki.json").read_text())["startpeers"] == ["https://wiki.example.org/vi-p2p/wiki"]
+    assert recorded == ["https://wiki.example.org/vi-p2p/wiki"] * 2

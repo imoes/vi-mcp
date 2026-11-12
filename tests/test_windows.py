@@ -252,6 +252,10 @@ def test_msi_carries_the_network_service():
     build, ps, un = ((root / f).read_text() for f in ("build.sh", "install.ps1", "uninstall.ps1"))
     assert "deploy/windows/vi-p2p.cmd" in build and "wiki=[WIKI]" in build and "WIKI" in (root / "patch-msi.sh").read_text()
     assert '"net", "wiki", "on"' in ps and '"wiki" { if ($v) { $Wiki = $v } }' in ps and 'Get-ScheduledTask -TaskName "vi-p2p*"' in un
+    # 0.54.1: the setup dialog names the wiki server (property WIKI, remembered like the proxy), 0 = none
+    ui = (root / "ui.sql").read_text()
+    assert "'WikiEdit', 'Edit'" in ui and "'WIKI', '{200}'" in ui and "'Cancel', 'WikiEdit')" in ui
+    assert '"--start", $Wiki' in ps and "wiki = $Wiki" in ps and '"net", "wiki", "off"' in ps and "$previous.wiki" in ps and '-not $wikiTask' in ps
     cmd = (root / "vi-p2p.cmd").read_text()
     assert "-m vi_mcp net run" in cmd and r"%ProgramData%\vi-mcp\p2p\%N%.json" in cmd
     for text in (ps, un, cmd):

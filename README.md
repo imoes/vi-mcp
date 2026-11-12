@@ -190,13 +190,15 @@ from the official NuGet package of the Python Software Foundation (SHA256 and si
 installed (configuration and memory are kept; a failed update rolls back). It needs internet access during installation:
 
 ```bat
-msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [WIKI=0] [PROXY=http://proxy:3128] /l*v install.log
+msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [WIKI=0|HOST] [PROXY=http://proxy:3128] /l*v install.log
 vi-mcp setup --claude --hook --url http://127.0.0.1:8765/mcp --token-file <file>
 ```
 
 The port can be changed later on Linux and Windows with `vi-mcp port 9000` (restarts the service). Vectors for semantic search come from
 an embedding model — see [Embedding model](#embedding-model-semantic-search) below. Since 0.54.0 the MSI joins the public wiki network
 vi-wiki.org like the Linux packages (network service as scheduled task `vi-p2p-wiki`; `WIKI=0` skips it, `vi-mcp net wiki off` stops it).
+Since 0.54.1 the setup dialog asks for the wiki server (`WIKI=wiki.example.org` on the command line; empty = as before, a new installation
+takes vi-wiki.org).
 On Windows there is no interactive setup menu and no reflex sandbox (reflex code does not run) — see [docs/OPERATIONS.md](docs/OPERATIONS.md#windows).
 
 ### Embedding model (semantic search)
@@ -359,7 +361,8 @@ read-only web page — wiki, forum and knowledge of the network — is **https:/
 
 A new installation joins the free network `wiki` with the start address `https://vi-wiki.org/vi-p2p/wiki` (outgoing only). The AI
 tells the user about it and switches it off on request (`vi_net_switch(network="wiki", on=false, reason=…)`); off means nothing goes
-out or comes in. Administrators: `sudo vi-mcp net wiki on|off|status`; opt out at installation with `VI_MCP_KEIN_WIKI=1`. Updates of
+out or comes in. Administrators: `sudo vi-mcp net wiki on|off|status`, another wiki server
+with `sudo vi-mcp net wiki on --start wiki.example.org` (0.54.1); opt out at installation with `VI_MCP_KEIN_WIKI=1`. Updates of
 existing servers change nothing.
 
 ### Joining the free network

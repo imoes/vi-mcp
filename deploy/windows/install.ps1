@@ -9,7 +9,8 @@ param(
     [string]$Proxy = "",
     [string]$Port = "",  # empty: keep the port of an existing configuration, 8765 for a new one
     [string]$Embed = "0", # 1: own embedding service (llama.cpp + bge-m3) for the vectors, see `vi-mcp embed`
-    [string]$Wiki = "",   # 0.54.0: empty or 1 = join the public wiki network vi-wiki.org on a new installation (as the Linux packages); 0 = not
+    [string]$Wiki = "",   # the wiki network: empty = as before (a new installation joins vi-wiki.org, as the Linux packages); 1 = vi-wiki.org;
+                          # 0 = not in the wiki network (an update switches it off); a host name or https://... = that wiki server (0.54.1)
     # From the MSI: all options in ONE argument "server=1;port=;embed=;proxy=...". Windows PowerShell 5.1 drops empty arguments of -File
     # (-Port "" became -Port -Embed ..., the binding failed and the MSI ended with error 1722 - found in a Windows 11 test VM, 10.11.2026).
     [string]$Options = ""
@@ -38,6 +39,9 @@ if (Test-Path $Saved) { try { $previous = Get-Content $Saved -Raw | ConvertFrom-
 $fromPrevious = @()
 if (-not $Server) { if ($previous -and $previous.server) { $Server = "$($previous.server)"; $fromPrevious += "server" } else { $Server = "1" } }
 if (-not $Proxy -and $previous -and $previous.proxy) { $Proxy = "$($previous.proxy)"; $fromPrevious += "proxy" }
+$Wiki = "$Wiki".Trim()
+$wikiGiven = [bool]$Wiki  # given now (dialog or command line), not remembered: only then is an existing wiki configuration changed
+if (-not $Wiki -and $previous -and $previous.wiki) { $Wiki = "$($previous.wiki)"; $fromPrevious += "wiki" }
 function Log([string]$m) { $line = "$(Get-Date -Format s) $m"; Add-Content -Path $Log -Value $line -Encoding UTF8; Write-Host $line }
 
 # Runs the private Python. PowerShell 5.1 turns stderr of a native program into a terminating error under "Stop", so stderr is
@@ -202,18 +206,30 @@ try {
             if ($code -ne 0) { Log "WARNING: vi-mcp embed setup failed - the server runs without vectors; see $Log" }
         }
         # 0.54.0: the network services (scheduled tasks vi-p2p-<network>, run by vi-p2p.cmd). Before, the MSI had no network at all.
+        # 0.54.1: WIKI names the wiki server (dialog field or WIKI=host); 0 = none. Remembered in install-options.json like the proxy.
         $P2p = Join-Path $Data "p2p"
-        if (-not (Test-Path (Join-Path $P2p "wiki.json"))) {
-            if ($Wiki -eq "0") {
-                Log "wiki network not joined (WIKI=0); later, in an elevated shell: vi-mcp net wiki on"
-            } else {
-                Log "joining the public wiki network vi-wiki.org (free network, outgoing connections only; off: vi-mcp net wiki off)"
-                $netArgs = @("-I", "-X", "utf8", "-m", "vi_mcp", "net", "wiki", "on")
-                if ($Proxy) { $netArgs += @("--proxy", $Proxy) }
-                $code = Invoke-Logged $vpy $netArgs
-                if ($code -ne 0) { Log "WARNING: joining the wiki network failed (exit $code) - later: vi-mcp net wiki on; see $Log" }
+        $wikiExists = Test-Path (Join-Path $P2p "wiki.json")
+        # an uninstall removes the scheduled tasks but keeps the configuration: a reinstall sets the wiki service up again
+        $wikiTask = [bool](Get-ScheduledTask -TaskName "vi-p2p-wiki" -ErrorAction SilentlyContinue)
+        if ($Wiki -eq "0") {
+            if ($wikiExists -and $wikiGiven) {
+                Log "leaving the wiki network (WIKI=0): vi-mcp net wiki off - configuration and logbook are kept"
+                $code = Invoke-Logged $vpy @("-I", "-X", "utf8", "-m", "vi_mcp", "net", "wiki", "off")
+                if ($code -ne 0) { Log "WARNING: vi-mcp net wiki off failed (exit $code); see $Log" }
+            } elseif (-not $wikiExists) {
+                Log "wiki network not joined (WIKI=0); later, in an elevated shell: vi-mcp net wiki on [--start SERVER]"
             }
-        } else {
+        } elseif (-not $wikiExists -or -not $wikiTask -or ($wikiGiven -and $Wiki -ne "1")) {
+            $netArgs = @("-I", "-X", "utf8", "-m", "vi_mcp", "net", "wiki", "on")
+            if ($Wiki -and $Wiki -ne "1") { $netArgs += @("--start", $Wiki) }
+            if ($Proxy) { $netArgs += @("--proxy", $Proxy) }
+            Log "joining the wiki network, server $(if ($Wiki -and $Wiki -ne '1') { $Wiki } elseif ($wikiExists) { 'as configured' } else { 'vi-wiki.org' }) (free network, outgoing connections only; off: vi-mcp net wiki off)"
+            $code = Invoke-Logged $vpy $netArgs
+            # exit 2: the server is not a host name or https address - the user's input, so setup fails and names it (rolled back)
+            if ($code -eq 2) { throw "WIKI '$Wiki' is not a wiki server: a host name or https://HOST[:PORT][/PATH], or 0 for none" }
+            if ($code -ne 0) { Log "WARNING: joining the wiki network failed (exit $code) - later: vi-mcp net wiki on; see $Log" }
+        }
+        if ($wikiExists) {
             # an update: the services run the new code only after a restart; a service switched off (Disabled) stays off
             foreach ($t in @(Get-ScheduledTask -TaskName "vi-p2p*" -ErrorAction SilentlyContinue)) {
                 if ("$($t.State)" -ne "Disabled") {
@@ -225,7 +241,7 @@ try {
         }
         foreach ($t in @(Get-ScheduledTask -TaskName "vi-p2p*" -ErrorAction SilentlyContinue)) { Log "network service $($t.TaskName): $($t.State)" }
     }
-    $json = @{ server = $Server; proxy = $Proxy } | ConvertTo-Json
+    $json = @{ server = $Server; proxy = $Proxy; wiki = $Wiki } | ConvertTo-Json
     [IO.File]::WriteAllText($Saved, $json, (New-Object Text.UTF8Encoding($false)))
     & icacls $Saved /inheritance:r /grant:r "*S-1-5-18:F" "*S-1-5-32-544:F" | Out-Null
     $hint = if ($Server -eq "1") { "http://127.0.0.1:$ServerPort/mcp" } else { "https://<server>/vi-mcp/mcp" }

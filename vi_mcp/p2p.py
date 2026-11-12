@@ -26,6 +26,7 @@ import re
 import secrets
 import threading
 import time
+import urllib.parse
 from collections import Counter
 from pathlib import Path
 
@@ -74,7 +75,8 @@ def networks() -> dict[str, dict]:
             from .log_output import log
             log(f"p2p: network {name!r} ignored: needs a name a-z0-9-, kind {' or '.join(NET_KINDS)} and its own instance")
             continue
-        out[name] = {"kind": kind, "instance": d["instance"], "auto_release": bool(d.get("auto_release")), "local": d.get("local") or None}
+        out[name] = {"kind": kind, "instance": d["instance"], "auto_release": bool(d.get("auto_release")), "local": d.get("local") or None,
+                     "start": d.get("start") if isinstance(d.get("start"), str) else None}
     return out
 
 
@@ -117,7 +119,9 @@ def notice() -> str:
     live = [n for n, d in nets.items() if d["kind"] in ("free", "open") and (n != STANDARD or n in st) and is_on(n)]
     if not live:
         return ""
-    names = ", ".join(f"{n} ({nets[n]['kind']}{', ' + WIKI_HOME.split('//')[1] if n == WIKI_NET else ''})" for n in live)
+    def host(n: str) -> str:  # 0.54.1: the wiki network's own server (net wiki on --start), vi-wiki.org otherwise
+        return ", " + (urllib.parse.urlsplit(nets[n].get("start") or WIKI_HOME).hostname or "") if n == WIKI_NET else ""
+    names = ", ".join(f"{n} ({nets[n]['kind']}{host(n)})" for n in live)
     return (f"[Network] This server takes part in the public network(s) {names}: proven, shared knowledge leaves it anonymised, reviewed "
             "knowledge, wiki pages and questions from other servers come in. Tell the user once when it matters (sharing, privacy, a question "
             "about the network); if they do not want it, switch it off: vi_net_switch(network, on=false, reason) — and on again with on=true.")

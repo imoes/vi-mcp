@@ -1,6 +1,6 @@
 # vi-mcp reference
 
-Generated from the code of vi-mcp 0.54.0 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
+Generated from the code of vi-mcp 0.54.1 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
 
 Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server configuration](#server-configuration-configjson) · [Network service configuration](#network-service-configuration-etcvi-p2pnetworkjson) · [Configuration catalogue](#configuration-catalogue-debconf-vi-mcp-configure-vi_mcp_key) · [Environment variables](#environment-variables) · [HTTP endpoints](#http-endpoints) · [Modules](#modules-vi_mcp)
 
@@ -571,9 +571,9 @@ positional arguments:
     invitation (einladung)
                         create a one-time join code (peerhost only)
     join (beitreten)    join a network with a join code
-    wiki                the public wiki network vi-wiki.org: on (join: free
-                        network, outgoing, start vi-wiki.org) · off (stop the
-                        service) · status
+    wiki                the public wiki network: on (join: free network,
+                        outgoing, start vi-wiki.org or --start) · off (stop
+                        the service) · status
     proxy-config        nginx configuration for every network published on 443
                         (setup --public)
 
@@ -692,13 +692,17 @@ options:
 #### `vi-mcp net wiki`
 
 ```text
-usage: vi-mcp net wiki [-h] [--proxy PROXY] [{on,off,status}]
+usage: vi-mcp net wiki [-h] [--start START] [--proxy PROXY] [{on,off,status}]
 
 positional arguments:
   {on,off,status}
 
 options:
   -h, --help       show this help message and exit
+  --start START    the wiki server to start from instead of vi-wiki.org: a
+                   host name or https://HOST[:PORT][/PATH] (no path:
+                   /vi-p2p/wiki); replaces the start address of an existing
+                   configuration (0.54.1)
   --proxy PROXY    HTTP(S) proxy for the service's outgoing connections, e.g.
                    http://proxy:3128 (0.54.0)
 ```
@@ -786,7 +790,7 @@ options:
 | `origins` | localhost | Allowed `Origin` headers for browser clients; requests without Origin are allowed. |
 | `embed` | — | Embedding service `{url, token, model}` [`modell`]: OpenAI-compatible `/v1/embeddings` for vectors (semantic search). `vi-mcp embed setup` sets it. |
 | `llm` | — | Language model `{url, token, model}` [`modell`]: OpenAI-compatible chat endpoint for sleep, scorer and reviewer. |
-| `p2p` | `{}` | The memory side of the networks: `networks` [`netze`] `{name: {kind, instance, auto_release, local}}`, `reflexes_from` [`reflexe_von`], `auto_release` [`auto_freigabe`], `public_domains` [`oeffentliche_domains`], `internal_names` [`interne_namen`], `local` [`lokal`] (URL and token of the standard network's local listener). Kinds: `free`, `open`, `company` [`frei`, `offen`, `firma`]. |
+| `p2p` | `{}` | The memory side of the networks: `networks` [`netze`] `{name: {kind, instance, auto_release, local, start}}` (`start`: the server the network starts from, written by `net wiki on --start`, 0.54.1), `reflexes_from` [`reflexe_von`], `auto_release` [`auto_freigabe`], `public_domains` [`oeffentliche_domains`], `internal_names` [`interne_namen`], `local` [`lokal`] (URL and token of the standard network's local listener). Kinds: `free`, `open`, `company` [`frei`, `offen`, `firma`]. |
 | `reviewer_prompt` | — | [`pruefer_prompt`] Path of the reviewer's system prompt for foreign content; without it imports wait for a person. |
 | `archive_days` | built in | [`lager_tage`] Days after which unused objects move to the long-term archive, per kind, e.g. `{"erfahrung": 30}`. |
 | `open` | `false` | [`offen`] Open wiki mode: requests without a token are the instance `offen` — read, report actions, propose knowledge (quarantine). |

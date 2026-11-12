@@ -3,6 +3,43 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.54.1 — 2026-11-12 — The Windows setup asks for the wiki server
+
+### What is new
+
+- **The MSI setup dialog has a field for the wiki server**, as the user asked ("Beim MSI kann man immer noch nicht den Wiki Server
+  angeben"): a host name (`wiki.example.org`, the path `/vi-p2p/wiki` is added) or `https://HOST[:PORT][/PATH]`; empty = as before
+  (a new installation takes vi-wiki.org), `0` = no wiki network. On the command line the same property: `WIKI=wiki.example.org`.
+  The value is remembered with the proxy in `install-options.json`, so an update or a reinstall keeps the server.
+- **`vi-mcp net wiki on --start HOST`** (Linux and Windows): joins the wiki network through another server, or moves an existing
+  configuration to it (the start address is replaced, vi-wiki.org is not kept as a second one). `net wiki status` names the configured
+  server instead of always vi-wiki.org, and the notice to the AI names that server's host (`p2p.notice`; the memory config keeps it as
+  `p2p.networks.wiki.start`).
+
+### What was fixed
+
+- `WIKI=0` on an update now switches a joined wiki network off (`net wiki off`); before, it only skipped joining.
+- A reinstall after an uninstall left the wiki network without its scheduled task (the configuration was kept, so setup only restarted
+  services and found none); it sets the service up again.
+
+*Proof (Windows 11 test VM, 12.11.2026, vi-wiki.org blocked by a test proxy):*
+- Dialog (new installation): the field shows, `wiki2.example.org` entered, Install → exit 0; `wiki.json` startpeers
+  `https://wiki2.example.org/vi-p2p/wiki`, memory config `start` the same, task `vi-p2p-wiki` Running, `net wiki status`
+  "wiki network (https://wiki2.example.org/vi-p2p/wiki): configured; service vi-p2p@wiki: running".
+- Uninstall → exit 0, tasks gone; reinstall without WIKI and PROXY → exit 0, install.log "(from the previous installation: server,
+  proxy, wiki)", task `vi-p2p-wiki` Running again, the service contacts `wiki2.example.org`.
+- `WIKI=http://wiki.example.org` → exit 1603, install.log "FAILED: WIKI 'http://wiki.example.org' is not a wiki server …", rolled back,
+  `wiki.json` unchanged. `WIKI=0` on an installed wiki network → exit 0, task `vi-p2p-wiki` Disabled, remembered as `0`.
+- Tests: `tests/test_wiki_netz.py` (address forms, replacing and keeping the server, the notice), `tests/test_windows.py` (dialog
+  field); whole suite 653 passed, 4 skipped.
+
+### What is missing
+
+- The service keeps the peers it already knows: a server that was in the wiki network through vi-wiki.org still contacts vi-wiki.org
+  after `--start` names another server (seen in the test VM). Drop it with `vi-mcp net --network wiki block https://vi-wiki.org/vi-p2p/wiki`.
+- The Linux packages ask only whether to join (debconf, `vi-mcp configure`), not for the server; there it is `vi-mcp net wiki on --start`.
+- A reinstall sets up the wiki network's task again, not those of further networks (`vi-mcp net --network NAME setup …` by hand).
+
 ## 0.54.0 — 2026-11-11 — A package repository: updates with apt upgrade and dnf upgrade
 
 ### What is new

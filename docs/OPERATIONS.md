@@ -160,6 +160,7 @@ nginx -t && systemctl reload nginx  # in a container: docker exec nginx nginx -t
 - A new installation runs `nach-installation.sh wiki`, which equals `sudo vi-mcp net wiki on`: free network `wiki`, mode `peer`
   (outgoing), start `https://vi-wiki.org/vi-p2p/wiki`. Opt out: `VI_MCP_KEIN_WIKI=1 apt install ./vi-mcp_….deb`.
 - Existing servers: `sudo vi-mcp net wiki on` to join, `off` to stop the service (config and logbook stay), `status`.
+  Another wiki server (0.54.1): `sudo vi-mcp net wiki on --start wiki.example.org` (host name or https address; replaces the start address).
 - The AI can switch the network off and on in the memory (`vi_net_switch`); the service keeps running but pauses. `vi_net_status`
   shows who switched, when and why.
 - The start server: a peerhost of the network `wiki` on vi-wiki.org (443, `--public https://vi-wiki.org`, `vi-mcp web on`).
@@ -326,7 +327,7 @@ The server listens on `port` from its configuration (default 8765, bound to 127.
 
 Since 0.27.0 there is `vi-mcp-<version>-x64.msi` (built on Linux with `deploy/windows/build.sh`, wixl in a Fedora container).
 
-- **Install**: `msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [WIKI=0] [PROXY=http://proxy:3128] /l*v install.log` in an elevated shell.
+- **Install**: `msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [WIKI=0|HOST] [PROXY=http://proxy:3128] /l*v install.log` in an elevated shell.
 - **Setup dialog** (0.34.0, double-click on the MSI): **Install** with an optional proxy field; **Update** when an earlier vi-mcp is
   installed (configuration, database, tokens and port are kept); **Repair / Remove** when this version is installed. Silent installs
   (`/qn`) show none of it. Server mode and proxy of the previous installation are remembered (`%ProgramData%\vi-mcp\install-options.json`,
@@ -343,7 +344,13 @@ Since 0.27.0 there is `vi-mcp-<version>-x64.msi` (built on Linux with `deploy/wi
 - **Client**: `vi-mcp setup --claude --hook --url URL --token-file FILE` (no interactive menu on Windows). The hook entry is
   `"<venv python>" -I "<install dir>\hook\vi_hook.py"`; URL and token files are in `%USERPROFILE%\.config\vi-mcp\hook.json`.
 - **Networks** (0.54.0): a new server installation joins the public wiki network vi-wiki.org, as the Linux packages do (`WIKI=0` skips
-  it; the proxy given with `PROXY=` is also the network service's). Each network service is a scheduled task `vi-p2p-<network>` (SYSTEM,
+  it; the proxy given with `PROXY=` is also the network service's). The wiki server (0.54.1): the field in the setup dialog or
+  `WIKI=HOST` (a host name or `https://HOST[:PORT][/PATH]`, no path = `/vi-p2p/wiki`; runs `vi-mcp net wiki on --start HOST` and replaces
+  the start address). Empty = as before: remembered with the proxy in `install-options.json`, a new installation takes vi-wiki.org.
+  `WIKI=0` on an update switches a joined wiki network off (`net wiki off`, configuration and logbook kept). Not a host name or https
+  address: setup fails and rolls back, the reason in `install.log`. A reinstall after an uninstall (data kept) sets the wiki service up
+  again with the remembered server. Peers the service already knows stay known after a server change (an earlier vi-wiki.org too):
+  `vi-mcp net --network wiki block https://vi-wiki.org/vi-p2p/wiki` drops one. Each network service is a scheduled task `vi-p2p-<network>` (SYSTEM,
   at system start, restarted after a failure) running `vi-p2p.cmd <network>`; config, key and logbook in `%ProgramData%\vi-mcp\p2p`
   (`<network>.json`, `<network>\netz.db`, `<network>\schluessel`), output in `%ProgramData%\vi-mcp\p2p-<network>.log`. `vi-mcp net …`
   works as on Linux in an elevated shell (`net wiki on|off|status`, `--network NAME setup …`); an update restarts the services that are

@@ -233,6 +233,27 @@ def _write(p: Path, raw: dict) -> None:
     os.replace(tmp, p)
 
 
+def wiki_start(value: str | None) -> str:
+    """0.54.1: the start address of the wiki network from what a user enters (the MSI dialog, net wiki on --start): a host name
+    (vi-wiki.org), https://HOST[:PORT] or a full address https://HOST/vi-p2p/wiki. None or empty: vi-wiki.org. Only https — the service
+    of the wiki network allows no plain http. ValueError names the reason."""
+    from . import p2p
+    v = (value or "").strip()
+    if not v:
+        return p2p.WIKI_START
+    bad = ValueError(f"wiki server: a host name or https://HOST[:PORT][/PATH], not {v!r}")
+    if any(c.isspace() for c in v):
+        raise bad
+    u = urllib.parse.urlsplit(v if "://" in v else "https://" + v)
+    try:
+        u.port  # a port that is not a number raises here
+    except ValueError:
+        raise bad from None
+    if u.scheme != "https" or not u.hostname or u.query or u.fragment or u.username or u.password:
+        raise bad
+    return urllib.parse.urlunsplit(("https", u.netloc.lower(), u.path.rstrip("/") or f"/vi-p2p/{p2p.WIKI_NET}", "", ""))
+
+
 def setup(o) -> int:
     p = nd.fpath()
     raw = nd.english_file(json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {})  # 0.51.0: written in English
@@ -241,8 +262,8 @@ def setup(o) -> int:
     for attr, key in (("address", "address"), ("bind", "bind"), ("port", "port"), ("tls_cert", "tls_cert"), ("tls_key", "tls_key"), ("ca_file", "ca_file")):
         if getattr(o, attr) is not None:
             raw[key] = getattr(o, attr)
-    if o.start:
-        raw["startpeers"] = sorted(set(raw.get("startpeers", [])) | set(o.start))
+    if o.start:  # added to the known start addresses; replace_start (net wiki on --start, 0.54.1): the given ones only
+        raw["startpeers"] = sorted(set(o.start) if getattr(o, "replace_start", False) else set(raw.get("startpeers", [])) | set(o.start))
     if o.http_allowed:
         raw["http_allowed"] = True
     if o.proxy is not None:
@@ -449,8 +470,10 @@ def _parser() -> argparse.ArgumentParser:
     bt.add_argument("--port", type=int)
     bt.add_argument("--public", "--oeffentlich", dest="public")
     bt.add_argument("--kind", "--art", dest="kind", type=config.net_kind, choices=("company", "open"))
-    wk = cmd("wiki", help="the public wiki network vi-wiki.org: on (join: free network, outgoing, start vi-wiki.org) · off (stop the service) · status")
+    wk = cmd("wiki", help="the public wiki network: on (join: free network, outgoing, start vi-wiki.org or --start) · off (stop the service) · status")
     wk.add_argument("action", choices=("on", "off", "status"), nargs="?", default="status")
+    wk.add_argument("--start", default=None, help="the wiki server to start from instead of vi-wiki.org: a host name or https://HOST[:PORT][/PATH] "
+                    "(no path: /vi-p2p/wiki); replaces the start address of an existing configuration (0.54.1)")
     wk.add_argument("--proxy", default=None, help="HTTP(S) proxy for the service's outgoing connections, e.g. http://proxy:3128 (0.54.0)")
     cmd("peers")
     for name, alias in (("block", "sperren"), ("unblock", "entsperren")):  # 0.45.0: local block list (public key or address)
@@ -483,15 +506,30 @@ def main(argv: list[str]) -> int:
         p = nd.fpath()
         if o.action == "status":
             state = service_state(SERVICE)
-            print(f"wiki network ({p2p.WIKI_START}): {'configured' if p.exists() else 'not set up'}; service {SERVICE}: {state}")
+            start = ", ".join(json.loads(p.read_text(encoding="utf-8-sig")).get("startpeers") or []) if p.exists() else p2p.WIKI_START
+            print(f"wiki network ({start}): {'configured' if p.exists() else 'not set up'}; service {SERVICE}: {state}")
             return 0
         if o.action == "off":
             print(_service("disable", "--now", SERVICE) or f"{SERVICE} stopped and disabled; config and logbook are kept (vi-mcp net wiki on resumes)")
             return 0
+        try:
+            start = wiki_start(o.start)
+        except ValueError as ex:
+            print(ex, file=sys.stderr)
+            return 2
+        known = (json.loads(p.read_text(encoding="utf-8-sig")).get("startpeers") or []) if p.exists() else []
+        if o.start is None and known:  # on again without --start: the server it was set up with, vi-wiki.org is not added
+            start = known[0]
         e = argparse.Namespace(mode="peer", address=None, bind=None, port=None, tls_cert=None, tls_key=None, ca_file=None, found=False, founders=[],
-                               start=[p2p.WIKI_START], http_allowed=False, torrent=False, tls_self=False, proxy=o.proxy, no_proxy=[], quiet=True,
-                               kind="free", public=None)
-        return setup(e)
+                               start=[] if o.start is None and known else [start], replace_start=o.start is not None, http_allowed=False, torrent=False, tls_self=False, proxy=o.proxy,
+                               no_proxy=[], quiet=True, kind="free", public=None)
+        code = setup(e)
+        if code == 0:
+            try:  # the memory names the server in its notice to the AI (p2p.notice)
+                config.set_net_start(p2p.WIKI_NET, start)
+            except (OSError, ValueError) as ex:
+                print(f"Hint: wiki server not recorded in the memory config: {ex}")
+        return code
     if o.command == "setup":
         return setup(o)
     if o.command == "run":

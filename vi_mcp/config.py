@@ -281,7 +281,7 @@ def set_network(name: str, kind: str, p: Path | None = None) -> tuple[str, str |
     if name in nets and nets[name].get("kind") != kind:
         raise ValueError(f"network {name} is already registered as {nets[name].get('kind')}; the kind is not changed afterwards "
                          "(knowledge already exchanged would otherwise change its visibility)")
-    nets[name] = {"kind": kind, "instance": instance}
+    nets[name] = {**(nets.get(name) or {}), "kind": kind, "instance": instance}  # keeps local and start
     _save_raw(raw, p)
     return instance, token
 
@@ -297,6 +297,17 @@ def set_net_local(net: str, url: str, token: str, p: Path | None = None) -> None
         if net not in (p2p.get("networks") or {}):
             raise ValueError(f"network {net} is not registered — first: vi-mcp net --network {net} setup --kind …")
         p2p["networks"][net]["local"] = {"url": url, "token": token}
+    _save_raw(raw, p)
+
+
+def set_net_start(net: str, url: str, p: Path | None = None) -> None:
+    """0.54.1: the server a network starts from (net wiki on --start), so the memory names it in its notice instead of vi-wiki.org."""
+    p = p or fpath()
+    raw = read_raw(p)
+    nets = raw.setdefault("p2p", {}).setdefault("networks", {})
+    if net not in nets:
+        raise ValueError(f"network {net} is not registered")
+    nets[net]["start"] = url
     _save_raw(raw, p)
 
 

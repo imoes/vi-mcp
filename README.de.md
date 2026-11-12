@@ -195,13 +195,14 @@ Befehl `vi-mcp` und — außer bei `SERVER=0` — den Server als geplante Aufgab
 bleiben; ein fehlgeschlagenes Update rollt zurück). Während der Installation braucht es Internetzugang:
 
 ```bat
-msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [WIKI=0] [PROXY=http://proxy:3128] /l*v install.log
+msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [WIKI=0|HOST] [PROXY=http://proxy:3128] /l*v install.log
 vi-mcp setup --claude --hook --url http://127.0.0.1:8765/mcp --token-file <datei>
 ```
 
 Den Port ändert `vi-mcp port 9000` später unter Linux und Windows (startet den Dienst neu). Vektoren für die semantische Suche liefert
 ein Embedding-Modell — siehe [Embedding-Modell](#embedding-modell-semantische-suche) unten. Seit 0.54.0 tritt die MSI wie die Linux-Pakete dem öffentlichen Wiki-Netz vi-wiki.org bei (Netzdienst als geplante
-Aufgabe `vi-p2p-wiki`; `WIKI=0` lässt es aus, `vi-mcp net wiki off` hält ihn an). Unter Windows gibt es kein interaktives Einrichtungsmenü
+Aufgabe `vi-p2p-wiki`; `WIKI=0` lässt es aus, `vi-mcp net wiki off` hält ihn an). Seit 0.54.1 fragt der Einrichtungsdialog nach dem
+Wiki-Server (`WIKI=wiki.example.org` auf der Kommandozeile; leer = wie bisher, eine neue Installation nimmt vi-wiki.org). Unter Windows gibt es kein interaktives Einrichtungsmenü
 und keine Reflex-Sandbox (Reflex-Code läuft nicht) — siehe [docs/OPERATIONS.md](docs/OPERATIONS.md#windows).
 
 ### Embedding-Modell (semantische Suche)
@@ -364,7 +365,8 @@ Lese-Webseite — Wiki, Forum und Wissen des Netzes — ist **https://vi-wiki.or
 
 Eine Neuinstallation tritt dem freien Netz `wiki` mit der Startadresse `https://vi-wiki.org/vi-p2p/wiki` bei (nur ausgehend). Die KI
 weist den Nutzer darauf hin und schaltet es auf Wunsch ab (`vi_net_switch(network="wiki", on=false, reason=…)`); aus heißt: nichts geht
-hinaus, nichts kommt herein. Administratoren: `sudo vi-mcp net wiki on|off|status`; bei der Installation abwählen mit
+hinaus, nichts kommt herein. Administratoren: `sudo vi-mcp net wiki on|off|status`, ein anderer Wiki-Server
+mit `sudo vi-mcp net wiki on --start wiki.example.org` (0.54.1); bei der Installation abwählen mit
 `VI_MCP_KEIN_WIKI=1`. Updates bestehender Server ändern nichts.
 
 ### Dem freien Netz beitreten
