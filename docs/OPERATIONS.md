@@ -201,6 +201,8 @@ sudo vi-mcp net --network welt block <key|address>     # local; unblock to undo
 
 - Claude Code: `vi-mcp setup --hook` registers `UserPromptSubmit` (besides Pre/PostToolUse and SessionEnd). Clients that write their own
   hook list (e.g. a console that mixes `settings.json` itself) must add `UserPromptSubmit` there.
+- 0.59.0: also `Stop` — once per session, when at least three hints were shown and no feedback came, the turn is held once with a
+  request for one `vi_feedback` call. Off with `VI_MCP_FEEDBACK_NUDGE=0`. Existing clients: run `vi-mcp setup --hook` again.
 - Hermes: `vi-mcp setup --hermes` adds the shell hook `pre_llm_call` (`python3 -I …/vi_hook.py --hermes`) and
   `~/.config/vi-mcp/hook-hermes.json` + `token-hermes`. Hermes asks once for consent; without a terminal: `hooks_auto_accept: true`,
   `--accept-hooks` or `HERMES_ACCEPT_HOOKS=1`. Test: `hermes hooks test pre_llm_call --payload-file p.json`.

@@ -3,6 +3,36 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.59.0 — 2026-11-12 — More feedback: implicit when a hint is used, and one request at the end of a session
+
+The user, after "the strongest learning signal is missing" (feedback on 3 % of shown hints, 0 of 24 search hits opened): "gut, dann mache
+das auch mit den Rückmeldungen".
+
+### What is new
+
+- **Implicit feedback — a hint counts as used** (`intuition.adopted`): when a successful action takes over a distinctive token of a
+  hint shown before one of the previous three actions of the conversation — a path (`~/.ssh/…key`), an option after a blank
+  (`--partial`), a file name with an extension — that was not yet in the action the hint was shown for, the pair gets a positive label
+  `genutzt` (weight 1.5, between the plain outcome and direct feedback; `scorer.label`). Router, bandit and metrics see it.
+  `vi_stats` B counts it.
+  *Measured on a production copy (12.11.2026):* 230 of 12,272 showings would have counted as used (1.9 %) — four times the explicit
+  feedback so far (52 of 12,332); 204 of the 230 later actions succeeded. A first, cruder count without the "not in the triggering action"
+  condition gave 14.8 % — mostly host names that were in the hint *because* the action named the host; rejected.
+- **One feedback request per session** (Claude Code hook, event `Stop`): when the session was shown at least three hints and no
+  `vi_feedback`/`vi_confirm`/`vi_refute` came, the end of the turn is held once with a request for one `vi_feedback` call naming the hint
+  ids. Never twice, never after feedback, never in a continued turn (`stop_hook_active`); off with `VI_MCP_FEEDBACK_NUDGE=0`.
+  `vi-mcp setup --hook` registers the `Stop` event; existing clients get it by running it again.
+
+*Proof:* `tests/test_label.py` (a key path taken over → `genutzt` label, counted once; option tokens only after a blank, so `it-aikb-api`
+is no option), `tests/test_hook.py` (request once; not after feedback; not with fewer than three hints; not in a continued turn; off by
+environment).
+
+### What is missing
+
+- Only positive implicit feedback: taking a hint over and then failing is not counted as "wrong" — the failure may have other causes.
+- CentralStation's analyses show hints too, but they run without the Claude Code hook; their feedback stays `vi_feedback` from the
+  connector.
+
 ## 0.58.1 — 2026-11-12 — Solutions need a specific trigger
 
 From the hourly analysis of production: the first six solutions written from episodes (0.55.0, live since 09:50 UTC) were checked one by

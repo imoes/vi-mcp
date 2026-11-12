@@ -1,6 +1,6 @@
 # vi-mcp reference
 
-Generated from the code of vi-mcp 0.58.1 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
+Generated from the code of vi-mcp 0.59.0 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
 
 Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server configuration](#server-configuration-configjson) · [Network service configuration](#network-service-configuration-etcvi-p2pnetworkjson) · [Configuration catalogue](#configuration-catalogue-debconf-vi-mcp-configure-vi_mcp_key) · [Environment variables](#environment-variables) · [HTTP endpoints](#http-endpoints) · [Modules](#modules-vi_mcp)
 
@@ -869,6 +869,7 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 |---|---|
 | `VI_MCP_CONFIG` | Path of the server configuration (default `~/.config/vi-mcp/config.json`; the package: `/etc/vi-mcp/config.json`). |
 | `VI_MCP_CONFIGURE_STATE` | Which configuration questions were answered (default `/etc/vi-mcp/configure.json`). |
+| `VI_MCP_FEEDBACK_NUDGE` | Claude Code hook: `0` switches off the one feedback request at the end of a session (event `Stop`, 0.59.0). |
 | `VI_MCP_FREIGABE_TOKEN_FILE` | Token file of `vi-mcp release` (the release right). |
 | `VI_MCP_KEIN_DIENST` | Tests and containers: `vi-mcp net …` does not start or stop systemd services. |
 | `VI_MCP_KEIN_MENUE` | Package installation without the interactive menu. |

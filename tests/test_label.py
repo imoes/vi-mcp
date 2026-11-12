@@ -37,3 +37,20 @@ def test_router_bandit_and_metrics_see_the_same_label(gd):
     assert rows == [("Bash", False, {h.id: (0, 3.0)})]
     metrics._GRADES["db"] = None
     assert metrics._ok(g.load(e.id)) is False
+
+
+def test_adopted_hint_becomes_a_positive_label(gd):
+    # 0.59.0: a distinctive token of a shown hint (here the key path) taken over into a later successful action = implicit "helped"
+    from vi_mcp import intuition, session
+    h = g.new_object("erkenntnis", "ssh to the LLM host only with ssh -i ~/.ssh/llm.key -o BatchMode=yes", ["tool:Bash"], {"quelle": "t"}, instance="a")
+    s = session.begin("a", "t")
+    with session.on_behalf(s):
+        e1 = g.new_object("erfahrung", "Bash ssh", ["tool:Bash", "ok:nein"], {"args": {"command": "ssh llm"}, "vorher": {"gezeigt": [h.id]}},
+                          instance="a", conversation=s.serial)
+        e2 = g.new_object("erfahrung", "Bash ssh -i", ["tool:Bash", "ok:ja"], {"args": {"command": "ssh -i ~/.ssh/llm.key llm"}},
+                          instance="a", conversation=s.serial)
+    assert intuition.adopted(g.load(e2.id)) == [h.id]
+    assert g.load(e1.id).data["genutzt"] == [h.id]
+    assert scorer.label(g.load(e1.id).data, False, None, {}, hint=h.id) == (1, scorer.WEIGHT["genutzt"], "genutzt")
+    assert intuition.adopted(g.load(e2.id)) == []  # counted once
+    assert intuition.distinctive_tokens("see it-aikb-api docs --verbose /etc/x/y.conf") == frozenset({"--verbose", "/etc/x/y.conf"})

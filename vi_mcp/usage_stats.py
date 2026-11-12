@@ -147,7 +147,7 @@ def data(days: float = 7) -> dict:
         if w in SEARCH_TOOLS and outputs == "ok":
             search_times.setdefault(i, []).append(datetime.fromisoformat(z))
     n_mutating = prepared = 0
-    shown = feedbacks = opened = 0
+    shown = feedbacks = opened = adopted = 0
     warn = {"n": 0, "ok": 0}
     without_warn = {"n": 0, "ok": 0}
     conv_with_action: set[str] = set()
@@ -158,6 +158,7 @@ def data(days: float = 7) -> dict:
         shown += len([h for h in v.get("gezeigt") or [] if not h.startswith("antwort:")])
         feedbacks += len(d.get("rueckmeldung") or {})
         opened += len(d.get("geoeffnet") or {})
+        adopted += len(d.get("genutzt") or [])  # 0.59.0: implicit feedback
         if tot:
             conv_with_action.add(tot)
         pr = per_project.setdefault(projects_of.get(tot) or "—", {"n": 0, "ok": 0, "ok_known": 0})
@@ -191,7 +192,7 @@ def data(days: float = 7) -> dict:
                     "je_projekt": dict(sorted(per_project.items(), key=lambda kv: -kv[1]["n"]))},
         "regeln": {"aendernd": n_mutating, "vorbereitet": prepared, "gelernt": learned, "gespraeche_mit_handlung": len(conv_with_action),
                    "bestaetigt_widerlegt": confirmed, "hinweise_gezeigt": shown, "rueckmeldungen": feedbacks,
-                   "geoeffnet": opened},
+                   "geoeffnet": opened, "genutzt": adopted},
         "hinweise": {"gezeigt": shown, "warnung": warn, "ohne_warnung": without_warn},
         "wissen": {"neu": len(knowledge_new), "neu_je_art": _count(r[0] for r in knowledge_new), "neu_je_sicht": _count(r[1] for r in knowledge_new),
                    "neu_je_quelle": _count((r[3] or "quelle_art:—")[11:] for r in knowledge_new),
@@ -304,7 +305,9 @@ def report(days: float = 7) -> str:
              f"instance consulted the VI in the {LEAD_MIN} min before (counted since {(n['aufrufe_seit'] or '—')[:16]}, when calls are recorded; "
              f"the automatic vi_before of the hook does not count as consulting) · learned {r['gelernt']}× in {r['gespraeche_mit_handlung']} conversations with actions · "
              f"feedback on hints {r['rueckmeldungen']} for {r['hinweise_gezeigt']} shown ({_pct(r['rueckmeldungen'], r['hinweise_gezeigt'])}; "
-             f"vi_feedback, vi_confirm, vi_refute) · opened with vi_object after being shown {r['geoeffnet']} ({_pct(r['geoeffnet'], r['hinweise_gezeigt'])})")
+             f"vi_feedback, vi_confirm, vi_refute) · opened with vi_object after being shown {r['geoeffnet']} ({_pct(r['geoeffnet'], r['hinweise_gezeigt'])})"
+             f" · adopted (a command, path or option of the hint taken into a later successful action, 0.59.0) {r.get('genutzt', 0)} "
+             f"({_pct(r.get('genutzt', 0), r['hinweise_gezeigt'])})")
     lift = metrics.hint_lift(24 * days, viewer=None)
     z.append(f"C Hints: {h['gezeigt']} shown · {metrics.line(lift)} · warnings {h['warnung']['n']} (succeeded afterwards "
              f"{_pct(h['warnung']['ok'], h['warnung']['n'])}; without warning {_pct(h['ohne_warnung']['ok'], h['ohne_warnung']['n'])})")

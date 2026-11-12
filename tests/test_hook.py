@@ -111,3 +111,23 @@ def test_result_only_for_mcp(h, monkeypatch):
     assert "result" not in sent[("vi_after", "pwdepot_search_entries")]
     assert sent[("vi_after", "netbox_get_vms")]["result"] == "INHALT"
     assert h.process(ev("PreToolUse", tool_name="mcp__skills__vi_status", tool_input={}, tool_use_id="v2")) is None
+
+
+def test_feedback_request_once_at_stop(tmp_path, monkeypatch):
+    # 0.59.0: ≥ FEEDBACK_MIN hints shown and no feedback → the turn is held once with a request; never twice, never after feedback
+    monkeypatch.setattr(hook, "STATE", tmp_path / "hook")
+    monkeypatch.delenv("VI_MCP_FEEDBACK_NUDGE", raising=False)
+    hook.note_hints("s1", ["Learned [erkenntnis:aaa111] (from x, unmeasured): …", "Rule [regel:bbb222] …", "Skill \"x\" [skill:ccc333]"])
+    r = hook.process({"hook_event_name": "Stop", "session_id": "s1"})
+    assert r["decision"] == "block" and "erkenntnis:aaa111" in r["reason"] and "vi_feedback" in r["reason"]
+    assert hook.process({"hook_event_name": "Stop", "session_id": "s1"}) is None  # asked once
+    hook.note_hints("s2", ["[erkenntnis:a1] [regel:b2] [skill:c3]"])
+    hook.process({"hook_event_name": "PostToolUse", "session_id": "s2", "tool_name": "mcp__vi-mcp__vi_feedback", "tool_input": {}})
+    assert hook.process({"hook_event_name": "Stop", "session_id": "s2"}) is None  # feedback given
+    hook.note_hints("s3", ["[erkenntnis:a1]"])
+    assert hook.process({"hook_event_name": "Stop", "session_id": "s3"}) is None  # too few hints
+    hook.note_hints("s4", ["[erkenntnis:a1] [regel:b2] [skill:c3]"])
+    assert hook.process({"hook_event_name": "Stop", "session_id": "s4", "stop_hook_active": True}) is None  # never loops
+    monkeypatch.setenv("VI_MCP_FEEDBACK_NUDGE", "0")
+    hook.note_hints("s5", ["[erkenntnis:a1] [regel:b2] [skill:c3]"])
+    assert hook.process({"hook_event_name": "Stop", "session_id": "s5"}) is None

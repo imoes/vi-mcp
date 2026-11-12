@@ -543,13 +543,66 @@ def after(tool: str, args: dict, ok: bool, duration_ms: int, error: str | None, 
                 if h:
                     h.access()
                     reinforced += 1
+    used = adopted(o) if ok else []  # 0.59.0: implicit feedback — a hint whose command/path/option the agent took over
     hints = reflexes.after(tool, dict(args or {}), result or "") if ok else []
     if ok is False and error:  # 0.53.0: rule 3 by itself — what the memory knows about this error
         hints += error_hints(tool, args or {}, error, instance)
     if ok is not None:  # a rated action is a new observation for router and bandit
         from . import on_demand
         on_demand.nudge("experience")
-    return {"erfahrung": o.id, "hinweise": hints, "vorher_gefunden": bool(open_), "verstaerkt": reinforced, "bewertet": rated}
+    return {"erfahrung": o.id, "hinweise": hints, "vorher_gefunden": bool(open_), "verstaerkt": reinforced, "bewertet": rated,
+            **({"genutzt": used} if used else {})}
+
+
+#: 0.59.0: distinctive tokens of a hint — paths, options after a blank, file names with an extension. A hint counts as ADOPTED when such a
+#: token, absent from the action it was shown before, appears in one of the next ADOPT_WINDOW actions of the conversation that succeeds.
+#: Measured on a production copy (12.11.2026): 230 of 12,272 showings (1.9 %) — four times the explicit feedback (52 of 12,332);
+#: 204 of the 230 later actions succeeded.
+_TOKEN = re.compile(r"(?:(?<![\w.-])~?/[\w.@-]+(?:/[\w.@-]+)+|(?<!\S)--?[a-zA-Z][\w-]{2,}(?:=\S+)?|\b[\w-]+\.(?:key|pem|conf|cfg|json|ya?ml|sh|py|service|toml|ini|env)\b)")
+_TOKEN_STOP = frozenset({"--help", "--version", "/dev/null"})
+ADOPT_WINDOW = 3
+_tokens_cache: dict[str, frozenset] = {}
+
+
+def distinctive_tokens(text: str) -> frozenset:
+    """Pure."""
+    return frozenset(t.rstrip(".,;:)'\"") for t in _TOKEN.findall(text or "") if len(t) >= 5 and t not in _TOKEN_STOP)
+
+
+def _hint_tokens(hid: str) -> frozenset:
+    if hid not in _tokens_cache:
+        h = g.load(hid)
+        _tokens_cache[hid] = distinctive_tokens((h.text + " " + str(h.data.get("inhalt") or "")[:4000]) if h else "")
+        if len(_tokens_cache) > 5000:
+            _tokens_cache.clear()
+    return _tokens_cache[hid]
+
+
+def adopted(o: g.MemoryObject) -> list[str]:
+    """0.59.0: the implicit feedback of a successful action — which hints shown before one of the previous ADOPT_WINDOW actions of this
+    conversation it took a distinctive token from. Marks them on that earlier experience as `genutzt` (scorer.label: a positive label
+    for the pair, weight WEIGHT["genutzt"]). Returns the hint ids."""
+    if not o.conversation or "ok:ja" not in o.hashtags:
+        return []
+    here = json.dumps(o.data.get("args") or {}, ensure_ascii=False)
+    with g.lock:
+        rows = g.db().execute("SELECT id FROM objekt WHERE art = 'erfahrung' AND gespraech = ? AND zeit < ? ORDER BY zeit DESC LIMIT ?",
+                              (o.conversation, o.ts, ADOPT_WINDOW)).fetchall()
+    found = []
+    for (eid,) in rows:
+        e = g.load(eid)
+        v = (e.data.get("vorher") or {}) if e else {}
+        before_args = json.dumps(e.data.get("args") or {}, ensure_ascii=False) if e else ""
+        new = []
+        for h in v.get("gezeigt") or []:
+            if not h.startswith(("erkenntnis:", "regel:", "skill:", "seite:")) or h in (e.data.get("genutzt") or []):
+                continue
+            if any(t in here and t not in before_args for t in _hint_tokens(h)):
+                new.append(h)
+        if new:
+            g.update_data(eid, lambda d, n=new: d.__setitem__("genutzt", sorted(set(d.get("genutzt") or []) | set(n))))
+            found += new
+    return found
 
 
 def close_open(conversation: str | None = None, only_older_than_s: float | None = None) -> int:

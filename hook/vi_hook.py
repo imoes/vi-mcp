@@ -8,6 +8,9 @@ Claude Code calls the script as a hook (event from stdin: `hook_event_name`):
   PostToolUse         → vi_after with ok=true, result, duration.
   PostToolUseFailure  → vi_after with ok=false, error.
   SessionEnd          → end the conversation in vi-mcp (DELETE).
+  Stop                → 0.59.0: once per session, when at least FEEDBACK_MIN hints were shown and no vi_feedback/vi_confirm/vi_refute
+                        came, the turn is held once with a request for one vi_feedback call (the signal the VI learns most from;
+                        52 per 12,332 shown hints on 12.11.2026). Off with VI_MCP_FEEDBACK_NUDGE=0.
   UserPromptSubmit    → 0.44.0: vi_prompt_context with the prompt (secrets masked, at most 4,000 characters) — knowledge that
                         fits the question goes to the model as context, for follow-up questions too; the server does not store
                         the prompt. Besides, detects locally a correction ("nein, …", "no, …") or a grade (#gut, #schlecht,
@@ -270,6 +273,37 @@ def notify_signal(claude_session: str, text: str) -> None:
         raise Outage(f"Signal: {type(e).__name__}: {e}") from e
 
 
+#: 0.59.0: the hint ids a session was shown, to ask for feedback once at its end
+FEEDBACK_MIN = 3
+FEEDBACK_IDS = re.compile(r"\[((?:erkenntnis|regel|skill|bild|seite):[^\]\s]+)\]")
+FEEDBACK_TOOLS = ("vi_feedback", "vi_confirm", "vi_refute", "vi_bestaetige", "vi_widerlege")
+
+
+def note_hints(claude_session: str, hint_lines: list[str]) -> None:
+    ids = [m for line in hint_lines for m in FEEDBACK_IDS.findall(line)]
+    if not ids:
+        return
+    st = read("rueckmeldung", claude_session) or {"gezeigt": [], "gegeben": False, "gefragt": False}
+    st["gezeigt"] = list(dict.fromkeys(st["gezeigt"] + ids))[-60:]
+    write("rueckmeldung", claude_session, st)
+
+
+def feedback_request(e: dict) -> dict | None:
+    """Stop: ask once for vi_feedback on the hints of this session (decision block holds the turn; Claude Code sets stop_hook_active
+    on the continued turn, so it cannot loop)."""
+    if os.environ.get("VI_MCP_FEEDBACK_NUDGE", "1") == "0" or e.get("stop_hook_active"):
+        return None
+    st = read("rueckmeldung", e["session_id"])
+    if not st or st.get("gegeben") or st.get("gefragt") or len(st.get("gezeigt") or []) < FEEDBACK_MIN:
+        return None
+    st["gefragt"] = True
+    write("rueckmeldung", e["session_id"], st)
+    ids = ", ".join(st["gezeigt"][-12:])
+    return {"decision": "block", "reason": ("Before you finish: the VI showed you hints in this session. One call, no reason needed — "
+                                            f"vi_feedback(helped=[ids that helped], wrong=[ids that misled you]) from: {ids}. "
+                                            "If none applied, say so in one line and finish. This is how the VI learns which hint to show.")}
+
+
 def finish(claude_session: str) -> None:
     """SessionEnd has only 1.5 s by default in Claude Code — hence the short timeout. If the DELETE does not arrive,
     vi-mcp closes the conversation itself after 4 h idle (state `abgelaufen`)."""
@@ -279,6 +313,7 @@ def finish(claude_session: str) -> None:
         TIMEOUT = min(TIMEOUT, 1.0)
         _post(None, z["mcp_session_id"], "DELETE")
         remove_entry("sitzung", claude_session)
+    remove_entry("rueckmeldung", claude_session)
 
 
 # ── Events ────────────────────────────────────────────────────────────────────
@@ -298,6 +333,7 @@ def before_tool(e: dict) -> dict | None:
     if read_only is not None:
         notify["read_only"] = read_only
     v = call_tool(e["session_id"], e.get("cwd"), "vi_before", notify)
+    note_hints(e["session_id"], v.get("hinweise") or [])  # 0.59.0
     if e.get("tool_use_id"):
         write("vorher", e["tool_use_id"], {"vorher_id": v.get("vorher_id"), "t0": time.time(), "tool": name, "args": v.get("args", args)})
     if v.get("antwort") is not None:
@@ -338,6 +374,7 @@ def after_tool(e: dict, ok: bool) -> dict | None:
         notify["error"] = ("[abgebrochen] " if e.get("is_interrupt") else "") + _result_text(error)[:2000]
     n = call_tool(e["session_id"], e.get("cwd"), "vi_after", notify)
     hints = n.get("hinweise") or []
+    note_hints(e["session_id"], hints)  # 0.59.0
     if hints:
         return {"hookSpecificOutput": {"hookEventName": e.get("hook_event_name", "PostToolUse"),
                                        "additionalContext": "[VI memory after " + name + "]\n" + "\n".join(hints)}}
@@ -392,6 +429,9 @@ def process(e: dict) -> dict | None:
         raise Outage("session_id missing in hook event")
     name, server = tool_parts(e.get("tool_name") or "")
     if event in ("PreToolUse", "PostToolUse", "PostToolUseFailure") and server and name.startswith("vi_"):
+        if event == "PostToolUse" and name in FEEDBACK_TOOLS:  # 0.59.0: feedback given — no request at the end
+            st = read("rueckmeldung", e["session_id"]) or {"gezeigt": [], "gefragt": False}
+            write("rueckmeldung", e["session_id"], {**st, "gegeben": True})
         return None
     if event == "PreToolUse":
         return before_tool(e)
@@ -401,6 +441,7 @@ def process(e: dict) -> dict | None:
         return after_tool(e, ok=False)
     if event == "UserPromptSubmit":
         ctx = prompt_context(e["session_id"], e.get("cwd"), e.get("prompt") or "")
+        note_hints(e["session_id"], [ctx or ""])  # 0.59.0
         try:
             notify_signal(e["session_id"], e.get("prompt") or "")
         except Outage as ex:  # a missing signal token must not cost the context
@@ -409,6 +450,8 @@ def process(e: dict) -> dict | None:
     if event == "SessionEnd":
         finish(e["session_id"])
         return None
+    if event == "Stop":
+        return feedback_request(e)
     return None
 
 
