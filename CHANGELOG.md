@@ -3,6 +3,28 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.58.1 — 2026-11-12 — Solutions need a specific trigger
+
+From the hourly analysis of production: the first six solutions written from episodes (0.55.0, live since 09:50 UTC) were checked one by
+one. Three are useful (sqlite3 CLI missing → Python's sqlite3 module; WebFetch over 10 MB → the project page instead of the PDF; a
+rebuild guard that blocks while a user container runs); two are details of one session (file names of one test run, a selector); and
+4 of 6 had no specific trigger — so they appeared before every command of the tool.
+
+### What has changed
+
+- **A shell solution gets the failing program as trigger** (`thema:sqlite3`, …; everyday commands like `cd`, `ls` do not count), and a
+  shell's generic error signature (`Exit_code_#`) does not count as specific.
+- **No specific trigger, no solution**: without an error signature, a program or a host the episode is counted as `unspezifisch`, not
+  stored.
+- **The language model says whether a solution is general** (`allgemein`); a one-off (a typo, a file name of this session) is counted as
+  `nicht_allgemein`, not stored. It can only hold back, never release.
+
+*Proof:* `tests/test_solutions.py` (sqlite3 exit 127 → `thema:sqlite3`; `cd && ls` → counted unspecific; `allgemein: false` → held back).
+
+### What is missing
+
+- The four solutions on production without a specific trigger stay; their measured usefulness (bandit) will show whether they are kept.
+
 ## 0.58.0 — 2026-11-12 — Hybrid: the language model may write a weight layer on the fitted router — only after measurement
 
 The user asked why the language model does not write weights as in weight-space programming (Takehi, Teoh, Zhang, Khattab, MIT CSAIL,

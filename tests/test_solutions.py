@@ -83,3 +83,28 @@ def test_evidence_and_name_are_pure_functions_of_the_episode():
           "schritte": ["Bash", "Edit", "Bash"], "kontext": [], "belege": [], "gespraech": "1"}
     assert solutions.has_content(ev) and solutions.name_for(ev) == solutions.name_for(dict(ev))
     assert not solutions.has_content({**ev, "massnahmen": []})
+
+
+def test_shell_solution_gets_the_program_as_trigger_and_generic_ones_are_counted(gd, monkeypatch):
+    # 0.58.1: on production 4 of 6 solutions had no specific trigger and appeared before every Bash command
+    monkeypatch.setattr(reflection, "ask_fn", lambda system, user: json.dumps(
+        {"problem": "sqlite3 CLI missing", "ursache": "not installed", "loesung": "use python3 -c 'import sqlite3'", "befehle": ["python3 -c ..."],
+         "quellen": [], "allgemein": True}))
+    s = session.begin("a", "t")
+    call(s, "Bash", {"command": "sqlite3 /tmp/x.db '.tables'"}, False, "Exit code 127")
+    call(s, "Bash", {"command": "python3 -c 'import sqlite3'"}, True)
+    s2 = session.begin("b", "t")
+    call(s2, "Bash", {"command": "cd /tmp && ls -la"}, False, "Exit code 2")
+    call(s2, "Bash", {"command": "cd /var/tmp && ls"}, True)
+    r = sleep_cycle.run("Test").data["schritte"]["4c_skills"]
+    assert r["neu"] == 1 and r["unspezifisch"] == 1
+    sk = [o for _, o, _g in g.recall("art:skill herkunft:episode", viewer=None)][0]
+    assert "thema:sqlite3" in sk.hashtags
+
+
+def test_language_model_may_hold_back_a_one_off(gd, monkeypatch):
+    monkeypatch.setattr(reflection, "ask_fn", lambda system, user: json.dumps(
+        {"problem": "typo in a file name", "ursache": "typo", "loesung": "fixed the typo", "befehle": [], "quellen": [], "allgemein": False}))
+    web_episode()
+    r = sleep_cycle.run("Test").data["schritte"]["4c_skills"]
+    assert r["nicht_allgemein"] == 1 and r["neu"] == 0
