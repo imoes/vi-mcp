@@ -93,12 +93,17 @@ def observations(since: str | None = None) -> list[tuple[dict, int, str]]:
     return [(f, y, o) for f, y, o, _w in weighted_observations(since)]
 
 
-def weighted_observations(since: str | None = None) -> list[tuple[dict, int, str, float]]:
-    """0.55.0: as observations(), with the label's weight (scorer.label: source of the label)."""
+def weighted_observations(since: str | None = None, index: str | None = None) -> list[tuple[dict, int, str, float]]:
+    """0.55.0: as observations(), with the label's weight (scorer.label: source of the label). 0.61.0: index = only that index's experiences."""
     outputs = []
+    cond, par = "", []
+    if since:
+        cond, par = cond + " AND zeit >= ?", par + [since]
+    if index:
+        cond, par = cond + " AND idx = ?", par + [index]
     with g.lock:
-        rows = g.db().execute("SELECT id, zeit, daten, gespraech FROM objekt WHERE art = 'erfahrung' AND modus = 'aktiv'" + (" AND zeit >= ?" if since else "") + " ORDER BY zeit",
-                              (since,) if since else ()).fetchall()
+        rows = g.db().execute("SELECT id, zeit, daten, gespraech FROM objekt WHERE art = 'erfahrung' AND modus = 'aktiv'" + cond + " ORDER BY zeit",
+                              tuple(par)).fetchall()
         labeled = {r[0] for r in g.db().execute("SELECT DISTINCT objekt_id FROM tag WHERE tag IN ('ok:ja', 'ok:nein')")}
         ok_yes = {r[0] for r in g.db().execute("SELECT objekt_id FROM tag WHERE tag = 'ok:ja'")}
     from . import scorer
@@ -173,9 +178,102 @@ def ranking(m: g.MemoryObject, triggers: list[str], candidates: list[str], ts: s
     return sorted(((h, prediction(m, {**with_hint, **hint_features(h, triggers, ts, born)}) - p0) for h in candidates), key=lambda x: -x[1])
 
 
-def active() -> g.MemoryObject | None:
-    m = model()
+def active(index: str | None = None) -> g.MemoryObject | None:
+    """The active router model — of `index` (0.61.0, a special VI) or the shared one."""
+    m = g.load(model_id(index)) if index else model()
     return m if m and m.mode == "aktiv" else None
+
+
+def model_id(index: str | None) -> str:
+    """0.61.0: modell:router for the shared model, modell:router@<index> for an index's own one."""
+    return MODEL if not index or index == "global" else f"{MODEL}@{index}"
+
+
+#: 0.61.0: an index gets its own model only with this much data — fewer observations would fit noise
+MIN_INDEX_OBS = 300
+MIN_INDEX_FAILS = 30
+
+
+def _fit_weights(obs_w: list) -> tuple[dict, float, set, dict]:
+    """Fit on (features, y, oid, weight) as train() does: features seen ≥ MIN_PER_FEATURE times, C chosen on the newest part."""
+    from sklearn.feature_extraction import DictVectorizer
+    import numpy as np
+    tally: dict[str, int] = {}
+    for m, _y, _o, _w in obs_w:
+        for k in m:
+            tally[k] = tally.get(k, 0) + 1
+    kept = {k for k, n in tally.items() if n >= MIN_PER_FEATURE}
+    vec = DictVectorizer(sparse=True)
+    X = vec.fit_transform([{k: v for k, v in m.items() if k in kept} for m, _y, _o, _w in obs_w])
+    clf, rep = fit_calibrated(X, np.array([y for _m, y, _o, _w in obs_w]), np.array([w for _m, _y, _o, w in obs_w]))
+    weights = {n: round(float(w), 4) for n, w in zip(vec.get_feature_names_out(), clf.coef_[0]) if abs(w) > 1e-6}
+    return weights, float(clf.intercept_[0]), kept, rep
+
+
+def train_index(index: str, reason: str = "sleep") -> dict:
+    """0.61.0: the special VI of an index — a router model trained only on the index's experiences, used for its project only if it beats
+    the shared model by more than CHAMPION_SE standard errors (paired log loss) on the index's newest observations. Fair comparison: the
+    shared reference is fitted on all observations EXCEPT that holdout, so neither model has seen it (a shared model trained on
+    everything would know the holdout — leakage, see weight_writer._train_stats)."""
+    try:
+        import numpy as np
+        from sklearn.metrics import roc_auc_score
+    except ImportError as e:
+        return {"zustand": "uebersprungen", "grund": f"scikit-learn missing ({e.name})"}
+    idx_obs = weighted_observations(index=index)
+    n_fail = sum(1 for _f, y, _o, _w in idx_obs if not y)
+    report = {"index": index, "n": len(idx_obs), "nicht_ok": n_fail, "trainiert": g.now(), "grund": reason}
+    if len(idx_obs) < MIN_INDEX_OBS or n_fail < MIN_INDEX_FAILS:
+        report.update(zustand="zu_wenig_daten", urteil=f"{len(idx_obs)} observations, {n_fail} failures — an own model needs "
+                                                        f"≥ {MIN_INDEX_OBS} and ≥ {MIN_INDEX_FAILS}; the shared model ranks")
+        _save_index(index, report, {}, 0.0, "test")
+        return report
+    n_test = _holdout_size([y for _f, y, _o, _w in idx_obs])
+    train_part, holdout_w = idx_obs[:-n_test], idx_obs[-n_test:]
+    held = {o for _f, _y, o, _w in holdout_w}
+    weights, b, kept, fit_rep = _fit_weights(train_part)
+    shared_w, shared_b, _k, _r = _fit_weights([x for x in weighted_observations() if x[2] not in held])
+    holdout = [(f, y, o) for f, y, o, _w in holdout_w]
+    m_idx = type("M", (), {"data": {"gewichte": weights, "achsenabschnitt": b}})()
+    yte = [y for _f, y, _o in holdout]
+    auc = float(roc_auc_score(yte, [prediction(m_idx, f) for f, _y, _o in holdout])) if len(set(yte)) == 2 else None
+    cmp = compare_champion({"gewichte": shared_w, "achsenabschnitt": shared_b, "trainiert": "0"}, weights, b, holdout)
+    better = cmp.get("zustand") == "nicht_schlechter" and cmp["differenz"] < -CHAMPION_SE * cmp["standardfehler"]
+    report.update(fit_rep, merkmale=len(kept), holdout=n_test, auc_holdout=None if auc is None else round(auc, 3),
+                  gegen_gemeinsam={k: v for k, v in cmp.items() if k != "seit"})
+    if auc is None or auc <= AUC_MIN:
+        report.update(zustand="test", urteil=f"holdout AUC {auc} ≤ {AUC_MIN} — the shared model ranks in {index}")
+    elif not better:
+        report.update(zustand="test", urteil=f"not better than the shared model by more than {CHAMPION_SE:g} SE on {index}'s newest "
+                                             f"observations ({cmp.get('urteil')}) — the shared model ranks in {index}")
+    else:
+        report.update(zustand="aktiv", urteil=f"better than the shared model on {index}'s newest observations ({cmp['urteil']}) — "
+                                             f"{index} ranks with its own model")
+    _save_index(index, report, weights, b, report["zustand"])
+    log(f"Learning {index}: {report['zustand']} — n {len(idx_obs)}, AUC {report.get('auc_holdout')}")
+    return report
+
+
+def _save_index(index: str, report: dict, weights: dict, intercept: float, mode: str) -> g.MemoryObject:
+    oid = model_id(index)
+    m = g.load(oid)
+    data = {**report, "gewichte": weights, "achsenabschnitt": round(intercept, 4)}
+    text = (f"Router model of index {index} ({report.get('zustand')}): {report.get('n', 0)} observations, AUC {report.get('auc_holdout', '—')} "
+            f"— {report.get('urteil', report.get('grund', ''))}")
+    if m is None:
+        return g.new_object("modell", text, ["modell:router"], data, importance=2, who="vi", oid=oid, mode=mode,
+                            reason=report.get("grund", "learning"), instance=g.SERVER_INSTANCE, index=index)
+    m.text, m.data, m.mode = text, {**data, "versionen": m.data.get("versionen", 0) + 1}, mode
+    m.change("vi", f"retrained → {mode}", report.get("grund", "learning"))
+    return g.save(m)
+
+
+def train_indexes(reason: str = "sleep", at_most: int = 5) -> list[dict]:
+    """Every index with enough experiences, the largest first, at most `at_most` per run."""
+    with g.lock:
+        rows = g.db().execute("SELECT idx, COUNT(*) FROM objekt WHERE art = 'erfahrung' AND modus = 'aktiv' AND idx <> 'global' "
+                              "GROUP BY idx ORDER BY COUNT(*) DESC").fetchall()
+    return [train_index(i, reason) for i, n in [r for r in rows if r[1] >= MIN_INDEX_OBS][:at_most]]
 
 
 def train(reason: str = "sleep") -> dict:

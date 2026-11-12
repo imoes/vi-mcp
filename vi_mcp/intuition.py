@@ -285,13 +285,17 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     from . import p2p  # sources that proved harmful are no longer shown
     cand = p2p.without_blocked(cand)
     router = "heuristik"
-    m = learning.active()
+    # 0.61.0: the session's project (session.on_behalf) — its index comes first, and its own model ranks if it beat the shared one
+    project_idx = g.current_index.get()
+    project_idx = project_idx if project_idx and project_idx != "global" else None
+    m_idx = learning.active(project_idx) if project_idx else None
+    m = m_idx or learning.active()
     from . import weight_writer
     layer_arm = weight_writer.arm(m) if m is not None else None  # 0.58.0: LLM weight layer — coin flip while it is tested
     if m is not None and cand:
         rank_pos = dict(learning.ranking(weight_writer.effective(m, layer_arm == "llm"), search_triggers, [o.id for o in cand]))
         cand.sort(key=lambda o: -rank_pos.get(o.id, 0.0))
-        router = "modell"
+        router = f"modell@{project_idx}" if m_idx is not None else "modell"
     elif bandit.has_counter(cand):  # stage 2: Thompson sampling as soon as any candidate has been rated
         cand = bandit.arrange(cand)
         router = "bandit"
@@ -302,8 +306,6 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     matching = set(search_triggers) - general
     # 0.61.0: Vorrang, kein Ausschluss — in a project its index comes right after "important and matching", before the number of
     # matching triggers; the router still breaks the ties. g.current_index is the session's project (session.on_behalf).
-    project_idx = g.current_index.get()
-    project_idx = project_idx if project_idx and project_idx != "global" else None
     cand.sort(key=lambda o: (-(o.importance >= 3 and bool(matching & set(o.hashtags))), -(project_idx is not None and o.idx == project_idx),
                              -len(matching & set(o.hashtags))))
     # 0.49.0: before a shell command a hint must share more than the tool and generic words — a host, a program, an error. Counted.

@@ -122,3 +122,50 @@ def test_the_agent_session_gets_the_project_the_hook_noted_just_before(gd, monke
     with session.on_behalf(agent_s):
         out = tools.call_tool("vi_learn", {**base, "text": "learned much later by the agent"}, "a", False)
     assert g.load(out.split()[1]).idx == "global"
+
+
+def _actions(index, n, hint_helps, h_id, rng):
+    """n rsync actions in `index`, half with hint h shown; success depends on whether the hint helps there."""
+    for i in range(n):
+        shown = i % 2 == 0
+        p = 0.9 if (shown and hint_helps) else 0.45 if shown else 0.7
+        ok = rng.random() < p
+        o = g.new_object("erfahrung", f"rsync {index} {i}", ["tool:rsync", f"ok:{'ja' if ok else 'nein'}"],
+                         {"vorher": {"reize": ["tool:rsync"], "gezeigt": [h_id] if shown else []}}, instance="a", index=index)
+        assert o.idx == index
+
+
+def test_an_index_gets_its_own_model_only_when_it_beats_the_shared_one(gd):
+    pytest.importorskip("sklearn")
+    import random
+    from vi_mcp import learning
+    rng = random.Random(3)
+    h = g.new_object("erkenntnis", "use the jump host for rsync", ["tool:rsync"], {"quelle": "t"}, instance="x")
+    _actions("global", 3000, False, h.id, rng)   # elsewhere the hint hurts
+    _actions("cue-print", 1200, True, h.id, rng)  # in cue-print it helps
+    r = learning.train_index("cue-print", "test")
+    assert r["zustand"] == "aktiv", r.get("urteil")
+    assert r["gegen_gemeinsam"]["differenz"] < 0 and learning.active("cue-print").id == "modell:router@cue-print"
+    assert g.load("modell:router@cue-print").idx == "cue-print"
+    small = learning.train_index("tiny", "test")
+    assert small["zustand"] == "zu_wenig_daten" and learning.active("tiny") is None
+    assert [x["index"] for x in learning.train_indexes("test")] == ["cue-print"]  # global is the shared model, not an index model
+
+
+def test_an_index_like_all_others_keeps_the_shared_model_and_the_project_ranks_with_its_own(gd, monkeypatch):
+    pytest.importorskip("sklearn")
+    import random
+    from vi_mcp import intuition, learning, session
+    monkeypatch.setattr(indexes, "_config", lambda: {})
+    rng = random.Random(5)
+    h = g.new_object("erkenntnis", "use the jump host for rsync", ["tool:rsync"], {"quelle": "t"}, instance="x")
+    _actions("global", 3000, True, h.id, rng)
+    _actions("same", 1200, True, h.id, rng)  # behaves like everything else: nothing to gain from an own model
+    r = learning.train_index("same", "test")
+    assert r["zustand"] == "test" and "not better than the shared model" in r["urteil"] and learning.active("same") is None
+    _actions("cue-print", 1200, False, h.id, rng)  # here the hint hurts, unlike elsewhere
+    assert learning.train_index("cue-print", "test")["zustand"] == "aktiv"
+    s = session.begin("a", "claude-code-hook 1", "cue-print")
+    with session.on_behalf(s):
+        z = intuition.before("rsync", {"src": "a"}, "a", False)["zugriff"]
+    assert z["router"] == "modell@cue-print"
