@@ -25,6 +25,20 @@ def gd(tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _no_model_downloads(monkeypatch):
+    """0.60.0: configure applies local_models=auto, which would detect GPUs and download about 1 GB — never in a test.
+    Tests of the decision call embed_service.plan_auto; the calls of auto() are recorded in embed_service.auto.calls."""
+    from vi_mcp import embed_service
+    calls = []
+
+    def stub():
+        calls.append(1)
+        return {"skipped": "tests download nothing"}
+    stub.calls = calls
+    monkeypatch.setattr(embed_service, "auto", stub)
+
+
+@pytest.fixture(autouse=True)
 def _isolated_config(tmp_path, monkeypatch):
     """No test may write the real configuration (~/.config/vi-mcp/config.json): net setup registers networks and live search there."""
     import os

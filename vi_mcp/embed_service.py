@@ -1,4 +1,4 @@
-"""Own embedding service (0.28.0): `vi-mcp embed setup|status|remove` — vectors without a foreign stack.
+"""Own embedding service (0.28.0) and reranker (0.60.0): `vi-mcp embed setup|auto|compare|status|remove` — vectors without a foreign stack.
 
 Until 0.27.0 vectors came only from an external OpenAI-compatible service (config `embed.url`). This module installs one that belongs to
 vi-mcp, on Linux and Windows, and can be added later:
@@ -637,6 +637,40 @@ def remove() -> dict:
     return out
 
 
+def plan_auto(k=None) -> tuple[bool, str, str]:
+    """0.60.0, for the packages (`vi-mcp embed auto`, debconf/menu question local_models, MSI checkbox): (run setup?, why, rerank mode).
+    Never touches an external service: an embed.url that does not point to this machine's own service is kept (production setups);
+    an external rerank.url is kept too (the reranker is then not installed). Runs again when the pinned llama.cpp or a model changed."""
+    k = k or config.load()
+    url = (k.embed or {}).get("url") or ""
+    rurl = (k.rerank or {}).get("url") or ""
+    rerank = "off" if rurl and not _local(rurl, "/v1/rerank") else "auto"
+    if url and not _local(url, "/v1/embeddings"):
+        return False, "embed.url points to an external service — kept", rerank
+    if not url:
+        return True, "no embedding service configured yet", rerank
+    try:
+        last = json.loads((home() / "setup.json").read_text())
+    except (OSError, ValueError):
+        return True, "local service without setup.json (set up before 0.60.0: no GPU detection yet)", rerank
+    if last.get("llama") != LLAMA_TAG:
+        return True, f"llama.cpp {last.get('llama')} → {LLAMA_TAG}", rerank
+    if not str(last.get("model") or "").startswith(f"{MODEL_FILE} sha256 {MODEL_SHA256[:12]}"):
+        return True, "the embedding model changed", rerank
+    if rerank == "auto" and not last.get("reranker"):
+        return True, "the reranker is not set up yet", rerank
+    return False, f"local service up to date ({last.get('backend')}, {last.get('device')})", rerank
+
+
+def auto() -> dict:
+    run, why, rerank = plan_auto()
+    if not run:
+        return {"skipped": why}
+    r = setup(rerank=rerank)
+    r["because"] = why
+    return r
+
+
 def main(argv: list[str]) -> int:
     import argparse
     a = argparse.ArgumentParser(prog="vi-mcp embed", description="own embedding service of vi-mcp (llama.cpp + bge-m3)")
@@ -653,6 +687,8 @@ def main(argv: list[str]) -> int:
     c = u.add_parser("compare", help="compare stored vectors with the service (read-only), before switching")
     c.add_argument("--port", type=int, default=DEFAULT_PORT)
     c.add_argument("--sample", type=int, default=30)
+    au = u.add_parser("auto", help="what the packages run: set up only if no external service is configured and something is missing or outdated")
+    au.add_argument("--dry-run", action="store_true", help="only say whether and why")
     u.add_parser("status")
     u.add_parser("remove")
     o = a.parse_args(argv)
@@ -661,6 +697,12 @@ def main(argv: list[str]) -> int:
             if not 1024 <= o.port <= 65535:
                 raise ValueError("port must be a number from 1024 to 65535")
             r = setup(o.port, o.cpu, o.model_file, not o.no_switch, o.backend, o.rerank)
+        elif o.cmd == "auto":
+            if o.dry_run:
+                run, why, rerank = plan_auto()
+                r = {"would_run": run, "why": why, "reranker": rerank}
+            else:
+                r = auto()
         elif o.cmd == "compare":
             r = compare(o.port, o.sample)
         elif o.cmd == "status":

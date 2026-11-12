@@ -528,8 +528,10 @@ python3 -m vi_mcp delete-instance NAME "REASON"
                                         stop a running service first (one writer)
 python3 -m vi_mcp port [PORT]           show the server port, or set it (1024–65535) and restart the service; the local
                                         network service (vi-p2p) follows. Clients and proxies (nginx) keep their URL: adjust them.
-python3 -m vi_mcp embed setup|status|remove [--port N] [--cpu] [--model-file F] [--no-switch]
-                                        own embedding service (llama.cpp + bge-m3, Vulkan or CPU) for the vectors
+python3 -m vi_mcp embed setup|auto|compare|status|remove [--backend auto|cuda|vulkan|rocm|cpu] [--rerank auto|force|off]
+                                        [--port N] [--model-file F] [--no-switch]
+                                        own embedding service and reranker (llama.cpp + bge-m3 + bge-reranker-v2-m3); the GPU is
+                                        detected (CUDA, Vulkan, CPU). auto = what the packages run: never replaces an external service
 python3 -m vi_mcp family INSTANCE [FAMILY|-]
                                         show or declare the model family of an instance (claude, gpt, qwen …); confirmations and
                                         refutations of one family count as one independent line. "-" removes it. Restarts the service.
@@ -789,7 +791,8 @@ options:
 | `ttl` | `{}` (120 s each) | Validity of remembered tool answers per tool in seconds (at most 3600). |
 | `origins` | localhost | Allowed `Origin` headers for browser clients; requests without Origin are allowed. |
 | `embed` | — | Embedding service `{url, token, model}` [`modell`]: OpenAI-compatible `/v1/embeddings` for vectors (semantic search). `vi-mcp embed setup` sets it. |
-| `rerank` | — | Cross-encoder `{url, token, model}` (0.57.0): OpenAI/Jina-style `/v1/rerank`; `vi_recall` orders its best 30 hybrid hits by it. Off without it — measured: MRR 0.75 → 0.82, but ~2.3 s per search instead of ~0.65 s. |
+| `rerank` | — | Cross-encoder `{url, token, model}` (0.57.0): OpenAI/Jina-style `/v1/rerank`; `vi_recall` orders its best 30 hybrid hits by it. Off without it — measured: MRR 0.75 → 0.82, but ~2.3 s per search instead of ~0.65 s. `vi-mcp embed setup` sets it to the own service `vi-rerank` (0.60.0) when 30 documents take ≤ 5 s. |
+| `local_models` | — | `auto`/`off` (0.60.0): whether the packages set up the own embedding service and reranker (`vi-mcp embed auto`); configure question `local_models`. |
 | `llm` | — | Language model `{url, token, model}` [`modell`]: OpenAI-compatible chat endpoint for sleep, scorer and reviewer. |
 | `p2p` | `{}` | The memory side of the networks: `networks` [`netze`] `{name: {kind, instance, auto_release, local, start}}` (`start`: the server the network starts from, written by `net wiki on --start`, 0.54.1), `reflexes_from` [`reflexe_von`], `auto_release` [`auto_freigabe`], `public_domains` [`oeffentliche_domains`], `internal_names` [`interne_namen`], `local` [`lokal`] (URL and token of the standard network's local listener). Kinds: `free`, `open`, `company` [`frei`, `offen`, `firma`]. |
 | `reviewer_prompt` | — | [`pruefer_prompt`] Path of the reviewer's system prompt for foreign content; without it imports wait for a person. |
@@ -860,6 +863,7 @@ Asked at the first installation (Debian: debconf; RPM and everywhere: `vi-mcp co
 | `llm_model` | `VI_MCP_LLM_MODEL` | `` | Model name for the language model (empty = server default) —  |
 | `reviewer_prompt` | `VI_MCP_REVIEWER_PROMPT` | `` | Reviewer prompt file (empty = none) — Absolute path of the prompt the reviewer uses for foreign content; without it imports wait for a person. |
 | `embed_url` | `VI_MCP_EMBED_URL` | `` | URL of the embedding service (empty = none) — OpenAI-compatible /v1/embeddings for the semantic search. |
+| `local_models` | `VI_MCP_LOCAL_MODELS` | `auto` | Local embedding and reranker (llama.cpp, about 1 GB download) — auto = set them up here unless an external embedding service is configured, and again when the pinned llama.cpp or a model changes; the GPU is detected (CUDA with an NVIDIA driver, else Vulkan, else CPU), the reranker is used only if fast enough. off = never. |
 
 ## Environment variables
 
@@ -929,7 +933,7 @@ First line of each module's docstring.
 | `db` | Database access: SQLite (default, standard library) or PostgreSQL (optional, psycopg 3). |
 | `db_migrate` | Move a SQLite database to PostgreSQL (0.50.0): `vi-mcp db migrate`, `vi-mcp db status`. |
 | `doc_triggers` | Triggers for documentation (0.26.0): imported documentation gets host: and thema: hashtags so it can appear before matching actions. |
-| `embed_service` | Own embedding service (0.28.0): `vi-mcp embed setup\|status\|remove` — vectors without a foreign stack. |
+| `embed_service` | Own embedding service (0.28.0) and reranker (0.60.0): `vi-mcp embed setup\|auto\|compare\|status\|remove` — vectors without a foreign stack. |
 | `evaluation` | Evaluation (0.55.0) — a fixed measuring instrument for the search, so every change to it is measured before it stays. |
 | `forum` | 0.43.0: AIs talk in the network — questions and answers between servers, what vi_ask/vi_answer already do between the instances of |
 | `image_cli` | 0.35.0: `vi-mcp image` — put an image file with its description into memory, or fetch one back. |

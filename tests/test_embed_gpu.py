@@ -150,3 +150,33 @@ def test_remove_clears_only_urls_of_the_own_services(tmp_path, monkeypatch):
     r = es.remove()
     assert r["embed.url"] == "cleared" and r["rerank.url"] == "https://central/rerank/v1/rerank"
     assert config.load(cfg).embed is None and config.load(cfg).rerank == {"url": "https://central/rerank/v1/rerank"}
+
+
+def test_packages_never_replace_an_external_service_and_rerun_only_when_needed(tmp_path, monkeypatch):
+    # 0.60.0: what `vi-mcp embed auto`, the debconf/menu question local_models and the MSI checkbox run
+    from vi_mcp import config
+    monkeypatch.setattr(es, "home", lambda: tmp_path / "embed")
+    k = lambda raw: config.Config(**{**config.Config().__dict__, **raw})  # noqa: E731
+    run, why, rerank = es.plan_auto(k({"embed": {"url": "https://central/embed/v1/embeddings"}, "rerank": {"url": "https://central/rerank/v1/rerank"}}))
+    assert (run, rerank) == (False, "off") and "external" in why  # the production case: nothing is touched
+    assert es.plan_auto(k({})) [:2] == (True, "no embedding service configured yet")
+    local = k({"embed": {"url": "http://127.0.0.1:8767/v1/embeddings"}})
+    assert "without setup.json" in es.plan_auto(local)[1]  # set up before 0.60.0 (Vulkan without detection): again
+    (tmp_path / "embed").mkdir()
+    rep = {"llama": es.LLAMA_TAG, "model": f"{es.MODEL_FILE} sha256 {es.MODEL_SHA256[:12]}…", "backend": "cuda-13", "device": "RTX", "reranker": {"state": "used"}}
+    (tmp_path / "embed" / "setup.json").write_text(json.dumps(rep))
+    assert es.plan_auto(local)[0] is False and "up to date (cuda-13, RTX)" in es.plan_auto(local)[1]
+    (tmp_path / "embed" / "setup.json").write_text(json.dumps({**rep, "llama": "b9999"}))
+    assert es.plan_auto(local)[:2] == (True, f"llama.cpp b9999 → {es.LLAMA_TAG}")
+
+
+def test_configure_runs_the_local_models_and_reports_it(tmp_path, monkeypatch):
+    from vi_mcp import configure, net_service
+    monkeypatch.setattr(configure, "STATE", tmp_path / "configure.json")
+    monkeypatch.setattr(configure, "TOKEN_DIR", tmp_path)
+    monkeypatch.setattr(net_service, "etc_dir", lambda: tmp_path / "p2p")
+    out = configure.apply({"local_models": "auto"}, restart=False)
+    assert es.auto.calls and any("nothing to do — tests download nothing" in line for line in out)
+    n = len(es.auto.calls)
+    assert any("→ off" in line for line in configure.apply({"local_models": "off"}, restart=False)) and len(es.auto.calls) == n
+    assert configure.current()["local_models"] == "off"

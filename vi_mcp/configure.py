@@ -143,6 +143,12 @@ QUESTIONS = [
       "Absolute path of the prompt the reviewer uses for foreign content; without it imports wait for a person.", "", check=_path_or_empty),
     Q("embed_url", "Language model and embedding", "string", "URL of the embedding service (empty = none)",
       "OpenAI-compatible /v1/embeddings for the semantic search.", "", check=_url_or_empty),
+    # 0.60.0: the user — "wenn ich das msi oder Linux Paket installiere muss der reranker und embeding Modell installiert werden mit GPU
+    # oder CPU". An external embedding service (embed_url above) is never replaced.
+    Q("local_models", "Language model and embedding", "select", "Local embedding and reranker (llama.cpp, about 1 GB download)",
+      "auto = set them up here unless an external embedding service is configured, and again when the pinned llama.cpp or a model changes; "
+      "the GPU is detected (CUDA with an NVIDIA driver, else Vulkan, else CPU), the reranker is used only if fast enough. off = never.",
+      "auto", choices=("auto", "off"), priority="high"),
 ]
 BY_KEY = {q.key: q for q in QUESTIONS}
 
@@ -160,6 +166,7 @@ def current() -> dict[str, str]:
             "wiki": _b(wiki.exists()), "web": _b(raw.get("web", False)), "web_base": raw.get("web_base") or "/web",
             "llm_url": (raw.get("llm") or {}).get("url", ""), "llm_model": (raw.get("llm") or {}).get("model", ""),
             "reviewer_prompt": raw.get("reviewer_prompt") or "", "embed_url": (raw.get("embed") or {}).get("url", ""),
+            "local_models": raw.get("local_models") or "auto",
             **{q.key: q.default for q in QUESTIONS if q.once}}
 
 
@@ -345,6 +352,10 @@ def apply(answers: dict[str, str], restart: bool = True) -> list[str]:
             raw.pop("reviewer_prompt")
             changed_raw = need_restart = True
             done.append("reviewer prompt removed")
+    if "local_models" in answers and answers["local_models"] != cur["local_models"]:
+        raw["local_models"] = answers["local_models"]  # a setting of the package, not of the server: no restart
+        changed_raw = True
+        done.append(f"local embedding and reranker → {answers['local_models']}")
     if changed_raw:
         config._save_raw(raw, p)
     if answers.get("instance"):
@@ -381,6 +392,19 @@ def apply(answers: dict[str, str], restart: bool = True) -> list[str]:
                 argv.append("--found")
         code = net_cli.main(argv)
         done.append(f"network {n} ({kind}, {mode}) " + ("set up" if code == 0 else f"— setup failed (exit {code})"))
+    if answers.get("local_models") == "auto":  # 0.60.0: decides itself (external service kept, nothing to do when up to date)
+        from . import embed_service
+        try:
+            r = embed_service.auto()
+            if "skipped" in r:
+                done.append(f"local embedding and reranker: nothing to do — {r['skipped']}")
+            else:
+                rr = r.get("reranker") or {}
+                done.append(f"local embedding set up on {r.get('backend')} ({r.get('device')}, {r.get('ms_per_text')} ms per text; {r.get('why')}); "
+                            f"reranker: {rr.get('state', '—')}")
+        except Exception as e:  # noqa: BLE001 — the server runs without vectors; installing must not fail for it
+            done.append(f"local embedding and reranker: failed — {type(e).__name__}: {str(e)[:200]} (the server runs without vectors; "
+                        "vi-mcp embed setup shows why)")
     if restart and need_restart:
         from . import setup
         reason = setup._restart()
@@ -607,16 +631,24 @@ def main(argv: list[str]) -> int:
         first = argv[1:2] == ["first"]
         if not first and not STATE.exists() and config.fpath().exists():
             mark_answered(q.key for q in QUESTIONS)  # configured before 0.48.0: only later questions are new
+        # 0.60.0: an update runs the local models again when they were answered "auto" (embed auto decides: an external service is
+        # kept, nothing happens when up to date, a new pinned llama.cpp or model is set up) — Debian does the same through debconf
+        again = not first and "local_models" in answered() and (config.read_raw(config.fpath()).get("local_models") or "auto") == "auto"
         main(["--env"])
+        rc = 0
         if sys.stdin.isatty() and sys.stdout.isatty() and not os.environ.get("VI_MCP_KEIN_MENUE"):
-            return menu(only_new=True)
-        rest = {q.key: q.default for q in unanswered() if not q.once}
-        if not first:
-            rest.pop("wiki", None)  # an update never joins the wiki network by default
-        if rest:
-            for line in apply(rest):
+            rc = menu(only_new=True)
+        else:
+            rest = {q.key: q.default for q in unanswered() if not q.once}
+            if not first:
+                rest.pop("wiki", None)  # an update never joins the wiki network by default
+            if rest:
+                for line in apply(rest):
+                    print(f"vi-mcp configure: {line}")
+        if again:
+            for line in apply({"local_models": "auto"}):
                 print(f"vi-mcp configure: {line}")
-        return 0
+        return rc
     if argv[:1] == ["--defaults"]:  # unattended first installation without a terminal: the defaults of what was never answered
         new = {q.key: q.default for q in unanswered() if not q.once}
         for line in apply(new):

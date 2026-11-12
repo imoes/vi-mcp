@@ -12,8 +12,10 @@
                                           stop a running service first (one writer)
   python3 -m vi_mcp port [PORT]           show the server port, or set it (1024–65535) and restart the service; the local
                                           network service (vi-p2p) follows. Clients and proxies (nginx) keep their URL: adjust them.
-  python3 -m vi_mcp embed setup|status|remove [--port N] [--cpu] [--model-file F] [--no-switch]
-                                          own embedding service (llama.cpp + bge-m3, Vulkan or CPU) for the vectors
+  python3 -m vi_mcp embed setup|auto|compare|status|remove [--backend auto|cuda|vulkan|rocm|cpu] [--rerank auto|force|off]
+                                          [--port N] [--model-file F] [--no-switch]
+                                          own embedding service and reranker (llama.cpp + bge-m3 + bge-reranker-v2-m3); the GPU is
+                                          detected (CUDA, Vulkan, CPU). auto = what the packages run: never replaces an external service
   python3 -m vi_mcp family INSTANCE [FAMILY|-]
                                           show or declare the model family of an instance (claude, gpt, qwen …); confirmations and
                                           refutations of one family count as one independent line. "-" removes it. Restarts the service.
