@@ -14,6 +14,7 @@ An external service stays possible: set `embed.url` by hand as before.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import shutil
@@ -64,6 +65,8 @@ DEFAULT_PORT = 8767
 #: the same server parameters as the service the existing vectors came from (pooling and context decide the vector)
 SERVER_ARGS = ["--embedding", "--pooling", "mean", "--ctx-size", "8192", "--batch-size", "2048", "--ubatch-size", "2048", "-ngl", "99"]
 SERVICE = "vi-embed"
+DOWNLOAD_TRIES = 3
+DOWNLOAD_PAUSE_S = 5
 #: 0.60.0: the reranker (cross-encoder) — the very file and parameters of the service the search was measured with (MRR 0.754 → 0.817 on
 #: a production copy, 0.57.0): bge-reranker-v2-m3 Q4_K_M, sha256 checked against the production copy and Hugging Face (12.11.2026)
 RERANK_MODEL_FILE = "bge-reranker-v2-m3-Q4_K_M.gguf"
@@ -231,14 +234,29 @@ def _sha256(p: Path) -> str:
     return h.hexdigest()
 
 
+def _fetch(url: str, target: Path, timeout: int = 60) -> None:
+    """Download with DOWNLOAD_TRIES tries. 0.60.0, Windows test VM (12.11.2026): the first connection to a new host — github.com,
+    download.visualstudio.microsoft.com, huggingface.co — was closed without a response several times, the next try went through
+    (hypothesis: Windows' certificate check behind truststore waits for a revocation server it cannot reach, the server gives up)."""
+    req = urllib.request.Request(url, headers={"User-Agent": "vi-mcp-embed-setup"})
+    for attempt in range(DOWNLOAD_TRIES):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r, open(target, "wb") as f:
+                shutil.copyfileobj(r, f, 1 << 20)
+            return
+        except (OSError, http.client.HTTPException):
+            target.unlink(missing_ok=True)
+            if attempt == DOWNLOAD_TRIES - 1:
+                raise
+            time.sleep(DOWNLOAD_PAUSE_S * (attempt + 1))
+
+
 def _download(url: str, target: Path, sha256: str) -> Path:
     """Download (proxy from the environment), check SHA256; a file already there with the right hash is reused."""
     if target.exists() and _sha256(target) == sha256:
         return target
     tmp = target.with_suffix(target.suffix + ".part")
-    req = urllib.request.Request(url, headers={"User-Agent": "vi-mcp-embed-setup"})
-    with urllib.request.urlopen(req, timeout=60) as r, open(tmp, "wb") as f:
-        shutil.copyfileobj(r, f, 1 << 20)
+    _fetch(url, tmp)
     got = _sha256(tmp)
     if got != sha256:
         tmp.unlink(missing_ok=True)
@@ -315,9 +333,14 @@ def parse_devices(text: str) -> list[dict]:
     return out
 
 
+#: 0.60.0: the first start loads every backend library; on a fresh Windows the virus scanner checks each new DLL (about 8 s each for the
+#: scipy libraries, measured in the test VM) — `--list-devices` of the CPU build took over 60 s there. Generous limits for the first start.
+FIRST_START_S = 600
+
+
 def _devices(exe: Path) -> list[dict]:
     env = {**os.environ, "LD_LIBRARY_PATH": str(exe.parent)} if system() == "linux" else None
-    r = subprocess.run([str(exe), "--list-devices"], capture_output=True, text=True, timeout=60, env=env)
+    r = subprocess.run([str(exe), "--list-devices"], capture_output=True, text=True, timeout=FIRST_START_S, env=env)
     return parse_devices((r.stdout or "") + "\n" + (r.stderr or ""))
 
 
@@ -332,14 +355,56 @@ def device_for(variant: str, devices: list[dict]) -> dict | None:
     return None
 
 
+#: 0.60.0: the llama.cpp Windows builds need the Visual C++ runtime; a fresh Windows 11 has none — llama-server.exe then ends with
+#: 0xC0000135 (STATUS_DLL_NOT_FOUND) and prints nothing (test VM, 12.11.2026: vcruntime140.dll, vcruntime140_1.dll, msvcp140.dll missing)
+VC_DLLS = ("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll")
+VC_REDIST_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe"  # Microsoft's permanent link to the current x64 redistributable
+STATUS_DLL_NOT_FOUND = 0xC0000135
+
+
+def _vc_runtime_missing() -> list[str]:
+    sys32 = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+    return [d for d in VC_DLLS if not (sys32 / d).exists()]
+
+
+def _ensure_vc_runtime() -> str:
+    """Windows: install the Visual C++ runtime if it is missing. The download is checked by its Authenticode signature (valid, signed by
+    Microsoft Corporation) — the link always serves the current version, so there is no fixed hash. Returns what was done."""
+    missing = _vc_runtime_missing()
+    if system() != "win32" or not missing:
+        return "present"
+    exe = home() / "vc_redist.x64.exe"
+    _fetch(VC_REDIST_URL, exe, timeout=120)
+    sig = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                          f"$s = Get-AuthenticodeSignature -FilePath '{exe}'; \"$($s.Status)|$($s.SignerCertificate.Subject)\""],
+                         capture_output=True, text=True, timeout=60).stdout.strip()
+    status, _, subject = sig.partition("|")
+    if status != "Valid" or "O=Microsoft Corporation" not in subject:
+        exe.unlink(missing_ok=True)
+        raise RuntimeError(f"vc_redist.x64.exe: signature {status or '?'} ({subject[:80] or 'no signer'}) — not run")
+    r = subprocess.run([str(exe), "/install", "/quiet", "/norestart"], capture_output=True, timeout=600)
+    exe.unlink(missing_ok=True)
+    if r.returncode not in (0, 1638, 3010):  # 1638: a newer one is installed, 3010: done, restart pending
+        raise RuntimeError(f"vc_redist.x64.exe exit {r.returncode}")
+    still = _vc_runtime_missing()
+    if still:
+        raise RuntimeError(f"Visual C++ runtime still missing after vc_redist (exit {r.returncode}): {', '.join(still)}")
+    return f"installed ({', '.join(missing)} were missing; vc_redist exit {r.returncode})"
+
+
 def _starts(exe: Path) -> tuple[bool, str]:
-    """Does the binary start at all (missing libvulkan etc.)?"""
+    """Does the binary start at all (missing libvulkan, the Visual C++ runtime …)? A failure names the exit code — a Windows loader error
+    prints nothing."""
     env = {**os.environ, "LD_LIBRARY_PATH": str(exe.parent)} if system() == "linux" else None
     try:
         r = subprocess.run([str(exe), "--version"], capture_output=True, text=True, timeout=60, env=env)
     except (OSError, subprocess.TimeoutExpired) as e:
         return False, str(e)
-    return r.returncode == 0, (r.stderr or r.stdout).strip()[-300:]
+    if r.returncode == 0:
+        return True, (r.stderr or r.stdout).strip()[-300:]
+    code = r.returncode & 0xFFFFFFFF
+    why = f"exit {r.returncode} (0x{code:08X})" + (" — a DLL is missing (Visual C++ runtime?)" if code == STATUS_DLL_NOT_FOUND else "")
+    return False, (why + ": " + (r.stderr or r.stdout).strip()[-240:]).rstrip(": ")
 
 
 def command(exe: Path, model: Path, port: int, args: list[str] | None = None) -> list[str]:
@@ -463,7 +528,7 @@ def setup_reranker(d: Path, exe: Path, variant: str, mode: str, switch: bool, po
     model = d / RERANK_MODEL_FILE
     _download(RERANK_MODEL_URL, model, RERANK_MODEL_SHA256)
     _start_service(exe, model, port, RERANK_SERVICE, RERANK_ARGS)
-    rerank_probe(port, RERANK_QUERY, RERANK_DOCS[:2])  # waits until the model is loaded
+    rerank_probe(port, RERANK_QUERY, RERANK_DOCS[:2], timeout_s=FIRST_START_S)  # waits until the model is loaded
     t0 = time.monotonic()
     scores = rerank_probe(port, RERANK_QUERY, RERANK_DOCS)
     took = time.monotonic() - t0
@@ -506,6 +571,11 @@ def setup(port: int = DEFAULT_PORT, cpu: bool = False, model_file: Path | None =
     report["model"] = f"{MODEL_FILE} sha256 {MODEL_SHA256[:12]}…"
     if system() == "linux" and os.geteuid() == 0:
         shutil.chown(d, "vi-mcp", "vi-mcp")
+    if system() == "win32":
+        try:
+            report["vc_runtime"] = _ensure_vc_runtime()
+        except (OSError, RuntimeError, subprocess.SubprocessError) as e:  # every build would fail to start — say why right here
+            report["vc_runtime"] = f"failed: {e}"
     tried: dict[str, str] = {}
     chosen = None
     for variant, why in candidates:
@@ -515,12 +585,12 @@ def setup(port: int = DEFAULT_PORT, cpu: bool = False, model_file: Path | None =
             if not ok:
                 tried[variant] = f"does not start: {msg}"
                 continue
-            dev = device_for(variant, _devices(exe))
+            dev = device_for(variant, [] if variant == "cpu" else _devices(exe))  # the CPU build needs no device list
             if dev is None:
                 tried[variant] = "starts, but lists no device of its kind (it would compute on the CPU)"
                 continue
             _start_service(exe, model, port)
-            v = probe(port, ["vi-mcp embedding test"])[0]
+            v = probe(port, ["vi-mcp embedding test"], timeout_s=FIRST_START_S)[0]
             if len(v) != MODEL_DIM:
                 tried[variant] = f"unexpected dimension {len(v)} (expected {MODEL_DIM})"
                 continue
@@ -712,5 +782,6 @@ def main(argv: list[str]) -> int:
     except (ValueError, RuntimeError, OSError, subprocess.CalledProcessError) as e:
         print(f"vi-mcp embed {o.cmd}: {e}", file=sys.stderr)
         return 1
-    print(json.dumps(r, indent=2, ensure_ascii=False))
+    # 0.60.0: ASCII on Windows — PowerShell 5.1 reads a program's output in the OEM code page, "…" and "—" arrived as "à" and "ù"
+    print(json.dumps(r, indent=2, ensure_ascii=os.name == "nt"))
     return 0

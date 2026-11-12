@@ -28,4 +28,7 @@ if [ -f ui.sql ]; then
     # 0.59.2: the progress line of RunInstall — the first import of scipy/sklearn took 14 min in the test VM (about 8 s per library while
     # Defender checked it), and a dialog without a word for that long looks hung
     msiinfo export "$msi" ActionText | tr -d '\r' | grep -q "^RunInstall	" || { echo "ui.sql: no ActionText for RunInstall" >&2; exit 1; }
+    # 0.60.0: the checkbox for the local embedding and reranker, checked by default
+    msiinfo export "$msi" Property | tr -d '\r' | grep -q "^EMBED_BOX	1$" || { echo "ui.sql: EMBED_BOX not checked by default" >&2; exit 1; }
+    msiinfo export "$msi" ControlEvent | tr -d '\r' | grep -q "\[EMBED\]	0	NOT EMBED_BOX" || { echo "ui.sql: unchecking does not set EMBED=0" >&2; exit 1; }
 fi

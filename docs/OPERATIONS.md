@@ -309,12 +309,18 @@ sudo -u vi-mcp vi-mcp embed compare     # re-embeds 30 stored texts and compares
 vi-mcp embed status · sudo vi-mcp embed remove
 ```
 
-- **What it installs**: llama.cpp `llama-server` (release b11938, Vulkan build; the CPU build if Vulkan does not start) and the model
-  bge-m3 Q4_K_M from `gpustack/bge-m3-GGUF` — both checked by SHA256. The model file is byte-identical with the one the existing vectors
-  were made with, and the server runs with the same parameters (mean pooling, context 8192), so stored vectors stay valid.
-  `--model-file PATH` uses a local copy (accepted only with the same hash), `--cpu` skips Vulkan, `--port` chooses the port.
-- **Where**: Linux `/var/lib/vi-mcp/embed`, systemd unit `vi-embed` (user `vi-mcp`, groups `render video` for the GPU);
-  Windows `%ProgramData%\vi-mcp\embed`, scheduled task `vi-embed` (`msiexec … EMBED=1` sets it up during installation).
+- **What it installs** (0.60.0): llama.cpp `llama-server` (release b11938) in the build that fits the hardware — CUDA 13 / CUDA 12 with an
+  NVIDIA driver ≥ 580 / ≥ 525 (with the CUDA runtime), Vulkan with another GPU, else the CPU; a build is accepted only if
+  `--list-devices` names its device, the service answers and the speed is measured. Models: bge-m3 Q4_K_M (embedding, byte-identical with
+  the file the existing vectors were made with, same parameters: mean pooling, context 8192 — stored vectors stay valid; CUDA and CPU
+  vectors agree to cosine ≥ 0.9968) and bge-reranker-v2-m3 Q4_K_M (reranker, the file and parameters the search was measured with).
+  All SHA256-checked. `--backend`, `--rerank auto|force|off`, `--model-file`, `--port`; the last report is kept in `embed/setup.json`.
+- **Packages** (0.60.0): question `local_models` (`auto` default, `off`), run as `vi-mcp embed auto` — nothing happens when an external
+  `embed.url` is configured (production setups keep their service), when everything is up to date, or with `off`; it runs again when the
+  pinned llama.cpp or a model changes. Windows: checkbox in the setup dialog (`EMBED=1|0`, remembered in `install-options.json`).
+- **Where**: Linux `/var/lib/vi-mcp/embed`, systemd units `vi-embed` (8767) and `vi-rerank` (8768) (user `vi-mcp`, groups `render video`
+  for the GPU); Windows `%ProgramData%\vi-mcp\embed`, scheduled tasks `vi-embed` and `vi-rerank`.
+- **Check**: `vi-mcp embed status` (URLs, both services, backend/device/speed of the last setup); `vi-mcp embed auto --dry-run`.
 - **Why a process of its own**: embedding a backlog takes minutes; in the vi-mcp process it would block answers. An external service can
   still be used — set `embed.url` by hand.
 

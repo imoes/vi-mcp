@@ -209,21 +209,32 @@ und keine Reflex-Sandbox (Reflex-Code läuft nicht) — siehe [docs/OPERATIONS.m
 
 Ohne Embedding-Modell arbeitet vi-mcp, sucht aber nur nach Wörtern und Hashtags (Volltext). Mit Modell findet es Wissen auch nach Bedeutung
 (`vi_recall(semantic=true)`, die hybride Suche des Prompt-Hooks), verknüpft ähnliches Wissen und gibt dem Router die Bedeutung als Merkmal.
-vi-mcp bringt einen eigenen Embedding-Dienst mit — llama.cpp `llama-server` mit dem Modell bge-m3 — und installiert ihn auf Wunsch:
+vi-mcp bringt einen eigenen Embedding-Dienst und einen Reranker mit — llama.cpp `llama-server` mit bge-m3 und bge-reranker-v2-m3. Seit
+0.60.0 richten die Pakete beide bei der Installation ein (Frage `local_models`, `VI_MCP_LOCAL_MODELS=auto|off`; unter Windows ein Kästchen,
+`EMBED=1|0`), außer es ist ein externer Embedding-Dienst eingetragen — der wird nie ersetzt. Von Hand:
 
 ```bash
-sudo vi-mcp embed setup             # herunterladen, prüfen, Dienst vi-embed auf 127.0.0.1:8767 starten, embed.url darauf stellen, vi-mcp neu starten
-sudo vi-mcp embed setup --cpu       # ohne GPU (Standard: Vulkan-Build, der CPU-Build, wenn Vulkan nicht startet)
-vi-mcp embed status                 # installiert? läuft? welche URL nutzt die Konfiguration?
-sudo vi-mcp embed remove            # Dienst stoppen und entfernen; vi-mcp arbeitet danach mit Volltext weiter
+sudo vi-mcp embed setup             # GPU erkennen, laden, prüfen, vi-embed (127.0.0.1:8767) und vi-rerank (8768) starten, umschalten, neu starten
+sudo vi-mcp embed setup --backend cpu   # oder cuda | vulkan | rocm — genau das, ohne Ausweichen (Standard auto)
+sudo vi-mcp embed auto --dry-run    # was die Pakete tun würden, und warum
+vi-mcp embed status                 # installiert? läuft? Backend, Gerät und Tempo der letzten Einrichtung?
+sudo vi-mcp embed remove            # beide Dienste stoppen und entfernen; vi-mcp arbeitet danach mit Volltext weiter
 ```
 
-- **Was heruntergeladen wird:** llama.cpp-Release b11938 von GitHub und `bge-m3-Q4_K_M.gguf` von Hugging Face (`gpustack/bge-m3-GGUF`),
-  beide per SHA256 geprüft — eine Datei mit anderem Hash wird abgelehnt. Der Download nutzt den Proxy aus der Umgebung (`https_proxy`).
-- **Ohne Internet:** `--model-file PFAD` nimmt eine lokale Kopie des Modells (nur mit demselben Hash). `--port N` wählt einen anderen Port.
-- **Wo es läuft:** in einem eigenen Prozess, damit das Einbetten eines Rückstands nie Antworten blockiert. Linux: `/var/lib/vi-mcp/embed`,
-  systemd-Unit `vi-embed` (Benutzer `vi-mcp`, Gruppen `render video` für die GPU). Windows: `%ProgramData%\vi-mcp\embed`, geplante Aufgabe
-  `vi-embed` (`msiexec /i vi-mcp-<version>-x64.msi EMBED=1` richtet sie mit dem Paket ein).
+- **Welcher Build:** `auto` liest die Karten (`nvidia-smi`, Linux-sysfs, Windows `Win32_VideoController`) und probiert CUDA 13 (NVIDIA-Treiber
+  ≥ 580), CUDA 12 (≥ 525), Vulkan (jede andere GPU), dann die CPU. Ein Build zählt nur, wenn `llama-server --list-devices` ein Gerät seiner
+  Art nennt — ein Vulkan-Build ohne nutzbare GPU startet auch, meldet aber „(none)“. Der Bericht nennt Karten, gewähltes Backend, Gerät,
+  Grund und jeden verworfenen Versuch. *Gemessen (RTX 3070):* 4,5 ms pro Text mit CUDA, 24,8 ms auf der CPU (i9-12900).
+- **Reranker:** wird nur eingeschaltet (`rerank.url`), wenn 30 Dokumente in Suchlänge höchstens 5 s brauchen — mit GPU ja; auf der CPU
+  dauerte es 12,3 s, dort ist er installiert, aber nicht benutzt, und der Bericht sagt das (`--rerank force` nutzt ihn trotzdem,
+  `--rerank off` lässt ihn weg).
+- **Was heruntergeladen wird:** llama.cpp-Release b11938 von GitHub (der CUDA-Build mit seiner Laufzeit), `bge-m3-Q4_K_M.gguf` und
+  `bge-reranker-v2-m3-Q4_K_M.gguf` von Hugging Face (`gpustack/…-GGUF`) — alle per SHA256 geprüft, eine Datei mit anderem Hash wird
+  abgelehnt. Der Download nutzt den Proxy aus der Umgebung (`https_proxy`).
+- **Ohne Internet:** `--model-file PFAD` nimmt eine lokale Kopie des Embedding-Modells (nur mit demselben Hash). `--port N` wählt einen anderen Port.
+- **Wo es läuft:** in eigenen Prozessen, damit das Einbetten eines Rückstands nie Antworten blockiert. Linux: `/var/lib/vi-mcp/embed`,
+  systemd-Units `vi-embed` und `vi-rerank` (Benutzer `vi-mcp`, Gruppen `render video` für die GPU). Windows: `%ProgramData%\vi-mcp\embed`,
+  geplante Aufgaben `vi-embed` und `vi-rerank`.
 - **Schon ein anderer Embedding-Dienst im Einsatz?** `sudo vi-mcp embed setup --no-switch` installiert, ohne umzuschalten;
   `sudo -u vi-mcp vi-mcp embed compare` bettet 30 gespeicherte Texte mit dem neuen Dienst neu ein und vergleicht (Kosinus). Nur umschalten, wenn
   es gleiche Vektoren meldet — sonst müsste jeder gespeicherte Vektor neu berechnet werden.

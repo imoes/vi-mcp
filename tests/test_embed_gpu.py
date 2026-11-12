@@ -180,3 +180,20 @@ def test_configure_runs_the_local_models_and_reports_it(tmp_path, monkeypatch):
     n = len(es.auto.calls)
     assert any("→ off" in line for line in configure.apply({"local_models": "off"}, restart=False)) and len(es.auto.calls) == n
     assert configure.current()["local_models"] == "off"
+
+
+def test_windows_loader_errors_are_named_and_the_vc_runtime_is_checked(tmp_path, monkeypatch):
+    # 0.60.0, Windows test VM: llama-server.exe ended with 0xC0000135 and printed nothing — "does not start: " said nothing
+    class R:
+        returncode, stdout, stderr = -1073741515, "", ""
+    monkeypatch.setattr(es.subprocess, "run", lambda *a, **k: R())
+    ok, why = es._starts(tmp_path / "llama-server.exe")
+    assert not ok and "0xC0000135" in why and "Visual C++" in why
+    monkeypatch.setattr(es, "system", lambda: "win32")
+    sys32 = tmp_path / "System32"
+    sys32.mkdir()
+    monkeypatch.setenv("SystemRoot", str(tmp_path))
+    assert es._vc_runtime_missing() == list(es.VC_DLLS)
+    for d in es.VC_DLLS:
+        (sys32 / d).write_bytes(b"")
+    assert es._vc_runtime_missing() == [] and es._ensure_vc_runtime() == "present"  # nothing downloaded when present

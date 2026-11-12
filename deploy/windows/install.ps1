@@ -8,7 +8,7 @@ param(
     [string]$Server = "",  # empty: as in the previous installation, else 1
     [string]$Proxy = "",
     [string]$Port = "",  # empty: keep the port of an existing configuration, 8765 for a new one
-    [string]$Embed = "0", # 1: own embedding service (llama.cpp + bge-m3) for the vectors, see `vi-mcp embed`
+    [string]$Embed = "", # 1: local embedding service and reranker (vi-mcp embed auto; GPU detected); 0: none. Empty: as before, new: 1 (0.60.0)
     [string]$Wiki = "",   # the wiki network: empty = as before (a new installation joins vi-wiki.org, as the Linux packages); 1 = vi-wiki.org;
                           # 0 = not in the wiki network (an update switches it off); a host name or https://... = that wiki server (0.54.1)
     # From the MSI: all options in ONE argument "server=1;port=;embed=;proxy=...". Windows PowerShell 5.1 drops empty arguments of -File
@@ -39,6 +39,10 @@ if (Test-Path $Saved) { try { $previous = Get-Content $Saved -Raw | ConvertFrom-
 $fromPrevious = @()
 if (-not $Server) { if ($previous -and $previous.server) { $Server = "$($previous.server)"; $fromPrevious += "server" } else { $Server = "1" } }
 if (-not $Proxy -and $previous -and $previous.proxy) { $Proxy = "$($previous.proxy)"; $fromPrevious += "proxy" }
+# 0.60.0: the dialog checkbox sets EMBED to 1 or 0; a silent install without EMBED keeps the previous choice, a new one gets 1 (as the
+# Linux packages' local_models=auto - an external embedding service in the configuration is never replaced, vi-mcp embed auto decides)
+$Embed = "$Embed".Trim()
+if (-not $Embed) { if ($previous -and $previous.embed) { $Embed = "$($previous.embed)"; $fromPrevious += "embed" } else { $Embed = "1" } }
 $Wiki = "$Wiki".Trim()
 $wikiGiven = [bool]$Wiki  # given now (dialog or command line), not remembered: only then is an existing wiki configuration changed
 if (-not $Wiki -and $previous -and $previous.wiki) { $Wiki = "$($previous.wiki)"; $fromPrevious += "wiki" }
@@ -69,7 +73,7 @@ function Invoke-Logged([string]$exe, [string[]]$arguments) {
 $PythonVersion = "3.13.9"
 $PythonUrl = "https://api.nuget.org/v3-flatcontainer/python/$PythonVersion/python.$PythonVersion.nupkg"
 $PythonSha256 = "ea7541c98f77b6f344460b88db6e677573069979bcbf0ba18747cc2c125aba25"
-$Packages = @("numpy>=1.26", "scikit-learn>=1.4", "cryptography>=41", "pyyaml>=6")
+$Packages = @("numpy>=1.26", "scikit-learn>=1.4", "cryptography>=41", "pyyaml>=6", "truststore>=0.10")  # truststore: 0.60.0, TLS via Windows
 
 try {
     Log "vi-mcp install: InstallDir=$InstallDir Server=$Server Proxy=$(if ($Proxy) { 'set' } else { 'none' })$(if ($fromPrevious) { ' (from the previous installation: ' + ($fromPrevious -join ', ') + ')' })"
@@ -205,9 +209,13 @@ try {
         }
         if (-not $up) { Log "WARNING: server did not answer /health within 30 s - see Task Scheduler, task vi-mcp, and $Data\server.log" }
         if ($Embed -eq "1") {
-            Log "setting up the embedding service (vi-mcp embed setup; downloads llama.cpp and bge-m3, ~470 MB)"
-            $code = Invoke-Logged $vpy @("-I", "-m", "vi_mcp", "embed", "setup")
-            if ($code -ne 0) { Log "WARNING: vi-mcp embed setup failed - the server runs without vectors; see $Log" }
+            # 0.60.0: embed auto detects the GPU (CUDA with an NVIDIA driver, else Vulkan, else CPU), sets up embedding and reranker
+            # (about 1 GB on the first run) and does nothing when an external service is configured or everything is up to date
+            Log "local embedding and reranker (vi-mcp embed auto; the first run downloads about 1 GB)"
+            $code = Invoke-Logged $vpy @("-I", "-m", "vi_mcp", "embed", "auto")
+            if ($code -ne 0) { Log "WARNING: vi-mcp embed auto failed - the server runs without vectors; see the lines above" }
+        } else {
+            Log "local embedding and reranker: off (EMBED=0)"
         }
         # 0.54.0: the network services (scheduled tasks vi-p2p-<network>, run by vi-p2p.cmd). Before, the MSI had no network at all.
         # 0.54.1: WIKI names the wiki server (dialog field or WIKI=host); 0 = none. Remembered in install-options.json like the proxy.
@@ -245,7 +253,7 @@ try {
         }
         foreach ($t in @(Get-ScheduledTask -TaskName "vi-p2p*" -ErrorAction SilentlyContinue)) { Log "network service $($t.TaskName): $($t.State)" }
     }
-    $json = @{ server = $Server; proxy = $Proxy; wiki = $Wiki } | ConvertTo-Json
+    $json = @{ server = $Server; proxy = $Proxy; wiki = $Wiki; embed = $Embed } | ConvertTo-Json
     [IO.File]::WriteAllText($Saved, $json, (New-Object Text.UTF8Encoding($false)))
     & icacls $Saved /inheritance:r /grant:r "*S-1-5-18:F" "*S-1-5-32-544:F" | Out-Null
     $hint = if ($Server -eq "1") { "http://127.0.0.1:$ServerPort/mcp" } else { "https://<server>/vi-mcp/mcp" }

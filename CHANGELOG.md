@@ -3,6 +3,68 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.60.0 — 2026-11-12 — Embedding and reranker fit the hardware and come with the packages
+
+The user: "wenn ich das msi oder Linux Paket installiere muss der reranker und embeding Modell installiert werden mit GPU oder CPU", then,
+after `vi-mcp embed setup` reported `"variant": "vulkan"` on a Windows PC with an NVIDIA card: "warum wird vulkan erkannt obwohl eine
+nvidia karten drin ist?".
+
+### What is new
+
+- **The GPU is detected and the backend is proven, not assumed** (`vi-mcp embed setup --backend auto|cuda|vulkan|rocm|cpu`).
+  - Cards come from `nvidia-smi` (with the driver version), Linux sysfs and Windows `Win32_VideoController`. Virtual displays and software
+    renderers do not count.
+  - Order: CUDA 13 (NVIDIA driver ≥ 580), CUDA 12 (≥ 525) — after NVIDIA's minor-version table — then Vulkan, then the CPU. The pinned
+    llama.cpp b11938 CUDA and ROCm builds are new, SHA256 from the release's asset digests.
+  - A build counts only if `llama-server --list-devices` names a device of its kind, the service answers and the speed is measured.
+  - The report names the cards, backend, device, reason, every rejected try and the time per text; `embed/setup.json` keeps it,
+    `vi-mcp embed status` shows it.
+  - *Why it said "vulkan" before:* the old setup tried Vulkan first and accepted it when the program started. Measured 12.11.2026: a Vulkan
+    build without a usable GPU starts too and lists "Available devices: (none)" — it then computes on the CPU.
+  - *Measured on a Linux host with an RTX 3070 (driver 580.178.04):* chosen CUDA 13, `CUDA0: NVIDIA GeForce RTX 3070 (7840 MiB, 1009 MiB
+    free)`; bge-m3 4.5 ms per text (462 MiB VRAM) against 24.8 ms on the CPU (i9-12900); CUDA and CPU vectors agree to cosine ≥ 0.9968, so
+    a change of backend needs no re-embedding.
+  - *Measured on the same host before its reboot (driver updated, module not):* nvidia-smi failed with "Driver/library version mismatch";
+    the cards were still found through sysfs, the reason named the error, Vulkan was chosen.
+- **Reranker as a service of its own** (`vi-rerank`, 127.0.0.1:8768): bge-reranker-v2-m3 Q4_K_M — the very file (sha256 e186a244…) and
+  parameters of the reranker the search was measured with (MRR 0.754 → 0.817). Switched on (`rerank.url`) only if 30 documents of search
+  length take at most 5 s; otherwise installed, not used, with the reason. *Measured:* 12.3 s on the CPU (i9-12900) — so off there.
+  `--rerank force|off`.
+- **The packages set them up** — question `local_models` (`auto` default, `off`; `VI_MCP_LOCAL_MODELS`), run as `vi-mcp embed auto`:
+  - nothing when an external `embed.url` is configured (production setups keep their service; an external `rerank.url` is kept too);
+  - set up when nothing is there, when it was set up before 0.60.0 (no detection yet), or when the pinned llama.cpp or a model changed;
+  - a failure is reported and never fails the installation — the server runs without vectors.
+  - Debian passes the answer at every postinst, an RPM upgrade runs it again when it is `auto`.
+  - Windows: a checkbox in the setup dialog, checked by default (`EMBED=1|0`, remembered for silent updates), `install.ps1` logs the report.
+  - *Proof (Debian 13 container):* install with an external embedding URL and `local_models=auto` → "nothing to do — embed.url points to an
+    external service — kept", nothing downloaded.
+
+### What was fixed
+
+- **Windows: downloads failed with CERTIFICATE_VERIFY_FAILED on a fresh system.** Python only sees root certificates already in the Windows
+  store; Windows fetches a missing one only when its own TLS stack asks. vi-mcp now verifies through Windows (`truststore`, as pip does;
+  installed by the MSI). *Proof (Windows 11 test VM):* `vi-mcp embed auto` failed with the default context; the same request through
+  truststore succeeded — and afterwards the default context too, because Windows had then fetched the root.
+- **Windows: a fresh system could not run the local models at all** — found by installing in a Windows 11 test VM (no GPU), four fixes:
+  - the llama.cpp builds need the Visual C++ runtime, which a fresh Windows lacks: `llama-server.exe` ended with 0xC0000135 and printed
+    nothing ("does not start: "). The setup now installs Microsoft's `vc_redist.x64.exe` when it is missing — run only with a valid
+    Authenticode signature of Microsoft Corporation — and a failed start names the exit code ("0xC0000135 — a DLL is missing");
+  - the first connection to a new host (github.com, download.visualstudio.microsoft.com, huggingface.co) was closed without a response
+    several times, the next try went through — every download now tries three times (a wrong SHA256 is never retried);
+  - the first start loads every backend library while the virus scanner checks each new DLL: `--list-devices` of the CPU build ran into
+    its 60 s limit. The CPU build needs no device list; the first start may take up to 10 minutes;
+  - the report reached the install log as "à"/"ù" (PowerShell reads the OEM code page) — it is ASCII on Windows now.
+  *Proof (Windows 11 test VM, 12.11.2026, fifth run):* `vi-mcp embed auto` → Visual C++ runtime installed (vc_redist exit 0), backend cpu
+  "no GPU found", 31.1 ms per text, `vi-embed` registered and `embed.url` switched; reranker installed, not used ("30 documents took
+  15.9 s on cpu (limit 5 s)"); `vi-mcp embed status` shows both services and the last setup. The import check of a freshly installed
+  Python took 822 s there (virus scanner) — the setup dialog says so.
+
+### What is missing
+
+- **CUDA on Windows is not tested on real hardware yet** — the user tests it on a PC with an NVIDIA card once 0.60.0 is published.
+- ROCm is only used with `--backend rocm` (the build needs ROCm installed); AMD and Intel cards run on Vulkan.
+- Without a GPU the reranker stays off (12.3 s for 30 documents). Reranking only the best 10 on the CPU would fit the 5 s limit — not built.
+
 ## 0.59.2 — 2026-11-12 — The Windows setup shows its dialog again
 
 The user: "das msi paket lässt sich nicht mehr installieren".

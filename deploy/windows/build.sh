@@ -3,7 +3,7 @@
 # The MSI copies vi_mcp, the hook and the scripts to %ProgramFiles%\vi-mcp and then runs install.ps1 (Python, venv, PyPI packages,
 # optionally the server as scheduled task). Public properties: SERVER=1|0 (default 1), PROXY=http://host:port (default none).
 # PORT=9000 sets the server port (default: keep an existing one, 8765 for a new installation).
-# EMBED=1 also sets up the own embedding service (vi-mcp embed setup). WIKI=0: not in the public wiki network (0.54.0; default: a new
+# EMBED=1|0: local embedding service and reranker (vi-mcp embed auto, GPU detected; 0.60.0: default 1, a checkbox in the dialog). WIKI=0: not in the public wiki network (0.54.0; default: a new
 # installation joins vi-wiki.org, as the Linux packages do). WIKI=HOST or https://...: that wiki server (0.54.1, also in the dialog).
 #   msiexec /i vi-mcp-<version>-x64.msi [SERVER=0] [PORT=9000] [EMBED=1] [WIKI=0|HOST] [PROXY=http://proxy:3128] /l*v install.log
 set -euo pipefail

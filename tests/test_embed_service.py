@@ -102,3 +102,30 @@ def test_compare_reports_same_and_different_vectors(gd, monkeypatch):
     assert es.compare(sample=5)["verdict"] == "same vectors"
     monkeypatch.setattr(es, "probe", lambda port, texts, timeout_s=120: [list(-v)])
     assert es.compare(sample=5)["verdict"] == "different — do not switch"
+
+
+def test_download_retries_a_dropped_connection(tmp_path, monkeypatch):
+    # 0.60.0: a proxied connection to github.com closed once without a response (Windows test VM); the next try went through
+    import http.client
+    calls = []
+
+    class R(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def urlopen(req, timeout):
+        calls.append(1)
+        if len(calls) == 1:
+            raise http.client.RemoteDisconnected("Remote end closed connection without response")
+        return R(b"payload")
+    monkeypatch.setattr(es.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(es, "DOWNLOAD_PAUSE_S", 0)
+    ok = hashlib.sha256(b"payload").hexdigest()
+    assert es._download("https://example/a.zip", tmp_path / "a.zip", ok).read_bytes() == b"payload" and len(calls) == 2
+    calls.clear()
+    with pytest.raises(ValueError, match="SHA256"):  # a wrong hash is not retried
+        es._download("https://example/b.zip", tmp_path / "b.zip", "0" * 64)
+    assert len(calls) == 2  # first try dropped, second delivered the wrong bytes

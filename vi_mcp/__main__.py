@@ -42,9 +42,21 @@
                                           merge the instance's insights whose text gives the same key (REGEX group 1) into one object
                                           per key, earlier texts in its history; without --apply it only counts. Stop the service first.
 """
+import os
 import sys
 
-from . import config, server
+# 0.60.0: on Windows verify TLS through the system (truststore, as pip does). Python only sees root certificates already in the store, and
+# Windows fetches a missing root only when its own TLS stack asks — on a fresh Windows 11 every download of `vi-mcp embed auto` failed with
+# CERTIFICATE_VERIFY_FAILED until something else had connected (test VM, 12.11.2026: default context failed, truststore succeeded, after
+# that the default context succeeded too). Optional: without the package the default context stays.
+if os.name == "nt":
+    try:
+        import truststore
+        truststore.inject_into_ssl()
+    except ImportError:
+        pass
+
+from . import config, server  # noqa: E402
 
 #: English command → German alias (accepted as well)
 COMMANDS = {"setup": "einrichten", "image": "bild", "local": "lokal", "net": "netz", "instance": "instanz", "net-token": "netz-token", "p2p-key": "p2p-schluessel",

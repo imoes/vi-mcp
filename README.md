@@ -205,21 +205,31 @@ On Windows there is no interactive setup menu and no reflex sandbox (reflex code
 
 Without an embedding model vi-mcp works, but searches only by words and hashtags (full text). With one it also finds knowledge by meaning
 (`vi_recall(semantic=true)`, the hybrid search of the prompt hook), links similar knowledge and gives the router meaning as a feature.
-vi-mcp brings its own embedding service — llama.cpp `llama-server` with the model bge-m3 — and installs it on request:
+vi-mcp brings its own embedding service and reranker — llama.cpp `llama-server` with bge-m3 and bge-reranker-v2-m3. Since 0.60.0 the
+packages set them up during installation (question `local_models`, `VI_MCP_LOCAL_MODELS=auto|off`; on Windows a checkbox, `EMBED=1|0`),
+unless an external embedding service is configured — that one is never replaced. By hand:
 
 ```bash
-sudo vi-mcp embed setup             # download, check, start the service vi-embed on 127.0.0.1:8767, point embed.url to it, restart vi-mcp
-sudo vi-mcp embed setup --cpu       # without a GPU (default: Vulkan build, the CPU build if Vulkan does not start)
-vi-mcp embed status                 # installed? running? which URL does the configuration use?
-sudo vi-mcp embed remove            # stop and remove the service; the configuration keeps working with full text only
+sudo vi-mcp embed setup             # detect the GPU, download, check, start vi-embed (127.0.0.1:8767) and vi-rerank (8768), switch, restart
+sudo vi-mcp embed setup --backend cpu   # or cuda | vulkan | rocm — exactly that, no fallback (default auto)
+sudo vi-mcp embed auto --dry-run    # what the packages would do, and why
+vi-mcp embed status                 # installed? running? backend, device and speed of the last setup?
+sudo vi-mcp embed remove            # stop and remove both services; the configuration keeps working with full text only
 ```
 
-- **What it downloads:** llama.cpp release b11938 from GitHub and `bge-m3-Q4_K_M.gguf` from Hugging Face (`gpustack/bge-m3-GGUF`), both
-  checked by SHA256 — a file with a different hash is refused. The download uses the proxy from the environment (`https_proxy`).
-- **Offline:** `--model-file PATH` takes a local copy of the model (accepted only with the same hash). `--port N` chooses another port.
-- **Where it runs:** its own process, so embedding a backlog never blocks answers. Linux: `/var/lib/vi-mcp/embed`, systemd unit `vi-embed`
-  (user `vi-mcp`, groups `render video` for the GPU). Windows: `%ProgramData%\vi-mcp\embed`, scheduled task `vi-embed`
-  (`msiexec /i vi-mcp-<version>-x64.msi EMBED=1` installs it with the package).
+- **Which build:** `auto` reads the cards (`nvidia-smi`, Linux sysfs, Windows `Win32_VideoController`) and tries CUDA 13 (NVIDIA driver
+  ≥ 580), CUDA 12 (≥ 525), Vulkan (any other GPU), then the CPU. A build counts only if `llama-server --list-devices` names a device of its
+  kind — a Vulkan build without a usable GPU starts too, but lists "(none)". The report names the cards, the chosen backend, the device, the
+  reason and every rejected try. *Measured (RTX 3070):* 4.5 ms per text on CUDA, 24.8 ms on the CPU (i9-12900).
+- **Reranker:** switched on (`rerank.url`) only if 30 documents of search length take at most 5 s — on a GPU it does; on the CPU it took
+  12.3 s, so there it is installed but not used, and the report says so (`--rerank force` uses it anyway, `--rerank off` skips it).
+- **What it downloads:** llama.cpp release b11938 from GitHub (the CUDA build with its runtime), `bge-m3-Q4_K_M.gguf` and
+  `bge-reranker-v2-m3-Q4_K_M.gguf` from Hugging Face (`gpustack/…-GGUF`) — all checked by SHA256, a file with a different hash is refused.
+  The download uses the proxy from the environment (`https_proxy`).
+- **Offline:** `--model-file PATH` takes a local copy of the embedding model (accepted only with the same hash). `--port N` chooses another port.
+- **Where it runs:** own processes, so embedding a backlog never blocks answers. Linux: `/var/lib/vi-mcp/embed`, systemd units `vi-embed`
+  and `vi-rerank` (user `vi-mcp`, groups `render video` for the GPU). Windows: `%ProgramData%\vi-mcp\embed`, scheduled tasks `vi-embed` and
+  `vi-rerank`.
 - **Already using another embedding service?** `sudo vi-mcp embed setup --no-switch` installs without switching; `sudo -u vi-mcp vi-mcp embed
   compare` re-embeds 30 stored texts with the new service and compares (cosine). Switch only if it reports the same vectors — otherwise every
   stored vector would have to be computed again.
