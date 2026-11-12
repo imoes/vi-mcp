@@ -237,6 +237,53 @@ def calibration() -> dict:
     return {"paare": len(pairs), "quote": ratio, "geeicht": len(pairs) >= CAL_MIN and ratio is not None and ratio >= CAL_RATIO}
 
 
+#: 0.55.0: the weight of a label by its source (scikit-learn sample_weight). A human grade outweighs everything; direct feedback on a
+#: hint is a direct statement; code-stage and ok tag are the plentiful base. An uncalibrated model grade counts a little instead of not
+#: at all (human grades are optional — the user, 12.11.2026); its certainty scales it.
+WEIGHT = {"mensch": 3.0, "rueckmeldung": 2.0, "modell": 1.0, "code": 1.0, "ok": 1.0}
+UNCALIBRATED = 0.3
+CERTAINTY = {"niedrig": 0.3, "mittel": 0.6, "hoch": 1.0}
+
+
+def grade_details() -> dict[str, dict]:
+    """{serial: {note, quelle, gewicht}} per conversation: a human grade (weight 3) beats a model grade (weight × certainty, × 0.3 while
+    the model is not calibrated against humans). The most recent grade of a source counts."""
+    with g.lock:
+        rows = g.db().execute("SELECT json_extract(daten, '$.ziel'), CAST(json_extract(daten, '$.note') AS REAL), json_extract(daten, '$.scorer'), "
+                              "json_extract(daten, '$.sicherheit') FROM objekt WHERE art = 'bewertung' ORDER BY zeit").fetchall()
+    calibrated = calibration()["geeicht"]
+    out: dict[str, dict] = {}
+    for serial, note, who, certainty in rows:
+        if who == "modell" and out.get(serial, {}).get("quelle") != "mensch":
+            out[serial] = {"note": note, "quelle": "modell",
+                           "gewicht": round(WEIGHT["modell"] * CERTAINTY.get(certainty or "", 0.6) * (1.0 if calibrated else UNCALIBRATED), 3)}
+        elif who == "mensch":
+            out[serial] = {"note": note, "quelle": "mensch", "gewicht": WEIGHT["mensch"]}
+    return out
+
+
+def label(data: dict, ok_tag: bool | None, serial: str | None, grades: dict[str, dict], hint: str | None = None) -> tuple[int, float, str] | None:
+    """0.55.0: THE label of an action (or of one shown hint of it) — one definition for router, bandit and metrics (before, the bandit
+    and the metrics ignored conversation grades and direct feedback, ARCHITECTURE "the grade"). Order, first that applies:
+      rueckmeldung  direct feedback on this hint (vi_feedback / vi_confirm / vi_refute)
+      mensch/modell a bad conversation grade (< BAD_BELOW) makes every action of it a failure, weighted by the grade's source
+      code          the code stage of the scorer (ok, repeat, red test, user correction)
+      ok            the tool's own outcome
+    Returns (y, weight, source) or None for an action without outcome. Pure."""
+    rm = (data.get("rueckmeldung") or {}) if hint else {}
+    if hint in rm:
+        return (1 if rm[hint] > 0 else 0), WEIGHT["rueckmeldung"], "rueckmeldung"
+    gd = grades.get(serial) if serial else None
+    if gd and gd["note"] is not None and gd["note"] < BAD_BELOW:
+        return 0, gd["gewicht"], gd["quelle"]
+    s = data.get("score")
+    if s:
+        return (1 if s["note"] >= GOOD_FROM else 0), WEIGHT["code"], "code"
+    if ok_tag is None:
+        return None
+    return (1 if ok_tag else 0), WEIGHT["ok"], "ok"
+
+
 def conversation_grades() -> dict[str, float]:
     """Conversation grades that count for learning: human always, model only when calibrated."""
     return {**(_grades("modell") if calibration()["geeicht"] else {}), **_grades("mensch")}

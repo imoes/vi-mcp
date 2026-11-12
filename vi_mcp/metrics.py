@@ -19,6 +19,19 @@ def _with_hint(o: g.MemoryObject) -> bool:
     return any(not oid.startswith("antwort:") for oid in v.get("gefunden", []))
 
 
+_GRADES: dict = {"t": 0.0, "v": {}, "db": None}
+
+
+def _ok(o) -> bool:
+    """The action's label (scorer.label without a hint), conversation grades cached for a minute."""
+    import time
+    from . import scorer
+    if time.time() - _GRADES["t"] > 60 or _GRADES["db"] is not g.db():  # another database (tests, migration): read again
+        _GRADES.update(t=time.time(), v=scorer.grade_details(), db=g.db())
+    lab = scorer.label(o.data, "ok:ja" in o.hashtags, o.conversation, _GRADES["v"])
+    return bool(lab and lab[0])
+
+
 def hint_lift(hours: float = 24, tool: str | None = None, viewer: str | None = None) -> dict:
     """{'mit': {'n', 'ok'}, 'ohne': {'n', 'ok'}, 'quote_mit', 'quote_ohne', 'lift', 'urteil', 'je_tool': {...}}"""
     since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
@@ -30,8 +43,7 @@ def hint_lift(hours: float = 24, tool: str | None = None, viewer: str | None = N
             continue
         t = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
         page = "mit" if _with_hint(o) else "ohne"
-        s = o.data.get("score")  # the scorer's verdict beats "tool without error"
-        ok = s["note"] >= 0.5 if s else "ok:ja" in o.hashtags
+        ok = _ok(o)  # 0.55.0: scorer.label — the same label as router and bandit
         for target in (total, per_tool.setdefault(t, {"mit": {"n": 0, "ok": 0}, "ohne": {"n": 0, "ok": 0}})):
             target[page]["n"] += 1
             target[page]["ok"] += 1 if ok else 0
@@ -49,8 +61,7 @@ def hint_lift_matched(hours: float = 24, viewer: str | None = None) -> dict:
             continue
         t = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
         d = strata.setdefault((o.instance or "?", t), {"mit": {"n": 0, "ok": 0}, "ohne": {"n": 0, "ok": 0}})
-        s = o.data.get("score")
-        ok = s["note"] >= 0.5 if s else "ok:ja" in o.hashtags
+        ok = _ok(o)  # 0.55.0: scorer.label — the same label as router and bandit
         side = d["mit" if _with_hint(o) else "ohne"]
         side["n"] += 1
         side["ok"] += 1 if ok else 0
@@ -125,8 +136,7 @@ def lift_by_age(hours: float = 24 * 7, viewer: str | None = None, new_days: floa
         if not shown:
             continue
         tool = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
-        s = o.data.get("score")
-        ok = (s["note"] >= 0.5) if s else "ok:ja" in o.hashtags
+        ok = _ok(o)  # 0.55.0: scorer.label — the same label as router and bandit
         p = bandit.base_rate(tool)
         for h in shown:
             if h not in born:

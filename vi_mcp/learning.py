@@ -90,6 +90,11 @@ def hint_features(hid: str, triggers: list[str] | None = None, ts: str | None = 
 def observations(since: str | None = None) -> list[tuple[dict, int, str]]:
     """(features, ok, experience_id) per reported action with a label; actions answered from memory are dropped.
     One example per shown hint (pair) plus one without hint features (base) — so the model learns both."""
+    return [(f, y, o) for f, y, o, _w in weighted_observations(since)]
+
+
+def weighted_observations(since: str | None = None) -> list[tuple[dict, int, str, float]]:
+    """0.55.0: as observations(), with the label's weight (scorer.label: source of the label)."""
     outputs = []
     with g.lock:
         rows = g.db().execute("SELECT id, zeit, daten, gespraech FROM objekt WHERE art = 'erfahrung' AND modus = 'aktiv'" + (" AND zeit >= ?" if since else "") + " ORDER BY zeit",
@@ -97,7 +102,7 @@ def observations(since: str | None = None) -> list[tuple[dict, int, str]]:
         labeled = {r[0] for r in g.db().execute("SELECT DISTINCT objekt_id FROM tag WHERE tag IN ('ok:ja', 'ok:nein')")}
         ok_yes = {r[0] for r in g.db().execute("SELECT objekt_id FROM tag WHERE tag = 'ok:ja'")}
     from . import scorer
-    grades = scorer.conversation_grades()
+    grades = scorer.grade_details()
     born: dict = {}
     for oid, ts, data, serial in rows:
         if oid not in labeled:
@@ -106,18 +111,15 @@ def observations(since: str | None = None) -> list[tuple[dict, int, str]]:
         v = d.get("vorher") or {}
         if v.get("aus_gedaechtnis"):
             continue
-        s = d.get("score")  # label: the scorer's verdict, else "tool without error"; a bad conversation grade applies to all actions
-        y = (1 if s["note"] >= scorer.GOOD_FROM else 0) if s else (1 if oid in ok_yes else 0)
-        if serial in grades and grades[serial] < scorer.BAD_BELOW:
-            y = 0
+        y, w, _src = scorer.label(d, oid in ok_yes, serial, grades)
         base = action_features(v.get("reize", []), ts)
         shown = [h for h in v.get("gezeigt", v.get("gefunden", [])) if not h.startswith("antwort:")]
         base[f"hinweis_n:{min(4, len(shown))}"] = 1.0
         if not shown:
-            outputs.append((base, y, oid))
-        rm = d.get("rueckmeldung") or {}  # 0.20.9: direct feedback (vi_confirm/vi_refute) replaces the pair's indirect label
-        for h in shown:
-            outputs.append(({**base, **hint_features(h, v.get("reize", []), ts, born)}, (1 if rm[h] > 0 else 0) if h in rm else y, oid))
+            outputs.append((base, y, oid, w))
+        for h in shown:  # 0.20.9: direct feedback on this hint replaces the pair's indirect label (scorer.label)
+            yh, wh, _s = scorer.label(d, oid in ok_yes, serial, grades, hint=h)
+            outputs.append(({**base, **hint_features(h, v.get("reize", []), ts, born)}, yh, oid, wh))
     return outputs
 
 
@@ -186,7 +188,8 @@ def train(reason: str = "sleep") -> dict:
         from sklearn.metrics import roc_auc_score
     except ImportError as e:
         return {"zustand": "uebersprungen", "grund": f"scikit-learn missing ({e.name}) — install python3-sklearn"}
-    obs = observations()
+    wobs = weighted_observations()
+    obs = [(f, y, o) for f, y, o, _w in wobs]
     if not obs:
         return {"zustand": "zu_wenig_daten", "grund": "no labeled observations", "n": 0}
     tally: dict[str, int] = {}
@@ -208,8 +211,9 @@ def train(reason: str = "sleep") -> dict:
     vec = DictVectorizer(sparse=True)
     X = vec.fit_transform(X_d)
     Xtr, Xte, ytr, yte = X[:-n_test], X[-n_test:], y[:-n_test], y[-n_test:]
-    clf = LogisticRegression(class_weight="balanced", C=1.0, max_iter=1000)
-    clf.fit(Xtr, ytr)
+    wts = np.array([w for _f, _y, _o, w in wobs])
+    clf, fit_report = fit_calibrated(Xtr, ytr, wts[:-n_test])
+    report.update(fit_report)
     auc = float(roc_auc_score(yte, clf.predict_proba(Xte)[:, 1])) if len(set(yte.tolist())) == 2 else None
     weights = {name: round(float(w), 4) for name, w in zip(vec.get_feature_names_out(), clf.coef_[0]) if abs(w) > 1e-6}
     report.update(auc_holdout=None if auc is None else round(auc, 3), holdout=n_test, holdout_fehler=int(len(yte) - yte.sum()),
@@ -245,6 +249,38 @@ def train(reason: str = "sleep") -> dict:
     log(f"Learning: {report['zustand']} — n {len(obs)}, features {len(kept)}, AUC {report.get('auc_holdout')}, "
         f"warning {report['warnung'].get('zustand')}")
     return report
+
+
+#: 0.55.0: regularisation strengths tried; sample weights scale the effective C (scikit-learn linear_model), so it is chosen again.
+#: 0.1 is left out: measured on a production copy (12.11.2026) it improved log loss (0.400 → 0.393) but cut the hint-ranking gap from
+#: +42.4 to +30.6 points — the ranking is what the router is for.
+C_GRID = (0.3, 1.0, 3.0)
+#: share of the training part (its most recent end) that chooses C; the holdout stays untouched for the verdict
+VALIDATION = 0.2
+VALIDATION_MIN = 50
+
+
+def fit_calibrated(Xtr, ytr, wtr):
+    """0.55.0 (scikit-learn user guide: linear_model, common_pitfalls). Choose C by the weighted log loss on the newest 20 % of the
+    training part (models fitted on the older 80 % with the label weights), then refit on the whole training part with that C — the
+    newest observations carry the newest hints. Without both classes in enough validation data: C = 1.
+    Checked and rejected: Platt calibration (sigmoid on the logit, folded into the weights). Found on the validation part it did not
+    carry over in time — holdout log loss 0.427 → 0.473 and ranking gap +42.4 → +36.9 points (production copy, 12.11.2026)."""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import log_loss
+    n = Xtr.shape[0]
+    cut = int(n * (1 - VALIDATION))
+    yv, wv = ytr[cut:], wtr[cut:]
+    C, chosen = 1.0, {"zustand": "standard", "grund": f"validation part {n - cut} observations or one class only — C = 1"}
+    if n - cut >= VALIDATION_MIN and len(set(yv.tolist())) == 2 and len(set(ytr[:cut].tolist())) == 2:
+        losses = {}
+        for c in C_GRID:
+            m = LogisticRegression(class_weight="balanced", C=c, max_iter=1000).fit(Xtr[:cut], ytr[:cut], sample_weight=wtr[:cut])
+            losses[c] = round(float(log_loss(yv, m.predict_proba(Xtr[cut:])[:, 1], sample_weight=wv, labels=[0, 1])), 4)
+        C = min(losses, key=losses.get)
+        chosen = {"zustand": "gewaehlt", "log_loss_validierung": losses, "n": int(n - cut)}
+    clf = LogisticRegression(class_weight="balanced", C=C, max_iter=1000).fit(Xtr, ytr, sample_weight=wtr)
+    return clf, {"C": C, "c_wahl": chosen}
 
 
 def _ref_rates(train_obs: list) -> dict:
@@ -505,6 +541,10 @@ def explanation(limit: int = 12) -> str:
     z = [m.text, f"  trained {str(d.get('trainiert', '—'))[:16]} · sklearn {d.get('sklearn', '—')} · ok {d.get('ok', 0)} / not ok {d.get('nicht_ok', 0)} "
                  f"· features {d.get('merkmale', 0)} (dropped {d.get('verworfen', 0)}: < {MIN_PER_FEATURE} occurrences) · holdout {d.get('holdout', 0)} "
                  f"({d.get('holdout_fehler', '—')} failures) · direct feedback on hints {d.get('rueckmeldungen', 0)}"]
+    if d.get("C") is not None:  # 0.55.0
+        cw = d.get("c_wahl") or {}
+        z.append(f"  Regularisation C {d['C']} (" + (f"chosen by log loss on the newest {cw.get('n')} training observations: {cw.get('log_loss_validierung')}"
+                                                     if cw.get("zustand") == "gewaehlt" else cw.get("grund", "—")) + ")")
     if d.get("log_loss_holdout") is not None:  # 0.55.0
         z.append(f"  Holdout probabilities: log loss {d['log_loss_holdout']} · Brier {d.get('brier_holdout')} · average precision for "
                  f"failures {d.get('ap_fehler_holdout')}")

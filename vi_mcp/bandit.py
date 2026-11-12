@@ -40,30 +40,34 @@ def shown(o: g.MemoryObject) -> int:
 
 
 def _observations(since: str | None = None):
-    """(tool, ok, shown) per rated action; the scorer's verdict beats "tool without error", actions answered from memory do not count."""
-    from .scorer import GOOD_FROM
+    """(tool, ok, shown, per-hint labels) per rated action — the label is scorer.label (0.55.0: the same as the router's: direct feedback,
+    conversation grade, code stage, ok tag); actions answered from memory do not count. per-hint: {hint: (y, weight)}."""
+    from . import scorer
+    grades = scorer.grade_details()
     with g.lock:
-        lines = g.db().execute("SELECT o.daten, (SELECT group_concat(tag, ' ') FROM tag t WHERE t.objekt_id = o.id AND (t.tag LIKE 'tool:%' OR t.tag LIKE 'ok:%')) "
+        lines = g.db().execute("SELECT o.daten, o.gespraech, (SELECT group_concat(tag, ' ') FROM tag t WHERE t.objekt_id = o.id AND (t.tag LIKE 'tool:%' OR t.tag LIKE 'ok:%')) "
                                 "FROM objekt o WHERE o.art = 'erfahrung' AND o.modus = 'aktiv'" + (" AND o.zeit >= ?" if since else ""), (since,) if since else ()).fetchall()
-    for data, tags in lines:
+    for data, serial, tags in lines:
         tags = (tags or "").split()
         d = json.loads(data)
         v = d.get("vorher") or {}
         if v.get("aus_gedaechtnis"):
             continue
-        s = d.get("score")
-        ok = (s["note"] >= GOOD_FROM) if s else (True if "ok:ja" in tags else False if "ok:nein" in tags else None)
+        ok_tag = True if "ok:ja" in tags else False if "ok:nein" in tags else None
+        lab = scorer.label(d, ok_tag, serial, grades)
         tool = next((t[5:] for t in tags if t.startswith("tool:")), None)
-        if ok is None or not tool:
+        if lab is None or not tool:
             continue
-        yield tool, ok, [h for h in v.get("gezeigt", []) if h.startswith(HINT_KINDS)]
+        shown = [h for h in v.get("gezeigt", []) if h.startswith(HINT_KINDS)]
+        per = {h: scorer.label(d, ok_tag, serial, grades, hint=h)[:2] for h in shown}
+        yield tool, bool(lab[0]), shown, per
 
 
 def _base_rates() -> tuple[dict[str, float], float]:
     """Success rate per tool from actions without a shown hint; too few → all actions of the tool; none → over everything. Laplace-smoothed."""
     since = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - BASE_DAYS * 86400))
     without, all_ = defaultdict(lambda: [0, 0]), defaultdict(lambda: [0, 0])
-    for tool, ok, shown_flag in _observations(since):
+    for tool, ok, shown_flag, _per in _observations(since):
         for d in ((all_,) if shown_flag else (all_, without)):
             d[tool][0] += ok
             d[tool][1] += 1
@@ -85,16 +89,17 @@ def recompute() -> dict:
     per_tool_rate, all_ = _base_rates()
     _reason.update(zeit=time.time(), je=per_tool_rate, alle=all_)
     sum_total: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0, 0, 0.0])  # yes, no, shown, succeeded, expected
-    for tool, ok, shown_flag in _observations():
+    for tool, _ok, shown_flag, per in _observations():
         p = per_tool_rate.get(tool, all_)
         for h in shown_flag:
             z = sum_total[h]
-            if ok:
-                z[0] += 1 - p
+            y, w = per[h]  # 0.55.0: the hint's own label and its weight (direct feedback counts twice)
+            if y:
+                z[0] += w * (1 - p)
             else:
-                z[1] += p
+                z[1] += w * p
             z[2] += 1
-            z[3] += ok
+            z[3] += y
             z[4] += p
     with g.lock:
         old = [r[0] for r in g.db().execute("SELECT id FROM objekt WHERE json_extract(daten, '$.nuetzlich') IS NOT NULL")]

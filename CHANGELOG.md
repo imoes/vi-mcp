@@ -3,6 +3,49 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.56.0 — 2026-11-12 — One label for router, bandit and metrics, weighted by its source
+
+### What has changed
+
+- **One label function `scorer.label`** for the router, the hint bandit and the hint-lift metrics. Before, only the router used
+  conversation grades and direct feedback; the bandit and the metrics used the tool outcome or the code stage alone, while
+  ARCHITECTURE said all of them used "the grade" — two definitions of one label. Order: direct feedback on a hint > a bad conversation
+  grade (human, else model) > the scorer's code stage > the tool's own outcome.
+- **Labels carry a weight by their source** (scikit-learn `sample_weight`): human grade 3, direct feedback 2, code stage and outcome 1,
+  a model grade 1 × its certainty — × 0.3 while it is not calibrated against human grades. Human grades stay optional (the user,
+  12.11.2026); until there are 20 pairs the model grade counts a little instead of not at all. The bandit adds feedback weighted too.
+- **The router chooses its regularisation** C from 0.3 / 1 / 3 by the weighted log loss on the newest 20 % of the training part, then
+  refits on the whole training part. `vi_model` names the chosen C and the losses.
+
+*Proof (copy of production, backup 12.11.2026 07:33 UTC, same data and holdout of 2,792 observations, 983 failures):*
+
+| router | AUC | log loss | Brier | AP failures | ranking gap (tool) |
+|---|---|---|---|---|---|
+| 0.55.0 (C = 1, unweighted) | 0.878 | 0.427 | 0.135 | 0.792 | +43.5 ± 2.8 points |
+| 0.56.0 (C = 0.3 chosen, weighted labels) | 0.894 | 0.400 | 0.129 | 0.809 | +42.4 ± 2.7 points |
+
+Better probabilities and failure detection, the ranking gap equal within one standard error.
+Tests: `tests/test_label.py` (order and weights; router, bandit and metrics see the same label for an action in a conversation a human
+graded bad); whole suite SQLite 668 passed, 4 skipped; PostgreSQL 670 passed, 2 skipped.
+
+### Checked and rejected
+
+- **Platt calibration of the router** (sigmoid on the logit, found on the newest training part, folded into the weights): holdout log
+  loss 0.427 → 0.473, ranking gap +42.4 → +36.9 points — the calibration did not carry over in time. Not built in.
+- **C = 0.1**: log loss 0.393 (best), but ranking gap +30.6 points. Left out of the choice.
+
+### What is missing
+
+- Research (12.11.2026, papers below) says what comes next, in this order:
+  1. **Log the propensity of every shown hint and search hit**, so the 10 % exploration yields causal "did the hint help" estimates
+     (inverse propensity / doubly robust; Li et al. 2011 arXiv:1003.5956, Dudík et al. 2011 arXiv:1103.4601). Today the router learns
+     "the action succeeded", which is not "the hint helped".
+  2. **A small human gold set** for the conversation grader (Mu et al. 2024 "Rule Based Rewards" arXiv:2411.01111 used 518;
+     Shankar et al. 2024 arXiv:2404.12272). With 0 human grades the grader's quality cannot be checked at all.
+  3. **Combine the label sources with a label model** instead of a fixed order (Snorkel, Ratner et al. 2017 arXiv:1711.10160).
+- The synthetic question set favours relative comparisons only; absolute MRR is not a real-world number (Rahmani et al. 2025
+  arXiv:2506.10301). Real logged agent queries are still missing.
+
 ## 0.55.0 — 2026-11-12 — The VI measures its search daily and learns solutions with their content
 
 The user's idea: train the VI like the large labs train their models — a scorer grades the work of a network of agents every day and
