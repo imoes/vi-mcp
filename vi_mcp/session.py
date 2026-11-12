@@ -64,12 +64,33 @@ def on_behalf(s: Session | None):
     t1 = _current.set(s)
     t2 = g.current_conversation.set(s.serial if s else None)
     t3 = g.current_instance.set(s.instance if s else None)
+    from . import indexes  # 0.61.0: what this session creates lands in its project's index
+    t4 = g.current_index.set(indexes.from_project(s.project) if s is not None and s.project else None)
     try:
         yield s
     finally:
+        g.current_index.reset(t4)
         g.current_instance.reset(t3)
         g.current_conversation.reset(t2)
         _current.reset(t1)
+
+
+#: 0.61.0: instance → (time, project) of the last vi_context call of a hook session. The agent's own MCP session does not know its working
+#: directory; the hook calls vi_context right before vi_learn/vi_recall, so the call that follows within seconds is from that project.
+#: Limit, named: two sessions of the same instance in different projects learning within RECENT_S could be swapped.
+_recent: dict[str, tuple[float, str]] = {}
+RECENT_S = 15.0
+
+
+def note_project(instance: str, project: str) -> None:
+    import time
+    _recent[instance] = (time.monotonic(), project)
+
+
+def recent_project(instance: str, within_s: float = RECENT_S) -> str | None:
+    import time
+    t, p = _recent.get(instance, (0.0, None))
+    return p if p and time.monotonic() - t <= within_s else None
 
 
 def new_serial() -> str:

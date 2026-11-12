@@ -131,3 +131,14 @@ def test_feedback_request_once_at_stop(tmp_path, monkeypatch):
     monkeypatch.setenv("VI_MCP_FEEDBACK_NUDGE", "0")
     hook.note_hints("s5", ["[erkenntnis:a1] [regel:b2] [skill:c3]"])
     assert hook.process({"hook_event_name": "Stop", "session_id": "s5"}) is None
+
+
+def test_before_vi_learn_the_hook_notes_the_project(h, monkeypatch):
+    # 0.61.0: the hook's session knows the working directory, the agent's does not — vi_context right before vi_learn/vi_recall
+    called = []
+    monkeypatch.setattr(h, "call_tool", lambda s, c, name, args, raw=False: called.append((name, c)) or {})
+    assert h.process(ev("PreToolUse", tool_name="mcp__vi-mcp__vi_learn", tool_input={"text": "x"}, cwd="/home/x/cue-print")) is None
+    assert called == [("vi_context", "/home/x/cue-print")]
+    called.clear()
+    h.process(ev("PreToolUse", tool_name="mcp__vi-mcp__vi_object", tool_input={"id": "x"}))
+    assert called == []  # only before learning and searching

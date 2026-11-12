@@ -1,0 +1,124 @@
+"""0.61.0: indexes — every object belongs to exactly one index (column objekt.idx), global unless a project or an explicit index says
+otherwise. Block 1: the column, its migration, names and the default."""
+import sqlite3
+
+import pytest
+
+from conftest import sqlite_only
+from vi_mcp import indexes, tools
+from vi_mcp import memory as g
+
+
+def test_names_are_checked_and_projects_map_to_indexes():
+    assert indexes.normalize(" Cue-Print ") == "cue-print" and indexes.normalize("") is None and indexes.normalize(None) is None
+    with pytest.raises(ValueError, match="allowed are"):
+        indexes.normalize("kunde x/geheim")
+    cfg = {"map": {"repo": "cue-stack"}, "ignore": ["scratch"]}
+    assert indexes.from_project("cue-print", cfg) == "cue-print"
+    assert indexes.from_project("repo", cfg) == "cue-stack"  # mapped
+    assert indexes.from_project("scratch", cfg) == indexes.GLOBAL  # ignored by the user
+    assert indexes.from_project(".playwright-mcp", cfg) == indexes.GLOBAL  # hidden directories are no projects
+    assert indexes.from_project("tmp", cfg) == indexes.GLOBAL and indexes.from_project(None, cfg) == indexes.GLOBAL
+    assert indexes.index_for("ansible", "cue-print", cfg) == "ansible"  # explicit wins
+
+
+def test_new_objects_land_in_global_or_the_given_index(gd):
+    a = g.new_object("erkenntnis", "general knowledge", ["thema:a"], {"quelle": "t"})
+    b = g.new_object("erkenntnis", "project knowledge", ["thema:a"], {"quelle": "t"}, index="Cue-Print")
+    token = g.current_index.set("ansible")
+    try:
+        c = g.new_object("erkenntnis", "special knowledge", ["thema:a"], {"quelle": "t"})
+    finally:
+        g.current_index.reset(token)
+    assert (g.load(a.id).idx, g.load(b.id).idx, g.load(c.id).idx) == ("global", "cue-print", "ansible")
+    assert "index cue-print" in tools.call_tool("vi_object", {"id": b.id}, "a", False)
+
+
+@sqlite_only
+def test_an_old_database_gets_the_column(tmp_path):
+    p = tmp_path / "old.db"
+    con = sqlite3.connect(p)
+    con.executescript("""CREATE TABLE objekt (id TEXT PRIMARY KEY, art TEXT NOT NULL, zeit TEXT NOT NULL, zuletzt TEXT NOT NULL,
+        text TEXT NOT NULL DEFAULT '', daten TEXT NOT NULL DEFAULT '{}', wichtigkeit INTEGER NOT NULL DEFAULT 1,
+        bestaetigt INTEGER NOT NULL DEFAULT 0, widerlegt INTEGER NOT NULL DEFAULT 0, zugriffe INTEGER NOT NULL DEFAULT 0,
+        modus TEXT NOT NULL DEFAULT 'aktiv', aenderungen TEXT NOT NULL DEFAULT '[]', gespraech TEXT,
+        instanz TEXT NOT NULL DEFAULT 'vi', sicht TEXT NOT NULL DEFAULT 'geteilt');
+        INSERT INTO objekt (id, art, zeit, zuletzt, text) VALUES ('erkenntnis:old', 'erkenntnis', '2026-01-01', '2026-01-01', 'old');""")
+    con.commit()
+    con.close()
+    g.open_db(p)
+    try:
+        assert g.load("erkenntnis:old").idx == "global"
+        assert g.db().execute("SELECT name FROM sqlite_master WHERE type='index' AND name='objekt_idx'").fetchone()
+    finally:
+        g.close_db()
+
+
+def test_a_project_session_puts_its_experiences_and_knowledge_into_its_index(gd, monkeypatch):
+    from vi_mcp import intuition, session
+    monkeypatch.setattr(indexes, "_config", lambda: {"ignore": ["scratch"]})
+    s = session.begin("a", "claude-code-hook 1", "Cue-Print")
+    with session.on_behalf(s):
+        r = intuition.before("Bash", {"command": "ls"}, "a", False)
+        intuition.after("Bash", {"command": "ls"}, True, 5, None, "ok", r["vorher_id"], "a", False)
+        k = g.new_object("erkenntnis", "learned in the project", ["thema:a"], {"quelle": "t"}, instance="a")
+    e = [o for _, o, _g in g.recall("art:erfahrung", limit=5, viewer=None)][0]
+    assert e.idx == "cue-print" and g.load(k.id).idx == "cue-print"
+    t = session.begin("a", "claude-code-hook 1", "scratch")
+    with session.on_behalf(t):
+        assert g.new_object("erkenntnis", "learned in an ignored dir", ["thema:a"], {"quelle": "t"}, instance="a").idx == "global"
+
+
+def test_vi_learn_takes_index_or_the_project_the_hook_sent(gd, monkeypatch):
+    monkeypatch.setattr(indexes, "_config", lambda: {"map": {"repo": "cue-stack"}})
+    base = {"text": "a fact worth keeping", "hashtags": ["thema:a"], "source": "unit test of indexes"}
+    out = tools.call_tool("vi_learn", {**base, "index": "Ansible"}, "a", False)
+    assert g.load(out.split()[1]).idx == "ansible"
+    out = tools.call_tool("vi_learn", {**base, "text": "another fact", "project": "repo"}, "a", False)
+    assert g.load(out.split()[1]).idx == "cue-stack"
+    out = tools.call_tool("vi_lerne", {**base, "text": "third fact", "projekt": "cue-print"}, "a", False)  # German alias
+    assert g.load(out.split()[1]).idx == "cue-print"
+    out = tools.call_tool("vi_learn", {**base, "text": "fourth fact"}, "a", False)
+    assert g.load(out.split()[1]).idx == "global"
+
+
+def test_search_restricts_to_an_index_or_puts_the_project_first(gd):
+    a = g.new_object("erkenntnis", "rsync resume with partial transfers", ["tool:rsync"], {"quelle": "t"}, index="global")
+    b = g.new_object("erkenntnis", "rsync resume in the cue project needs partial", ["tool:rsync"], {"quelle": "t"}, index="cue-print")
+    only = tools.call_tool("vi_recall", {"filter": "rsync resume", "index": "cue-print", "semantic": False}, "a", False)
+    assert b.id in only and a.id not in only and "only index cue-print" in only
+    mixed = tools.call_tool("vi_recall", {"filter": "rsync resume", "project": "cue-print", "semantic": False}, "a", False)
+    assert mixed.index(b.id) < mixed.index(a.id) and "from index cue-print first" in mixed  # both visible, the project's first
+    plain = tools.call_tool("vi_recall", {"filter": "rsync", "semantic": False}, "a", False)
+    assert a.id in plain and b.id in plain
+
+
+def test_hints_before_an_action_put_the_project_first_and_record_it(gd, monkeypatch):
+    from vi_mcp import intuition, session
+    monkeypatch.setattr(indexes, "_config", lambda: {})
+    gen = g.new_object("erkenntnis", "rsync over ssh needs the key file", ["tool:rsync", "thema:ssh"], {"quelle": "t"}, index="global")
+    own = g.new_object("erkenntnis", "rsync in cue-print goes through the jump host", ["tool:rsync"], {"quelle": "t"}, index="cue-print")
+    s = session.begin("a", "claude-code-hook 1", "cue-print")
+    with session.on_behalf(s):
+        z = intuition.before("rsync", {"src": "a"}, "a", False)["zugriff"]
+    assert z["gezeigt"][0] == own.id and gen.id in z["gezeigt"]  # first, not alone
+    assert z["idx"] == "cue-print" and z["idx_vorrang"] == 1
+
+
+def test_the_agent_session_gets_the_project_the_hook_noted_just_before(gd, monkeypatch):
+    # the agent's own MCP session does not know its working directory; the hook calls vi_context right before vi_learn/vi_recall
+    from vi_mcp import session
+    monkeypatch.setattr(indexes, "_config", lambda: {})
+    hook_s = session.begin("a", "claude-code-hook 1", "cue-print")
+    agent_s = session.begin("a", "claude-code 2.1", None)
+    with session.on_behalf(hook_s):
+        assert "noted" in tools.call_tool("vi_context", {}, "a", False)
+    base = {"text": "learned by the agent session", "hashtags": ["thema:a"], "source": "unit test of indexes"}
+    with session.on_behalf(agent_s):
+        out = tools.call_tool("vi_learn", base, "a", False)
+    assert g.load(out.split()[1]).idx == "cue-print"
+    monkeypatch.setattr(session, "RECENT_S", 0.0)  # too long ago: global, never a guess
+    session._recent["a"] = (0.0, "cue-print")
+    with session.on_behalf(agent_s):
+        out = tools.call_tool("vi_learn", {**base, "text": "learned much later by the agent"}, "a", False)
+    assert g.load(out.split()[1]).idx == "global"

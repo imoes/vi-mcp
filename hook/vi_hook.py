@@ -277,6 +277,8 @@ def notify_signal(claude_session: str, text: str) -> None:
 FEEDBACK_MIN = 3
 FEEDBACK_IDS = re.compile(r"\[((?:erkenntnis|regel|skill|bild|seite):[^\]\s]+)\]")
 FEEDBACK_TOOLS = ("vi_feedback", "vi_confirm", "vi_refute", "vi_bestaetige", "vi_widerlege")
+#: 0.61.0: before these the hook calls vi_context in its own session (which knows the working directory) — index of the knowledge, project first
+CONTEXT_TOOLS = ("vi_learn", "vi_lerne", "vi_recall", "vi_erinnere")
 
 
 def note_hints(claude_session: str, hint_lines: list[str]) -> None:
@@ -439,6 +441,11 @@ def process(e: dict) -> dict | None:
         raise Outage("session_id missing in hook event")
     name, server = tool_parts(e.get("tool_name") or "")
     if event in ("PreToolUse", "PostToolUse", "PostToolUseFailure") and server and name.startswith("vi_"):
+        if event == "PreToolUse" and name in CONTEXT_TOOLS:  # 0.61.0: tell the memory which project the call comes from
+            try:
+                call_tool(e["session_id"], e.get("cwd"), "vi_context", {})
+            except Exception as ex:  # noqa: BLE001 — an older server without vi_context, an outage: global, never block the call
+                log_output(f"vi_context: {type(ex).__name__}: {ex}")
         if event == "PostToolUse" and name in FEEDBACK_TOOLS:  # 0.59.0: feedback given — no request at the end
             st = read("rueckmeldung", e["session_id"]) or {"gezeigt": [], "gefragt": False}
             write("rueckmeldung", e["session_id"], {**st, "gegeben": True})

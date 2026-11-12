@@ -201,6 +201,8 @@ TOOLS = [
                     "— what is missing here is a gap in memory. vi_object reads it back; full-text search finds it. Objects sharing "
                     "hashtags are linked.",
      "inputSchema": _schema({"content": {"type": "string", "description": "complete knowledge: code, API tables, commands, unabridged"}, "text": _S, "hashtags": _TAGS, "source": {"type": "string", "description": "source: command, host and time, or URL (for vi_ask: why you ask)"}, "importance": {"type": "integer", "description": "0–3 (default 1)"}, "visibility": {"type": "string", "enum": ["shared", "internal"], "description": "shared (default): everyone, also without a token, and the networks. internal: only instances with a token — never an open network, only a company network (members of the same organisation) — for company knowledge"}, "outcome": {"type": "string", "enum": ["good", "bad"], "description": "optional: does the insight describe a working or a broken state? Sleep compares new experiences with it."}, "key": {"type": "string", "description": "optional: identity of a recurring finding (e.g. a detection signature). The same key from the same instance updates that object instead of adding a new one: the new text becomes current, the previous one goes into its history, repeats +1."},
+                            "index": {"type": "string", "description": "optional: the index the knowledge belongs to — a project or special VI (e.g. cue-print, ansible); default: the project of your working directory, else global"},
+                            "project": {"type": "string", "description": "set by the hook: the name of your working directory (mapped to an index by the server)"},
                             "image": {"type": "string", "description": "optional: an image as base64 — stored as a memory of its own kind (art:bild); e.g. a screenshot (png, jpeg, gif or webp, at most 5 MiB; a data: URL is fine). text = what it shows in one sentence, content = the complete description. For a file use the command line instead of pasting base64: vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F]"},
                             "regions": {"type": "array", "description": "optional, with image: what is where, in the output format of SAM 3 (Segment Anything with Concepts) — one entry per instance found",
                                         "items": {"type": "object", "properties": {"concept": {"type": "string", "description": "the noun phrase SAM 3 was prompted with, e.g. 'red plug'"},
@@ -208,6 +210,10 @@ TOOLS = [
                                                                                    "score": {"type": "number", "description": "0–1"},
                                                                                    "mask": {"type": "object", "description": "optional: COCO RLE {size: [height, width], counts}"}},
                                                   "required": ["concept", "box", "score"]}}}, ["text", "hashtags", "source"])},
+    {"name": "vi_context",
+     "description": "VI, for hooks: note that the next vi_learn/vi_recall of this instance comes from the project of this session (its working "
+                    "directory). Called by the Claude Code hook right before those tools; an agent does not need it.",
+     "inputSchema": _schema({})},
     {"name": "vi_stats",
      "description": "VI: usage statistics — is the VI used and does it work as intended? Calls per tool and instance, rule compliance "
                     "(search before changing actions, learning, feedback), hints and warnings with success afterwards, new and ever "
@@ -221,7 +227,9 @@ TOOLS = [
                     "and probes (benchmarks, evaluations): read only, the hits are not reinforced.",
      "inputSchema": _schema({"filter": {"type": "string", "description": "e.g. (thema:oom OR thema:disk-full) !ok:ja"}, "limit": {"type": "integer"},
                              "semantic": {"type": "boolean"},
-                             "reinforce": {"type": "boolean", "description": "default true; false = read only (access count and last use stay unchanged)"}}, ["filter"])},
+                             "reinforce": {"type": "boolean", "description": "default true; false = read only (access count and last use stay unchanged)"},
+                             "index": {"type": "string", "description": "optional: search only this index (a project or special VI); without it, hits from your project's index come first and everything else stays visible"},
+                             "project": {"type": "string", "description": "set by the hook: the name of your working directory (its index comes first)"}}, ["filter"])},
     {"name": "vi_object",
      "description": "VI: one object with fields, hashtags, edges and change history; an object with an image returns the image too, with its regions (SAM 3 format).",
      "inputSchema": _schema({"id": _S, "image": {"type": "boolean", "description": "default true; false = only the text, without the image itself"}}, ["id"])},
@@ -505,6 +513,96 @@ class WithImages(str):
 
 
 RRF_K = 60  # Reciprocal Rank Fusion: damping of the ranks (Cormack, Clarke, Büttcher 2009)
+
+
+
+def _recall(args: dict, instance: str, only: str | None, first: str | None) -> str:
+    """vi_recall (its own function since 0.61.0, so the index restriction can wrap it). `only`: the index searched alone;
+    `first`: the project index whose hits come first (stable, after rank fusion and reranker — before them it would be lost)."""
+    f = args.get("filter") or ""
+    as_text = g.as_text_tokens(f)  # 0.26.0: named in the answer instead of emptying the search silently
+    hits = g.recall(f, limit=min(int(args.get("limit") or 10), 50), or_fallback=True)
+    groups, remove, words = g.parse_filter(f, g.known_kinds())
+    # 0.57.0: meaning + full text by default when an embedding service is configured and the filter has free text — measured on a
+    # production copy (150 known targets × 2 queries): full text MRR 0.42, hybrid 0.75. semantic=false forces full text only.
+    explicit = args.get("semantic")
+    semantic = bool(explicit) if explicit is not None else (vector.available() and bool(words))
+    kind_used = g.word_search.get() or ("tags" if not words else "volltext")
+    if semantic:
+        if not vector.available():
+            raise Rejected("semantic: no embedding service configured (config: embed)")
+        if not words:
+            raise Rejected("semantic needs free text in the filter (words without kind:)")
+        # candidates: only the hashtag conditions (without free text), then order by closeness of meaning
+        tags_only = " ".join(["(" + " OR ".join(gr) + ")" if len(gr) > 1 else gr[0] for gr in groups] + [f"!{w}" for w in remove])
+        # all visible objects for the filter, no upper limit: the cosine over a few thousand vectors costs milliseconds
+        cand = g.ids_for_filter(tags_only, kinds=() if groups else ("erkenntnis", "regel", "suche", "bild", "seite"))
+        bound = min(int(args.get("limit") or 10), 50)
+        pool = max(bound, vector.RERANK_TOP if vector.rerank_available() else bound)
+        t0 = time.monotonic()
+        try:
+            near = vector.similar(" ".join(words), cand, limit=pool * 3, timeout=None if explicit else vector.QUERY_TIMEOUT_S)
+        except Exception as ex:  # noqa: BLE001 — the default must never cost the search: full text, named
+            if explicit:
+                raise Rejected(f"semantic: embedding service failed ({type(ex).__name__}: {str(ex)[:120]})") from None
+            near = None
+            f += f" · meaning search unavailable ({type(ex).__name__}), full text only"
+        ms = int((time.monotonic() - t0) * 1000)
+        if near is not None:
+            # Hybrid: add the full-text ranking (Reciprocal Rank Fusion, Cormack et al. 2009, k = 60). Freshly learned knowledge has no
+            # vector until the next sleep and would be unfindable exactly then; exact terms (error messages, options) are found better by full text.
+            fulltext = [o.id for _, o, _g in g.recall(f, limit=pool * 3, kinds=() if groups else ("erkenntnis", "regel", "suche", "bild", "seite"), or_fallback=True)]
+            rrf: dict[str, float] = {}
+            for leaderboard in ([i for i, _c in near], fulltext):
+                for rank_pos, oid in enumerate(leaderboard):
+                    rrf[oid] = rrf.get(oid, 0.0) + 1.0 / (RRF_K + rank_pos + 1)
+            cos = dict(near)
+            best_ids = sorted(rrf, key=lambda i: -rrf[i])[:pool]
+            by = g.load_many(best_ids)
+            ranked = [i for i in best_ids if i in by]
+            note = ""
+            if vector.rerank_available() and ranked:  # 0.57.0: the cross-encoder judges the best ones against the query alone
+                t1 = time.monotonic()
+                try:
+                    sc = vector.rerank_scores(" ".join(words), [f"{by[i].text}\n{by[i].data.get('inhalt') or ''}" for i in ranked])
+                    ranked = [i for _s, i in sorted(zip(sc, ranked), key=lambda x: -x[0])]
+                    note = f"; reranked {len(sc)} in {int((time.monotonic() - t1) * 1000)} ms"
+                except Exception as ex:  # noqa: BLE001
+                    note = f"; reranker unavailable ({type(ex).__name__}), order by rank fusion"
+            ranked = ranked[:bound]
+            hits = [(rrf[i], by[i], {"relevanz": round(cos[i], 2) if i in cos else "–(full text)", "aktualitaet": 0, "wichtigkeit": 0}) for i in ranked]
+            with_vector = vector.present(cand)
+            text_only = sum(1 for i in ranked if i not in cos)
+            f += (f" · {'semantic' if explicit else 'default'} hybrid (embedding {ms} ms, {with_vector} of {len(cand)} candidates with a vector; "
+                  "meaning and full text by rank fusion" + (f"; {text_only} hits via full text only" if text_only else "") + note + ")")
+            kind_used = "hybrid"
+    if not semantic or kind_used != "hybrid":
+        if g.word_search.get() == "oder":
+            f += " · OR search: no or too few objects contain all words, filled up by number of matching words (BM25)"
+    if only:
+        f += f" · only index {only}"
+    elif first and hits:  # 0.61.0: Vorrang, kein Ausschluss — the project's hits first, in their order, then the rest in theirs
+        own = [h for h in hits if h[1].idx == first]
+        if own and len(own) < len(hits):
+            hits = own + [h for h in hits if h[1].idx != first]
+            f += f" · {len(own)} hit(s) from index {first} first"
+    # 0.31.0: a measurement must not change what it measures — a benchmark of 49 questions reinforced 733 objects once each
+    # (10.11.2026), making them look more used and more recent than real use justifies. reinforce=false only reads.
+    reinforce = args.get("reinforce", True) is not False
+    if reinforce:  # 0.57.0: a real search is logged with its ranking; a measurement (reinforce=false) is not
+        from . import evaluation
+        s_log = session.current()
+        evaluation.log_search(instance, s_log.serial if s_log else None, args.get("filter") or "",
+                              kind_used, [o.id for _, o, _g in hits])
+    if reinforce:
+        for _, o, _g in hits:
+            o.access()
+    else:
+        f += " · read only (reinforce=false): hits not reinforced"
+    if as_text:
+        f += f" · searched as text, no hashtag kind: {', '.join(as_text[:5])}"
+    return (f"{len(hits)} object{'' if len(hits) == 1 else 's'} for “{f}” (R relevance · A recency · W importance):\n"
+            + "\n".join(_line(o, gw) for _, o, gw in hits)) if hits else f"nothing in memory for “{f}”"
 
 
 def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, release_permission: bool = False, family: str | None = None) -> str:
@@ -873,9 +971,13 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             if prev:
                 o = g.repeat(prev, text, tags, data, int(args.get("importance") or 1), who=f"ki@{instance}")
             else:
+                from . import indexes  # 0.61.0: explicit index, else the project the hook sent, else the session's (or global)
+                idx = indexes.normalize(args.get("index")) or (indexes.from_project(args["project"]) if args.get("project") else None)
+                if idx is None and g.current_index.get() is None and session.recent_project(instance):  # hook's vi_context just before
+                    idx = indexes.from_project(session.recent_project(instance))
                 o = g.new_object("bild" if data.get("bild") else "erkenntnis", text, tags, {**data, **({"key": key, "repeats": 1} if key else {})},
                                  importance=int(args.get("importance") or 1), who=f"ki@{instance}", reason="vi_learn",
-                                 visibility=args.get("visibility"), instance=instance)
+                                 visibility=args.get("visibility"), instance=instance, index=idx)
         except ValueError as e:
             raise Rejected(str(e)) from e
         from . import on_demand
@@ -886,84 +988,23 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         return (f"learned {o.id} with {', '.join(o.hashtags)} — {len(o.edges())} edges to objects with shared hashtags"
                 + (f" · {images.summary(o)} (sha256 {o.data['bild']['sha'][:12]}…)" if o.data.get("bild") else "")
                 + (" · visibility internal (instances with a token only; never an open network, only a company network)" if o.visibility == "intern" else ""))
+    if name == "vi_context":  # 0.61.0
+        s = session.current()
+        if s is not None and s.project:
+            session.note_project(instance, s.project)
+            return f"project {s.project} noted for the next vi_learn/vi_recall of {instance}"
+        return "no project known in this session — nothing noted"
     if name == "vi_recall":
-        f = args.get("filter") or ""
-        as_text = g.as_text_tokens(f)  # 0.26.0: named in the answer instead of emptying the search silently
-        hits = g.recall(f, limit=min(int(args.get("limit") or 10), 50), or_fallback=True)
-        groups, remove, words = g.parse_filter(f, g.known_kinds())
-        # 0.57.0: meaning + full text by default when an embedding service is configured and the filter has free text — measured on a
-        # production copy (150 known targets × 2 queries): full text MRR 0.42, hybrid 0.75. semantic=false forces full text only.
-        explicit = args.get("semantic")
-        semantic = bool(explicit) if explicit is not None else (vector.available() and bool(words))
-        kind_used = g.word_search.get() or ("tags" if not words else "volltext")
-        if semantic:
-            if not vector.available():
-                raise Rejected("semantic: no embedding service configured (config: embed)")
-            if not words:
-                raise Rejected("semantic needs free text in the filter (words without kind:)")
-            # candidates: only the hashtag conditions (without free text), then order by closeness of meaning
-            tags_only = " ".join(["(" + " OR ".join(gr) + ")" if len(gr) > 1 else gr[0] for gr in groups] + [f"!{w}" for w in remove])
-            # all visible objects for the filter, no upper limit: the cosine over a few thousand vectors costs milliseconds
-            cand = g.ids_for_filter(tags_only, kinds=() if groups else ("erkenntnis", "regel", "suche", "bild", "seite"))
-            bound = min(int(args.get("limit") or 10), 50)
-            pool = max(bound, vector.RERANK_TOP if vector.rerank_available() else bound)
-            t0 = time.monotonic()
-            try:
-                near = vector.similar(" ".join(words), cand, limit=pool * 3, timeout=None if explicit else vector.QUERY_TIMEOUT_S)
-            except Exception as ex:  # noqa: BLE001 — the default must never cost the search: full text, named
-                if explicit:
-                    raise Rejected(f"semantic: embedding service failed ({type(ex).__name__}: {str(ex)[:120]})") from None
-                near = None
-                f += f" · meaning search unavailable ({type(ex).__name__}), full text only"
-            ms = int((time.monotonic() - t0) * 1000)
-            if near is not None:
-                # Hybrid: add the full-text ranking (Reciprocal Rank Fusion, Cormack et al. 2009, k = 60). Freshly learned knowledge has no
-                # vector until the next sleep and would be unfindable exactly then; exact terms (error messages, options) are found better by full text.
-                fulltext = [o.id for _, o, _g in g.recall(f, limit=pool * 3, kinds=() if groups else ("erkenntnis", "regel", "suche", "bild", "seite"), or_fallback=True)]
-                rrf: dict[str, float] = {}
-                for leaderboard in ([i for i, _c in near], fulltext):
-                    for rank_pos, oid in enumerate(leaderboard):
-                        rrf[oid] = rrf.get(oid, 0.0) + 1.0 / (RRF_K + rank_pos + 1)
-                cos = dict(near)
-                best_ids = sorted(rrf, key=lambda i: -rrf[i])[:pool]
-                by = g.load_many(best_ids)
-                ranked = [i for i in best_ids if i in by]
-                note = ""
-                if vector.rerank_available() and ranked:  # 0.57.0: the cross-encoder judges the best ones against the query alone
-                    t1 = time.monotonic()
-                    try:
-                        sc = vector.rerank_scores(" ".join(words), [f"{by[i].text}\n{by[i].data.get('inhalt') or ''}" for i in ranked])
-                        ranked = [i for _s, i in sorted(zip(sc, ranked), key=lambda x: -x[0])]
-                        note = f"; reranked {len(sc)} in {int((time.monotonic() - t1) * 1000)} ms"
-                    except Exception as ex:  # noqa: BLE001
-                        note = f"; reranker unavailable ({type(ex).__name__}), order by rank fusion"
-                ranked = ranked[:bound]
-                hits = [(rrf[i], by[i], {"relevanz": round(cos[i], 2) if i in cos else "–(full text)", "aktualitaet": 0, "wichtigkeit": 0}) for i in ranked]
-                with_vector = vector.present(cand)
-                text_only = sum(1 for i in ranked if i not in cos)
-                f += (f" · {'semantic' if explicit else 'default'} hybrid (embedding {ms} ms, {with_vector} of {len(cand)} candidates with a vector; "
-                      "meaning and full text by rank fusion" + (f"; {text_only} hits via full text only" if text_only else "") + note + ")")
-                kind_used = "hybrid"
-        if not semantic or kind_used != "hybrid":
-            if g.word_search.get() == "oder":
-                f += " · OR search: no or too few objects contain all words, filled up by number of matching words (BM25)"
-        # 0.31.0: a measurement must not change what it measures — a benchmark of 49 questions reinforced 733 objects once each
-        # (10.11.2026), making them look more used and more recent than real use justifies. reinforce=false only reads.
-        reinforce = args.get("reinforce", True) is not False
-        if reinforce:  # 0.57.0: a real search is logged with its ranking; a measurement (reinforce=false) is not
-            from . import evaluation
-            s_log = session.current()
-            evaluation.log_search(instance, s_log.serial if s_log else None, args.get("filter") or "",
-                                  kind_used, [o.id for _, o, _g in hits])
-        if reinforce:
-            for _, o, _g in hits:
-                o.access()
-        else:
-            f += " · read only (reinforce=false): hits not reinforced"
-        if as_text:
-            f += f" · searched as text, no hashtag kind: {', '.join(as_text[:5])}"
-        return (f"{len(hits)} object{'' if len(hits) == 1 else 's'} for “{f}” (R relevance · A recency · W importance):\n"
-                + "\n".join(_line(o, gw) for _, o, gw in hits)) if hits else f"nothing in memory for “{f}”"
+        from . import indexes  # 0.61.0: index= restricts the search; otherwise the project's index comes first
+        only = indexes.normalize(args.get("index"))
+        first = only or (indexes.from_project(args["project"]) if args.get("project") else g.current_index.get())
+        if not first and session.recent_project(instance):  # the hook's vi_context just before this call
+            first = indexes.from_project(session.recent_project(instance))
+        token = g.search_index.set(only)
+        try:
+            return _recall(args, instance, only, first if first and first != indexes.GLOBAL else None)
+        finally:
+            g.search_index.reset(token)
     if name == "vi_feedback":  # 0.49.0
         helped = [str(x) for x in (args.get("helped") or []) if x][:20]
         wrong = [str(x) for x in (args.get("wrong") or []) if x][:20]
@@ -983,7 +1024,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             intuition.opened(instance, o.id)
         from . import evaluation
         evaluation.log_open(instance, o.id)  # 0.57.0: a search hit opened → click with its rank (suche_log)
-        z = [_line(o), f"  author {o.instance} · visibility {o.visibility} · importance {o.importance} · confirmed {o.confirmed} "
+        z = [_line(o), f"  author {o.instance} · index {o.idx} · visibility {o.visibility} · importance {o.importance} · confirmed {o.confirmed} "
                         f"(independent lines: {o.foreign_confirmations()} — one per model family, not from the object's own source) · refuted {o.refuted} · accesses {o.accesses} · "
                         f"last {o.last_at[:16]} · conversation {o.conversation or '—'}"]
         if o.kind in ("erkenntnis", "regel", "suche", "bild"):

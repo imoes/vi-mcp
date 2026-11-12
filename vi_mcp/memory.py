@@ -124,7 +124,7 @@ def open_db(fpath: Path | str) -> None:
             text TEXT NOT NULL DEFAULT '', daten TEXT NOT NULL DEFAULT '{}', wichtigkeit INTEGER NOT NULL DEFAULT 1,
             bestaetigt INTEGER NOT NULL DEFAULT 0, widerlegt INTEGER NOT NULL DEFAULT 0, zugriffe INTEGER NOT NULL DEFAULT 0,
             modus TEXT NOT NULL DEFAULT 'aktiv', aenderungen TEXT NOT NULL DEFAULT '[]', gespraech TEXT,
-            instanz TEXT NOT NULL DEFAULT 'vi', sicht TEXT NOT NULL DEFAULT 'geteilt');
+            instanz TEXT NOT NULL DEFAULT 'vi', sicht TEXT NOT NULL DEFAULT 'geteilt', idx TEXT NOT NULL DEFAULT 'global');
         CREATE INDEX IF NOT EXISTS objekt_art_zeit ON objekt(art, zeit);
         CREATE TABLE IF NOT EXISTS tag (objekt_id TEXT NOT NULL, tag TEXT NOT NULL, PRIMARY KEY (objekt_id, tag));
         CREATE INDEX IF NOT EXISTS tag_tag ON tag(tag);
@@ -171,6 +171,10 @@ def _migrate(con: Any) -> None:
     if n:
         log(f"migration: {n} cache hashtags frage: → cache:")
     con.execute("CREATE INDEX IF NOT EXISTS objekt_instanz ON objekt(instanz, sicht)")
+    if "idx" not in columns:  # 0.61.0: the index of an object (vi_mcp/indexes.py); everything before is global
+        con.execute("ALTER TABLE objekt ADD COLUMN idx TEXT NOT NULL DEFAULT 'global'")
+        log("migration: column idx added (every object in index global)")
+    con.execute("CREATE INDEX IF NOT EXISTS objekt_idx ON objekt(idx, art)")
     # 0.37.0: an image is its own kind (bild); 0.35.x stored it as an insight with medium:bild. The id stays (edges, history, hints
     # refer to it); kind, art: hashtag and the now redundant medium:bild change.
     old = [r[0] for r in con.execute("SELECT id FROM objekt WHERE art = 'erkenntnis' AND json_extract(daten, '$.bild') IS NOT NULL")]
@@ -249,6 +253,7 @@ class MemoryObject:
     conversation: str | None = None
     instance: str = SERVER_INSTANCE
     visibility: str = "geteilt"
+    idx: str = "global"  # 0.61.0: the index (vi_mcp/indexes.py)
 
     @staticmethod
     def _require_reason(reason: str) -> None:
@@ -354,9 +359,9 @@ class MemoryObject:
 
 #: Database columns of table objekt (stored format, stays German) and the MemoryObject field each one fills, in the same order
 COLUMNS = ("id", "art", "zeit", "zuletzt", "text", "daten", "wichtigkeit", "bestaetigt", "widerlegt", "zugriffe",
-           "modus", "aenderungen", "gespraech", "instanz", "sicht")
+           "modus", "aenderungen", "gespraech", "instanz", "sicht", "idx")
 FIELDS = ("id", "kind", "ts", "last_at", "text", "data", "importance", "confirmed", "refuted", "accesses",
-          "mode", "changes", "conversation", "instance", "visibility")
+          "mode", "changes", "conversation", "instance", "visibility", "idx")
 
 
 def _fields_from_row(row) -> dict:
@@ -436,7 +441,7 @@ def save(o: MemoryObject) -> MemoryObject:
         db().execute(f"INSERT OR REPLACE INTO objekt ({', '.join(COLUMNS)}) VALUES ({', '.join('?' * len(COLUMNS))})",
                      (o.id, o.kind, o.ts, o.last_at, o.text, _data_json(o), o.importance,
                       o.confirmed, o.refuted, o.accesses, o.mode, json.dumps(o.changes, ensure_ascii=False), o.conversation,
-                      o.instance, o.visibility))
+                      o.instance, o.visibility, o.idx))
         db().execute("DELETE FROM tag WHERE objekt_id = ?", (o.id,))
         db().executemany("INSERT OR IGNORE INTO tag (objekt_id, tag) VALUES (?, ?)", [(o.id, t) for t in tags])
         if fts:
@@ -479,9 +484,19 @@ def delete(oids: list[str]) -> int:
     return len(oids)
 
 
+#: 0.61.0: the index new objects of this context land in when none is given (set per session from its project, see session.on_behalf)
+current_index: contextvars.ContextVar[str | None] = contextvars.ContextVar("aktueller_index", default=None)
+
+
+def _index_of(explicit: str | None) -> str:
+    from . import indexes
+    return indexes.normalize(explicit) or current_index.get() or indexes.GLOBAL
+
+
 def new_object(kind: str, text: str, hashtags: list[str], data: dict | None = None, importance: int = 1,
                  who: str = "vi", reason: str = "", oid: str | None = None, mode: str = "aktiv",
-                 conversation: str | None = None, instance: str | None = None, visibility: str | None = None) -> MemoryObject:
+                 conversation: str | None = None, instance: str | None = None, visibility: str | None = None,
+                 index: str | None = None) -> MemoryObject:
     if kind not in KINDS:
         raise ValueError(f"art must be one of {', '.join(KINDS)}")
     if visibility is not None and visibility not in VISIBILITIES:
@@ -499,6 +514,7 @@ def new_object(kind: str, text: str, hashtags: list[str], data: dict | None = No
                last_at=ts, text=text, data=data or {}, hashtags=list(hashtags), importance=max(0, min(3, importance)),
                mode=mode, conversation=conversation or current_conversation.get(),
                instance=instance or current_instance.get() or SERVER_INSTANCE, visibility=visibility or VISIBILITY_PER_KIND[kind],
+               idx=_index_of(index),
                changes=[{"zeit": ts, "wer": who, "was": "created", "grund": (reason or "created")[:300]}])
     save(o)
     if mode != "quarantaene":  # unreviewed content gets no link to own knowledge
@@ -690,9 +706,16 @@ def _tag_condition(tag: str) -> tuple[str, tuple]:
     return ("tag LIKE ?", (tag[:-1] + "%",)) if tag.endswith("*") else ("tag = ?", (tag,))
 
 
+#: 0.61.0: a search restricted to one index (vi_recall index=…) — read by _filter_sql, so full text and hybrid search obey it alike
+search_index: contextvars.ContextVar[str | None] = contextvars.ContextVar("such_index", default=None)
+
+
 def _filter_sql(groups: list, remove: list, viewer: str | None) -> tuple[str, list]:
     """SQL for mode, visibility and hashtag conditions (without free text) — one source for recall() and ids_for_filter()."""
     sql, par = "SELECT id FROM objekt WHERE modus <> 'widerlegt'", []
+    if search_index.get():
+        sql += " AND idx = ?"
+        par.append(search_index.get())
     if not any("modus:quarantaene" in grp for grp in groups):
         sql += " AND modus <> 'quarantaene'"  # only via vi_quarantine
     if not any("modus:aufgegangen" in grp for grp in groups):

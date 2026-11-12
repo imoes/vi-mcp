@@ -300,7 +300,12 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     general = ({f"tool:{tool}", f"skill:{tool.split('_')[0]}", "thema:ssh"} | {f"thema:{w}" for w in GENERIC_SHELL_WORDS}) \
         if tool in SHELL_TOOLS else set()  # ssh is only the transport; grep, sed, from, def … say nothing about the subject
     matching = set(search_triggers) - general
-    cand.sort(key=lambda o: (-(o.importance >= 3 and bool(matching & set(o.hashtags))), -len(matching & set(o.hashtags))))
+    # 0.61.0: Vorrang, kein Ausschluss — in a project its index comes right after "important and matching", before the number of
+    # matching triggers; the router still breaks the ties. g.current_index is the session's project (session.on_behalf).
+    project_idx = g.current_index.get()
+    project_idx = project_idx if project_idx and project_idx != "global" else None
+    cand.sort(key=lambda o: (-(o.importance >= 3 and bool(matching & set(o.hashtags))), -(project_idx is not None and o.idx == project_idx),
+                             -len(matching & set(o.hashtags))))
     # 0.49.0: before a shell command a hint must share more than the tool and generic words — a host, a program, an error. Counted.
     unspecific = [o for o in cand if general and not (matching & set(o.hashtags))]
     cand = [o for o in cand if o not in unspecific]
@@ -417,6 +422,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
                "router": router, "exploration": exploration, "rest_n": len(rest), "suchen": search, "aus_gedaechtnis": answer is not None,
                "angebot": offer, **({"arm": layer_arm} if layer_arm else {}),
                **({"haltewahrscheinlichkeit": HOLD_BACK, "zurueckgehalten": held} if eligible else {}),
+               **({"idx": project_idx, "idx_vorrang": sum(1 for o in shown_obj if o.idx == project_idx)} if project_idx else {}),
                "repeat_suppressed": [o.id for o in repeated]}
     before_id = secrets.token_hex(8)
     if answer is not None:
@@ -769,7 +775,9 @@ def prompt_hints(text: str, instance: str | None, shown: list[str] | None = None
     # nothing shares more.
     best = -min((s for s, _r, _o in scored), default=0)
     out = []
-    for s, _rank, o in sorted(scored, key=lambda x: (x[0], x[1])):
+    pidx = g.current_index.get()  # 0.61.0: with equal shared words, the project's index first, then the full-text rank
+    pidx = pidx if pidx and pidx != "global" else None
+    for s, _rank, o in sorted(scored, key=lambda x: (x[0], not (pidx and x[2].idx == pidx), x[1])):
         if -s < best and -s <= 2:
             continue
         from . import bandit

@@ -250,6 +250,20 @@ def test_location_tags_do_not_leave(publisher):
     assert checks.check({**GOOD, "hashtags": ["thema:a", "ort:MUC-1"]}).verdict == "ablehnen"
 
 
+def test_index_never_leaves(publisher):
+    # 0.61.0: the index of an object (a project or customer name) is a column, not a hashtag — no export form may carry it
+    import json
+    from vi_mcp import net_score
+    p2p.generate_token("a")
+    o = _mk_obj("Wissen aus einem Kundenprojekt, gezeigt ohne den Projektnamen", tags=("thema:a",))
+    o.idx = "kunde-x"
+    g.save(o)
+    assert g.load(o.id).idx == "kunde-x"
+    out = json.dumps(p2p.outbox(), ensure_ascii=False) + json.dumps(p2p.preview("a"), ensure_ascii=False)
+    out += json.dumps(net_score.local_form(g.load(o.id)), ensure_ascii=False)
+    assert "Kundenprojekt" in out and "kunde-x" not in out  # the object went out, its index did not
+
+
 def test_content_goes_to_net_anonymized(publisher):
     p2p.generate_token("a")
     _mk_obj("Die Hosts-API des Inventars liefert Listen", inhalt="| GET | https://inventar.firma.de/api | Liste |\nimport requests\nr = requests.get(ziel)\n")

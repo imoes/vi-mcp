@@ -6,7 +6,7 @@ Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server co
 
 ## MCP tools
 
-54 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
+55 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
 
 ### `vi_before`
 
@@ -318,8 +318,14 @@ VI: store knowledge as an object. When: a non-obvious problem was solved, a last
 | `visibility` | string (shared, internal) |  | shared (default): everyone, also without a token, and the networks. internal: only instances with a token — never an open network, only a company network (members of the same organisation) — for company knowledge (German: `sicht`) |
 | `outcome` | string (good, bad) |  | optional: does the insight describe a working or a broken state? Sleep compares new experiences with it. (German: `ausgang`) |
 | `key` | string |  | optional: identity of a recurring finding (e.g. a detection signature). The same key from the same instance updates that object instead of adding a new one: the new text becomes current, the previous one goes into its history, repeats +1. |
+| `index` | string |  | optional: the index the knowledge belongs to — a project or special VI (e.g. cue-print, ansible); default: the project of your working directory, else global |
+| `project` | string |  | set by the hook: the name of your working directory (mapped to an index by the server) (German: `projekt`) |
 | `image` | string |  | optional: an image as base64 — stored as a memory of its own kind (art:bild); e.g. a screenshot (png, jpeg, gif or webp, at most 5 MiB; a data: URL is fine). text = what it shows in one sentence, content = the complete description. For a file use the command line instead of pasting base64: vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F] |
 | `regions` | array of object |  | optional, with image: what is where, in the output format of SAM 3 (Segment Anything with Concepts) — one entry per instance found |
+
+### `vi_context`
+
+VI, for hooks: note that the next vi_learn/vi_recall of this instance comes from the project of this session (its working directory). Called by the Claude Code hook right before those tools; an agent does not need it.
 
 ### `vi_stats`
 
@@ -339,6 +345,8 @@ VI: search memory. When: before starting any task, before changing actions on sy
 | `limit` | integer |  | how many hits at most (default 10) |
 | `semantic` | boolean |  | true: hybrid search — meaning (embedding) plus full text (German: `semantisch`) |
 | `reinforce` | boolean |  | default true; false = read only (access count and last use stay unchanged) |
+| `index` | string |  | optional: search only this index (a project or special VI); without it, hits from your project's index come first and everything else stays visible |
+| `project` | string |  | set by the hook: the name of your working directory (its index comes first) (German: `projekt`) |
 
 ### `vi_object`
 
@@ -940,6 +948,7 @@ First line of each module's docstring.
 | `image_cli` | 0.35.0: `vi-mcp image` — put an image file with its description into memory, or fetch one back. |
 | `images` | 0.35.0: images in memory — an image with its description and its regions in the format of SAM 3 (Meta, Segment Anything with Concepts). |
 | `index` | 0.38.0: the memory index — what a MEMORY.md is for a single assistant, pushed to every session. |
+| `indexes` | Indexes (0.61.0): every object belongs to exactly one index — `global` or a project / special VI such as `cue-print` or `ansible`. |
 | `intuition` | Intuition — the automatic memory access before and the learning after every action. |
 | `learning` | Learning — the router learns from the hint lift instead of us setting its weights (docs/TRAINING.md 4a/4b). |
 | `log_output` | Server log output — one line per event on stderr (systemd → journal). |
