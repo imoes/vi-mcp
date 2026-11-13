@@ -28,6 +28,11 @@ first draft (class blocks inside the server's parser): consistent with the cling
   through a real server on a random port); the wheel installs offline with `pip --no-deps` and imports without vi-mcp. Tests:
   `tests/test_clingo_object.py` (15).
 - `vi_logic action=objects` returns the objects of filters as JSON (the package's data path).
+- **Training with clingo-object.** `vi-mcp dataset export` writes `logic.jsonl`: for every saved rule set that is not private, the task of
+  its description → the assistant writes the program (`vi_logic` check with the source) → the solver's real answer → the answer citing the
+  rule set; and every conclusion someone checked against reality (`rate`, now kept one by one in `logik_bewertung`): right ones as
+  examples, wrong ones as KTO negatives in `kto.jsonl`. `finetune` kit: `train.py --stage logic`. Programs run as a viewer that sees
+  shared and internal objects, never private ones. Test: `tests/test_logic_propose.py` (1 new).
 
 ### What has changed
 
@@ -37,8 +42,8 @@ first draft (class blocks inside the server's parser): consistent with the cling
 
 ### What is missing
 
-- Training with clingo-object: fine-tuning data (`logic.jsonl`) and learning rules from rated conclusions (ILASP/FastLAS or clingo
-  itself) are planned, not built. Rule weights learn already (`rate`).
+- Learning rules from rated conclusions (ILASP/FastLAS or clingo itself) is a concept, not built; rule weights learn already (`rate`),
+  and `logic.jsonl` is small until rule sets are saved and conclusions rated.
 - An agent loop that writes clingo-object programs and corrects them from the solver's answer; measured against `vi_recall` chains.
 - The relational task set on a production copy (clingo-object against hand-checked SQL) is not measured yet.
 - Local solving uses the stated priors of soft rules; the measured weights stay on the server (`check_on_server`).

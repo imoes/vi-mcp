@@ -128,7 +128,67 @@ def build(index: str | None = None, agentic: bool = True) -> dict:
                         "meta": {"trigger": t, "chosen": best[0].id, "rejected": worst[0].id, "weights": [best[1], worst[1]]}})
     agentic, agentic_skipped = agentic_examples(qa_objects, eval_qs, audit) if agentic else ([], Counter())
     skipped.update(agentic_skipped)
-    return {"qa": qa, "kto": kto, "dpo": dpo, "agentic": agentic, "skipped": dict(skipped), "scrubbed": dict(audit), "held_out": len(targets)}
+    logic_sft, logic_kto, logic_skipped = logic_examples(index, audit) if agentic else ([], [], Counter())
+    skipped.update(logic_skipped)
+    return {"qa": qa, "kto": kto + logic_kto, "dpo": dpo, "agentic": agentic, "logic": logic_sft, "skipped": dict(skipped),
+            "scrubbed": dict(audit), "held_out": len(targets)}
+
+
+#: 0.63.0: the logic programs are run as a viewer that is no instance — it sees shared and internal objects, never anyone's private ones
+LOGIC_VIEWER = "dataset-export"
+
+
+def logic_examples(index: str | None, audit: Counter) -> tuple[list[dict], list[dict], Counter]:
+    """0.63.0 clingo-objekt — the user: "clingo ist die Sprache für LLMs" and "trainieren unsere VI mit clingo-objekt inkl. den
+    DB-SQL-Objekten". From every saved rule set that is not private: (1) the task in its description → the assistant writes the program
+    (vi_logic check with the source) → the solver's real answer → the answer citing the rule set; (2) every conclusion someone checked
+    against reality (logic.rate, table logik_bewertung): right ones as SFT (ask → value), wrong ones as KTO negatives. A rule set that
+    does not solve is counted, never an example."""
+    from . import logic
+    skipped: Counter = Counter()
+    if not logic.available():
+        skipped["logic: clingo not installed — no logic examples"] += 1
+        return [], [], skipped
+    tool = _tool_schema("vi_logic")
+    sft, kto = [], []
+    for _s, o, _p in g.recall("art:regel thema:logik", limit=5000, viewer=None):
+        if o.visibility == "privat" or o.mode not in ("aktiv", "test") or "logik" not in o.data or (index and o.idx != index):
+            continue
+        src = str(o.data["logik"].get("quelle") or "")
+        name = o.data["logik"].get("name") or o.id
+        task = o.text.split(": ", 1)[1] if ": " in o.text else o.text
+        try:
+            r = logic.check(src, viewer=LOGIC_VIEWER)
+        except Exception as e:  # noqa: BLE001 — a rule set that no longer solves is counted, not an example
+            skipped[f"logic: rule set does not solve ({type(e).__name__})"] += 1
+            continue
+        if r["zustand"] in ("zeitlimit", "widerspruch"):
+            skipped[f"logic: rule set in state {r['zustand']}"] += 1
+            continue
+        lines = "\n".join(logic.lines(r))
+        answer = (f"{'Violated' if r['zustand'] == 'verletzt' else 'Satisfied'}: "
+                  + ("; ".join(f"never #{v['nr']} {v['never']}" for v in r["verletzt"]) or "no constraint violated")
+                  + (f". It follows: {', '.join(r['folgerungen'][:20])}" if r["folgerungen"] else "") + f".\n\n(rule set {name}, from {o.id})")
+        sft.append({"messages": [{"role": "user", "content": _clean(f"Check with the memory's rules: {task}", audit, "question")},
+                                 {"role": "assistant", "content": "", "tool_calls": [{"type": "function", "function": {
+                                     "name": "vi_logic", "arguments": {"action": "check", "source": _clean(src, audit, "program")}}}]},
+                                 {"role": "tool", "name": "vi_logic", "content": _clean(lines, audit, "tool")},
+                                 {"role": "assistant", "content": _clean(answer, audit, "answer")}],
+                    "tools": [tool], "meta": {"id": o.id, "rule_set": name, "kind": "check"}})
+        for concl, right in logic.rated_conclusions(logic.program_hash(src)):
+            q = f"Under the rule set {name}: does {concl} hold?"
+            if right:
+                value = logic.ask(src, [concl], viewer=LOGIC_VIEWER).get(concl, "unknown")
+                sft.append({"messages": [{"role": "user", "content": _clean(q, audit, "question")},
+                                         {"role": "assistant", "content": "", "tool_calls": [{"type": "function", "function": {
+                                             "name": "vi_logic", "arguments": {"action": "ask", "rule_set": name, "queries": [concl]}}}]},
+                                         {"role": "tool", "name": "vi_logic", "content": f"{concl}: {value}\nevidence: inferred"},
+                                         {"role": "assistant", "content": f"{concl}: {value} — checked against reality: right. (rule set {name})"}],
+                            "tools": [tool], "meta": {"id": o.id, "rule_set": name, "kind": "rated", "right": True}})
+            else:
+                kto.append({"prompt": _clean(q, audit, "question"), "completion": f"{concl} holds (derived by the rule set {name})",
+                            "label": False, "meta": {"id": o.id, "rule_set": name, "source": "logic.rate"}})
+    return sft, kto, skipped
 
 
 AGENTIC_MAX = 2000
@@ -142,10 +202,10 @@ def _query_words(question: str, n: int = 3) -> list[str]:
     return [w for w in dict.fromkeys(words) if w not in _STOP][:n]
 
 
-def _tool_schema() -> dict:
+def _tool_schema(name: str = "vi_recall") -> dict:
     from . import tools
-    d = next(t for t in tools.TOOLS if t["name"] == "vi_recall")
-    return {"type": "function", "function": {"name": "vi_recall", "description": d["description"][:600], "parameters": d["inputSchema"]}}
+    d = next(t for t in tools.TOOLS if t["name"] == name)
+    return {"type": "function", "function": {"name": name, "description": d["description"][:600], "parameters": d["inputSchema"]}}
 
 
 def _search_lines(query: str) -> tuple[list[g.MemoryObject], str]:
@@ -233,6 +293,7 @@ A VI out of the incubator fine-tunes an AI: question → answer from its knowled
 | kto.jsonl | {c['kto']} | situation → hint, desirable if its measured success ≥ {GOOD} (≤ {BAD}: undesirable), ≥ {MIN_RATINGS} ratings |
 | dpo.jsonl | {c['dpo']} | the same trigger, one hint helped ≥ {DPO_MARGIN} more than the other |
 | agentic.jsonl | {c['agentic']} | tool use: the model asks the VI with vi_recall in VIL (relaxing once if needed) and answers from the target |
+| logic.jsonl | {c.get('logic', 0)} | clingo-object: the model writes the program for a saved rule set's task (vi_logic) and answers from the solver; rated conclusions (right; wrong ones are in kto.jsonl) |
 
 ## Left out, with the reason
 """ + ("\n".join(f"- {k}: {v}" for k, v in sk.items()) or "- nothing") + f"""
@@ -268,9 +329,9 @@ def export(directory: str | Path, index: str | None = None) -> dict:
     d.mkdir(parents=True, exist_ok=True)
     os.chmod(d, 0o700)
     data = build(idx)
-    manifest = {"index": idx, "counts": {k: len(data[k]) for k in ("qa", "kto", "dpo", "agentic")}, "skipped": data["skipped"],
+    manifest = {"index": idx, "counts": {k: len(data[k]) for k in ("qa", "kto", "dpo", "agentic", "logic")}, "skipped": data["skipped"],
                 "scrubbed": data["scrubbed"], "held_out": data["held_out"], "versions": _versions()}
-    for name in ("qa", "kto", "dpo", "agentic"):
+    for name in ("qa", "kto", "dpo", "agentic", "logic"):
         _write(d / f"{name}.jsonl", "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in data[name]))
     _write(d / "manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
     _write(d / "DATASHEET.md", datasheet(manifest))

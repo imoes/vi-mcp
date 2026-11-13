@@ -38,6 +38,8 @@ stays in the house; only the base model is downloaded once.
 - **KTO** — `kto.jsonl`: an answer was good or not (binary). Exactly the VI's helped/not-helped signal (Ethayarajh et al., arXiv 2402.01306).
 - **DPO** — `dpo.jsonl`: in the same situation this answer was better than that one (Rafailov et al., arXiv 2305.18290).
 - **agentic** — `agentic.jsonl`: the model asks the VI with `vi_recall` in VIL and answers from what it found (tool-use SFT).
+- **logic** — `logic.jsonl`: the model writes clingo-object programs for the tasks of saved rule sets and answers from the solver
+  (tool-use SFT with `vi_logic`, 0.63.0 — "clingo ist die Sprache für LLMs"); wrongly rated conclusions are KTO negatives.
 
 ## The program
 - **TRL** (Hugging Face) reads all formats unchanged: SFT `messages`, KTO `prompt/completion/label`, DPO `prompt/chosen/rejected`
@@ -64,7 +66,8 @@ Keep the adapter separate: `python convert_lora_to_gguf.py ADAPTER_DIR --base HF
 ## The steps
 1. The VI is mature enough: `vi-mcp incubator status` (a run before is a trial).
 2. `vi-mcp finetune kit DIR` — data, test split, scripts.
-3. Train SFT (`train.py --stage sft`), then on top of it `--stage agentic` (searching the VI with vi_recall in VIL), and
+3. Train SFT (`train.py --stage sft`), then on top of it `--stage agentic` (searching the VI with vi_recall in VIL), `--stage logic`
+   (writing clingo-object programs), and
    optionally KTO or DPO (`--stage kto|dpo`).
 4. `convert.sh` → GGUF adapter; start llama-server with base and adapter.
 5. `evaluate.py` — base and fine-tuned get the same held-out questions; adopt only what is measurably better.
@@ -114,11 +117,11 @@ def plan_lines(p: dict) -> list[str]:
 
 
 TRAIN_PY = r'''"""Fine-tune with TRL + LoRA — written by vi-mcp finetune kit; run it on the GPU host. Stages: sft (qa.jsonl), then on top of it
-agentic (agentic.jsonl: searching the VI with vi_recall), kto or dpo."""
+agentic (agentic.jsonl: searching the VI with vi_recall), logic (logic.jsonl: clingo-object programs), kto or dpo."""
 import argparse, json, pathlib
 
 a = argparse.ArgumentParser()
-a.add_argument("--stage", choices=["sft", "agentic", "kto", "dpo"], default="sft")
+a.add_argument("--stage", choices=["sft", "agentic", "logic", "kto", "dpo"], default="sft")
 a.add_argument("--base", default=json.load(open("run.json"))["base_model"])
 a.add_argument("--qlora", action="store_true", help="load the base in 4 bit (small GPUs)")
 a.add_argument("--epochs", type=float, default=2)
@@ -141,9 +144,9 @@ if o.stage == "sft":
                    args=SFTConfig(output_dir=str(out), num_train_epochs=o.epochs, learning_rate=o.lr or 2e-4, logging_steps=10))
 else:
     model = AutoPeftModelForCausalLM.from_pretrained("out/sft", is_trainable=True, quantization_config=quant, torch_dtype="auto")
-    if o.stage == "agentic":  # tool use: asking the VI with vi_recall in VIL (the chat template renders "tools" and "tool_calls")
+    if o.stage in ("agentic", "logic"):  # tool use: vi_recall in VIL, or vi_logic with clingo-object (rendered by the chat template)
         from trl import SFTConfig, SFTTrainer
-        ds = load_dataset("json", data_files="dataset/agentic.jsonl")["train"].remove_columns(["meta"])
+        ds = load_dataset("json", data_files=f"dataset/{o.stage}.jsonl")["train"].remove_columns(["meta"])
         t = SFTTrainer(model=model, processing_class=tok, train_dataset=ds,
                        args=SFTConfig(output_dir=str(out), num_train_epochs=o.epochs, learning_rate=o.lr or 1e-4, logging_steps=10))
     elif o.stage == "kto":
@@ -263,7 +266,7 @@ def record(directory: str, who: str = "admin") -> g.MemoryObject:
         raise ValueError(f"{d}: no run.json — not a kit written by vi-mcp finetune kit")
     run = json.loads((d / "run.json").read_text(encoding="utf-8"))
     adapters = {}
-    for stage in ("sft", "agentic", "kto", "dpo"):
+    for stage in ("sft", "agentic", "logic", "kto", "dpo"):
         f = d / "out" / stage / "adapter_model.safetensors"
         if f.exists():
             adapters[stage] = hashlib.sha256(f.read_bytes()).hexdigest()

@@ -174,6 +174,9 @@ def _tables() -> bool:
         with g.lock:
             g.db().execute("CREATE TABLE IF NOT EXISTS logik_gewicht (hash TEXT PRIMARY KEY, regel TEXT NOT NULL, ja REAL NOT NULL, "
                            "nein REAL NOT NULL, zeit TEXT NOT NULL)")
+            # 0.63.0: every rated conclusion itself (the weights above are only counters) — training data for clingo-object (dataset.py)
+            g.db().execute("CREATE TABLE IF NOT EXISTS logik_bewertung (zeit TEXT NOT NULL, programm_hash TEXT NOT NULL, schluss TEXT NOT NULL, "
+                           "richtig INTEGER NOT NULL, instanz TEXT)")
             g.db().commit()
         return True
     except Exception:  # no memory open (pure use of the module): every rule is unmeasured
@@ -359,7 +362,7 @@ def store_proposals(source: str, instance: str, rule_set: str | None = None) -> 
         raise LogicError(f"no proposals from a program in state {r['zustand']}: {r['grund']}")
     _program, stmts = translate(source)
     by_nr = {s["nr"]: s["text"] for s in stmts if "nr" in s}
-    prog_hash = hashlib.sha256((source or "").encode()).hexdigest()[:16]
+    prog_hash = program_hash(source)
     out = {"gespeichert": [], "wiederholt": [], "abgelehnt": [], "erledigt": []}
     for p in r.get("vorschlaege", []):
         why = _proposal_target_ok(p, instance)
@@ -432,6 +435,21 @@ def ask_probabilities(source: str, queries: list[str], viewer: str | None = None
     return probabilities_result(_run(source, viewer), qs)
 
 
+def program_hash(source: str) -> str:
+    """The identity of a program text (the same text rated twice is the same program)."""
+    return hashlib.sha256((source or "").strip().encode()).hexdigest()[:24]
+
+
+def rated_conclusions(prog_hash: str) -> list[tuple[str, bool]]:
+    """The conclusions rated for one program — (atom, right?), newest first."""
+    from . import memory as g
+    if not _tables():
+        return []
+    with g.lock:
+        rows = g.db().execute("SELECT schluss, richtig FROM logik_bewertung WHERE programm_hash = ? ORDER BY zeit DESC", (prog_hash,)).fetchall()
+    return [(r[0], bool(r[1])) for r in rows]
+
+
 def rate(source: str, conclusion: str, correct: bool, viewer: str | None = None) -> dict:
     """A conclusion was checked against reality: credit (or blame) exactly the rules that derive it in some stable model.
     A correct conclusion no rule derives teaches nothing here — it points to a missing rule, which is reported, not invented."""
@@ -459,6 +477,8 @@ def rate(source: str, conclusion: str, correct: bool, viewer: str | None = None)
             y, n_ = (y + 1, n_) if correct else (y, n_ + 1)
             g.db().execute("DELETE FROM logik_gewicht WHERE hash = ?", (s["hash"],))
             g.db().execute("INSERT INTO logik_gewicht (hash, regel, ja, nein, zeit) VALUES (?,?,?,?,?)", (s["hash"], s["asp"], y, n_, now))
+        g.db().execute("INSERT INTO logik_bewertung (zeit, programm_hash, schluss, richtig, instanz) VALUES (?,?,?,?,?)",
+                       (now, program_hash(source), q, int(bool(correct)), viewer))
         g.db().commit()
     return {"gutgeschrieben": [{"nr": nr, "regel": by_nr[nr]["text"], **{k: v for k, v in belief(by_nr[nr]).items() if k in ("p", "gewicht", "eigen")}}
                                for nr in credited], "richtig": bool(correct)}

@@ -86,3 +86,30 @@ def test_proposals_are_never_silent(gd):
     _world()
     assert "proposes nothing" in tools.call_tool("vi_logic", {"action": "propose", "source": 'p(O) <= (O in objects("plan:*"))'}, "a", False)
     assert p2p is not None
+
+
+def test_rule_sets_and_rated_conclusions_become_training_data(gd, tmp_path):
+    """C2 (0.63.0): "trainieren unsere VI mit clingo-objekt inkl. den DB-SQL-Objekten" — a saved rule set gives a tool-use example
+    (task → program → solver answer), a conclusion rated right an ask example, one rated wrong a KTO negative; a private set never."""
+    import json
+    from vi_mcp import dataset
+    _world()
+    src = 'in_dmz(H) <= (O in objects("zone:dmz")) & (O.host == H)\nnever(in_dmz(H) & (H == "gate1"))'
+    tools.call_tool("vi_logic", {"action": "save", "name": "dmz", "source": src, "description": "is gate1 kept out of the DMZ",
+                                 "visibility": "internal"}, "a", False)
+    tools.call_tool("vi_logic", {"action": "save", "name": "mine", "source": src, "visibility": "private"}, "a", False)
+    tools.call_tool("vi_logic", {"action": "rate", "rule_set": "dmz", "conclusion": 'in_dmz("gate1")', "correct": True}, "a", False)
+    tools.call_tool("vi_logic", {"action": "rate", "rule_set": "dmz", "conclusion": 'in_dmz("gate1")', "correct": False}, "a", False)
+    m = dataset.export(tmp_path / "out")
+    assert m["counts"]["logic"] == 2
+    rows = [json.loads(x) for x in (tmp_path / "out" / "logic.jsonl").read_text().splitlines()]
+    check = next(r for r in rows if r["meta"]["kind"] == "check")
+    call = check["messages"][1]["tool_calls"][0]["function"]
+    assert call["name"] == "vi_logic" and call["arguments"]["source"] == src and check["tools"][0]["function"]["name"] == "vi_logic"
+    assert "violated never #2" in check["messages"][2]["content"] and check["messages"][3]["content"].startswith("Violated")
+    rated = next(r for r in rows if r["meta"]["kind"] == "rated")
+    assert 'in_dmz("gate1"): true' in rated["messages"][3]["content"]
+    kto = [json.loads(x) for x in (tmp_path / "out" / "kto.jsonl").read_text().splitlines()]
+    assert any(k["meta"].get("source") == "logic.rate" and k["label"] is False for k in kto)
+    assert "logic.jsonl | 2 |" in (tmp_path / "out" / "DATASHEET.md").read_text()
+    assert all(r["meta"]["rule_set"] != "mine" for r in rows)
