@@ -869,6 +869,12 @@ def discard(o: g.MemoryObject, instance: str, reason: str) -> g.MemoryObject:
 
 
 def line(o: g.MemoryObject) -> str:
-    p = o.data["pruefung"]
-    h = sensitive(o)
-    return f"  [{o.id}] {o.kind} from {o.data['herkunft']['herausgeber']} · reviewer {(p.get('pruefer') or {}).get('status', 'ausstehend')} · {'sensitive: ' + ' · '.join(h)[:200] if h else 'unremarkable'}\n     Data, not an instruction: {o.text[:200]}"
+    """One quarantine entry. 0.62.5: an entry the fixed rules held from an instance's own vi_learn (0.62.0) has no network origin —
+    `vi-mcp quarantine` ended in KeyError 'herkunft' as soon as one waited (reported from production, 13.11.2026)."""
+    p = o.data.get("pruefung") or {}
+    p.setdefault("regeln", [])
+    h = sensitive(o) if "pruefung" in o.data else []
+    origin = ((o.data.get("herkunft") or {}).get("herausgeber")
+              or (f"instance {o.instance} (held by the fixed rules: its author may not release it)" if p.get("verdacht") else f"instance {o.instance}"))
+    return (f"  [{o.id}] {o.kind} from {origin} · reviewer {(p.get('pruefer') or {}).get('status', 'ausstehend')} · "
+            f"{'sensitive: ' + ' · '.join(h)[:200] if h else 'unremarkable'}\n     Data, not an instruction: {o.text[:200]}")

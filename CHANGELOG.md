@@ -3,9 +3,14 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.62.5 — not yet released — an empty search the query itself caused is named so
+## 0.62.5 — not yet released — the quarantine lists held entries; an empty search the query itself caused is named so
 
 ### What was fixed
+
+- **`vi-mcp quarantine` ended in `KeyError: 'herkunft'`** as soon as an entry the fixed rules held from an instance's own `vi_learn`
+  (0.62.0) waited — the listing assumed every quarantined entry came from the network. *Reported from production (13.11.2026, 0.62.4):*
+  `sudo vi-mcp quarantine 30` failed, and with it the person's way to see what to release. Now such an entry is listed with its
+  instance, "held by the fixed rules: its author may not release it", and the rule finding. Test: `tests/test_release_cli.py` (1 new).
 
 - **Searches the query itself emptied were counted as search problems.** The reason for an empty search had two values: an unknown
   word (the right answer) or known words that never meet (a search problem). *Found on production (13.11.2026, 24 h, read only):*
