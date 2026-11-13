@@ -6,7 +6,9 @@
   python3 -m vi_mcp setup [--help]        register vi-mcp in Claude Code, Codex CLI and Hermes Agent (ANSI menu)
   python3 -m vi_mcp p2p-key PATH          create an Ed25519 seed (0600), prints the public key
   python3 -m vi_mcp net-token NAME        show an instance's network token if it was lost (needs access to the database)
-  python3 -m vi_mcp release ID "REASON"   release a sensitive import; reads the token from /etc/vi-mcp/freigabe-token
+  python3 -m vi_mcp quarantine [N]       what waits in quarantine, with the check results (as administrator / sudo)
+  python3 -m vi_mcp release ID "REASON" [--discard]   release (or discard) a held entry as a person; uses the token in
+                                         /etc/vi-mcp/freigabe-token (made on first use)
   python3 -m vi_mcp delete-instance NAME "REASON"
                                           delete all private data of an instance (conversations → tombstones);
                                           stop a running service first (one writer)
@@ -73,13 +75,51 @@ from . import config, server  # noqa: E402
 
 #: English command → German alias (accepted as well)
 COMMANDS = {"setup": "einrichten", "image": "bild", "local": "lokal", "net": "netz", "instance": "instanz", "net-token": "netz-token", "p2p-key": "p2p-schluessel",
-            "release": "freigeben", "delete-instance": "loesche-instanz", "web": "webseite",
+            "release": "freigeben", "delete-instance": "loesche-instanz", "web": "webseite", "quarantine": "quarantaene",
             "configure": "konfigurieren"}
 _ALIASES = {de: en for en, de in COMMANDS.items()}
 
 
-def _approve(oid: str, reason: str) -> int:
-    return _local_tool("vi_release", {"id": oid, "reason": reason})
+def _approve(oid: str, reason: str, discard: bool = False) -> int:
+    return _local_tool("vi_release", {"id": oid, "reason": reason, **({"action": "verwerfen"} if discard else {})})
+
+
+#: 0.62.1: the local instance whose token `vi-mcp release` / `vi-mcp visibility` use — made on first use, a person at the console
+RELEASE_CLI = "release-cli"
+
+
+def release_token_path() -> str:
+    import os
+    default = (os.path.join(os.environ.get("ProgramData", r"C:\ProgramData"), "vi-mcp", "freigabe-token") if os.name == "nt"
+               else "/etc/vi-mcp/freigabe-token")
+    return os.environ.get("VI_MCP_FREIGABE_TOKEN_FILE", default)
+
+
+def _make_release_token(path: str) -> str | None:
+    """No installer ever wrote the release token file (found on Windows, 13.11.2026: `vi-mcp release` ended in FileNotFoundError).
+    Made here on first use: the instance `release-cli` with the release right, marked as a person (the administrator at the console),
+    its token in the file readable by the administrators only, then the service restarted once — it reads instances only at start.
+    Returns None on success, otherwise what to do."""
+    import os
+    from . import setup
+    try:
+        token = config.create_instance(RELEASE_CLI, release=True, human=True)
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # on Windows the folder's ACL (SYSTEM, Administrators) applies
+        with os.fdopen(fd, "w") as f:
+            f.write(token + "\n")
+    except PermissionError as e:
+        return (f"no permission to create the release token ({e.filename or e}) — run this command as administrator (Windows) or with sudo "
+                "(Linux)")
+    print(f"created the local release instance {RELEASE_CLI!r} and its token file {path} (readable by administrators only); "
+          "restarting the service once so it knows the instance")
+    why = setup._restart()
+    if why:
+        return f"the service could not be restarted ({why}) — restart it and run the command again"
+    k = config.load()
+    if not setup._wait(f"http://127.0.0.1:{k.port}/mcp", 60):
+        return "the service did not answer within 60 s after the restart — run the command again when it is up"
+    return None
 
 
 def _local_tool(tool: str, arguments: dict) -> int:
@@ -88,9 +128,17 @@ def _local_tool(tool: str, arguments: dict) -> int:
     import os
     import urllib.request
     k = config.load()
-    default = (os.path.join(os.environ.get("ProgramData", r"C:\ProgramData"), "vi-mcp", "freigabe-token") if os.name == "nt"
-               else "/etc/vi-mcp/freigabe-token")
-    token = open(os.environ.get("VI_MCP_FREIGABE_TOKEN_FILE", default)).read().strip()
+    path = release_token_path()
+    if not os.path.exists(path):
+        why = _make_release_token(path)
+        if why:
+            print(why, file=sys.stderr)
+            return 2
+    try:
+        token = open(path).read().strip()
+    except PermissionError:
+        print(f"no permission to read {path} — run this command as administrator (Windows) or with sudo (Linux)", file=sys.stderr)
+        return 2
     op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     url = f"http://127.0.0.1:{k.port}/mcp"
 
@@ -178,8 +226,11 @@ def _cli(argv: list[str]) -> int:
         return 0 if t else 1
     if command == "visibility" and len(argv) in (4, 5) and argv[2] in ("shared", "internal") and argv[4:] in ([], ["--apply"]):
         return _local_tool("vi_set_visibility", {"filter": argv[1], "visibility": argv[2], "reason": argv[3], "apply": "--apply" in argv})
-    if command == "release" and len(argv) == 3:
-        return _approve(argv[1], argv[2])
+    if command == "release" and len(argv) in (3, 4) and argv[3:] in ([], ["--discard"]):
+        return _approve(argv[1], argv[2], discard=argv[3:] == ["--discard"])
+    if command == "quarantine" and len(argv) in (1, 2) and (len(argv) == 1 or argv[1].isdigit()):
+        # 0.62.1: a person sees what waits — with a single AI no other instance can release what the fixed rules held from it
+        return _local_tool("vi_quarantine", {"limit": int(argv[1]) if len(argv) == 2 else 50})
     if command == "delete-instance" and len(argv) >= 3:
         from . import memory as g, session
         k = config.load()

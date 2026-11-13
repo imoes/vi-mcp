@@ -601,7 +601,9 @@ python3 -m vi_mcp net …                 network: setup, invite, exclude, invit
 python3 -m vi_mcp setup [--help]        register vi-mcp in Claude Code, Codex CLI and Hermes Agent (ANSI menu)
 python3 -m vi_mcp p2p-key PATH          create an Ed25519 seed (0600), prints the public key
 python3 -m vi_mcp net-token NAME        show an instance's network token if it was lost (needs access to the database)
-python3 -m vi_mcp release ID "REASON"   release a sensitive import; reads the token from /etc/vi-mcp/freigabe-token
+python3 -m vi_mcp quarantine [N]       what waits in quarantine, with the check results (as administrator / sudo)
+python3 -m vi_mcp release ID "REASON" [--discard]   release (or discard) a held entry as a person; uses the token in
+                                       /etc/vi-mcp/freigabe-token (made on first use)
 python3 -m vi_mcp delete-instance NAME "REASON"
                                         delete all private data of an instance (conversations → tombstones);
                                         stop a running service first (one writer)

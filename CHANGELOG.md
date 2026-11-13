@@ -3,6 +3,27 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.62.1 — not yet released — review and release work with a single AI
+
+### What was fixed
+
+- **With a single AI nothing held could be released** (the user, 13.11.2026: "um etwas aus der Quarantäne freizugeben, braucht man ein
+  zweites Modell, aber die meisten haben nur ein Modell — also muss die Prüfung und Freigabe trotzdem funktionieren"). An entry the
+  fixed rules hold may not be released by the instance that wrote it (0.62.0, against memory poisoning) — another instance with the
+  release right or a person decides. With one AI there is no other instance, and the person's way, `vi-mcp release`, was broken (below).
+  Now the person has the whole way on the server: `vi-mcp quarantine [N]` lists what waits with the check results,
+  `vi-mcp release ID "REASON"` releases, `--discard` discards; the refusal the AI gets names these commands, so it can tell the user.
+  The rule itself stays: the model that wrote a suspicious entry never vouches for it. Imports waiting for the reviewer (no language
+  model on the server) go the same way. Tests: `tests/test_release_cli.py` (4).
+
+- **`vi-mcp release` and `vi-mcp visibility` ended in a traceback when the release token file was missing** — and no installer ever
+  wrote it. *Found on Windows (13.11.2026):* `vi-mcp.cmd release erkenntnis:… "…"` → `FileNotFoundError: … C:\ProgramData\vi-mcp\
+  freigabe-token`; on Linux `/etc/vi-mcp/freigabe-token` was missing the same way. Now the first call makes it: the local instance
+  `release-cli` with the release right, marked as a person (the administrator at the console), its token in that file (0600 on Linux;
+  on Windows the folder allows SYSTEM and Administrators only), then the service is restarted once — it reads instances only at start —
+  and the release goes through. Without the right to write the configuration the command says to run it as administrator or with sudo.
+  Tests: `tests/test_release_cli.py` (2).
+
 ## 0.62.0 — 2026-11-13 — Index files, an internal knowledge search, an AI language, the incubator and training data
 
 The user (12./13.11.2026): "Der Export oder Import von Projekten kann uns beim Scoring der Inhalte helfen. So können wir vergleichen.",

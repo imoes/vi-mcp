@@ -401,8 +401,13 @@ sudo -u vi-mcp vi-mcp merge-repeats <instance> '— Filter:\s*(.+)$' --apply
 sudo systemctl start vi-mcp
 ```
 
+**Review and release as a person** (0.62.1). What the fixed rules hold from an instance's own `vi_learn`, and imports waiting for the
+reviewer, wait in quarantine. The instance that wrote a held entry may not release it; with a single AI the person at the server
+decides: `sudo vi-mcp quarantine` (Windows: an administrator shell, `vi-mcp.cmd quarantine`) lists them with the check results,
+`sudo vi-mcp release ID "REASON"` releases one (mode test), `… --discard` discards it.
+
 **Switch visibility afterwards** (0.30.0): `sudo vi-mcp visibility "art_wissen:handbuch" internal "company host names"` counts what would
-change; add `--apply` to switch. It calls the running service with the release token (`/etc/vi-mcp/freigabe-token`), only `shared` ↔
+change; add `--apply` to switch. It calls the running service with the release token (`/etc/vi-mcp/freigabe-token`, on Windows `%ProgramData%\vi-mcp\freigabe-token`; since 0.62.1 the first `release` or `visibility` call makes it — the instance `release-cli` with the release right — and restarts the service once), only `shared` ↔
 `internal`, private objects never; each change is in the object's history. Copies already on the network: `vi_net_forget`.
 
 ## Own embedding service (vectors)

@@ -825,7 +825,9 @@ def approve(o: g.MemoryObject, instance: str, reflex_permission: bool, release_p
     if not (reason or "").strip():
         raise ValueError("reason is required")
     if (o.data.get("pruefung") or {}).get("verdacht") and o.instance == instance:  # 0.62.0: no instance releases its own held entry
-        raise ValueError("the author cannot release its own entry held by the fixed rules — another instance or a person decides")
+        raise ValueError("the author cannot release its own entry held by the fixed rules — another instance with the release right or a "
+                         "person decides. With a single AI that is the person: on the server `vi-mcp quarantine` shows it, "
+                         f"`vi-mcp release {o.id} \"<reason>\"` releases it (as administrator or with sudo)")
     if "pruefer:ausstehend" in o.hashtags and not release_permission:
         raise ValueError("the review is still pending")
     h = sensitive(o)
