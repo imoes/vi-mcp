@@ -12,8 +12,9 @@ version=$(python3 -c "import vi_mcp; print(vi_mcp.__version__)")
 out="dist/vi-mcp-${version}-x64.msi"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-mkdir -p dist "$work/src/vi_mcp" "$work/src/hook"
+mkdir -p dist "$work/src/vi_mcp" "$work/src/clingo_object" "$work/src/hook"
 cp vi_mcp/*.py "$work/src/vi_mcp/"
+cp clingo_object/*.py "$work/src/clingo_object/"
 cp hook/vi_hook.py "$work/src/hook/"
 cp deploy/windows/install.ps1 deploy/windows/uninstall.ps1 deploy/windows/vi-mcp.cmd deploy/windows/vi-mcp-server.cmd deploy/windows/vi-p2p.cmd LICENSE "$work/src/"
 python3 - "$version" "$work" <<'PY'
@@ -29,12 +30,12 @@ def comp(rel: str, i: int) -> str:
             f'<File Id="F{i}" Source="src/{rel}" KeyPath="yes"/></Component>')
 
 
-top, mods, hooks, refs, i = [], [], [], [], 0
+top, mods, hooks, core, refs, i = [], [], [], [], [], 0
 for p in sorted(src.rglob("*")):
     if p.is_file():
         rel = p.relative_to(src).as_posix()
         i += 1
-        (mods if rel.startswith("vi_mcp/") else hooks if rel.startswith("hook/") else top).append(comp(rel, i))
+        (mods if rel.startswith("vi_mcp/") else core if rel.startswith("clingo_object/") else hooks if rel.startswith("hook/") else top).append(comp(rel, i))
         refs.append(f'<ComponentRef Id="C{i}"/>')
 ps = "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File"
 wxs = f'''<?xml version="1.0" encoding="utf-8"?>
@@ -50,6 +51,7 @@ wxs = f'''<?xml version="1.0" encoding="utf-8"?>
         <Directory Id="INSTALLDIR" Name="vi-mcp">
           {"".join(top)}
           <Directory Id="D_VI" Name="vi_mcp">{"".join(mods)}</Directory>
+          <Directory Id="D_CO" Name="clingo_object">{"".join(core)}</Directory>
           <Directory Id="D_HOOK" Name="hook">{"".join(hooks)}</Directory>
         </Directory>
       </Directory>

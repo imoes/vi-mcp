@@ -14,8 +14,9 @@ if ! command -v rpmbuild >/dev/null; then
 fi
 bau=$(mktemp -d); trap 'rm -rf "$bau"' EXIT
 b="$bau/baum"
-install -d "$b/usr/lib/vi-mcp/vi_mcp" "$b/usr/bin" "$b/usr/libexec" "$b/usr/lib/systemd/system" "$b/usr/share/doc/vi-mcp/docs" "$b/usr/share/vi-mcp/hook"
+install -d "$b/usr/lib/vi-mcp/vi_mcp" "$b/usr/lib/vi-mcp/clingo_object" "$b/usr/bin" "$b/usr/libexec" "$b/usr/lib/systemd/system" "$b/usr/share/doc/vi-mcp/docs" "$b/usr/share/vi-mcp/hook"
 install -m 0644 vi_mcp/*.py "$b/usr/lib/vi-mcp/vi_mcp/"
+install -m 0644 clingo_object/*.py "$b/usr/lib/vi-mcp/clingo_object/"  # 0.63.0: the language core vi_mcp.logic uses
 install -m 0755 deploy/rpm/vi-mcp.sh "$b/usr/bin/vi-mcp"
 install -m 0755 deploy/rpm/vi-mcp-start "$b/usr/libexec/vi-mcp-start"
 sed 's#^ExecStart=.*#ExecStart=/usr/libexec/vi-mcp-start#' deploy/debian/vi-mcp.service > "$b/usr/lib/systemd/system/vi-mcp.service"

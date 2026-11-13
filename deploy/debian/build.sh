@@ -7,9 +7,10 @@ rev="${DEB_REV:-1}"
 paket="vi-mcp_${version}-${rev}_all"
 bau=$(mktemp -d); trap 'rm -rf "$bau"' EXIT
 r="$bau/$paket"
-install -d "$r/DEBIAN" "$r/usr/lib/python3/dist-packages/vi_mcp" "$r/usr/bin" "$r/lib/systemd/system" \
+install -d "$r/DEBIAN" "$r/usr/lib/python3/dist-packages/vi_mcp" "$r/usr/lib/python3/dist-packages/clingo_object" "$r/usr/bin" "$r/lib/systemd/system" \
            "$r/usr/share/doc/vi-mcp/docs" "$r/usr/share/vi-mcp/hook"
 install -m 0644 vi_mcp/*.py "$r/usr/lib/python3/dist-packages/vi_mcp/"
+install -m 0644 clingo_object/*.py "$r/usr/lib/python3/dist-packages/clingo_object/"  # 0.63.0: the language core vi_mcp.logic uses
 install -m 0755 deploy/debian/vi-mcp.sh "$r/usr/bin/vi-mcp"
 install -m 0644 deploy/debian/vi-mcp.service "$r/lib/systemd/system/vi-mcp.service"
 install -m 0644 deploy/vi-p2p.service "$r/lib/systemd/system/vi-p2p.service"
