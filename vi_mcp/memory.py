@@ -496,7 +496,7 @@ def _index_of(explicit: str | None) -> str:
 def new_object(kind: str, text: str, hashtags: list[str], data: dict | None = None, importance: int = 1,
                  who: str = "vi", reason: str = "", oid: str | None = None, mode: str = "aktiv",
                  conversation: str | None = None, instance: str | None = None, visibility: str | None = None,
-                 index: str | None = None) -> MemoryObject:
+                 index: str | None = None, link: bool = True) -> MemoryObject:
     if kind not in KINDS:
         raise ValueError(f"art must be one of {', '.join(KINDS)}")
     if visibility is not None and visibility not in VISIBILITIES:
@@ -517,7 +517,7 @@ def new_object(kind: str, text: str, hashtags: list[str], data: dict | None = No
                idx=_index_of(index),
                changes=[{"zeit": ts, "wer": who, "was": "created", "grund": (reason or "created")[:300]}])
     save(o)
-    if mode != "quarantaene":  # unreviewed content gets no link to own knowledge
+    if mode != "quarantaene" and link:  # unreviewed content gets no link to own knowledge; code pieces (0.61.0) none either
         link_similar(o)
     return o
 

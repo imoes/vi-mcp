@@ -17,6 +17,8 @@
                                           own embedding service and reranker (llama.cpp + bge-m3 + bge-reranker-v2-m3); the GPU is
                                           detected (CUDA, Vulkan, CPU). auto = what the packages run: never replaces an external service
   python3 -m vi_mcp index list|move ID INDEX|rename OLD NEW|backfill [--apply]|train INDEX   (--reason for move/rename)
+  python3 -m vi_mcp index import-code REPO --index X [--url URL --token-file F] [--dry-run]
+                                          the code of a git repository into an index (only changed files; removed ones archived)
                                           indexes (0.61.0): projects and special VIs — every object belongs to one; a project's
                                           index comes first in search and hints; an index with enough data trains its own model
   python3 -m vi_mcp family INSTANCE [FAMILY|-]

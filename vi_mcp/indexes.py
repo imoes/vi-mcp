@@ -180,6 +180,9 @@ def backfill(apply: bool = False) -> dict:
 def main(argv: list[str]) -> int:
     import argparse
     import json
+    if argv[:1] == ["import-code"]:  # runs where the repository is and talks MCP to the server — no local database
+        from . import code_import
+        return code_import.main(argv[1:])
     a = argparse.ArgumentParser(prog="vi-mcp index", description="indexes of the memory: projects and special VIs")
     u = a.add_subparsers(dest="cmd", required=True)
     u.add_parser("list", help="every index with its objects, experiences, knowledge and own model")
@@ -193,6 +196,7 @@ def main(argv: list[str]) -> int:
     rn.add_argument("--reason", required=True)
     bf = u.add_parser("backfill", help="existing experiences and knowledge into their conversation's project index (counts without --apply)")
     bf.add_argument("--apply", action="store_true")
+    u.add_parser("import-code", help="put the code of a git repository into an index (vi-mcp index import-code REPO --index X)", add_help=False)
     tr = u.add_parser("train", help="train the own model of one index now (otherwise sleep step 8d does it)")
     tr.add_argument("index")
     o = a.parse_args(argv)

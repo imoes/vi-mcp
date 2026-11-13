@@ -282,6 +282,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     # Measured 09.11.: a disputed sleep hypothesis was the most shown hint with 719 reinforcements and pushed out evidenced knowledge.
     only_on_request = [o for o in cand if o.mode == "strittig" or ("herkunft:schlaf-llm" in o.hashtags and not o.foreign_confirmations())]
     cand = [o for o in cand if o not in only_on_request]
+    cand = [o for o in cand if "art_wissen:code" not in o.hashtags]  # 0.61.0: imported code is found by search and the file line, no hint
     from . import p2p  # sources that proved harmful are no longer shown
     cand = p2p.without_blocked(cand)
     router = "heuristik"
@@ -409,6 +410,12 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
         from_memory.append((f"… {more} more hits in memory{addendum}" + (f" · {again}" if again else "") if more else f"… {again}")
                            + f" — vi_drilldown(\"{' '.join(search_triggers)}\") shows them")
     hints += from_memory
+    code_file = None
+    if project_idx and isinstance(args, dict) and (args.get("file_path") or args.get("notebook_path")):  # 0.61.0: what the code index holds
+        from . import code_import
+        line, code_file = code_import.file_line(project_idx, str(args.get("file_path") or args.get("notebook_path")))
+        if line:
+            hints.append(line)
     from . import archive
     hints += archive.hint(search_triggers)
     answer, age_s, ttl = None, None, None
@@ -425,6 +432,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
                "angebot": offer, **({"arm": layer_arm} if layer_arm else {}),
                **({"haltewahrscheinlichkeit": HOLD_BACK, "zurueckgehalten": held} if eligible else {}),
                **({"idx": project_idx, "idx_vorrang": sum(1 for o in shown_obj if o.idx == project_idx)} if project_idx else {}),
+               **({"code_datei": code_file} if code_file else {}),
                "repeat_suppressed": [o.id for o in repeated]}
     before_id = secrets.token_hex(8)
     if answer is not None:
@@ -779,6 +787,7 @@ def prompt_hints(text: str, instance: str | None, shown: list[str] | None = None
     out = []
     pidx = g.current_index.get()  # 0.61.0: with equal shared words, the project's index first, then the full-text rank
     pidx = pidx if pidx and pidx != "global" else None
+    scored = [x for x in scored if "art_wissen:code" not in x[2].hashtags]  # 0.61.0: code is searched, not offered as a hint
     for s, _rank, o in sorted(scored, key=lambda x: (x[0], not (pidx and x[2].idx == pidx), x[1])):
         if -s < best and -s <= 2:
             continue

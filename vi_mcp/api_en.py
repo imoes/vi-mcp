@@ -37,7 +37,7 @@ PARAM_ALIASES: dict[str, str] = {
 #: English parameter → {English enum value: stored value}. The tool schemas show the English values.
 STORED_VALUES: dict[str, dict[str, str]] = {
     "area": {"values": "werte", "goals": "ziele", "style": "stil", "limits": "grenzen"},
-    "action": {"approve": "freigeben", "discard": "verwerfen"},
+    "action": {"approve": "freigeben", "discard": "verwerfen", "state": "state", "sync": "sync"},
     "visibility": {"shared": "geteilt", "internal": "intern", "private": "privat"},
     "outcome": {"good": "gut", "bad": "schlecht"},
     "kind": {"tool": "werkzeug", "before": "vorher", "after": "nachher"},

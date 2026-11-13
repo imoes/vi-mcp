@@ -45,7 +45,7 @@ LEARN (vi_learn: text = one concrete key statement; content = complete, with com
 7. A reusable fact about a system was looked up or measured (path, port, version, peculiarity, access route without secrets).
 8. Something turns out to be wrong: mark wrong VI knowledge with vi_refute, learn the correction.
 Search before learning: if it is already there, vi_confirm instead of creating it again. After hints: vi_feedback(helped=[ids], wrong=[ids]) — one call, no reason needed; it is how the VI learns which hint to show. vi_confirm / vi_refute when you checked the knowledge itself.
-Code: the code of a solution, a fix, a reusable script or a query belongs in content, complete and runnable. Not a copy of a file that lives in a repository: name repository, path and commit instead.
+Code: the code of a solution, a fix, a reusable script or a query belongs in content, complete and runnable. Not a copy of a file that lives in a repository: name repository, path and commit instead — the code of a repository comes into its project index through the code import (vi-mcp index import-code), and vi_recall finds it there.
 Network wiki: what the whole network should maintain (a runbook, the answer to a recurring question) goes on a page with vi_page_write (network, page, text, base_rev = the revision you edited); vi_page_read shows a page with its open conflicts — resolve one by writing with base_rev = one head and also_parents = the others.
 Images are their own kind (art:bild). Save a screenshot when it shows what text would lose: an error dialog, a UI state, a configuration screen, a graph — take it (e.g. browser_take_screenshot) and store it with vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F.json] (text = what it shows, content = full description, regions in SAM 3 format); vi_object shows it. Never screenshots with passwords or tokens on screen.
 Never learn: passwords, tokens, keys; unproven claims (only explicitly as a hypothesis); transient state (progress, current load); copies of what is maintained in a repository or documentation. Company knowledge with visibility=internal."""
@@ -214,6 +214,17 @@ TOOLS = [
      "description": "VI: the indexes of the memory — projects and special VIs: objects, experiences, knowledge per index and the state of an "
                     "index's own router model (used for its project only if it beats the shared one). vi_recall(index=…) searches one.",
      "inputSchema": _schema({})},
+    {"name": "vi_code_sync",
+     "description": "VI, for `vi-mcp index import-code`: the code of a git repository in an index. action state: which files (blob SHA) the "
+                    "index holds of the repository; action sync: pieces of changed files (upserted by index/repo/path/symbol) and removed "
+                    "files (archived). Visibility internal. An agent does not need it — vi_recall finds the code.",
+     "inputSchema": _schema({"action": {"type": "string", "enum": ["state", "sync"], "description": "state: what the index holds; sync: send pieces"},
+                             "index": {"type": "string", "description": "the project index (not global)"},
+                             "repo": {"type": "string", "description": "repository name"},
+                             "commit": {"type": "string", "description": "the commit the pieces come from"},
+                             "files": {"type": "array", "items": {"type": "object"}, "description": "changed files: {path, sha, lang, chunks: [{symbol, art, von, bis, code, signatur}]}"},
+                             "removed": {"type": "array", "items": {"type": "string"}, "description": "paths removed from the repository (their pieces are archived)"}},
+                            ["action", "index", "repo"])},
     {"name": "vi_context",
      "description": "VI, for hooks: note that the next vi_learn/vi_recall of this instance comes from the project of this session (its working "
                     "directory). Called by the Claude Code hook right before those tools; an agent does not need it.",
@@ -583,6 +594,12 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
     if not semantic or kind_used != "hybrid":
         if g.word_search.get() == "oder":
             f += " · OR search: no or too few objects contain all words, filled up by number of matching words (BM25)"
+    code_asked = "art_wissen:code" in f or "datei:" in f
+    if not only and not code_asked:  # 0.61.0: imported code of other indexes would swamp a general search — hidden, counted
+        foreign_code = [h for h in hits if "art_wissen:code" in h[1].hashtags and h[1].idx != first]
+        if foreign_code:
+            hits = [h for h in hits if h not in foreign_code]
+            f += f" · {len(foreign_code)} code hit(s) from other indexes not shown (index=… or art_wissen:code shows them)"
     if only:
         f += f" · only index {only}"
     elif first and hits:  # 0.61.0: Vorrang, kein Ausschluss — the project's hits first, in their order, then the rest in theirs
@@ -992,6 +1009,19 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         return (f"learned {o.id} with {', '.join(o.hashtags)} — {len(o.edges())} edges to objects with shared hashtags"
                 + (f" · {images.summary(o)} (sha256 {o.data['bild']['sha'][:12]}…)" if o.data.get("bild") else "")
                 + (" · visibility internal (instances with a token only; never an open network, only a company network)" if o.visibility == "intern" else ""))
+    if name == "vi_code_sync":  # 0.61.0
+        from . import code_import, indexes
+        if instance == config.OPEN:
+            raise Rejected("vi_code_sync needs a token — code is stored with visibility internal")
+        idx = indexes.normalize(args.get("index"))
+        if not idx or idx == indexes.GLOBAL:
+            raise Rejected("code goes into a project index, not global")
+        repo = code_import.tag_value(str(args.get("repo") or ""))
+        if args.get("action") == "state":
+            return json.dumps(code_import.server_state(idx, repo), ensure_ascii=False)
+        r = code_import.server_sync(idx, repo, str(args.get("commit") or "?"), list(args.get("files") or []),
+                                    [str(p) for p in args.get("removed") or []], instance)
+        return json.dumps(r, ensure_ascii=False)
     if name == "vi_indexes":  # 0.61.0
         from . import indexes
         return "Indexes (objects · experiences · knowledge · own model):\n" + "\n".join(indexes.lines())

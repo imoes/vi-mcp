@@ -6,7 +6,7 @@ Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server co
 
 ## MCP tools
 
-56 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
+57 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
 
 ### `vi_before`
 
@@ -327,6 +327,19 @@ VI: store knowledge as an object. When: a non-obvious problem was solved, a last
 
 VI: the indexes of the memory — projects and special VIs: objects, experiences, knowledge per index and the state of an index's own router model (used for its project only if it beats the shared one). vi_recall(index=…) searches one.
 
+### `vi_code_sync`
+
+VI, for `vi-mcp index import-code`: the code of a git repository in an index. action state: which files (blob SHA) the index holds of the repository; action sync: pieces of changed files (upserted by index/repo/path/symbol) and removed files (archived). Visibility internal. An agent does not need it — vi_recall finds the code.
+
+| Parameter | Type | Required | Meaning |
+|---|---|---|---|
+| `action` | string (state, sync) | yes | state: what the index holds; sync: send pieces (German: `aktion`) |
+| `index` | string | yes | the project index (not global) |
+| `repo` | string | yes | repository name |
+| `commit` | string |  | the commit the pieces come from |
+| `files` | array of object |  | changed files: {path, sha, lang, chunks: [{symbol, art, von, bis, code, signatur}]} |
+| `removed` | array of string |  | paths removed from the repository (their pieces are archived) |
+
 ### `vi_context`
 
 VI, for hooks: note that the next vi_learn/vi_recall of this instance comes from the project of this session (its working directory). Called by the Claude Code hook right before those tools; an agent does not need it.
@@ -545,6 +558,8 @@ python3 -m vi_mcp embed setup|auto|compare|status|remove [--backend auto|cuda|vu
                                         own embedding service and reranker (llama.cpp + bge-m3 + bge-reranker-v2-m3); the GPU is
                                         detected (CUDA, Vulkan, CPU). auto = what the packages run: never replaces an external service
 python3 -m vi_mcp index list|move ID INDEX|rename OLD NEW|backfill [--apply]|train INDEX   (--reason for move/rename)
+python3 -m vi_mcp index import-code REPO --index X [--url URL --token-file F] [--dry-run]
+                                        the code of a git repository into an index (only changed files; removed ones archived)
                                         indexes (0.61.0): projects and special VIs — every object belongs to one; a project's
                                         index comes first in search and hints; an index with enough data trains its own model
 python3 -m vi_mcp family INSTANCE [FAMILY|-]
@@ -943,6 +958,7 @@ First line of each module's docstring.
 | `bandit` | Bandit — Thompson sampling per hint (stage 2, docs/TRAINING.md 4b), measured by the advantage over the tool without a hint. |
 | `capabilities` | 0.53.0: which skills exist, which system each one serves, which tools it has, and where its manual is — at the start of a session. |
 | `checks` | Deterministic check of foreign content — always runs first; only it may reject for good. |
+| `code_import` | Code in the index (0.61.0): `vi-mcp index import-code <repo> --index X` puts the code of a git repository into an index. |
 | `config` | Configuration — one file, readable by the owner only. |
 | `configure` | 0.48.0: configuring the server after installation — one catalogue of questions, two front ends. |
 | `content` | Content as a feature — the router weights hints not only by situation but also by meaning. |
