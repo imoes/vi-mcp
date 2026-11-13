@@ -128,6 +128,10 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **`vi_vocabulary`'s parameter is `word_kind`** (was `kind`): values of `kind` are translated by the German alias layer, so `tool`
   arrived as `werkzeug` — found by the test of the word weights.
 
+- **A paper:** [docs/PAPER.md](docs/PAPER.md) — how the memory learns, how a VI matures in the incubator, how VIL is built (symbol layer and
+  weight layer), the measurements behind it and the errors found on the way, with references from the research of 13.11.2026. Linked
+  from both READMEs.
+
 ### What has changed
 
 - **Text on the web pages** (also `/web`): `**bold**` is rendered, and indented continuation lines of a list item stay in that item

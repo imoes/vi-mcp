@@ -24,6 +24,8 @@ mit und ohne Hinweise kann das nicht klären — Hinweise erscheinen bei den sch
 Hinweisen die Hinweise zurückgehalten, und `vi_stats` vergleicht diese mit den übrigen. Ein Unterschied von wenigen Punkten braucht einige
 hundert zurückgehaltene Aktionen: Wochen, nicht Tage.
 
+**Paper:** [Learning What to Put in Front of the Model — gemessenes Gedächtnis, Inkubation und eine gewichtete Sprache für KI-Agenten](docs/PAPER.md) (englisch) erklärt, wie das Gedächtnis lernt, wie eine VI im Inkubator reift und wie ihre Sprache aufgebaut ist, mit Quellen und Messungen.
+
 ### Eine universelle Sprache für KIs — in Entwicklung
 
 KIs reden heute in Prosa miteinander. Wir entwickeln eine Sprache, in der eine KI das Gedächtnis fragt, das Gedächtnis antwortet und

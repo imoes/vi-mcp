@@ -23,6 +23,8 @@ choices check it.
 cannot tell — hints appear on the hard ones. So on a random 5 % of the actions with hints, the hints are held back, and `vi_stats` compares
 them with the rest. A difference of a few points needs a few hundred held-back actions: weeks, not days.
 
+**Paper:** [Learning What to Put in Front of the Model — measured memory, incubation and a weighted language for AI agents](docs/PAPER.md) explains how the memory learns, how a VI matures in the incubator, and how its language is built, with sources and measurements.
+
 ### A universal language for AIs — in development
 
 AIs talk to each other in prose today. We are developing a language in which an AI asks the memory, the memory answers, and memories talk
