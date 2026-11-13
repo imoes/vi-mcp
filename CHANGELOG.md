@@ -28,6 +28,7 @@ first draft (class blocks inside the server's parser): consistent with the cling
   through a real server on a random port); the wheel installs offline with `pip --no-deps` and imports without vi-mcp. Tests:
   `tests/test_clingo_object.py` (15).
 - `vi_logic action=objects` returns the objects of filters as JSON (the package's data path).
+- Verified on both databases: the whole suite on SQLite (910 passed) and on PostgreSQL 16 (911 passed, 3 skipped), 13.11.2026.
 - **An agent that answers in clingo-object** (`clingo_object.agent.solve(question, memory, llm)`): the language model writes a program
   whose answer is `ans(…)`; it is solved with the caller's objects; a refusal of the notation, an empty answer or a violated constraint goes
   back to the model in the solver's words, up to 4 rounds (the construct-and-check loop of ALM–ASP, KR 2026, and ASP-Bench, arXiv
@@ -94,7 +95,6 @@ first draft (class blocks inside the server's parser): consistent with the cling
   `logic.jsonl` and learning stay small until rule sets are saved and conclusions rated.
 - The relational task set on a production copy (clingo-object against hand-checked SQL) is not measured yet.
 - Local solving uses the stated priors of soft rules; the measured weights stay on the server (`check_on_server`).
-- Not run against PostgreSQL in this block (the new queries are plain `IN (?, …)`).
 
 ## 0.62.6 — not yet released — networks for containers; an empty search points to the network; an unknown kind is answered with the kind that exists
 
