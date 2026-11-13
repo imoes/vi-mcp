@@ -221,10 +221,11 @@ TOOLS = [
                              "kind": {"type": "string", "enum": ["projekt", "spezial"], "description": "optional: projekt or spezial (a special VI)"}})},
     {"name": "vi_vocabulary",
      "description": "VI: the words you can search with — before a search when you are unsure which hashtags exist. Without arguments: the "
-                    "kinds (host, tool, thema, …) with how many values and objects; kind=…: its values, most used first; prefix=…: "
+                    "kinds (host, tool, thema, …) with how many values and objects; word_kind=…: its values, most used first, with their "
+                    "measured weight; prefix=…: "
                     "completions of a half-typed word (host:web → host:web1.example…). Counts only what you may see.",
      "inputSchema": _schema({"prefix": {"type": "string", "description": "optional: the beginning of a word, with or without kind: (e.g. host:web or nginx)"},
-                             "kind": {"type": "string", "description": "optional: one kind whose values to list (e.g. host)"},
+                             "word_kind": {"type": "string", "description": "optional: one kind of word whose values to list (e.g. host, tool)"},
                              "limit": {"type": "integer", "description": "how many at most (default 30)"}})},
     {"name": "vi_finetune",
      "description": "VI: fine-tune an AI with the knowledge of this VI. When the user says they want to fine-tune (or train, adapt, teach a "
@@ -636,7 +637,8 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
             hits = [h for h in hits if max(h[1].ts or "", h[1].last_at or "") >= u.since]
             f += f" · since {u.since[:10]}: {before - len(hits)} older hit(s) left out"
         if u.qtype and hits:
-            ranked = sorted(hits, key=lambda h: vil.prior_rank(h[1], u.qtype))
+            from . import word_weights  # 0.62.0: within one priority rank, the words' measured weights for this question type order the hits
+            ranked = sorted(hits, key=lambda h: (vil.prior_rank(h[1], u.qtype), -round(word_weights.hit_weight(h[1], u.qtype), 2)))
             moved = sum(1 for a, b in zip(hits, ranked) if a is not b)
             hits = ranked
             f += f" · VIL ask.{u.qtype}" + (f": hits that answer {u.qtype}-questions first ({moved} moved)" if moved else "")
@@ -1122,7 +1124,8 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
     if name == "vi_vocabulary":  # 0.62.0
         from . import vocabulary
         # the asking instance decides what it sees — never the session context alone (without one, viewer None would see everything)
-        return "\n".join(vocabulary.lines(str(args.get("prefix") or ""), str(args.get("kind") or ""), instance,
+        # word_kind, not kind: api_en translates values of `kind` (an enum of other tools) — "tool" would arrive as "werkzeug"
+        return "\n".join(vocabulary.lines(str(args.get("prefix") or ""), str(args.get("word_kind") or ""), instance,
                                            max(1, min(int(args.get("limit") or 30), 200))))
     if name == "vi_context":  # 0.61.0
         s = session.current()

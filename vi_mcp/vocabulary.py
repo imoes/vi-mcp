@@ -133,10 +133,19 @@ def lines(prefix: str = "", kind: str = "", viewer: str | None = "aktuell", limi
     if kind:
         rows = values(kind, prefix, viewer, limit)
         head = f"values of {kind}:" + (f" starting with “{prefix}”" if prefix else "") + " (objects you can see)"
-        return [head] + [f"  {t}  ({n})" for t, n in rows] if rows else [f"no values of {kind}:{prefix}… — vi_vocabulary without arguments lists the kinds"]
+        if not rows:
+            return [f"no values of {kind}:{prefix}… — vi_vocabulary without arguments lists the kinds"]
+        from . import word_weights
+        out = [head + " · weight = measured success after showing knowledge with this word (own and from the network)"]
+        for t, n in rows:
+            c = word_weights.combined(t)
+            y, no = c["eigen"]
+            out.append(f"  {t}  ({n})" + (f"  · weight {c['gewicht']} ({int(y + no)} ratings" + (f", {c['netz']} server(s)" if c["netz"] else "") + ")"
+                                         if y + no or c["netz"] else ""))
+        return out
     if prefix:
         rows = complete(prefix, viewer, limit)
         return [f"completions of “{prefix}” (objects you can see):"] + [f"  {t}  ({n})" for t, n in rows] if rows else [f"nothing starts with “{prefix}”"]
     rows = kinds(viewer, limit)
-    return (["kinds of words — kind (distinct values, objects); vi_vocabulary(kind=…) shows the values, prefix=… completes:"]
+    return (["kinds of words — kind (distinct values, objects); vi_vocabulary(word_kind=…) shows the values, prefix=… completes:"]
             + [f"  {k}:  ({nv} values, {no} objects)" for k, nv, no in rows])

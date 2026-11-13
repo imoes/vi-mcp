@@ -149,6 +149,8 @@ def _run(reason: str) -> g.MemoryObject:
         from . import index_transfer
         step("8e_index_vergleich", lambda: [{k: r[k] for k in ("index", "inhalte", "klassen", "vorrang_aus_neu", "vorrang_wieder_an")}
                                              for r in index_transfer.compare_all("sleep")])  # 0.62.0: origin against target per content
+        from . import word_weights
+        step("8g_wortgewichte", lambda: word_weights.compute())  # 0.62.0: the measured weight of every word — the meaning layer of VIL
         from . import classify
         if classify.configured():  # 0.62.0: labels for the AI language — only with an explicit classify model (the shared LLM is not loaded unasked)
             step("8f_klassifizieren", lambda: {"schueler_training": {k: v for k, v in classify.train_student("sleep").items() if k in ("zustand", "n", "grund")},

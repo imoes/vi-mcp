@@ -336,12 +336,12 @@ VI: the indexes of the memory — projects and special VIs: objects, experiences
 
 ### `vi_vocabulary`
 
-VI: the words you can search with — before a search when you are unsure which hashtags exist. Without arguments: the kinds (host, tool, thema, …) with how many values and objects; kind=…: its values, most used first; prefix=…: completions of a half-typed word (host:web → host:web1.example…). Counts only what you may see. **OPEN**
+VI: the words you can search with — before a search when you are unsure which hashtags exist. Without arguments: the kinds (host, tool, thema, …) with how many values and objects; word_kind=…: its values, most used first, with their measured weight; prefix=…: completions of a half-typed word (host:web → host:web1.example…). Counts only what you may see. **OPEN**
 
 | Parameter | Type | Required | Meaning |
 |---|---|---|---|
 | `prefix` | string |  | optional: the beginning of a word, with or without kind: (e.g. host:web or nginx) |
-| `kind` | string |  | optional: one kind whose values to list (e.g. host) (German: `art`) |
+| `word_kind` | string |  | optional: one kind of word whose values to list (e.g. host, tool) |
 | `limit` | integer |  | how many at most (default 30) |
 
 ### `vi_finetune`
@@ -1064,3 +1064,4 @@ First line of each module's docstring.
 | `weight_writer` | LLM weight layer (0.58.0) — weight-space programming for the router, hybrid with the fitted model. |
 | `wiki` | 0.41.0: the network wiki — pages every member of a network may edit, without a master. |
 | `wiki_merge` | 0.41.0: the view of a network wiki page — pure functions, no database. |
+| `word_weights` | Weights per word — the meaning layer of the AI language, and how memories talk to each other with weights (0.62.0). |

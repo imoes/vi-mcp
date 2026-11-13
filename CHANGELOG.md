@@ -37,7 +37,7 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **`vi-mcp configure` / debconf** ask for it (`web_internal`, `web_internal_base`).
 - **The vocabulary — "what is there, what can I search?"** (first piece of the AI language the user asked for: "bekannte Vokabeln in der DB
   suchen und daraus eine Frage formulieren, wie eine Autovervollständigung"). `vi_vocabulary` lists the kinds of words with their counts,
-  the values of a kind, and completes half-typed words (`host:web` → `host:web1.example…`), always over what the asking instance may see.
+  the values of a kind (`word_kind`), and completes half-typed words (`host:web` → `host:web1.example…`), always over what the asking instance may see.
   The internal search has a "Words" page and completes in the search field (`<datalist>`, no script).
 - **A search without hits says why:** a word the memory does not know — with "did you mean" from the same kind — or known words that no
   object carries together. `vi_stats` E splits both. *Measured before (production, 13.11.2026, read only):* all 111 searches without hits in
@@ -104,6 +104,18 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   search; if the target is missing, one relaxed question (tags only); the answer from the target, citing it. Only trajectories that found
   their target are kept (the rest counted) — no example teaches a wrong answer; nothing private appears in a tool answer. `train.py`
   trains them as the stage `agentic` on top of SFT. Test: `tests/test_dataset.py` (3).
+- **The systems talk with weights** (the user: "die Kommunikation der Systeme geschieht mit Gewichten"): every word (`kind:value`) has a
+  measured weight per question type — the beta mean of helped/not helped over the knowledge carrying it (sleep step 8g). Memories exchange
+  these weights as ordinary signed ratings whose target is `sha256("vil-word-v1|word|type")`: no new logbook type (older peers would reject
+  it), and the word never travels in clear — a receiver attributes a weight only to a word it knows. An open network gets no host names
+  and nothing the anonymisation flags; a company network gets all. A receiver combines foreign weights with its own, each server weighted
+  by its measured benefit as a publisher, at most 20 observations each; a foreign weight is a measurement, never a command. In a VIL
+  question, hits of equal priority are ordered by the words' weights; `vi_vocabulary(word_kind=…)` shows them. *Research behind it
+  (13.11.2026):* raw model weights, adapters or vectors work only between identical models and leak content (vec2text: 92 % of short
+  texts recovered, arXiv 2310.06816) — so the symbol stays readable and the meaning travels as measured weight. Tests:
+  `tests/test_word_weights.py` (4).
+- **`vi_vocabulary`'s parameter is `word_kind`** (was `kind`): values of `kind` are translated by the German alias layer, so `tool`
+  arrived as `werkzeug` — found by the test of the word weights.
 
 ### What has changed
 
@@ -128,8 +140,8 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **No fine-tuning run yet:** the kit's scripts are untested on real hardware — host, base model and the training environment (a venv with
   torch for ROCm or CUDA, trl, peft) await the user's decision. `evaluate.py` measures answers, not yet the agentic search (whether
   the fine-tuned model finds the target with the tool more often than the base model). No full task trajectories: user prompts are masked and never stored.
-- **The AI language** beyond vocabulary, `ask` questions, classification and its student — weights per word, the language between
-  servers — is a design (README), not code yet. The student has not been trained on real data yet (the sample run is in progress). Whether
+- **The AI language** between servers carries word weights and `ask` questions inside one memory; asking another server in VIL (an
+  `ask` over the network forum answered with `tell` lines) is a design (README), not code yet. The student has not been trained on real data yet (the sample run is in progress). Whether
   the question-type order raises success is not measured yet; no human gold set exists.
 - **A second order-dependent test:** `tests/test_http.py::test_two_sessions_two_conversations` failed once in a full run on SQLite and
   passed 4 times alone; cause not found.

@@ -41,7 +41,7 @@ def test_empty_search_names_unknown_words_with_suggestions_or_known_words_that_d
 def test_vi_vocabulary_tool_and_statistics_split(gd):
     _seed()
     assert "host:  (3 values, 3 objects)" in tools.call_tool("vi_vocabulary", {}, "a", False)
-    assert "host:web1.example  (1)" in tools.call_tool("vi_vocabulary", {"kind": "host", "prefix": "web"}, "a", False)
+    assert "host:web1.example  (1)" in tools.call_tool("vi_vocabulary", {"word_kind": "host", "prefix": "web"}, "a", False)
     assert "tool:nginx  (2)" in tools.call_tool("vi_vocabulary", {"prefix": "ngi"}, "a", False)
     for f in ("host:web3.example", "host:db1.example tool:nginx", "host:web1.example"):
         text = tools.call_tool("vi_recall", {"filter": f, "semantic": False}, "a", False)

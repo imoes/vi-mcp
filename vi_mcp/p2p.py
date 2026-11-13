@@ -507,7 +507,16 @@ def outbox(net: str = STANDARD) -> dict:
     mem_objects, withdrawn = _collect(None, net)
     from . import forum, wiki
     return {"vertrauen": trust(), "objekte": [r for _o, r in mem_objects], "widerrufe": _revocations(net) + wiki.revocations(net), "zurueckgehalten": withdrawn,
-            "bewertungen": net_score.outgoing(net), "seiten": wiki.outgoing(net), "beitraege": forum.outgoing(net)}
+            "bewertungen": net_score.outgoing(net) + _word_weights_out(net), "seiten": wiki.outgoing(net), "beitraege": forum.outgoing(net)}
+
+
+def _word_weights_out(net: str) -> list[dict]:
+    """0.62.0: the measured weights of this memory's words travel as ordinary ratings (word_weights.py) — never failing the outbox."""
+    try:
+        from . import word_weights
+        return word_weights.outgoing(net)
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def record_state(net: str, state) -> None:
@@ -635,7 +644,11 @@ def inbox(entries, in_background: bool = True, net: str = STANDARD) -> dict:
                 from_seq(r)
             continue
         if header["typ"] == "bewertung":
-            if net_score.receive(raw, header["pub"], net, header["seq"]):
+            from . import word_weights  # 0.62.0: a rating whose target is one of our words is a word weight from that server
+            if lb.valid_rating(raw) and word_weights.known_hash(raw["ziel"]):
+                word_weights.receive(raw, header["pub"], net, header["seq"])
+                report["wortgewichte"] = report.get("wortgewichte", 0) + 1
+            elif net_score.receive(raw, header["pub"], net, header["seq"]):
                 report["bewertungen"] += 1
             else:
                 from_seq("rating has the wrong form")

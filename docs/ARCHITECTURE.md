@@ -763,6 +763,15 @@ object `modell:finetune:<time>` with dataset manifest hash, base model, adapter 
 the fine-tuned model measured better, else `test`). The tool `vi_finetune` and a line in the rules every AI gets make "I want to
 fine-tune" enough.
 
+## Word weights — the systems talk with weights (0.62.0)
+
+`word_weights.py`. The meaning of a VIL word is its measured weight: per word and question type the beta mean of helped/not helped over
+the knowledge carrying it (table `vil_gewicht`, sleep step 8g). Between memories the weights travel as `bewertung` entries whose target is
+`sha256("vil-word-v1|word|type")` — the existing, signed rating path, no new logbook type, the word never in clear; `p2p.inbox` routes a
+rating whose target is one of the memory's own word hashes to `vil_gewicht_netz`, everything else to `net_score` as before. Open networks
+get only tool/thema/fehler/skill/art_wissen/answers/memory words without internals. `combined` weighs foreign raters by their publisher
+benefit (as `net_score`), capped at 20 observations each. Use: the secondary order of equal-priority hits of an `ask` question.
+
 ## Internal knowledge search (0.62.0)
 
 The user: "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" — decided: internal, with sign-in. The
