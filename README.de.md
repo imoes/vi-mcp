@@ -274,6 +274,16 @@ sha256sum --ignore-missing -c SHA256SUMS
 
 **Enterprise Linux 9 geht nicht:** Python 3.9 ist zu alt, und für neuere Python-Versionen gibt es dort kein scikit-learn. Gedächtnis und Konfiguration bleiben beim Deinstallieren erhalten.
 
+### Indexe: Projekte, Spezial-VIs und Code (0.61.0)
+
+Jedes Objekt gehört zu einem Index — `global` oder ein Projekt bzw. eine Spezial-VI (Tabelle `vi_index`: Name als Primärschlüssel, Art,
+Beschreibung, Tags). Was eine KI in einem Projektverzeichnis lernt und tut, landet im Index dieses Projekts (der Hook schickt das
+Verzeichnis); im Projekt kommt sein Index bei Suche und Hinweisen zuerst, alles andere bleibt sichtbar. `vi_recall(index="cue-print")`
+sucht nur in einem Index. Ein Index mit genug Erfahrungen trainiert ein eigenes Router-Modell, das nur gilt, wenn es das gemeinsame
+schlägt. `vi-mcp index import-code REPO --index X` holt den Code eines Git-Repos in den Index (Funktionen und Klassen, nur Geändertes);
+`vi_recall` findet ihn, und bevor eine KI eine Datei liest oder ändert, nennt die VI, was der Index zu ihr hält. Indexe verlassen den
+Server nie. Einzelheiten: [OPERATIONS](docs/OPERATIONS.md#indexes-and-code-0610).
+
 ## Zwei Modi: Token und Open Wiki
 
 | Modus | Wer | Was |

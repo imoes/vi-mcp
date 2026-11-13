@@ -324,6 +324,30 @@ vi-mcp embed status · sudo vi-mcp embed remove
 - **Why a process of its own**: embedding a backlog takes minutes; in the vi-mcp process it would block answers. An external service can
   still be used — set `embed.url` by hand.
 
+## Indexes and code (0.61.0)
+
+```bash
+vi-mcp index list                                   # every index: kind, objects, experiences, knowledge, code pieces, own model
+vi-mcp index describe cue-print --text "CUE print stack" --tags team:it,cue --kind projekt
+vi-mcp index backfill                               # count: existing experiences/knowledge by the project their conversation recorded
+vi-mcp index backfill --apply                       # … and move them
+vi-mcp index rename repo cue-stack --reason "…"     # rename, or merge into an existing index
+vi-mcp index move erkenntnis:… ansible --reason "…" # one object
+vi-mcp index train vi-mcp                           # the own model of one index now (otherwise sleep step 8d)
+vi-mcp index import-code ~/Dev/code/vi-mcp --index vi-mcp --url https://<host>/vi-mcp/mcp --token-file ~/.config/vi-mcp/token-…
+```
+
+- **Mapping in `config.json`:** `"indexes": {"map": {"repo": "cue-stack"}, "ignore": ["scratch"]}`. A working directory named `repo` lands in
+  `cue-stack`, and one named `scratch` lands in `global`. Home, hidden and temporary directories are always global.
+- **Keeping code current:** the import is idempotent and sends only changed files. Example `.git/hooks/post-commit` (and `post-merge`) in the
+  repository:
+  ```sh
+  #!/bin/sh
+  vi-mcp index import-code "$(git rev-parse --show-toplevel)" --index vi-mcp --url "$VI_MCP_URL" --token-file "$VI_MCP_TOKEN_FILE" >/dev/null 2>&1 &
+  ```
+- **Hold-back:** `"hold_back": 0.05` is the share of actions whose hints are held back at random to measure their total effect; `0` switches
+  it off. The result is in `vi_stats` C and in the daily measurement P.
+
 ## Changing the port
 
 The server listens on `port` from its configuration (default 8765, bound to 127.0.0.1).

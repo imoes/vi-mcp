@@ -3,6 +3,76 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.61.0 — 2026-11-13 — Indexes (projects, special VIs, code) and the total effect of hints, measured
+
+The user (12./13.11.2026):
+- "Es muss die Möglichkeit geben, dass man unterschiedliche Indexe anlegen kann … für Projekte … eine Spezial-VI zu trainieren";
+- "Wir nehmen einen Primärschlüssel für die neue Index-Spalte … ein Objekt kann nur in einem Index sein … jedem Index Tags und
+  Beschreibung mitgeben";
+- "Die VI soll aber auch mit Code gefüllt werden";
+- after "Das heißt, die VI funktioniert nicht?": the total effect of hints is measured at random.
+
+### What is new
+
+- **Indexes.** Every object belongs to exactly one index: column `objekt.idx`, default `global`, migration for SQLite and PostgreSQL.
+  - **The indexes themselves** stand in table `vi_index`: name as primary key, kind `global`/`projekt`/`spezial`, description, tags.
+  - **Which index:**
+    - An explicit `index` wins (`vi_learn`, `vi_recall`).
+    - Otherwise the project the hook sends (the working directory). Config `indexes.map`/`indexes.ignore` maps or ignores it; the home
+      directory, hidden and temporary directories stay `global`.
+    - The agent's own session gets the project through the new `vi_context`, which the hook calls right before `vi_learn`/`vi_recall`.
+  - **Effect:** in a project its index comes first in `vi_recall`, in the hints before an action and in the prompt hints. Everything
+    else stays visible; `vi_recall(index=…)` searches one index alone.
+  - **Never leaves the server:** no export form, web page or content hash carries the index. *Proof:* `tests/test_anonym.py`.
+- **Special VI: an index's own router model** (`learning.train_index`, sleep step `8d_index_modelle`).
+  - Needs at least 300 observations and 30 failures.
+  - It is compared on the index's newest observations with a shared reference that has not seen them. It ranks the project only if
+    better by more than 2 standard errors of the paired log loss.
+  - *Measured on a production copy (13.11.2026):* the largest index, `vi-mcp` (2,610 observations, 79 failures), was clearly worse
+    (AUC 0.29, log loss +0.427 ± 0.023), so the shared model keeps ranking. `centralstation` has too few failures (15). Today no index
+    gets its own model.
+- **Code in the index:** `vi-mcp index import-code REPO --index X`.
+  - **Where it runs:** where the repository is; it sends the code over MCP (`vi_code_sync`).
+  - **What it takes:** the versioned files of the current commit.
+    - Python is split into functions and classes, other text into blocks.
+    - Binary, generated and vendored files are skipped and counted.
+  - **Incremental:** only changed files (blob SHA) are sent; pieces that are gone are archived.
+  - **Pieces are internal**, never a router hint or a prompt hint.
+  - **The file line:** before an AI reads or edits a file, it names what the index holds of that file.
+  - **Code of other indexes** stays out of `vi_recall` outside its project, counted.
+  - *Measured:* the vi-mcp repository gave 161 files and 1,944 pieces in 4.1 s; a second run changed nothing; 10.8 MB.
+    "sort rows MSI tables primary key" finds `deploy/windows/sort-msi-tables.py` first. Before `Edit vi_mcp/indexes.py` the file line
+    names its 10 functions.
+- **Administration:**
+  - `vi-mcp index list|describe|move|rename|backfill [--apply]|train`, the MCP tool `vi_indexes` (list, or describe an index).
+  - `vi_stats` C lists the indexes; the daily measurement reports MRR per index from 20 queries on.
+  - `backfill` puts existing data into the project its conversation recorded. *Production copy:* 3,659 experiences into 12 projects,
+    for example vi-mcp 2,367, centralstation 696, ansible03 245.
+- **The total effect of hints, measured at random.** On a random 5 % of the actions with hints, the hints are held back.
+  - The risk warning stays; config `hold_back`, `0` = off.
+  - `metrics.holdback_effect` compares these actions with the others (Mantel-Haenszel, verdict only beyond 2 SE), in `vi_stats` C and
+    the daily measurement.
+  - Until now only the *choice* of hints was measured causally (12.6 ± 5.3 points better than a random hint). Whether hints raise
+    success at all cannot be read from actions with and without hints, because hints appear on the hard ones.
+  - *Estimated duration:* a few hundred held-back actions, weeks.
+- **README:** "What this is: a search for the best prompt" — what is measured and what is being measured.
+
+### What has changed
+
+- **Hook:** before `vi_learn`/`vi_recall` it calls `vi_context`, so the server knows the project. A server without `vi_context` (≤ 0.60)
+  costs nothing; the error is caught and logged.
+- **The rule on code** (`tools.RULES`): the code of a repository comes into its project index through the code import, not as a
+  `vi_learn` copy.
+
+### What is missing
+
+- **The agent session's project is inferred,** within 15 s of the hook's `vi_context`. Two sessions of the same instance in different
+  projects learning within those seconds could be swapped. A Claude Code feature to send the directory with the MCP session would fix it.
+- **Knowledge learned before 0.61.0 stays `global`:** it was learned in agent sessions that did not know their project. Only experiences
+  can be backfilled.
+- **Export/import of a project index** to compare content across projects (the user's idea) is planned as its own step.
+- **The total effect of hints** has no verdict yet; it needs weeks of held-back actions.
+
 ## 0.60.0 — 2026-11-12 — Embedding and reranker fit the hardware and come with the packages
 
 The user: "wenn ich das msi oder Linux Paket installiere muss der reranker und embeding Modell installiert werden mit GPU oder CPU", then,

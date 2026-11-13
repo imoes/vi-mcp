@@ -372,6 +372,43 @@ and sorts by it (`router: bandit`) — rarely shown hints stay in play, frequent
 `vi_object` shows the counters ("helped 20 / not 1, expectation 91 %"). Ranking exhaustive: `modell` > `bandit`
 > `heuristik`. Sources: Russo et al. 2017 (arXiv 1707.02038), Agrawal & Goyal 2012 (arXiv 1209.3352).
 
+## Indexes — projects and special VIs (0.61.0)
+
+The user wanted indexes "like OpenSearch" — for projects and to train a special VI — and a primary key: every object belongs to
+exactly one index (column `objekt.idx`, default `global`), and the indexes themselves stand in table `vi_index` (name = primary key,
+kind `global`/`projekt`/`spezial`, description, tags). An added column cannot become a real foreign key in SQLite without rebuilding
+the table, so the reference is kept by the code (`memory.save` registers an index on first use) and checked by a test. The column is not
+a hashtag on purpose: no export form, web page or content hash carries it — a project or customer name never leaves the server.
+
+- **Which index:** an explicit `index` wins (`vi_learn`, `vi_recall`); else the project of the session — the hook sends the working
+  directory, `indexes.from_project` maps it (config `indexes.map`, `indexes.ignore`; the home directory, hidden and temporary
+  directories are global). `session.on_behalf` makes it the current index, so experiences and knowledge of a hook session land there.
+  The agent's own MCP session does not know its directory: the hook calls `vi_context` right before `vi_learn`/`vi_recall`, and the
+  call that follows within 15 s takes that project. Rejected: changing the tool input in the hook (`updatedInput`) — in auto mode
+  Claude Code may deny a changed call, and with `allow` the hook would approve calls on its own.
+- **Effect — Vorrang, kein Ausschluss:** in a project its index comes first — in `vi_recall` after rank fusion and reranker (before
+  them it would be lost), in the hints before an action right after "important and matching", in the prompt hints at equal score.
+  General knowledge stays visible; `vi_recall(index=…)` searches one index alone (`memory.search_index` in `_filter_sql`, so full
+  text and hybrid search obey it alike). `vorher.idx`/`idx_vorrang` record it.
+- **Special VI:** an index with ≥ 300 observations and ≥ 30 failures gets its own router model (`learning.train_index`, sleep step
+  `8d_index_modelle`), compared on the index's newest observations with a shared reference fitted on everything except that holdout
+  (a shared model trained on everything would know it — leakage). It ranks the project only if better by more than 2 standard errors
+  of the paired log loss. *Measured on a production copy (13.11.2026):* the largest index (vi-mcp, 2,610 observations, 79 failures)
+  was worse than the shared model (AUC 0.29, +0.427 ± 0.023 log loss) and stays with the shared one — the gate does its job.
+- **Code in the index:** `vi-mcp index import-code REPO --index X` (vi_mcp/code_import.py) runs where the repository is and sends the
+  versioned code of the current commit over MCP (`vi_code_sync`): Python by `ast` into functions and classes, other text in blocks;
+  only changed files (blob SHA); pieces that are gone are archived. Pieces are internal, never a router or prompt hint; before
+  Read/Edit/Write the file line names what the index holds of the file; outside its project, code of other indexes is hidden in
+  `vi_recall` (counted).
+
+## Total effect of hints — held back at random (0.61.0)
+
+The randomized ε-exploration measures the choice of hints (ranked against random). Whether showing hints at all raises the success of an
+action cannot be read from actions with and without hints — hints appear on the hard ones (matched lift −1 point, 12.11.2026). So on a
+random `hold_back` share (default 5 %) of the actions that have hints, the hints are held back (the risk warning stays; the answer does
+not say it); `vorher.zurueckgehalten` and `haltewahrscheinlichkeit` record it, `metrics.holdback_effect` compares (Mantel-Haenszel
+within instance and tool, verdict only beyond 2 SE). A difference of a few points needs a few hundred held-back actions: weeks.
+
 ## Scorer — whether work succeeded
 
 "The tool did not crash" was true in 63 of 64 cases and therefore almost worthless as a learning signal. `scorer.py` rates in three stages:
