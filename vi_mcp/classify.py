@@ -230,3 +230,138 @@ def main(argv: list[str]) -> int:
     finally:
         g.close_db()
     return 0
+
+
+# ── the student: a small model learns the labels from the embeddings (distillation) ─────────────────────────────────────────────
+# Research (13.11.2026): classifiers trained on LLM labels do about as well as on human labels (Pangakis & Wolken 2024); FineWeb-Edu let
+# an LLM rate 460,000 pages and trained a small classifier on them (arXiv 2406.17557). Here: logistic regression on the bge-m3 vectors
+# the memory already has; new knowledge is labelled without a language model where the student is sure, the rest goes to the LLM, and a
+# share of the student's labels is checked by the LLM (agreement recorded on the model object — drift becomes visible).
+
+STUDENT = "modell:klassen"
+MIN_PER_CLASS = 15
+MIN_TOTAL = 120
+GATE_ACCURACY = 0.8
+SURE = 0.8
+AUDIT_SHARE = 0.1
+
+
+def _labelled() -> tuple[list[str], list[str], list[str]]:
+    """(ids, answers, memory) of objects the LLM labelled with both variants agreeing — the student learns only from those."""
+    with g.lock:
+        rows = g.db().execute(
+            "SELECT id, json_extract(daten, '$.klasse.answers'), json_extract(daten, '$.klasse.memory') FROM objekt "
+            "WHERE json_extract(daten, '$.klasse.zustand') = 'einig' AND modus NOT IN ('widerlegt', 'archiviert')").fetchall()
+    rows = [r for r in rows if r[1] in ANSWERS and r[2] in MEMORY]
+    return [r[0] for r in rows], [r[1] for r in rows], [r[2] for r in rows]
+
+
+def train_student(who: str = "sleep") -> dict:
+    """Fit one logistic regression per head (answers, memory) on the agreed LLM labels; holdout accuracy decides active or test."""
+    import numpy as np
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import train_test_split
+    from . import vector
+    ids, ans, mem = _labelled()
+    vecs = {i: v for i in ids if (v := vector.load(i)) is not None}
+    keep = [k for k, i in enumerate(ids) if i in vecs]
+    report = {"n": len(keep), "trainiert": g.now(), "lehrer": {"prompt": prompt_hash(), "schema": SCHEMA_VERSION}}
+    if len(keep) < MIN_TOTAL:
+        return {**report, "zustand": "zu_wenig", "grund": f"{len(keep)} agreed labels with a vector, at least {MIN_TOTAL}"}
+    X = np.vstack([vecs[ids[k]] for k in keep])
+    heads = {}
+    for head, labels in (("answers", [ans[k] for k in keep]), ("memory", [mem[k] for k in keep])):
+        counts = {c: labels.count(c) for c in set(labels)}
+        classes = sorted(c for c, n in counts.items() if n >= MIN_PER_CLASS)
+        mask = [y in classes for y in labels]
+        Xh, yh = X[mask], [y for y, m in zip(labels, mask) if m]
+        if len(classes) < 2:
+            heads[head] = {"zustand": "zu_wenig", "grund": f"fewer than 2 classes with {MIN_PER_CLASS} labels ({counts})"}
+            continue
+        Xtr, Xte, ytr, yte = train_test_split(Xh, yh, test_size=0.25, random_state=7, stratify=yh)
+        clf = LogisticRegression(max_iter=2000, class_weight="balanced").fit(Xtr, ytr)
+        acc = float((clf.predict(Xte) == np.array(yte)).mean())
+        per = {c: round(float((clf.predict(Xte[np.array(yte) == c]) == c).mean()), 3) for c in classes}
+        clf = LogisticRegression(max_iter=2000, class_weight="balanced").fit(Xh, yh)  # the gate passed or not — the final fit uses all
+        heads[head] = {"zustand": "aktiv" if acc >= GATE_ACCURACY else "test", "genauigkeit_holdout": round(acc, 3), "je_klasse": per,
+                       "klassen": list(clf.classes_), "nicht_gelernt": {c: n for c, n in counts.items() if c not in classes},
+                       "gewichte": [[round(float(x), 5) for x in row] for row in clf.coef_], "achsenabschnitt": [round(float(x), 5) for x in clf.intercept_],
+                       "n_holdout": len(yte)}
+    state = "aktiv" if all(h.get("zustand") == "aktiv" for h in heads.values()) else "test"
+    report.update(zustand=state, koepfe=heads, dim=int(X.shape[1]))
+    text = (f"Student for the AI-language labels ({state}): {len(keep)} agreed LLM labels, holdout accuracy "
+            + ", ".join(f"{h} {d.get('genauigkeit_holdout', '—')}" for h, d in heads.items()))
+    m = g.load(STUDENT)
+    if m is None:
+        g.new_object("modell", text, ["modell:klassen"], report, importance=2, who=who, oid=STUDENT, mode=state, reason="student trained",
+                     instance=g.SERVER_INSTANCE)
+    else:
+        m.text, m.data, m.mode = text, {**report, "pruefung": m.data.get("pruefung", {"geprueft": 0, "gleich": 0})}, state
+        m.change(who, f"retrained → {state}", "student trained")
+        g.save(m)
+    return {k: v for k, v in report.items() if k != "koepfe"} | {"koepfe": {h: {k: v for k, v in d.items() if k != "gewichte"} for h, d in heads.items()}}
+
+
+def _predict(head: dict, v) -> tuple[str, float]:
+    import numpy as np
+    z = np.array(head["gewichte"]) @ v + np.array(head["achsenabschnitt"])
+    if len(head["klassen"]) == 2:  # binary logistic regression has one row: the second class
+        p1 = 1 / (1 + np.exp(-z[0]))
+        probs = np.array([1 - p1, p1])
+    else:
+        e = np.exp(z - z.max())
+        probs = e / e.sum()
+    i = int(probs.argmax())
+    return head["klassen"][i], float(probs[i])
+
+
+def student_label(o: g.MemoryObject) -> dict | None:
+    """The student's label for one object, or None if it is not active, has no vector or is not sure (≥ SURE on both heads)."""
+    from . import vector
+    m = g.load(STUDENT)
+    if m is None or m.mode != "aktiv":
+        return None
+    v = vector.load(o.id)
+    if v is None or len(v) != m.data.get("dim"):
+        return None
+    ans, p_a = _predict(m.data["koepfe"]["answers"], v)
+    mem, p_m = _predict(m.data["koepfe"]["memory"], v)
+    if p_a < SURE or p_m < SURE:
+        return None
+    return {"zustand": "schueler", "answers": ans, "zweite": "none", "memory": mem, "fragen": [], "sicher": [round(p_a, 3), round(p_m, 3)],
+            "version": {"modell": f"student@{m.data.get('trainiert', '?')[:16]}", "prompt": prompt_hash(), "schema": SCHEMA_VERSION}}
+
+
+def run_with_student(limit: int = 20, who: str = "sleep", rng=None) -> dict:
+    """Sleep step 8f: the student labels what it is sure of; the LLM labels the rest (up to `limit`) and checks a share of the student's
+    labels — agreement is counted on the student, so its drift is visible."""
+    import random
+    rng = rng or random.Random()
+    out = {"schueler": 0, "einig": 0, "uneinig": 0, "fehler": 0, "geprueft": 0, "gleich": 0, "gruende": {}}
+    asked = 0
+    for oid in pending(limit * 20):
+        o = g.load(oid)
+        if o is None:
+            continue
+        lab = student_label(o)
+        if lab is not None and (rng.random() >= AUDIT_SHARE or not available() or asked >= limit):
+            apply(o, lab, who)
+            out["schueler"] += 1
+            continue
+        if not available() or asked >= limit:
+            continue
+        asked += 1
+        llm = label(o)
+        out[llm["zustand"]] += 1
+        if llm["zustand"] == "fehler":
+            out["gruende"][llm["grund"][:80]] = out["gruende"].get(llm["grund"][:80], 0) + 1
+        elif lab is not None:  # an audit: the student said lab, the LLM says llm
+            out["geprueft"] += 1
+            out["gleich"] += int(llm["answers"] == lab["answers"])
+        apply(o, llm, who)
+    m = g.load(STUDENT)
+    if m is not None and out["geprueft"]:
+        p = m.data.get("pruefung", {"geprueft": 0, "gleich": 0})
+        m.data = {**m.data, "pruefung": {"geprueft": p["geprueft"] + out["geprueft"], "gleich": p["gleich"] + out["gleich"]}}
+        g.save(m)
+    return out

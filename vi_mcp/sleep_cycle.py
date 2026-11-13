@@ -151,7 +151,8 @@ def _run(reason: str) -> g.MemoryObject:
                                              for r in index_transfer.compare_all("sleep")])  # 0.62.0: origin against target per content
         from . import classify
         if classify.configured():  # 0.62.0: labels for the AI language — only with an explicit classify model (the shared LLM is not loaded unasked)
-            step("8f_klassifizieren", lambda: classify.run(classify.per_sleep(), "sleep"))
+            step("8f_klassifizieren", lambda: {"schueler_training": {k: v for k, v in classify.train_student("sleep").items() if k in ("zustand", "n", "grund")},
+                                               **classify.run_with_student(classify.per_sleep(), "sleep")})
     from . import evaluation
     step("9_pruefung", lambda: evaluation.nightly())  # 0.55.0: once a day the fixed question set and the router numbers
     duration = int((time.monotonic() - t0) * 1000)

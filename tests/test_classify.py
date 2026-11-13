@@ -72,3 +72,60 @@ def test_without_a_model_nothing_runs_and_sleep_needs_an_explicit_classify_model
     g.new_object("erkenntnis", "x", ["thema:x"], {"quelle": "t"})
     assert classify.run(5)["zustand"] == "uebersprungen"
     assert classify.configured() is False and classify.per_sleep() == 10
+
+
+def _clustered(n_per, rng, dim=16):
+    """Objects whose vectors cluster by (answers, memory): how/procedure, what/fact, who/episode."""
+    import numpy as np
+    from vi_mcp import vector
+    centers = {("how", "procedure"): 0, ("what", "fact"): 5, ("who", "episode"): 10}
+    out = []
+    for (a, m), c in centers.items():
+        for i in range(n_per):
+            o = g.new_object("erkenntnis", f"{a} object {i}", ["thema:x"], {"quelle": "t"})
+            v = rng.normal(0, 0.3, dim)
+            v[c:c + 3] += 3.0
+            vector.save(o.id, v, "test")
+            out.append((o, a, m))
+    return out
+
+
+def test_student_learns_the_labels_labels_new_objects_and_is_audited(gd, llm):
+    import random
+    import numpy as np
+    table, calls = llm
+    rng = np.random.default_rng(3)
+    objs = _clustered(50, rng)
+    for o, a, m in objs:
+        for v in ("A", "B"):
+            table[(v, o.text)] = _ans(a, m=m)
+    assert classify.run(200, "test")["einig"] == 150
+    r = classify.train_student("test")
+    assert r["zustand"] == "aktiv" and r["n"] == 150 and r["koepfe"]["answers"]["genauigkeit_holdout"] >= 0.9
+    assert r["koepfe"]["answers"]["klassen"] == ["how", "what", "who"] and "gewichte" not in r["koepfe"]["answers"]
+    new = _clustered(4, rng)
+    calls.clear()
+    out = classify.run_with_student(5, "test", rng=random.Random(1))  # audit share 10 %: most by the student, a few checked by the LLM
+    labelled = [g.load(o.id) for o, _a, _m in new]
+    assert out["schueler"] + out["einig"] == 12 and out["schueler"] >= 8
+    for o, (_x, a, m) in zip(labelled, new):
+        assert f"answers:{a}" in o.hashtags and f"memory:{m}" in o.hashtags
+    students = [o for o in labelled if o.data["klasse"]["zustand"] == "schueler"]
+    assert students and all(o.data["klasse"]["version"]["modell"].startswith("student@") for o in students)
+    by_llm = [o for o in labelled if o.data["klasse"]["zustand"] == "einig"]
+    assert len(calls) == 2 * len(by_llm) == 2 * out["einig"]  # the LLM was asked only for the objects it labelled (audits or unsure)
+    assert out["geprueft"] == out["einig"] and out["gleich"] == out["geprueft"]  # every LLM call here audited a sure student label
+    assert g.load(classify.STUDENT).data["pruefung"] == {"geprueft": out["geprueft"], "gleich": out["gleich"]}
+
+
+def test_student_needs_enough_agreed_labels_and_stays_test_below_the_gate(gd, llm):
+    import numpy as np
+    table, _calls = llm
+    objs = _clustered(10, np.random.default_rng(4))
+    for o, a, m in objs:
+        for v in ("A", "B"):
+            table[(v, o.text)] = _ans(a, m=m)
+    classify.run(100, "test")
+    r = classify.train_student("test")
+    assert r["zustand"] == "zu_wenig" and "at least 120" in r["grund"]
+    assert classify.student_label(objs[0][0]) is None  # no student → no label from it

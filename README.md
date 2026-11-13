@@ -36,9 +36,9 @@ to each other across organisations: short, executable like code, readable by peo
   model learns the labels for everything new, and the ranking learns from what is used after an answer. The language model itself is
   never trained.
 
-*What exists (0.62.0):* questions in the language (`vi_recall` with `ask.how deploy @web1 #project`, answers as `tell` lines with `format: "vil"`), the classification of the knowledge by a language model (`answers:`, `memory:`, `vi-mcp classify`) and the vocabulary — `vi_vocabulary` and the "Words" page of the internal search list the words that exist and complete
+*What exists (0.62.0):* questions in the language (`vi_recall` with `ask.how deploy @web1 #project`, answers as `tell` lines with `format: "vil"`), the classification of the knowledge by a language model (`answers:`, `memory:`, `vi-mcp classify`, with a small model on the embeddings that learns the labels for new knowledge) and the vocabulary — `vi_vocabulary` and the "Words" page of the internal search list the words that exist and complete
 half-typed ones, and a search without hits says whether it asked for an unknown word (nothing known) or for known words that do not meet.
-*Next:* a small model that learns the labels, the measurement of the question-type order, weights per word, the language between servers
+*Next:* the measurement of the question-type order, weights per word, the language between servers
 measured against prose.
 
 ## Vision

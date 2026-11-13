@@ -61,6 +61,12 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   0.75 (tentative; ≥ 0.667), memory kind 87 %, κ 0.80; most disagreements how ↔ what (5 of 8); in a check of 26 objects by me (not a
   human gold set) about 24–25 primary labels were plausible. 6 of 90 answers were outside the enum although the request carried a JSON
   schema — hence the check here. Tests: `tests/test_classify.py` (3).
+- **A student learns the labels, so new knowledge needs no language model** (distillation, as FineWeb-Edu did with 460,000 LLM ratings):
+  one logistic regression per label kind on the bge-m3 vectors the memory already has, trained only on labels both prompt variants
+  agreed on (at least 120, a class needs 15). It becomes active only with ≥ 80 % holdout accuracy; then it labels what it is ≥ 80 % sure
+  of (`daten.klasse.zustand: schueler`, version `student@<time>`), the language model labels the rest, and 10 % of the student's sure
+  labels go to the language model as an audit — agreement is counted on the model object `modell:klassen`, so drift becomes visible.
+  Sleep step 8f trains it before labelling. Tests: `tests/test_classify.py` (5).
 
 ### What has changed
 
@@ -82,8 +88,8 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **Sessions of the internal search** live in the server process: a restart signs everybody out.
 - **Found in the browser test and fixed before release:** the sign-in was refused in every browser — the pages had the `no-referrer`
   policy of `/web`, so Chrome sent `Origin: null`.
-- **The AI language** beyond vocabulary, `ask` questions and classification — the small model that learns the labels from the embeddings
-  (so new objects need no language model), weights per word, the language between servers — is a design (README), not code yet. Whether
+- **The AI language** beyond vocabulary, `ask` questions, classification and its student — weights per word, the language between
+  servers — is a design (README), not code yet. The student has not been trained on real data yet (the sample run is in progress). Whether
   the question-type order raises success is not measured yet; no human gold set exists.
 - **A second order-dependent test:** `tests/test_http.py::test_two_sessions_two_conversations` failed once in a full run on SQLite and
   passed 4 times alone; cause not found.
