@@ -223,7 +223,8 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **Same server:** a file is not imported into a second index of its own server (one object, one index; no self-rating).
 - **Imported searches and skills** cannot be exported again (renamed on import, their content hash cannot be rebuilt); counted.
 - **Without a configured reviewer** imported contents wait in quarantine until `vi_release`.
-- **The internal search on production** is not switched on yet — after release and deploy, on the user's word.
+- **The internal search behind a reverse proxy** needs the public origin in `origins` when the proxy passes neither `Host` nor
+  `X-Forwarded-Host` — found at the first production deploy: every sign-in was refused with 403 until it was added (OPERATIONS).
 - **Sessions of the internal search** live in the server process: a restart signs everybody out.
 - **Found in the browser test and fixed before release:** the sign-in was refused in every browser — the pages had the `no-referrer`
   policy of `/web`, so Chrome sent `Origin: null`.

@@ -280,7 +280,9 @@ sudo vi-mcp web internal                            # shows on/off and the base 
 ```
 
 - Behind a reverse proxy that already passes `/vi-mcp/` to the server (prefix stripped), nothing changes there: `/vi-mcp/intern/` reaches
-  `/intern/`. Otherwise: `location /intern/ { proxy_pass http://127.0.0.1:8765/intern/; proxy_set_header X-Forwarded-For $remote_addr;
+  `/intern/` — but such a proxy often sends neither the public `Host` nor `X-Forwarded-Host`; then every sign-in is refused with
+  403 "sent from another site" (found at the first production deploy, 13.11.2026). Fix: add the public origin to `origins` in the
+  config (`"https://<host>"`) and restart, or set `proxy_set_header Host $host;` in the proxy. Otherwise: `location /intern/ { proxy_pass http://127.0.0.1:8765/intern/; proxy_set_header X-Forwarded-For $remote_addr;
   proxy_set_header Host $host; }`. The sign-in check compares the form's `Origin` with `Host` (or `X-Forwarded-Host`), or with `origins`
   of the config.
 - Sign-in with the token of an instance (the same tokens as `/mcp`); a session lasts 8 h and lives in the server process — a restart
