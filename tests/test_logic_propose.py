@@ -138,3 +138,24 @@ def test_rules_are_learned_from_rated_conclusions_and_held_for_review(gd):
     assert '(O.zone == "dmz")' in newest.data["logik"]["quelle"] and src in newest.data["logik"]["quelle"]
     # ratings belong to a program text: the new version has none yet
     assert "nothing learned" in tools.call_tool("vi_logic", {"action": "learn", "rule_set": "rev"}, "a", False)
+
+
+def test_a_question_in_natural_language_is_answered_on_the_server(gd, monkeypatch):
+    """0.63.0: vi_logic action=answer — the server's language model writes clingo-object, the server solves it with the asker's objects
+    (only notation runs, never Python); a refusal goes back to the model. Here a scripted model needs two rounds."""
+    from vi_mcp import logic
+    _world()
+    g.new_object("erkenntnis", "private of b", ["host:secret1", "zone:dmz"], {"quelle": "t"}, reason="T", instance="b", visibility="privat",
+                 oid="erkenntnis:priv-b", link=False)
+    replies = iter(['```logic\nans(H) <= O in objects("zone:dmz") & (O.host == H)\n```',
+                    '```logic\nans(H) <= (O in objects("zone:dmz")) & (O.host == H)\n```'])
+    seen = []
+    monkeypatch.setattr(logic, "agent_llm", lambda messages: seen.append([dict(m) for m in messages]) or next(replies))
+    out = tools.call_tool("vi_logic", {"action": "answer", "question": "Which hosts are in the DMZ?"}, "a", False)
+    assert out.startswith("state: answered · 1 answer(s) · 2 round(s)") and 'ans("gate1")' in out and "secret1" not in out
+    assert "- zone: dmz" in seen[0][0]["content"]  # the vocabulary the asker may see went to the model
+    assert "refused" in seen[1][-1]["content"]
+    monkeypatch.setattr(logic, "agent_llm", None)
+    monkeypatch.setattr(logic, "llm_available", lambda: False)
+    with pytest.raises(tools.Rejected, match="no language model"):
+        tools.call_tool("vi_logic", {"action": "answer", "question": "x"}, "a", False)

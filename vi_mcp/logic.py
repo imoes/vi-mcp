@@ -590,3 +590,49 @@ def outgoing(net: str, limit: int = 1000) -> list[dict]:
             for h, text, y, n_ in rows if company or ('"' not in text and not anonymize.categories(text))]
 
 
+
+
+# ── answering a question in natural language (0.63.0): the clingo-object agent on the server ──────────────
+#: replaceable model function (tests): messages → reply text
+agent_llm = None
+
+
+def _server_llm(messages: list[dict]) -> str:
+    """The classify model of this server, multi-turn, temperature 0, thinking off, no token cap (project rule)."""
+    import urllib.request
+    from . import classify
+    if agent_llm is not None:
+        return agent_llm(messages)
+    cfg = classify._config()
+    if not cfg.get("url"):
+        raise LogicError("no language model configured on this server (configuration classify.url)")
+    body = {"messages": messages, "temperature": 0, "chat_template_kwargs": {"enable_thinking": False},
+            **({"model": cfg["model"]} if cfg.get("model") else {})}
+    header = {"Content-Type": "application/json", **({"Authorization": f"Bearer {cfg['token']}"} if cfg.get("token") else {})}
+    req = urllib.request.Request(cfg["url"], json.dumps(body).encode(), header)
+    with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=300) as r:
+        choice = json.load(r)["choices"][0]
+    if choice.get("finish_reason") == "length":
+        raise LogicError("the language model's answer was cut off — thinking is off; check the model's context size")
+    return choice["message"]["content"] or ""
+
+
+def llm_available() -> bool:
+    from . import classify
+    return agent_llm is not None or bool(classify._config().get("url"))
+
+
+def answer_question(question: str, instance: str, rounds: int | None = None) -> dict:
+    """The clingo-object agent (clingo_object.agent) run by the server: its language model writes the program in this notation, the
+    server solves it with the asking instance's objects and feeds refusals back. Only notation is executed — never Python."""
+    from clingo_object import agent
+    from . import tools
+
+    class _Mem:
+        def objects(self, filters, edges=True):
+            return object_data(filters, instance, edges=edges)
+
+        def call(self, tool, args):
+            return tools.call_tool(tool, args, instance, False)
+    mem = _Mem()
+    return agent.solve(question, mem, _server_llm, max_rounds=rounds or agent.MAX_ROUNDS, vocabulary=agent.vocabulary(mem))

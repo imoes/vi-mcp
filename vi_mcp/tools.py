@@ -45,7 +45,7 @@ LEARN (vi_learn: text = one concrete key statement; content = complete, with com
 7. A reusable fact about a system was looked up or measured (path, port, version, peculiarity, access route without secrets).
 8. Something turns out to be wrong — a hint contradicts what you just measured or read, or the user corrects it: correct it at once, in the same step, not at the end of the session: vi_refute the wrong object (reason with evidence), vi_learn the correction (with source).
 Search before learning: if it is already there, vi_confirm instead of creating it again. After hints: vi_feedback(helped=[ids], wrong=[ids]) — one call, no reason needed; it is how the VI learns which hint to show. vi_confirm / vi_refute when you checked the knowledge itself.
-Logic: whether something is allowed, forbidden, required or consistent under rules is decided by vi_logic (rules in a Python-like notation, clingo), not by prose reasoning; vi_logic(action="rate") books a conclusion you checked, so the rules' weights learn.
+Logic: whether something is allowed, forbidden, required or consistent under rules is decided by vi_logic (rules in a Python-like notation, clingo), not by prose reasoning; vi_logic(action="rate") books a conclusion you checked, so the rules' weights learn. A question over many objects (which hosts …, all findings that …) goes to vi_logic(action="answer", question=…): a program over all matching objects, exact where a search shows only its first hits.
 Fine-tuning: if the user wants to fine-tune (train, adapt) a model with the knowledge of this VI, call vi_finetune — it says whether the VI is mature and gives the steps; vi_finetune(action="guide") explains how fine-tuning works.
 Code: the code of a solution, a fix, a reusable script or a query belongs in content, complete and runnable. Not a copy of a file that lives in a repository: name repository, path and commit instead — the code of a repository comes into its project index through the code import (vi-mcp index import-code), and vi_recall finds it there.
 Network wiki: what the whole network should maintain (a runbook, the answer to a recurring question) goes on a page with vi_page_write (network, page, text, base_rev = the revision you edited); vi_page_read shows a page with its open conflicts — resolve one by writing with base_rev = one head and also_parents = the others.
@@ -256,10 +256,12 @@ TOOLS = [
                     "visibility, instance, index, text; numbers age, importance, confirmed, refuted, accesses, e.g. (O.age > 90)); "
                     "linked(O, B) follows an edge (objects one edge away are imported too). Comparisons in parentheses. Classes, methods "
                     "and inheritance are real Python in the package clingo-object (import clingo_object), which compiles them to this notation.",
-     "inputSchema": _schema({"action": {"type": "string", "enum": ["check", "ask", "rate", "save", "objects", "propose", "learn"],
+     "inputSchema": _schema({"action": {"type": "string", "enum": ["check", "ask", "rate", "save", "objects", "propose", "learn", "answer"],
                                         "description": "default check; objects: the memory objects of filters as JSON (data for clingo-object); "
                                                        "propose: hold what the rules propose (propose(tag(…)) / propose(link(…))) for review; "
-                                                       "learn: learn rules from the rule set's rated conclusions, held for review"},
+                                                       "learn: learn rules from the rule set's rated conclusions, held for review; "
+                                                       "answer: a question in natural language — the server's model writes the program"},
+                             "question": {"type": "string", "description": "answer: e.g. which DMZ hosts are never described as production?"},
                              "filters": {"type": "array", "items": _S, "description": "objects: vi_recall filters, e.g. [\"art:skill\", \"host:web*\"]"},
                              "edges": {"type": "boolean", "description": "objects: also edges and the objects one edge away (default true)"},
                              "source": {"type": "string", "description": "statements, one per line (added to rule_set if both are given)"},
@@ -557,6 +559,25 @@ def _logic(args: dict, instance: str | None) -> str:
     if not logic.available():
         raise Rejected(f"the logic layer is off on this server ({logic.unavailable_reason()}) — an administrator runs: sudo vi-mcp logic install")
     action = str(args.get("action") or "check")
+    if action == "answer":  # 0.63.0: a question in natural language → the server's model writes clingo-object, the server solves it
+        q = str(args.get("question") or "").strip()
+        if not q:
+            raise Rejected("answer needs question: what you want to know about the memory's objects")
+        if not logic.llm_available():
+            raise Rejected("no language model configured on this server (classify.url) — write the program yourself with action=check")
+        try:
+            r = logic.answer_question(q[:2000], instance)
+        except logic.LogicError as e:
+            raise Rejected(str(e)) from e
+        rows = r["answer"]
+        out = [f"state: {r['state']} · {len(rows)} answer(s) · {r['rounds']} round(s) · evidence: inferred (a program over the memory's "
+               "objects as you may see them)"]
+        out += [f"  {a}" for a in rows[:100]] + ([f"  … {len(rows) - 100} more" ] if len(rows) > 100 else [])
+        out.append("program:\n" + r["program"])
+        if r["state"] != "answered":
+            last = next((t for t in reversed(r["transcript"]) if t.get("error")), None)
+            out.append(("last refusal: " + last["error"][:300]) if last else "the program derived no answer — the memory may not know it")
+        return "\n".join(out)
     if action == "objects":  # 0.63.0: the data path for the Python package clingo-object — JSON, as the caller may see it
         fs = [str(f) for f in (args.get("filters") or []) if str(f).strip()]
         if not fs or len(fs) > logic.MAX_FILTERS:
@@ -632,7 +653,7 @@ def _logic(args: dict, instance: str | None) -> str:
             o = logic.save_rule_set(nm, src, desc, vis, instance)
             stmts = o.data["logik"]["aussagen"]
             return f"saved {o.id} as rule set {nm} ({stmts} statements) — use rule_set=\"{nm}\""
-        raise Rejected(f"unknown action {action!r}: check, ask, rate, save, objects, propose, learn")
+        raise Rejected(f"unknown action {action!r}: check, ask, rate, save, objects, propose, learn, answer")
     except logic.LogicError as e:
         raise Rejected(f"notation: {e}") from e
 

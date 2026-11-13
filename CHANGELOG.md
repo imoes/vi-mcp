@@ -28,6 +28,11 @@ first draft (class blocks inside the server's parser): consistent with the cling
   through a real server on a random port); the wheel installs offline with `pip --no-deps` and imports without vi-mcp. Tests:
   `tests/test_clingo_object.py` (15).
 - `vi_logic action=objects` returns the objects of filters as JSON (the package's data path).
+- **Questions in natural language, answered with clingo-object on the server:** `vi_logic action=answer question="Which DMZ hosts are
+  never described as production?"` — the server's language model (the classify model) writes the program, the server solves it with
+  the asking instance's objects and feeds refusals back (the agent of `clingo_object.agent`, with the vocabulary the asker may see). Only
+  the notation runs, never Python. The rules every client receives now say: a question over many objects goes to this action. Test:
+  `tests/test_logic_propose.py` (1 new).
 - Verified on both databases: the whole suite on SQLite (910 passed) and on PostgreSQL 16 (911 passed, 3 skipped), 13.11.2026.
 - **An agent that answers in clingo-object** (`clingo_object.agent.solve(question, memory, llm)`): the language model writes a program
   whose answer is `ans(…)`; it is solved with the caller's objects; a refusal of the notation, an empty answer or a violated constraint goes
