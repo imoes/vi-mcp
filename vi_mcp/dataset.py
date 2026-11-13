@@ -81,7 +81,7 @@ def build(index: str | None = None) -> dict:
     from . import vil
     targets, eval_qs = _eval_hold_out()
     skipped, audit = Counter(), Counter()
-    qa, rated = [], []
+    qa, rated, qa_objects = [], [], []
     for o in _objects(index):
         if "art_wissen:code" in o.hashtags:
             skipped["code piece (a copy of a repository)"] += 1
@@ -95,6 +95,7 @@ def build(index: str | None = None) -> dict:
                 "evidence": vil.evidence_of(o), "weight": vil.weight_of(o)[0], "ratings": vil.weight_of(o)[1],
                 "question_source": "doc2query" if k.get("fragen") else "title"}
         answer = _answer(o, audit)
+        qa_objects.append((o, questions))
         for q in questions:
             if _norm(q) in eval_qs:
                 skipped["question equal to an evaluation question"] += 1
@@ -123,7 +124,80 @@ def build(index: str | None = None) -> dict:
             dpo.append({"prompt": f"Situation: {t}. Which piece of knowledge helps?", "chosen": _clean(best[0].text, audit, "hint"),
                         "rejected": _clean(worst[0].text, audit, "hint"),
                         "meta": {"trigger": t, "chosen": best[0].id, "rejected": worst[0].id, "weights": [best[1], worst[1]]}})
-    return {"qa": qa, "kto": kto, "dpo": dpo, "skipped": dict(skipped), "scrubbed": dict(audit), "held_out": len(targets)}
+    agentic, agentic_skipped = agentic_examples(qa_objects, eval_qs, audit)
+    skipped.update(agentic_skipped)
+    return {"qa": qa, "kto": kto, "dpo": dpo, "agentic": agentic, "skipped": dict(skipped), "scrubbed": dict(audit), "held_out": len(targets)}
+
+
+AGENTIC_MAX = 2000
+_STOP = frozenset("what which where when does with this that from have will they them their there about into your über eine einer einem "
+                  "einen wird werden wurde nicht oder auch nach wenn dann sich sind kann muss soll wie was wer warum welche welcher".split())
+
+
+def _query_words(question: str, n: int = 3) -> list[str]:
+    import re as _re
+    words = [w.lower() for w in _re.findall(r"[\wäöüß-]{4,}", question or "")]
+    return [w for w in dict.fromkeys(words) if w not in _STOP][:n]
+
+
+def _tool_schema() -> dict:
+    from . import tools
+    d = next(t for t in tools.TOOLS if t["name"] == "vi_recall")
+    return {"type": "function", "function": {"name": "vi_recall", "description": d["description"][:600], "parameters": d["inputSchema"]}}
+
+
+def _search_lines(query: str) -> tuple[list[g.MemoryObject], str]:
+    """Run the real search (tools.search, full text and tags — no embedding calls while exporting) and render the VIL answer, without
+    anything private, in quarantine or not knowledge."""
+    from . import tools, vil
+    try:
+        hits, _f, _k = tools.search({"filter": query, "limit": 10, "semantic": False}, None, None)
+    except tools.Rejected:
+        return [], ""
+    objs = [o for _s, o, _w in hits if o.visibility != "privat" and o.mode not in ("quarantaene",) and o.kind in KINDS]
+    return objs, "\n".join(vil.tell_line(o) for o in objs) or "nothing in memory"
+
+
+def agentic_examples(items: list[tuple], eval_qs: set[str], audit: Counter) -> tuple[list[dict], Counter]:
+    """0.62.0 — the user: "Außerdem soll die VI so trainiert werden, dass man agentisch die Daten durchsuchen kann." Trajectories in the
+    tool-calling chat format: the user asks; the assistant calls vi_recall with a VIL question built from the question's words and the
+    object's label and hashtags; the tool answers with the real tell lines of this server's search; if the target is not among them,
+    the assistant relaxes (drops the words, keeps @host/#thema) and asks again; it answers from the target, citing it. Kept only if the
+    target was found — a trajectory that teaches a wrong answer is no example (counted)."""
+    import random as _random
+    from . import vil
+    skipped = Counter()
+    rnd = _random.Random(11)
+    pool = items if len(items) <= AGENTIC_MAX else rnd.sample(items, AGENTIC_MAX)
+    tool = _tool_schema()
+    out = []
+    for o, questions in pool:
+        q = questions[0]
+        if _norm(q) in eval_qs:
+            continue
+        qtype = (o.data.get("klasse") or {}).get("answers")
+        qtype = qtype if qtype in vil.QTYPES else "what"
+        host = next((t[5:] for t in o.hashtags if t.startswith("host:")), None)
+        topic = next((t[6:] for t in o.hashtags if t.startswith("thema:")), None)
+        tags = " ".join(([f"@{host}"] if host else []) + ([f"#{topic}"] if topic else []))
+        words = " ".join(_query_words(q))
+        steps = [f"ask.{qtype} {words} {tags}".strip()] + ([f"ask.{qtype} {tags}"] if tags and words else [])
+        messages = [{"role": "user", "content": _clean(q, audit, "question")}]
+        found = False
+        for query in steps:
+            objs, lines = _search_lines(query)
+            messages.append({"role": "assistant", "content": "", "tool_calls": [
+                {"type": "function", "function": {"name": "vi_recall", "arguments": {"filter": query, "format": "vil"}}}]})
+            messages.append({"role": "tool", "name": "vi_recall", "content": _clean(lines, audit, "tool")})
+            if any(x.id == o.id for x in objs):
+                found = True
+                break
+        if not found:
+            skipped["agentic: the search did not find the target (no example teaches a wrong answer)"] += 1
+            continue
+        messages.append({"role": "assistant", "content": _answer(o, audit) + f"\n\n(from {o.id})"})
+        out.append({"messages": messages, "tools": [tool], "meta": {"id": o.id, "steps": (len(messages) - 2) // 2, "answers": qtype}})
+    return out, skipped
 
 
 def _situation(o: g.MemoryObject) -> str:
@@ -156,6 +230,7 @@ A VI out of the incubator fine-tunes an AI: question → answer from its knowled
 | qa.jsonl | {c['qa']} | question → knowledge with source; questions from the classification (doc2query) or the object's text |
 | kto.jsonl | {c['kto']} | situation → hint, desirable if its measured success ≥ {GOOD} (≤ {BAD}: undesirable), ≥ {MIN_RATINGS} ratings |
 | dpo.jsonl | {c['dpo']} | the same trigger, one hint helped ≥ {DPO_MARGIN} more than the other |
+| agentic.jsonl | {c['agentic']} | tool use: the model asks the VI with vi_recall in VIL (relaxing once if needed) and answers from the target |
 
 ## Left out, with the reason
 """ + ("\n".join(f"- {k}: {v}" for k, v in sk.items()) or "- nothing") + f"""
@@ -191,9 +266,9 @@ def export(directory: str | Path, index: str | None = None) -> dict:
     d.mkdir(parents=True, exist_ok=True)
     os.chmod(d, 0o700)
     data = build(idx)
-    manifest = {"index": idx, "counts": {k: len(data[k]) for k in ("qa", "kto", "dpo")}, "skipped": data["skipped"],
+    manifest = {"index": idx, "counts": {k: len(data[k]) for k in ("qa", "kto", "dpo", "agentic")}, "skipped": data["skipped"],
                 "scrubbed": data["scrubbed"], "held_out": data["held_out"], "versions": _versions()}
-    for name in ("qa", "kto", "dpo"):
+    for name in ("qa", "kto", "dpo", "agentic"):
         _write(d / f"{name}.jsonl", "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in data[name]))
     _write(d / "manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
     _write(d / "DATASHEET.md", datasheet(manifest))

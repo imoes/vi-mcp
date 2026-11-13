@@ -58,4 +58,33 @@ def test_scrubbing_is_audited_and_an_index_can_be_exported_alone(gd, tmp_path, m
     qa = (tmp_path / "ds" / "qa.jsonl").read_text()
     assert m["counts"]["qa"] == 1 and "other project" not in qa
     assert anonymize.without_secrets("password=hunter2secret") == "<geheimnis>"
-    assert "hunter2secret" not in qa and "<geheimnis>" in qa and m["scrubbed"] == {"answer": 1}
+    agentic = (tmp_path / "ds" / "agentic.jsonl").read_text()
+    assert "hunter2secret" not in qa
+    assert "hunter2secret" not in agentic
+    assert "<geheimnis>" in qa
+    assert m["scrubbed"]["answer"] == 1 + m["counts"]["agentic"]  # once in qa, once per agentic trajectory that answers from it
+
+
+def test_agentic_trajectories_search_the_vi_in_vil_relax_once_and_never_teach_a_miss(gd, tmp_path, monkeypatch):
+    monkeypatch.setattr(evaluation, "EVAL_DIR", tmp_path / "eval")
+    direct = _k("restart nginx on web1 with reload", ["host:web1.example", "thema:nginx"],
+                data={"klasse": {"answers": "how", "memory": "procedure", "fragen": ["How do I restart nginx on web1?"]}})
+    relaxed = _k("the backup runs nightly at two", ["host:db1.example", "thema:backup"],
+                 data={"klasse": {"answers": "what", "memory": "fact", "fragen": ["Wann läuft die Sicherung?"]}})  # no question word in the text
+    _k("a lonely fact without tags matching its question", ["quelle_art:test"], data={"klasse": {"fragen": ["Quasselstrippe Zauberwort?"]}})
+    _k("secret db1 backup password location", ["host:db1.example", "thema:backup"], visibility="privat", instance="b")
+    data = dataset.build()
+    by = {x["meta"]["id"]: x for x in data["agentic"]}
+    a = by[direct.id]
+    assert a["meta"]["steps"] == 1 and a["tools"][0]["function"]["name"] == "vi_recall"
+    call = a["messages"][1]["tool_calls"][0]["function"]
+    assert call["arguments"] == {"filter": "ask.how restart nginx web1 @web1.example #nginx", "format": "vil"}
+    assert a["messages"][2]["role"] == "tool" and f"tell.fact {direct.id}" in a["messages"][2]["content"]  # memory: comes from the hashtag, not from daten.klasse
+    assert a["messages"][-1]["content"].endswith(f"(from {direct.id})")
+    b = by[relaxed.id]
+    assert b["meta"]["steps"] == 2  # the first question found nothing, the relaxed one (tags only) found the target
+    assert b["messages"][3]["tool_calls"][0]["function"]["arguments"]["filter"] == "ask.what @db1.example #backup"
+    assert "secret" not in json.dumps(b)  # someone's private object never appears in a tool answer
+    assert data["skipped"]["agentic: the search did not find the target (no example teaches a wrong answer)"] == 1
+    m = dataset.export(tmp_path / "ds")
+    assert m["counts"]["agentic"] == 2 and len((tmp_path / "ds" / "agentic.jsonl").read_text().splitlines()) == 2

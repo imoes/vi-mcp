@@ -64,7 +64,8 @@ Keep the adapter separate: `python convert_lora_to_gguf.py ADAPTER_DIR --base HF
 ## The steps
 1. The VI is mature enough: `vi-mcp incubator status` (a run before is a trial).
 2. `vi-mcp finetune kit DIR` — data, test split, scripts.
-3. Train SFT (`train.py --stage sft`), optionally KTO or DPO on top (`--stage kto|dpo`).
+3. Train SFT (`train.py --stage sft`), then on top of it `--stage agentic` (searching the VI with vi_recall in VIL), and
+   optionally KTO or DPO (`--stage kto|dpo`).
 4. `convert.sh` → GGUF adapter; start llama-server with base and adapter.
 5. `evaluate.py` — base and fine-tuned get the same held-out questions; adopt only what is measurably better.
 6. `vi-mcp finetune record DIR` — the run becomes a model object with its lineage in the VI.
@@ -112,11 +113,12 @@ def plan_lines(p: dict) -> list[str]:
     return out
 
 
-TRAIN_PY = r'''"""Fine-tune with TRL + LoRA — written by vi-mcp finetune kit; run it on the GPU host. Stages: sft (qa.jsonl), kto, dpo (on top of sft)."""
+TRAIN_PY = r'''"""Fine-tune with TRL + LoRA — written by vi-mcp finetune kit; run it on the GPU host. Stages: sft (qa.jsonl), then on top of it
+agentic (agentic.jsonl: searching the VI with vi_recall), kto or dpo."""
 import argparse, json, pathlib
 
 a = argparse.ArgumentParser()
-a.add_argument("--stage", choices=["sft", "kto", "dpo"], default="sft")
+a.add_argument("--stage", choices=["sft", "agentic", "kto", "dpo"], default="sft")
 a.add_argument("--base", default=json.load(open("run.json"))["base_model"])
 a.add_argument("--qlora", action="store_true", help="load the base in 4 bit (small GPUs)")
 a.add_argument("--epochs", type=float, default=2)
@@ -139,7 +141,12 @@ if o.stage == "sft":
                    args=SFTConfig(output_dir=str(out), num_train_epochs=o.epochs, learning_rate=o.lr or 2e-4, logging_steps=10))
 else:
     model = AutoPeftModelForCausalLM.from_pretrained("out/sft", is_trainable=True, quantization_config=quant, torch_dtype="auto")
-    if o.stage == "kto":
+    if o.stage == "agentic":  # tool use: asking the VI with vi_recall in VIL (the chat template renders "tools" and "tool_calls")
+        from trl import SFTConfig, SFTTrainer
+        ds = load_dataset("json", data_files="dataset/agentic.jsonl")["train"].remove_columns(["meta"])
+        t = SFTTrainer(model=model, processing_class=tok, train_dataset=ds,
+                       args=SFTConfig(output_dir=str(out), num_train_epochs=o.epochs, learning_rate=o.lr or 1e-4, logging_steps=10))
+    elif o.stage == "kto":
         from trl import KTOConfig, KTOTrainer
         ds = load_dataset("json", data_files="dataset/kto.jsonl")["train"].remove_columns(["meta"])
         t = KTOTrainer(model=model, processing_class=tok, train_dataset=ds,
@@ -256,7 +263,7 @@ def record(directory: str, who: str = "admin") -> g.MemoryObject:
         raise ValueError(f"{d}: no run.json — not a kit written by vi-mcp finetune kit")
     run = json.loads((d / "run.json").read_text(encoding="utf-8"))
     adapters = {}
-    for stage in ("sft", "kto", "dpo"):
+    for stage in ("sft", "agentic", "kto", "dpo"):
         f = d / "out" / stage / "adapter_model.safetensors"
         if f.exists():
             adapters[stage] = hashlib.sha256(f.read_bytes()).hexdigest()

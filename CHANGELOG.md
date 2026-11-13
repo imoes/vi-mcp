@@ -98,6 +98,12 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   The project rule changes from "the language model is never trained" to "vi-mcp trains no model by itself; fine-tuning is a person's
   explicit action". The handbook rests on the research of 13.11.2026 (TRL dataset formats, Unsloth hardware table, llama.cpp
   `convert_lora_to_gguf.py`). Tests: `tests/test_finetune.py` (3).
+- **Training to search the VI agentically** (the user: "Außerdem soll die VI so trainiert werden, dass man agentisch die Daten
+  durchsuchen kann"): the export writes `agentic.jsonl` — trajectories in the tool-calling chat format: the question; a `vi_recall` call
+  with a VIL question built from the question's words and the object's label and `@host`/`#thema`; the real `tell` lines of this server's
+  search; if the target is missing, one relaxed question (tags only); the answer from the target, citing it. Only trajectories that found
+  their target are kept (the rest counted) — no example teaches a wrong answer; nothing private appears in a tool answer. `train.py`
+  trains them as the stage `agentic` on top of SFT. Test: `tests/test_dataset.py` (3).
 
 ### What has changed
 
@@ -120,7 +126,8 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **Found in the browser test and fixed before release:** the sign-in was refused in every browser — the pages had the `no-referrer`
   policy of `/web`, so Chrome sent `Origin: null`.
 - **No fine-tuning run yet:** the kit's scripts are untested on real hardware — host, base model and the training environment (a venv with
-  torch for ROCm or CUDA, trl, peft) await the user's decision. No full task trajectories: user prompts are masked and never stored.
+  torch for ROCm or CUDA, trl, peft) await the user's decision. `evaluate.py` measures answers, not yet the agentic search (whether
+  the fine-tuned model finds the target with the tool more often than the base model). No full task trajectories: user prompts are masked and never stored.
 - **The AI language** beyond vocabulary, `ask` questions, classification and its student — weights per word, the language between
   servers — is a design (README), not code yet. The student has not been trained on real data yet (the sample run is in progress). Whether
   the question-type order raises success is not measured yet; no human gold set exists.
