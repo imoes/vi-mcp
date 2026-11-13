@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.62.0 — not yet released — Index files, an internal knowledge search, an AI language, the incubator and training data
+## 0.62.0 — 2026-11-13 — Index files, an internal knowledge search, an AI language, the incubator and training data
 
 The user (12./13.11.2026): "Der Export oder Import von Projekten kann uns beim Scoring der Inhalte helfen. So können wir vergleichen.",
 "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" and "Wenn sich in der Konversation eine Korrektur in
