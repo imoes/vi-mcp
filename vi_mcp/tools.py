@@ -649,8 +649,8 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
     Returns (hits as (score, object, weights), the filter with the notes on how it was searched, the search kind). Visibility follows
     memory.current_instance; `only`: the index searched alone (memory.search_index must be set by the caller); `first`: the project index
     whose hits come first (stable, after rank fusion and reranker — before them it would be lost). Reads only: no log, no reinforcement.
-    0.62.0: the filter may be a VIL utterance (`ask.how … @host #thema since:30d`, vil.py) — translated here, its question type orders
-    the hits (priority, not exclusion)."""
+    0.62.0: the filter may be a VIL utterance (`ask.how … @host #thema since:30d`, vil.py) — translated here; its question type is
+    recorded but does not reorder the hits (vil.ORDER "off": measured, every reordering lowered MRR on a production copy)."""
     from . import vil
     u = vil.parse(args.get("filter") or "")
     if u.act is not None and u.act != "ask":
@@ -715,7 +715,7 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
     if not semantic or kind_used != "hybrid":
         if g.word_search.get() == "oder":
             f += " · OR search: no or too few objects contain all words, filled up by number of matching words (BM25)"
-    if u.act:  # 0.62.0: VIL — recency, then the kind of knowledge that answers this type of question first
+    if u.act:  # 0.62.0: VIL — recency filter; the question type is recorded, the order stays (vil.ORDER)
         if u.since:
             before = len(hits)
             hits = [h for h in hits if max(h[1].ts or "", h[1].last_at or "") >= u.since]
