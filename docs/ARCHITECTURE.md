@@ -720,6 +720,17 @@ Requests:
 
 `ensure_identity` makes the identity entry 1 at the first start (refuses on a logbook that already has entries).
 
+## Vocabulary — the words of the AI language (0.62.0)
+
+`vocabulary.py`. The words of the search language are the hashtags `kind:value` the memory holds; this module counts them over what the
+asking instance may see (`memory._filter_sql` — the same visibility as search; bookkeeping kinds such as `instanz:` are not vocabulary).
+`vi_vocabulary` lists kinds, values and completions; the internal search shows them as a page and as a `<datalist>`. A search without hits
+is classified by `empty_reason`: `unbekannt` (a hashtag no visible object carries, or free text none of whose words occurs — the full-text
+search already fell back to OR) or `verfehlt` (all words known, not together); the answer names it, `nutzung.leer_grund` records it for
+`vi_stats` E. Suggestions compare the first label of a value first, so host names that only share a domain are not "close". The tool
+takes the visibility from the calling instance, not from the session context alone — without a session that would be the server's view
+of everything (found by the test of a private host name).
+
 ## Internal knowledge search (0.62.0)
 
 The user: "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" — decided: internal, with sign-in. The

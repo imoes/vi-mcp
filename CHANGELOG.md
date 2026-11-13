@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.62.0 — not yet released — Index files and an internal knowledge search in the browser
+## 0.62.0 — not yet released — Index files, an internal knowledge search, and the vocabulary of an AI language
 
 The user (12./13.11.2026): "Der Export oder Import von Projekten kann uns beim Scoring der Inhalte helfen. So können wir vergleichen.",
 "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" and "Wenn sich in der Konversation eine Korrektur in
@@ -35,6 +35,14 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   light and dark, 400 px wide without horizontal scrolling (`scrollWidth` 400); wrong token 401, foreign or `null` origin 403. Tests:
   `tests/test_web_internal.py` (7).
 - **`vi-mcp configure` / debconf** ask for it (`web_internal`, `web_internal_base`).
+- **The vocabulary — "what is there, what can I search?"** (first piece of the AI language the user asked for: "bekannte Vokabeln in der DB
+  suchen und daraus eine Frage formulieren, wie eine Autovervollständigung"). `vi_vocabulary` lists the kinds of words with their counts,
+  the values of a kind, and completes half-typed words (`host:web` → `host:web1.example…`), always over what the asking instance may see.
+  The internal search has a "Words" page and completes in the search field (`<datalist>`, no script).
+- **A search without hits says why:** a word the memory does not know — with "did you mean" from the same kind — or known words that no
+  object carries together. `vi_stats` E splits both. *Measured before (production, 13.11.2026, read only):* all 111 searches without hits in
+  one day asked for hosts the memory did not know (57 hosts, none as a hashtag); the single rate of 26 % mixed "nothing known" with
+  search problems. Agents' searches had none. Tests: `tests/test_vocabulary.py` (3), `tests/test_web_internal.py` (8).
 
 ### What has changed
 
@@ -56,6 +64,10 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **Sessions of the internal search** live in the server process: a restart signs everybody out.
 - **Found in the browser test and fixed before release:** the sign-in was refused in every browser — the pages had the `no-referrer`
   policy of `/web`, so Chrome sent `Origin: null`.
+- **The AI language** beyond its vocabulary — the `ask.*` parser, classification of the knowledge by a language model with its
+  measurement, weights per word, the language between servers — is a design (README), not code yet.
+- **A second order-dependent test:** `tests/test_http.py::test_two_sessions_two_conversations` failed once in a full run on SQLite and
+  passed 4 times alone; cause not found.
 - **Flaky test order on PostgreSQL:** one full run had `tests/test_hook.py::test_error_hint_and_own_tools` fail after
   `tests/test_einrichten.py`; repeated three times on 0.61.0 and on this state it passed, the full suite passed (739). Cause not found
   (hypothesis: order-dependent state).

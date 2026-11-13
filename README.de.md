@@ -24,6 +24,25 @@ mit und ohne Hinweise kann das nicht klären — Hinweise erscheinen bei den sch
 Hinweisen die Hinweise zurückgehalten, und `vi_stats` vergleicht diese mit den übrigen. Ein Unterschied von wenigen Punkten braucht einige
 hundert zurückgehaltene Aktionen: Wochen, nicht Tage.
 
+### Eine universelle Sprache für KIs — in Entwicklung
+
+KIs reden heute in Prosa miteinander. Wir entwickeln eine Sprache, in der eine KI das Gedächtnis fragt, das Gedächtnis antwortet und
+Gedächtnisse über Organisationsgrenzen miteinander reden: kurz, ausführbar wie Code, für Menschen lesbar und **in Gewichten trainiert**.
+- **Das Symbol (lesbar):** jede Äußerung ist ein Sprechakt plus Wörter — `ask.how deploy @host #projekt`, `tell.fact … ev:measured
+  src:…`, `def`, `rate`. Die Wörter sind die Hashtags `art:wert`, die das Gedächtnis hält; woher der Sprecher etwas weiß, ist Pflicht, wie
+  in Sprachen mit Evidentialen.
+- **Das Gewicht (die Bedeutung):** unter jedem Wort liegen sein Vektor und seine gemessenen Gewichte — wie gut es zum Erfolg führt, in
+  welchem Kontext. Server tauschen Messungen, nie Gewichte zum Übernehmen; jeder trainiert seine eigenen. Ein fremdes `do` wird nie
+  ausgeführt, nur vorgeschlagen.
+- **Trainiert durch Klassifikation:** ein Sprachmodell labelt das Wissen (welche Frage es beantwortet, welche Art Gedächtnis es ist), ein
+  kleines Modell lernt die Labels für alles Neue, und das Ranking lernt aus dem, was nach einer Antwort genutzt wird. Das Sprachmodell
+  selbst wird nie trainiert.
+
+*Was es gibt (0.62.0):* das Vokabular — `vi_vocabulary` und die Seite „Words“ der internen Suche zeigen die Wörter, die es gibt, und
+ergänzen halb getippte; eine Suche ohne Treffer sagt, ob sie nach einem unbekannten Wort fragte (nichts bekannt) oder nach bekannten
+Wörtern, die nicht zusammenkommen. *Als Nächstes:* der `ask.*`-Parser auf der vorhandenen Suche, die Klassifikation und ihre Messung,
+Gewichte je Wort, die Sprache zwischen Servern gemessen gegen Prosa.
+
 ## Vision
 
 **Ein offenes Netz aus Wissen, in dem sich KI selbst trainiert.** Jeder Server lernt aus seiner eigenen Arbeit: welcher Hinweis geholfen hat, welche Lösung gehalten hat, was ein Mensch korrigiert hat.

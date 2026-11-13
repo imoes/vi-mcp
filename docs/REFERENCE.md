@@ -6,7 +6,7 @@ Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server co
 
 ## MCP tools
 
-57 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
+58 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
 
 ### `vi_before`
 
@@ -333,6 +333,16 @@ VI: the indexes of the memory — projects and special VIs: objects, experiences
 | `description` | string |  | optional: what the index is for (German: `beschreibung`) |
 | `tags` | array of string |  | optional: tags of the index (replace the old ones) |
 | `kind` | string (projekt, spezial) |  | optional: projekt or spezial (a special VI) (German: `art`) |
+
+### `vi_vocabulary`
+
+VI: the words you can search with — before a search when you are unsure which hashtags exist. Without arguments: the kinds (host, tool, thema, …) with how many values and objects; kind=…: its values, most used first; prefix=…: completions of a half-typed word (host:web → host:web1.example…). Counts only what you may see. **OPEN**
+
+| Parameter | Type | Required | Meaning |
+|---|---|---|---|
+| `prefix` | string |  | optional: the beginning of a word, with or without kind: (e.g. host:web or nginx) |
+| `kind` | string |  | optional: one kind whose values to list (e.g. host) (German: `art`) |
+| `limit` | integer |  | how many at most (default 30) |
 
 ### `vi_code_sync`
 
@@ -1015,6 +1025,7 @@ First line of each module's docstring.
 | `tools` | The MCP tools of the VI. Groups: |
 | `usage_stats` | Usage statistics — is the VI used, and does it work as intended? (0.21.0) |
 | `vector` | Vectors — meaning instead of identical words (stage 3, docs/TRAINING.md 4c; Park et al. 2023, section 4.1: relevance |
+| `vocabulary` | The vocabulary of the memory (0.62.0) — "what is there, what can I search?" before searching. |
 | `web` | 0.46.0: the web page of a server — a read-only window onto what the free and open networks carry: search, wiki, forum, knowledge. |
 | `web_internal` | 0.62.0: the internal knowledge search in the browser — "wie bei Wikipedia darin suchen" (the user, 13.11.2026). |
 | `weight_audit` | Weight audit (0.29.0) — fixed rules that read the router weights after training and name what looks wrong. |

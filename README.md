@@ -23,6 +23,24 @@ choices check it.
 cannot tell — hints appear on the hard ones. So on a random 5 % of the actions with hints, the hints are held back, and `vi_stats` compares
 them with the rest. A difference of a few points needs a few hundred held-back actions: weeks, not days.
 
+### A universal language for AIs — in development
+
+AIs talk to each other in prose today. We are developing a language in which an AI asks the memory, the memory answers, and memories talk
+to each other across organisations: short, executable like code, readable by people, and **trained in weights**.
+- **The symbol (readable):** every utterance is a speech act plus words — `ask.how deploy @host #project`, `tell.fact … ev:measured
+  src:…`, `def`, `rate`. The words are the hashtags `kind:value` the memory holds; how the speaker knows something is a required part, as
+  in languages with evidentials.
+- **The weight (the meaning):** under every word lie its vector and its measured weights — how well it leads to success, in which context.
+  Servers exchange measurements, never weights to adopt; each trains its own. A foreign `do` is never executed, only proposed.
+- **Trained by classification:** a language model labels the knowledge (which question it answers, what kind of memory it is), a small
+  model learns the labels for everything new, and the ranking learns from what is used after an answer. The language model itself is
+  never trained.
+
+*What exists (0.62.0):* the vocabulary — `vi_vocabulary` and the "Words" page of the internal search list the words that exist and complete
+half-typed ones, and a search without hits says whether it asked for an unknown word (nothing known) or for known words that do not meet.
+*Next:* the `ask.*` parser on the existing search, the classification and its measurement, weights per word, the language between servers
+measured against prose.
+
 ## Vision
 
 **An open network of knowledge, in which AI teaches itself.** Every server learns from its own work: which hint helped, which solution held up, what a person corrected.

@@ -94,15 +94,42 @@ form.inline button{background:none;border:0;color:var(--muted);font:inherit;curs
 
 
 def _page(base: str, title: str, body: str, instance: str | None, q: str = "") -> str:
-    nav = (f'<form class="search" action="{e(base)}/suche" method="get" role="search"><input name="q" value="{e(q)}" '
+    nav = (f'<form class="search" action="{e(base)}/suche" method="get" role="search"><input name="q" value="{e(q)}" list="vocab" '
            f'placeholder="Search the knowledge" aria-label="Search"><button type="submit">Search</button></form>'
-           f'<nav><a href="{e(base)}/">Overview</a><form class="inline" action="{e(base)}/logout" method="post">'
+           f'<nav><a href="{e(base)}/">Overview</a><a href="{e(base)}/w">Words</a><form class="inline" action="{e(base)}/logout" method="post">'
            f'<button type="submit">Sign out ({e(instance)})</button></form></nav>') if instance else ""
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{e(title)} · VI knowledge</title><link rel="stylesheet" href="{e(base)}/stil.css"></head><body>'
             f'<header class="top"><div class="wrap"><a class="brand" href="{e(base)}/">VI <span>knowledge</span></a>{nav}</div></header>'
-            f'<main class="wrap">{body}</main><footer><div class="wrap">Internal knowledge of this vi-mcp server — shared and internal, never '
+            f'<main class="wrap">{body}</main>{_datalist(instance) if instance else ""}<footer><div class="wrap">Internal knowledge of this vi-mcp server — shared and internal, never '
             f'private · read only · vi-mcp {e(__version__)}</div></footer></body></html>')
+
+
+VOCAB_OPTIONS = 400
+
+
+def _datalist(instance: str) -> str:
+    """0.62.0: autocomplete without script — the most used words this instance may see, as a <datalist> of the search field."""
+    from . import vocabulary
+    opts = []
+    for k, _nv, _no in vocabulary.kinds(instance, 40):
+        opts += [t for t, _n in vocabulary.values(k, "", instance, max(5, VOCAB_OPTIONS // 40))]
+    return '<datalist id="vocab">' + "".join(f'<option value="{e(t)}">' for t in opts[:VOCAB_OPTIONS]) + "</datalist>"
+
+
+def words_page(base: str, instance: str, kind: str = "") -> str:
+    """0.62.0: "what is there, what can I search?" — the kinds of words, or the values of one kind, each a link to its search."""
+    from . import vocabulary
+    if kind:
+        rows = vocabulary.values(kind, "", instance, 500)
+        body = (f'<p class="meta"><a href="{e(base)}/w">Words</a> › {e(kind)}</p><h1>{e(kind)}: — {len(rows)} value{"" if len(rows) == 1 else "s"}</h1>'
+                + '<div class="tags">' + "".join(f'<a href="{e(base)}/suche?q={urllib.parse.quote(t)}">{e(t)} ({n})</a>' for t, n in rows) + "</div>")
+        return _page(base, f"Words: {kind}", body, instance)
+    rows = vocabulary.kinds(instance, 200)
+    body = ('<h1>Words you can search with</h1><p class="muted">Every word is a hashtag <code>kind:value</code>. Counted over what you may see.</p>'
+            '<div class="table-wrap"><table><tr><th>kind</th><th>values</th><th>objects</th></tr>'
+            + "".join(f'<tr><td><a href="{e(base)}/w/{e(k)}">{e(k)}:</a></td><td>{nv}</td><td>{no}</td></tr>' for k, nv, no in rows) + "</table></div>")
+    return _page(base, "Words", body, instance)
 
 
 def _login_page(base: str, error: str = "") -> str:
@@ -202,10 +229,23 @@ def search_page(base: str, instance: str, q: str, index: str = "") -> tuple[str,
     body = (f'<h1>{len(shown)} result{"" if len(shown) == 1 else "s"} for “{e(q)}”</h1>'
             f'<p class="meta">{e(how) or "full text"} · {ms} ms' + (f' · only index {e(only)}' if only else "")
             + ("".join(f" · {n} not shown ({e(k)})" for k, n in held.items())) + "</p>"
-            f'<ul class="list">{"".join(_hit(base, o) for o in shown) or "<li class=muted>Nothing found. Fewer or other words, or a hashtag such as thema:… help.</li>"}</ul>')
+            f'<ul class="list">{"".join(_hit(base, o) for o in shown) or _empty(base, instance, q)}</ul>')
     from . import usage_stats  # counted like a tool call: instance, duration, number and kind of hits; the query is parsed, never stored
     usage_stats.record(instance, "web-intern", "web_search", "ok", ms, f"{len(shown)} objects for “{notes}”")
     return _page(base, f"Search: {q}", body, instance, q), len(shown)
+
+
+def _empty(base: str, instance: str, q: str) -> str:
+    """Why nothing was found — the same answer as vi_recall gives (vocabulary.empty_reason)."""
+    from . import vocabulary
+    reason, unknown = vocabulary.empty_reason(q, instance)
+    if reason == "unbekannt" and unknown:
+        items = "".join(f"<li>{e(t)} is not in memory" + (" — did you mean " + ", ".join(f'<a href="{e(base)}/suche?q={urllib.parse.quote(x)}">{e(x)}</a>' for x in sug) + "?" if sug else "")
+                        + "</li>" for t, sug in unknown[:5])
+        return f'<li class="muted">Nothing is known about this. <ul>{items}</ul> <a href="{e(base)}/w">Words</a> lists what exists.</li>'
+    if reason == "unbekannt":
+        return f'<li class="muted">None of these words occurs in memory. <a href="{e(base)}/w">Words</a> lists what exists.</li>'
+    return '<li class="muted">The words are known, but no entry carries them together — fewer words, or OR, find more.</li>'
 
 
 def object_page(base: str, instance: str, oid: str) -> str | None:
@@ -310,6 +350,8 @@ def handle(method: str, raw_path: str, headers, body: bytes, client: str, k) -> 
         out = object_page(base, instance, parts[1])
     elif parts[0] == "i" and len(parts) == 2:
         out = index_page(base, instance, parts[1])
+    elif parts == ["w"] or (parts[0] == "w" and len(parts) == 2):
+        out = words_page(base, instance, parts[1] if len(parts) == 2 else "")
     if out is None:
         return 404, html_type, _page(base, "Not found", '<h1>Not found</h1><p class="muted">Not here, or not shown on this page '
                                                          '(private, in quarantine, or not knowledge).</p>', instance).encode(), HEADERS

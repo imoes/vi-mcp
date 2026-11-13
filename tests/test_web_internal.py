@@ -121,3 +121,16 @@ def test_markdown_bold_and_wrapped_list_items_render_and_excerpts_are_plain(k):
     assert render_text("**stays `global`:** text") == "<p><strong>stays <code>global</code>:</strong> text</p>"
     o = g.new_object("erkenntnis", "excerpt probe", ["thema:web"], {"quelle": "t", "inhalt": "### Head\n- **bold** and `code`"}, visibility="intern")
     assert wi._excerpt(o) == "Head bold and code"
+
+
+def test_words_page_datalist_and_empty_search_reason(k):
+    cookie = login(k)
+    g.new_object("erkenntnis", "nginx on web1", ["host:web1.example", "tool:nginx"], {"quelle": "t"}, visibility="intern", instance="bob")
+    g.new_object("erkenntnis", "secret", ["host:hidden.example"], {"quelle": "t"}, visibility="privat", instance="bob")
+    html = req(k, "/intern/w", cookie=cookie)[2].decode()
+    assert 'href="/vi-mcp/intern/w/host"' in html and '<datalist id="vocab">' in html and '<option value="host:web1.example">' in html
+    assert "hidden.example" not in html  # someone else's private word is no vocabulary
+    html = req(k, "/intern/w/host", cookie=cookie)[2].decode()
+    assert "host:web1.example (1)" in html and "hidden" not in html
+    html = req(k, "/intern/suche?q=host:web2.example", cookie=cookie)[2].decode()
+    assert "host:web2.example is not in memory" in html and "did you mean" in html and "host:web1.example" in html

@@ -49,6 +49,9 @@ def _table() -> None:
         g.db().execute("CREATE TABLE IF NOT EXISTS nutzung (zeit TEXT NOT NULL, instanz TEXT NOT NULL, client TEXT, werkzeug TEXT NOT NULL, "
                        "ausgang TEXT NOT NULL, ms INTEGER NOT NULL, treffer INTEGER, suchart TEXT)")
         g.db().execute("CREATE INDEX IF NOT EXISTS nutzung_zeit ON nutzung (zeit)")
+        # 0.62.0: why a search found nothing — unbekannt (a word the memory does not know) or verfehlt (known words, not together)
+        if "leer_grund" not in {r[1] for r in g.db().execute("PRAGMA table_info(nutzung)")}:
+            g.db().execute("ALTER TABLE nutzung ADD COLUMN leer_grund TEXT")
         g.db().commit()
 
 
@@ -76,8 +79,12 @@ def record(instance: str, client: str | None, tool_parts: str, outbox: str, ms: 
     try:
         _table()
         n, kind = _hits(tool_parts, text) if outbox == "ok" else (None, None)
+        empty = None
+        if n == 0:  # 0.62.0: the answer says why (vocabulary.empty_reason)
+            empty = "unbekannt" if "unknown words:" in (text or "") else "verfehlt" if "known words, but" in (text or "") else None
         with g.lock:
-            g.db().execute("INSERT INTO nutzung VALUES (?,?,?,?,?,?,?,?)", (g.now(), instance, client, tool_parts, outbox, int(ms), n, kind))
+            g.db().execute("INSERT INTO nutzung (zeit, instanz, client, werkzeug, ausgang, ms, treffer, suchart, leer_grund) VALUES (?,?,?,?,?,?,?,?,?)",
+                           (g.now(), instance, client, tool_parts, outbox, int(ms), n, kind, empty))
             g.db().commit()
     except Exception:  # noqa: BLE001
         pass
@@ -180,6 +187,10 @@ def data(days: float = 7) -> dict:
     confirmed = sum(1 for _z, _i, _c, w, outputs, *_r in calls if w in ("vi_confirm", "vi_refute") and outputs == "ok")
     # E Search
     search = [(t, a, ms) for _z, _i, _c, w, outputs, ms, t, a in calls if w in ("vi_recall", "vi_drilldown") and outputs == "ok"]
+    with g.lock:  # 0.62.0: recorded since 0.62.0; older searches without hits have no reason (named "not recorded")
+        empty_reasons = {r or "nicht_erfasst": n for r, n in g.db().execute(
+            "SELECT leer_grund, COUNT(*) FROM nutzung WHERE werkzeug IN ('vi_recall', 'vi_drilldown', 'vi_erinnere') AND ausgang = 'ok' "
+            "AND treffer = 0 AND zeit >= ? GROUP BY leer_grund", (since,)).fetchall()}
     # F Cleanup
     sl = [json.loads(x[0]) for x in sleeps]
     return {
@@ -198,7 +209,7 @@ def data(days: float = 7) -> dict:
                    "neu_je_quelle": _count((r[3] or "quelle_art:—")[11:] for r in knowledge_new),
                    "neu_abgerufen": sum(1 for r in knowledge_new if r[2] > 0), "gesamt": knowledge_total[0] or 0, "je_abgerufen": knowledge_total[1] or 0,
                    "top": [(oid, n, t) for oid, n, t in top]},
-        "suche": {"n": len(search), "ohne_treffer": sum(1 for t, _a, _m in search if t == 0),
+        "suche": {"n": len(search), "ohne_treffer": sum(1 for t, _a, _m in search if t == 0), "leer_grund": empty_reasons,
                   "treffer_unbekannt": sum(1 for t, _a, _m in search if t is None),  # 0.35.1: recorded before hit counts existed, named
                   "je_art": _count(a or "?" for _t, a, _m in search),
                   "ms_median": {a: int(statistics.median([m for _t, a2, m in search if a2 == a])) for a in {a for _t, a, _m in search}}},
@@ -332,7 +343,9 @@ def report(days: float = 7) -> str:
     z += [f"    most recalled: [{oid}] {k}× {t}" for oid, k, t in w["top"][:3]]
     known = s["n"] - s["treffer_unbekannt"]
     z.append(f"E Search: {s['n']} searches, without hits {s['ohne_treffer']} ({_pct(s['ohne_treffer'], known)} of {known} with a recorded hit count"
-             + (f"; {s['treffer_unbekannt']} older ones without a hit count" if s["treffer_unbekannt"] else "") + ") · search kind "
+             + (f"; {s['treffer_unbekannt']} older ones without a hit count" if s["treffer_unbekannt"] else "") + ")"
+             + (" — why: " + ", ".join(f"{ {'unbekannt': 'word unknown in memory (nothing known: the right answer)', 'verfehlt': 'words known, not together (a search problem)', 'nicht_erfasst': 'not recorded (before 0.62.0)'}.get(k, k)} {v}"
+                                     for k, v in sorted(s["leer_grund"].items())) if s.get("leer_grund") else "") + " · search kind "
              + (", ".join(f"{k} {v}" for k, v in s["je_art"].items()) or "—") + " · median "
              + (", ".join(f"{k} {v} ms" for k, v in s["ms_median"].items()) or "—"))
     from . import evaluation

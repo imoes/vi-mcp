@@ -218,6 +218,13 @@ TOOLS = [
                              "description": {"type": "string", "description": "optional: what the index is for"},
                              "tags": {"type": "array", "items": {"type": "string"}, "description": "optional: tags of the index (replace the old ones)"},
                              "kind": {"type": "string", "enum": ["projekt", "spezial"], "description": "optional: projekt or spezial (a special VI)"}})},
+    {"name": "vi_vocabulary",
+     "description": "VI: the words you can search with — before a search when you are unsure which hashtags exist. Without arguments: the "
+                    "kinds (host, tool, thema, …) with how many values and objects; kind=…: its values, most used first; prefix=…: "
+                    "completions of a half-typed word (host:web → host:web1.example…). Counts only what you may see.",
+     "inputSchema": _schema({"prefix": {"type": "string", "description": "optional: the beginning of a word, with or without kind: (e.g. host:web or nginx)"},
+                             "kind": {"type": "string", "description": "optional: one kind whose values to list (e.g. host)"},
+                             "limit": {"type": "integer", "description": "how many at most (default 30)"}})},
     {"name": "vi_code_sync",
      "description": "VI, for `vi-mcp index import-code`: the code of a git repository in an index. action state: which files (blob SHA) the "
                     "index holds of the repository; action sync: pieces of changed files (upserted by index/repo/path/symbol) and removed "
@@ -470,7 +477,7 @@ class Rejected(Exception):
 OPEN_ALLOWED = {"vi_before", "vi_after", "vi_learn", "vi_recall", "vi_drilldown", "vi_why", "vi_object", "vi_status", "vi_experience", "vi_skills", "vi_skill",
                  "vi_model", "vi_scorer", "vi_self", "vi_sleep", "vi_archive", "vi_quarantine", "vi_net_status", "vi_questions", "vi_reflex_list",
                  "vi_page_read", "vi_page_history", "vi_net_search", "vi_prompt_context",
-                 "vi_feedback", "vi_capabilities"}  # 0.41.0: the open network's pages are readable like the rest; a company network is refused in the tool
+                 "vi_feedback", "vi_capabilities", "vi_vocabulary"}  # 0.41.0: the open network's pages are readable like the rest; a company network is refused in the tool
 
 
 def listing(instance: str | None = None) -> list[dict]:
@@ -634,8 +641,18 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
         f += " · read only (reinforce=false): hits not reinforced"
     if as_text:
         f += f" · searched as text, no hashtag kind: {', '.join(as_text[:5])}"
-    return (f"{len(hits)} object{'' if len(hits) == 1 else 's'} for “{f}” (R relevance · A recency · W importance):\n"
-            + "\n".join(_line(o, gw) for _, o, gw in hits)) if hits else f"nothing in memory for “{f}”"
+    if hits:
+        return (f"{len(hits)} object{'' if len(hits) == 1 else 's'} for “{f}” (R relevance · A recency · W importance):\n"
+                + "\n".join(_line(o, gw) for _, o, gw in hits))
+    # 0.62.0: why nothing — a word the memory does not know ("nothing known" is the answer) or known words that do not meet
+    from . import vocabulary
+    reason, unknown = vocabulary.empty_reason(args.get("filter") or "", instance)  # suggestions only from what this instance may see
+    if reason == "unbekannt" and unknown:
+        hint = "; ".join(f"{t} is not in memory" + (f" (did you mean {', '.join(sug)}?)" if sug else "") for t, sug in unknown[:5])
+        return f"nothing in memory for “{f}” · unknown words: {hint} · vi_vocabulary shows the words that exist"
+    if reason == "unbekannt":
+        return f"nothing in memory for “{f}” · unknown words: none of the words occurs in memory · vi_vocabulary(prefix=…) shows similar ones"
+    return f"nothing in memory for “{f}” · known words, but no object carries them together — fewer conditions or OR find more"
 
 
 def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, release_permission: bool = False, family: str | None = None) -> str:
@@ -1044,6 +1061,11 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             except ValueError as e:
                 raise Rejected(str(e)) from e
         return "Indexes (kind · objects · experiences · knowledge · own model):\n" + "\n".join(indexes.lines())
+    if name == "vi_vocabulary":  # 0.62.0
+        from . import vocabulary
+        # the asking instance decides what it sees — never the session context alone (without one, viewer None would see everything)
+        return "\n".join(vocabulary.lines(str(args.get("prefix") or ""), str(args.get("kind") or ""), instance,
+                                           max(1, min(int(args.get("limit") or 30), 200))))
     if name == "vi_context":  # 0.61.0
         s = session.current()
         if s is not None and s.project:
