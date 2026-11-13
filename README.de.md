@@ -62,6 +62,16 @@ Sind alle Kriterien erfüllt, exportiert `vi-mcp incubator hatch DIR` die Traini
 Inkubator-Stand festhält). Die Schwellen lassen sich in `config.json` unter `incubator` ändern. Ein Index (Projekt oder Spezial-VI) hat
 einen eigenen Stand.
 
+### Fine-Tuning — sag deiner KI „ich will fine-tunen“
+
+Die VI weiß, wie man eine KI mit dem Gelernten feinjustiert. Auf einem vi-mcp-Server genügt es, das der KI zu sagen: sie ruft
+`vi_finetune`, das meldet, ob die VI reif ist (Inkubator), und die Schritte nennt; `vi_finetune(action="guide")` erklärt Fine-Tuning
+(LoRA/QLoRA, SFT/KTO/DPO, das Programm TRL, Hardware, der Weg zurück nach llama.cpp, Messen). Auf dem Server schreibt
+`vi-mcp finetune kit DIR --base MODELL` alles, was ein GPU-Host braucht — Trainingsdaten mit Datenblatt, eine Testmenge, `train.py`
+(TRL + LoRA), `convert.sh` (GGUF-Adapter für llama.cpp), `evaluate.py` (Grundmodell gegen angepasstes auf zurückgehaltenen Fragen) — und
+`vi-mcp finetune record DIR` hält den Lauf als Modellobjekt mit Herkunft fest; übernommen gilt er nur, wenn er messbar besser war.
+vi-mcp selbst startet kein Training.
+
 ## Vision
 
 **Ein offenes Netz aus Wissen, in dem sich KI selbst trainiert.** Jeder Server lernt aus seiner eigenen Arbeit: welcher Hinweis geholfen hat, welche Lösung gehalten hat, was ein Mensch korrigiert hat.

@@ -45,6 +45,7 @@ LEARN (vi_learn: text = one concrete key statement; content = complete, with com
 7. A reusable fact about a system was looked up or measured (path, port, version, peculiarity, access route without secrets).
 8. Something turns out to be wrong — a hint contradicts what you just measured or read, or the user corrects it: correct it at once, in the same step, not at the end of the session: vi_refute the wrong object (reason with evidence), vi_learn the correction (with source).
 Search before learning: if it is already there, vi_confirm instead of creating it again. After hints: vi_feedback(helped=[ids], wrong=[ids]) — one call, no reason needed; it is how the VI learns which hint to show. vi_confirm / vi_refute when you checked the knowledge itself.
+Fine-tuning: if the user wants to fine-tune (train, adapt) a model with the knowledge of this VI, call vi_finetune — it says whether the VI is mature and gives the steps; vi_finetune(action="guide") explains how fine-tuning works.
 Code: the code of a solution, a fix, a reusable script or a query belongs in content, complete and runnable. Not a copy of a file that lives in a repository: name repository, path and commit instead — the code of a repository comes into its project index through the code import (vi-mcp index import-code), and vi_recall finds it there.
 Network wiki: what the whole network should maintain (a runbook, the answer to a recurring question) goes on a page with vi_page_write (network, page, text, base_rev = the revision you edited); vi_page_read shows a page with its open conflicts — resolve one by writing with base_rev = one head and also_parents = the others.
 Images are their own kind (art:bild). Save a screenshot when it shows what text would lose: an error dialog, a UI state, a configuration screen, a graph — take it (e.g. browser_take_screenshot) and store it with vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F.json] (text = what it shows, content = full description, regions in SAM 3 format); vi_object shows it. Never screenshots with passwords or tokens on screen.
@@ -225,6 +226,16 @@ TOOLS = [
      "inputSchema": _schema({"prefix": {"type": "string", "description": "optional: the beginning of a word, with or without kind: (e.g. host:web or nginx)"},
                              "kind": {"type": "string", "description": "optional: one kind whose values to list (e.g. host)"},
                              "limit": {"type": "integer", "description": "how many at most (default 30)"}})},
+    {"name": "vi_finetune",
+     "description": "VI: fine-tune an AI with the knowledge of this VI. When the user says they want to fine-tune (or train, adapt, teach a "
+                    "model with this knowledge), call this first. action plan (default): is this VI mature (incubator), and the steps with "
+                    "commands for this server; guide: the handbook — what fine-tuning is (LoRA/QLoRA, SFT/KTO/DPO), which program (TRL, "
+                    "Unsloth), which hardware, how back into llama.cpp, how to measure; record: a finished run (path on the server) "
+                    "becomes a model object with its lineage. vi-mcp runs no training: a person runs the kit's scripts on a GPU host.",
+     "inputSchema": _schema({"action": {"type": "string", "enum": ["plan", "guide", "record"], "description": "plan (default), guide or record"},
+                             "index": {"type": "string", "description": "optional: one index (a project or special VI)"},
+                             "base_model": {"type": "string", "description": "optional: the model to fine-tune (Hugging Face id or directory)"},
+                             "directory": {"type": "string", "description": "record: the kit directory on the server"}})},
     {"name": "vi_incubator",
      "description": "VI: is this VI (or one index) mature enough to fine-tune an AI with it? Every criterion — knowledge, checked share, "
                     "search quality, hint model, no harm from hints, labels, training data — with threshold, measured value and state.",
@@ -1089,6 +1100,19 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             except ValueError as e:
                 raise Rejected(str(e)) from e
         return "Indexes (kind · objects · experiences · knowledge · own model):\n" + "\n".join(indexes.lines())
+    if name == "vi_finetune":  # 0.62.0
+        from . import finetune, indexes
+        action = args.get("action") or "plan"
+        try:
+            if action == "guide":
+                return finetune.GUIDE
+            if action == "record":
+                if not args.get("directory"):
+                    raise ValueError("record needs directory — the kit directory on the server")
+                return finetune.record(str(args["directory"]), f"ki@{instance}").text
+            return "\n".join(finetune.plan_lines(finetune.plan(indexes.normalize(args.get("index")) if args.get("index") else None, args.get("base_model"))))
+        except ValueError as e:
+            raise Rejected(str(e)) from e
     if name == "vi_incubator":  # 0.62.0
         from . import incubator, indexes
         try:

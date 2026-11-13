@@ -37,7 +37,8 @@ PARAM_ALIASES: dict[str, str] = {
 #: English parameter → {English enum value: stored value}. The tool schemas show the English values.
 STORED_VALUES: dict[str, dict[str, str]] = {
     "area": {"values": "werte", "goals": "ziele", "style": "stil", "limits": "grenzen"},
-    "action": {"approve": "freigeben", "discard": "verwerfen", "state": "state", "sync": "sync"},
+    "action": {"approve": "freigeben", "discard": "verwerfen", "state": "state", "sync": "sync",
+               "plan": "plan", "guide": "guide", "record": "record"},  # 0.62.0: vi_finetune — not stored, the same in both languages
     "visibility": {"shared": "geteilt", "internal": "intern", "private": "privat"},
     "outcome": {"good": "gut", "bad": "schlecht"},
     "format": {"text": "text", "vil": "vil"},  # 0.62.0: vi_recall answer format — not stored, the same in both languages

@@ -755,6 +755,14 @@ objects, experiences or conversations. The targets of the fixed question set are
 again and the changes are counted, and `DATASHEET.md` records composition, exclusions, versions, label quality and gaps (Gebru et al.,
 Datasheets for Datasets). vi-mcp itself still trains no language model; the export is the input of a fine-tuning.
 
+`finetune.py` is the interface (the user: "die VI muss wissen, wie man fine-tuned … man soll dem LLM einfach sagen, dass man fine-tunen
+will"): a shipped handbook (`GUIDE`, versioned, sources named), `plan` (incubator state plus the steps), `kit` (hatch, a test split by
+object so no object straddles train and test, generated `train.py` for TRL SFT/KTO/DPO with LoRA, `convert.sh` for
+`convert_lora_to_gguf.py`, `evaluate.py` that asks base and fine-tuned the same held-out questions without a token cap), `record` (a model
+object `modell:finetune:<time>` with dataset manifest hash, base model, adapter hashes, evaluation and incubator state; `aktiv` only if
+the fine-tuned model measured better, else `test`). The tool `vi_finetune` and a line in the rules every AI gets make "I want to
+fine-tune" enough.
+
 ## Internal knowledge search (0.62.0)
 
 The user: "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" — decided: internal, with sign-in. The

@@ -214,6 +214,20 @@ People set gold labels on the article page of the internal search (`/intern/o/<i
 `"human": true` in `config.json` see it (`vi-mcp instance NAME --human`). `vi-mcp incubator status` shows the
 model's accuracy against them and the truth check (confirmed vs refuted knowledge by measured weight).
 
+### Fine-tuning (0.62.0)
+
+```bash
+vi-mcp finetune guide                                   # the handbook
+vi-mcp finetune plan [--base Qwen/Qwen3-4B]             # mature? the steps for this server
+vi-mcp finetune kit /srv/vi-finetune --base Qwen/Qwen3-4B [--force]
+# on the GPU host, in a venv with torch (CUDA or ROCm), trl, peft, datasets (bitsandbytes for --qlora):
+cd /srv/vi-finetune && python train.py --stage sft [--qlora] && LLAMA_CPP=~/llama.cpp BASE_HF=~/models/Qwen3-4B ./convert.sh sft
+python evaluate.py --base http://host:8080/v1/chat/completions --tuned http://host:8081/v1/chat/completions
+vi-mcp finetune record /srv/vi-finetune                 # model object modell:finetune:<time> with lineage and evaluation
+```
+
+`config.json`: `"finetune": {"base_model": "Qwen/Qwen3-4B"}` sets the default base model.
+
 ### Training data for fine-tuning (0.62.0)
 
 ```bash

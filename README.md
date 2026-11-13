@@ -60,6 +60,15 @@ its state — met, open, or not measured yet (never counted as met):
 When every criterion is met, `vi-mcp incubator hatch DIR` exports the training data (`qa`, `kto`, `dpo`, with a datasheet that records the
 incubator state). Thresholds can be changed in `config.json` under `incubator`. An index (a project or special VI) has its own status.
 
+### Fine-tuning — tell your AI "I want to fine-tune"
+
+The VI knows how to fine-tune an AI with what it learned. On a vi-mcp server, say so to your AI: it calls `vi_finetune`, which tells
+whether the VI is mature (incubator) and gives the steps; `vi_finetune(action="guide")` explains fine-tuning (LoRA/QLoRA, SFT/KTO/DPO,
+the program TRL, hardware, the way back into llama.cpp, measuring). On the server `vi-mcp finetune kit DIR --base MODEL` writes
+everything a GPU host needs — training data with datasheet, a test split, `train.py` (TRL + LoRA), `convert.sh` (GGUF adapter for
+llama.cpp), `evaluate.py` (base against fine-tuned on held-out questions) — and `vi-mcp finetune record DIR` keeps the run as a model
+object with its lineage; it counts as adopted only if it measured better. vi-mcp itself runs no training.
+
 ## Vision
 
 **An open network of knowledge, in which AI teaches itself.** Every server learns from its own work: which hint helped, which solution held up, what a person corrected.

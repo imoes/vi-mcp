@@ -90,6 +90,14 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **Calibration of the router, visible:** a reliability table (predicted vs observed success in ten bins) and the expected calibration
   error (ECE) on every training's holdout, ECE in `vi_stats` F. `class_weight='balanced'` shifts probabilities on purpose; Platt
   calibration was measured and rejected on 12.11.2026 — the table makes the shift visible instead of hiding it. Test: `tests/test_lernen.py`.
+- **Fine-tuning — the VI knows how, and "I want to fine-tune" is enough** (the user: "die VI muss wissen, wie man fine-tuned, und wenn
+  man den vi-mcp-Server benutzt, soll man dem LLM einfach sagen, dass man fine-tunen will"): the tool `vi_finetune` (plan · guide · record)
+  and a line in the rules every AI gets; `vi-mcp finetune guide|plan|kit|record`. The kit holds the training data, a test split by
+  object, `train.py` (TRL + LoRA: SFT, then KTO or DPO), `convert.sh` (GGUF adapter for llama.cpp), `evaluate.py` (base against
+  fine-tuned on held-out questions) and the handbook; `record` keeps the run with its lineage and adopts it only if it measured better.
+  The project rule changes from "the language model is never trained" to "vi-mcp trains no model by itself; fine-tuning is a person's
+  explicit action". The handbook rests on the research of 13.11.2026 (TRL dataset formats, Unsloth hardware table, llama.cpp
+  `convert_lora_to_gguf.py`). Tests: `tests/test_finetune.py` (3).
 
 ### What has changed
 
@@ -111,8 +119,8 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **Sessions of the internal search** live in the server process: a restart signs everybody out.
 - **Found in the browser test and fixed before release:** the sign-in was refused in every browser — the pages had the `no-referrer`
   policy of `/web`, so Chrome sent `Origin: null`.
-- **Fine-tuning itself** is not part of vi-mcp (the project trains no language model); the export is its input. No full task
-  trajectories: user prompts are masked and never stored.
+- **No fine-tuning run yet:** the kit's scripts are untested on real hardware — host, base model and the training environment (a venv with
+  torch for ROCm or CUDA, trl, peft) await the user's decision. No full task trajectories: user prompts are masked and never stored.
 - **The AI language** beyond vocabulary, `ask` questions, classification and its student — weights per word, the language between
   servers — is a design (README), not code yet. The student has not been trained on real data yet (the sample run is in progress). Whether
   the question-type order raises success is not measured yet; no human gold set exists.

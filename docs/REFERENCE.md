@@ -6,7 +6,7 @@ Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server co
 
 ## MCP tools
 
-59 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
+60 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
 
 ### `vi_before`
 
@@ -344,6 +344,17 @@ VI: the words you can search with — before a search when you are unsure which 
 | `kind` | string |  | optional: one kind whose values to list (e.g. host) (German: `art`) |
 | `limit` | integer |  | how many at most (default 30) |
 
+### `vi_finetune`
+
+VI: fine-tune an AI with the knowledge of this VI. When the user says they want to fine-tune (or train, adapt, teach a model with this knowledge), call this first. action plan (default): is this VI mature (incubator), and the steps with commands for this server; guide: the handbook — what fine-tuning is (LoRA/QLoRA, SFT/KTO/DPO), which program (TRL, Unsloth), which hardware, how back into llama.cpp, how to measure; record: a finished run (path on the server) becomes a model object with its lineage. vi-mcp runs no training: a person runs the kit's scripts on a GPU host.
+
+| Parameter | Type | Required | Meaning |
+|---|---|---|---|
+| `action` | string (plan, guide, record) |  | plan (default), guide or record (German: `aktion`) |
+| `index` | string |  | optional: one index (a project or special VI) |
+| `base_model` | string |  | optional: the model to fine-tune (Hugging Face id or directory) |
+| `directory` | string |  | record: the kit directory on the server |
+
 ### `vi_incubator`
 
 VI: is this VI (or one index) mature enough to fine-tune an AI with it? Every criterion — knowledge, checked share, search quality, hint model, no harm from hints, labels, training data — with threshold, measured value and state. **OPEN**
@@ -591,6 +602,7 @@ python3 -m vi_mcp classify [--limit N] [--dry-run]  label knowledge for the AI l
 python3 -m vi_mcp web internal [on|off] [--base PATH]  internal knowledge search with sign-in under /intern (0.62.0)
 python3 -m vi_mcp dataset export DIR [--index X]  training data (qa/kto/dpo .jsonl, DATASHEET.md) to fine-tune a model (0.62.0)
 python3 -m vi_mcp incubator status [--index X] | hatch DIR [--index X] [--force]  maturity of a VI for fine-tuning (0.62.0)
+python3 -m vi_mcp finetune guide | plan | kit DIR [--base M] [--force] | record DIR  fine-tune an AI with this VI (0.62.0)
                                         the code of a git repository into an index (only changed files; removed ones archived)
                                         indexes (0.61.0): projects and special VIs — every object belongs to one; a project's
                                         index comes first in search and hints; an index with enough data trains its own model
@@ -1006,6 +1018,7 @@ First line of each module's docstring.
 | `doc_triggers` | Triggers for documentation (0.26.0): imported documentation gets host: and thema: hashtags so it can appear before matching actions. |
 | `embed_service` | Own embedding service (0.28.0) and reranker (0.60.0): `vi-mcp embed setup\|auto\|compare\|status\|remove` — vectors without a foreign stack. |
 | `evaluation` | Evaluation (0.55.0) — a fixed measuring instrument for the search, so every change to it is measured before it stays. |
+| `finetune` | Fine-tuning an AI with what a VI learned (0.62.0) — the VI knows how, and an AI on vi-mcp is told "I want to fine-tune". |
 | `forum` | 0.43.0: AIs talk in the network — questions and answers between servers, what vi_ask/vi_answer already do between the instances of |
 | `image_cli` | 0.35.0: `vi-mcp image` — put an image file with its description into memory, or fetch one back. |
 | `images` | 0.35.0: images in memory — an image with its description and its regions in the format of SAM 3 (Meta, Segment Anything with Concepts). |
