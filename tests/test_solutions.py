@@ -121,3 +121,30 @@ def test_an_unrelated_next_shell_command_is_no_solution():
     assert solutions.related(ev("sqlite3 /tmp/x.db '.tables'", "python3 -c 'import sqlite3'"))  # a replacement names the program
     assert not solutions.related(ev("cd /x && make build", "cd /x && echo done"))  # cd/echo alone relate nothing
     assert solutions.related({"tool": "WebFetch", "fehlgeschlagen": {"args": {"url": "a"}}, "loesung": {"args": {"url": "b"}}})
+
+
+def test_an_unproven_cause_is_a_hypothesis_and_the_lesson_leads(gd, monkeypatch):
+    """0.62.6: auto solutions from episodes had 9 % success after showing (n=29 ratings, production 13.11.2026); experience-following
+    copies errors (arXiv 2505.16067), distilled strategies transfer better than raw trajectories (ReasoningBank, arXiv 2509.25140).
+    A cause the evidence does not show is marked as the language model's hypothesis, and the transferable lesson comes right after the
+    problem, inside the key statement that hints show."""
+    monkeypatch.setattr(reflection, "ask_fn", lambda system, user: json.dumps(
+        {"problem": "borg create fails: repository lock held", "ursache": "a cron job ran twice", "ursache_belegt": False,
+         "loesung": "borg break-lock, then borg create again", "befehle": ["borg break-lock /repo"], "quellen": [],
+         "lehre": "when borg reports a held lock and no borg process runs: break the lock; never break it while a backup runs"}))
+    web_episode()
+    assert sleep_cycle.run("Test").data["schritte"]["4c_skills"]["neu"] == 1
+    sk = [o for _, o, _g in g.recall("art:skill herkunft:episode", viewer=None)][0]
+    content = str(sk.data.get("inhalt") or sk.data["loesung"]["text"])
+    assert "Cause: not determined from the evidence — hypothesis of the language model: a cron job ran twice" in content
+    assert content.index("Lesson:") < content.index("Cause:") and "Lesson: when borg reports a held lock" in sk.text
+
+
+def test_a_proven_cause_stays_as_written(gd, monkeypatch):
+    monkeypatch.setattr(reflection, "ask_fn", lambda system, user: json.dumps(
+        {"problem": "borg create fails", "ursache": "a stale lock from an aborted run", "ursache_belegt": True,
+         "loesung": "borg break-lock", "befehle": [], "quellen": [], "lehre": "break stale locks only when no borg runs"}))
+    web_episode()
+    sleep_cycle.run("Test")
+    sk = [o for _, o, _g in g.recall("art:skill herkunft:episode", viewer=None)][0]
+    assert "Cause: a stale lock from an aborted run" in str(sk.data.get("inhalt") or sk.data["loesung"]["text"])

@@ -23,6 +23,17 @@ Linked from [README.md](README.md).
   they existed nowhere; they were internal knowledge on the central server, which the open network `standard` never carries
   (`p2p.answer_search` answers open networks with shared knowledge only). Test: `tests/test_vocabulary.py` (1 new).
 
+### What has changed
+
+- **Solutions from episodes carry a lesson, and a cause the evidence does not show is called a hypothesis.** *Measured on production
+  (13.11.2026):* solutions written up automatically from episodes had 9 % success after being shown (n = 29 ratings), and one stated a
+  cause the failed call never showed. Research: following stored experience copies its errors (arXiv 2505.16067); distilled strategies
+  transfer better than raw trajectories (ReasoningBank, arXiv 2509.25140). The write-up now must say whether the cause can be read from
+  the error, a source or the difference between the calls (`ursache_belegt`); if not, it is stored as "not determined from the evidence —
+  hypothesis of the language model: …". It also writes a transferable lesson (`lehre`: when it applies, what to do, what to avoid), placed
+  right after the problem so it is in the key statement hints show. Whether this raises success after showing is not measured yet.
+  Tests: `tests/test_solutions.py` (2 new).
+
 ### What was measured
 
 - **The cross-encoder reranker ranks the fixed question set clearly better.** bge-reranker-v2-m3 (llama.cpp `/v1/rerank`) over the best
