@@ -365,3 +365,87 @@ def run_with_student(limit: int = 20, who: str = "sleep", rng=None) -> dict:
         m.data = {**m.data, "pruefung": {"geprueft": p["geprueft"] + out["geprueft"], "gleich": p["gleich"] + out["gleich"]}}
         g.save(m)
     return out
+
+
+# ── gold: labels set by people, and the truth check of the measurement ─────────────────────────────────────────────────────────────
+# The user (13.11.2026): the gold set rests on the epistemic foundation ("dafür haben wir ja die philosophische Grundlage eingeführt nach
+# der Wahrheits-/Erkenntnistheorie. Mache das aber."). Two agreeing prompts only measure how consistent the model is with itself; gold is
+# what a person decided. Only instances with `human: true` (config) set gold — no instance rates itself, and an AI is not the gold.
+
+def set_gold(oid: str, answers: str, memory: str, who: str, human: bool) -> g.MemoryObject:
+    """A person's label for one object (daten.gold). Raises with the reason if not allowed or not valid."""
+    if not human:
+        raise ValueError(f"{who} is no human instance (config human: true) — gold labels come from people only")
+    if answers not in ANSWERS + ("none",) or memory not in MEMORY:
+        raise ValueError(f"answers must be one of {', '.join(ANSWERS)}, none; memory one of {', '.join(MEMORY)}")
+    o = g.load(oid)
+    if o is None or o.kind not in KINDS:
+        raise ValueError(f"{oid}: no knowledge object")
+    o.data = {**o.data, "gold": {"answers": answers, "memory": memory, "wer": who, "zeit": g.now()}}
+    o.change(who, f"gold label {answers}/{memory}", "set by a person")
+    g.save(o)
+    return o
+
+
+def gold_report() -> dict:
+    """The language model's and the student's labels against the people's, and the truth check of the measured weights."""
+    with g.lock:
+        rows = g.db().execute("SELECT id FROM objekt WHERE json_extract(daten, '$.gold.answers') IS NOT NULL").fetchall()
+    llm = {"n": 0, "richtig": 0, "unsure": 0}
+    student = {"n": 0, "richtig": 0}
+    per: dict[str, list[int]] = {}
+    for (oid,) in rows:
+        o = g.load(oid)
+        if o is None:
+            continue
+        gold, k = o.data["gold"], o.data.get("klasse") or {}
+        if k.get("zustand") in ("einig", "uneinig"):
+            llm["n"] += 1
+            if k["answers"] == "unsure":
+                llm["unsure"] += 1
+            hit = int(k["answers"] == gold["answers"])
+            llm["richtig"] += hit
+            per.setdefault(gold["answers"], [0, 0])
+            per[gold["answers"]][0] += 1
+            per[gold["answers"]][1] += hit
+        elif k.get("zustand") == "schueler":
+            student["n"] += 1
+            student["richtig"] += int(k["answers"] == gold["answers"])
+    return {"gold": len(rows), "llm": {**llm, "genauigkeit": round(llm["richtig"] / llm["n"], 3) if llm["n"] else None},
+            "schueler": {**student, "genauigkeit": round(student["richtig"] / student["n"], 3) if student["n"] else None},
+            "je_klasse": {c: {"n": n, "richtig": r} for c, (n, r) in sorted(per.items())}, "wahrheitsprobe": truth_check()}
+
+
+def truth_check(humans: set[str] | None = None) -> dict:
+    """Does the memory's measurement agree with people's judgement? Over knowledge that human instances confirmed or refuted: the
+    probability that a confirmed object has a higher measured weight than a refuted one (AUC; 0.5 = the measurement ignores truth)."""
+    from . import config, vil
+    if humans is None:
+        try:
+            humans = {n for n, i in config.load().instances.items() if i.human}
+        except Exception:  # noqa: BLE001
+            humans = set()
+    if not humans:
+        return {"zustand": "keine_menschen", "grund": "no instance with human: true in the config"}
+    with g.lock:
+        rows = g.db().execute("SELECT id FROM objekt WHERE art IN ('erkenntnis', 'regel', 'skill') AND (json_extract(daten, '$.bestaetigt_von') IS NOT NULL "
+                              "OR json_extract(daten, '$.widerlegt_von') IS NOT NULL)").fetchall()
+    conf, ref = [], []
+    for (oid,) in rows:
+        o = g.load(oid)
+        if o is None:
+            continue
+        w, n = vil.weight_of(o)
+        if n == 0:
+            continue
+        by_c = set((o.data.get("bestaetigt_von") or {})) & humans
+        by_r = set((o.data.get("widerlegt_von") or {})) & humans
+        if by_c and not by_r:
+            conf.append(w)
+        elif by_r and not by_c:
+            ref.append(w)
+    if not conf or not ref:
+        return {"zustand": "zu_wenig", "bestaetigt": len(conf), "widerlegt": len(ref),
+                "grund": "needs measured objects that people confirmed and others they refuted"}
+    pairs = sum(1.0 if c > r else 0.5 if c == r else 0.0 for c in conf for r in ref)
+    return {"zustand": "gemessen", "auc": round(pairs / (len(conf) * len(ref)), 3), "bestaetigt": len(conf), "widerlegt": len(ref)}

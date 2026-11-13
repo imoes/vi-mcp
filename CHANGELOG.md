@@ -81,6 +81,15 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   data — each met, open or not measured (never counted as met); `vi-mcp incubator hatch DIR` exports the training data of a mature VI and
   records the incubator state in manifest and datasheet (`--force` for an immature one, named). Thresholds in config `incubator`.
   Tests: `tests/test_incubator.py` (2).
+- **Gold labels from people, and a truth check of the measurement** (the user: the gold rests on the epistemic foundation — "mache das
+  aber"): a signed-in person (an instance with `human: true`) sets a gold label on the article page of the internal search; an AI
+  instance cannot (no instance rates itself, and an AI is not the gold). `classify.gold_report` measures the language model's and the
+  student's labels against the people's, per class; the **truth check** asks whether the measured weights rank knowledge people confirmed
+  above knowledge they refuted (AUC; 0.5 = the measurement ignores truth). Both appear in `vi-mcp incubator status` as the informative
+  criterion `gold`. Tests: `tests/test_classify.py` (6), `tests/test_web_internal.py` (9).
+- **Calibration of the router, visible:** a reliability table (predicted vs observed success in ten bins) and the expected calibration
+  error (ECE) on every training's holdout, ECE in `vi_stats` F. `class_weight='balanced'` shifts probabilities on purpose; Platt
+  calibration was measured and rejected on 12.11.2026 — the table makes the shift visible instead of hiding it. Test: `tests/test_lernen.py`.
 
 ### What has changed
 

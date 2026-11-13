@@ -129,3 +129,30 @@ def test_student_needs_enough_agreed_labels_and_stays_test_below_the_gate(gd, ll
     r = classify.train_student("test")
     assert r["zustand"] == "zu_wenig" and "at least 120" in r["grund"]
     assert classify.student_label(objs[0][0]) is None  # no student → no label from it
+
+
+def test_gold_from_people_only_measures_the_labels_and_the_truth_of_the_measurement(gd, llm):
+    from vi_mcp import vil
+    table, _calls = llm
+    a = g.new_object("erkenntnis", "deploy steps", ["thema:deploy"], {"quelle": "t", "nuetzlich": {"ja": 9, "nein": 1, "n": 10}})
+    b = g.new_object("erkenntnis", "web1 runs nginx", ["thema:nginx"], {"quelle": "t", "nuetzlich": {"ja": 1, "nein": 9, "n": 10}})
+    for v in ("A", "B"):
+        table[(v, a.text)] = _ans("how")
+        table[(v, b.text)] = _ans("how", m="fact")  # the model is wrong about b
+    classify.run(10, "test")
+    with pytest.raises(ValueError, match="gold labels come from people only"):
+        classify.set_gold(a.id, "how", "procedure", "claude-code", human=False)
+    classify.set_gold(a.id, "how", "procedure", "max", human=True)
+    classify.set_gold(b.id, "what", "fact", "max", human=True)
+    r = classify.gold_report()
+    assert r["gold"] == 2 and r["llm"] == {"n": 2, "richtig": 1, "unsure": 0, "genauigkeit": 0.5}
+    assert r["je_klasse"] == {"how": {"n": 1, "richtig": 1}, "what": {"n": 1, "richtig": 0}}
+    a, b = g.load(a.id), g.load(b.id)
+    a.confirm("max", "checked on the host", instance="max")
+    g.save(a)
+    b.refute("max", "wrong host", instance="max")
+    g.save(b)
+    t = classify.truth_check({"max"})
+    assert t == {"zustand": "gemessen", "auc": 1.0, "bestaetigt": 1, "widerlegt": 1}  # the measured weights agree with the person
+    assert vil.weight_of(a)[0] > vil.weight_of(b)[0]
+    assert classify.truth_check(set())["zustand"] == "keine_menschen"

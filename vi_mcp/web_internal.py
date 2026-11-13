@@ -248,7 +248,22 @@ def _empty(base: str, instance: str, q: str) -> str:
     return '<li class="muted">The words are known, but no entry carries them together — fewer words, or OR, find more.</li>'
 
 
-def object_page(base: str, instance: str, oid: str) -> str | None:
+def _gold_form(base: str, o: g.MemoryObject) -> str:
+    """0.62.0: for people (instances with human: true) — the gold label of this object (classify.set_gold)."""
+    from . import classify
+    cur = o.data.get("gold") or {}
+    lab = o.data.get("klasse") or {}
+    opt = lambda vals, sel: "".join(f'<option value="{v}"{" selected" if v == sel else ""}>{v}</option>' for v in vals)  # noqa: E731
+    return (f'<h2>Gold label</h2><p class="muted">Which question does this answer, what kind of memory is it? Your label is the gold '
+            f'the language model is measured against' + (f' (model said {e(lab.get("answers"))}/{e(lab.get("memory"))})' if lab else "") + ".</p>"
+            f'<form class="inline-form" action="{e(base)}/o/{urllib.parse.quote(o.id, safe=":")}/gold" method="post">'
+            f'<select name="answers" aria-label="answers">{opt(classify.ANSWERS + ("none",), cur.get("answers"))}</select> '
+            f'<select name="memory" aria-label="memory">{opt(classify.MEMORY, cur.get("memory"))}</select> '
+            f'<button class="btn" type="submit">Save gold label</button></form>'
+            + (f'<p class="meta">gold set by {e(cur["wer"])} on {when(cur["zeit"])}</p>' if cur else ""))
+
+
+def object_page(base: str, instance: str, oid: str, human: bool = False) -> str | None:
     from . import bandit, net_score
     o = g.load(oid)
     if _visible(o) is not None or (o.visibility == "intern" and instance == "offen"):
@@ -272,7 +287,8 @@ def object_page(base: str, instance: str, oid: str) -> str | None:
             f'{_tag_links(base, o.hashtags)}<h2>Facts</h2><dl class="facts">'
             + "".join(f"<dt>{k}</dt><dd>{v}</dd>" for k, v in facts) + "</dl>"
             + (f'<h2>Related</h2><ul class="list">{"".join(_hit(base, x) for x in rel)}</ul>' if rel else "")
-            + (f'<h2>History</h2><div class="table-wrap"><table><tr><th>when</th><th>who</th><th>what</th><th>reason</th></tr>{hist}</table></div>' if hist else ""))
+            + (f'<h2>History</h2><div class="table-wrap"><table><tr><th>when</th><th>who</th><th>what</th><th>reason</th></tr>{hist}</table></div>' if hist else "")
+            + (_gold_form(base, o) if human and o.kind in ("erkenntnis", "regel", "skill") else ""))
     return _page(base, o.text[:80], body, instance)
 
 
@@ -324,6 +340,21 @@ def handle(method: str, raw_path: str, headers, body: bytes, client: str, k) -> 
             return 401, html_type, _login_page(base, "This token belongs to no instance of this server.").encode(), HEADERS
         sid = _new_session(inst.name)
         return 303, html_type, b"", {**HEADERS, "Location": f"{base}/", "Set-Cookie": _cookie(base, sid, SESSION_S)}
+    if method == "POST" and path.startswith("/o/") and path.endswith("/gold"):  # 0.62.0: a person's gold label
+        inst = _instance(headers.get("Cookie"))
+        if inst is None:
+            return 401, html_type, _login_page(base, "Sign in first.").encode(), HEADERS
+        if not _same_site(headers, k.origins):
+            return 403, "text/plain; charset=utf-8", b"cross-site request", HEADERS
+        from . import classify
+        form = urllib.parse.parse_qs(body.decode("utf-8", "replace"))
+        oid = urllib.parse.unquote(path[3:-5])
+        i = k.instances.get(inst)
+        try:
+            classify.set_gold(oid, (form.get("answers") or [""])[0], (form.get("memory") or [""])[0], inst, bool(i and i.human))
+        except ValueError as ex:
+            return 403, html_type, _page(base, "Not saved", f'<h1>Not saved</h1><p class="error">{e(ex)}</p>', inst).encode(), HEADERS
+        return 303, html_type, b"", {**HEADERS, "Location": f"{base}/o/{urllib.parse.quote(oid, safe=':')}"}
     if method == "POST" and path == "/logout":
         if not _same_site(headers, k.origins):
             return 403, "text/plain; charset=utf-8", b"cross-site request", HEADERS
@@ -347,7 +378,8 @@ def handle(method: str, raw_path: str, headers, body: bytes, client: str, k) -> 
     elif parts == ["suche"]:
         out = search_page(base, instance, one("q"), one("index"))[0] if one("q").strip() else home(base, instance)
     elif parts[0] == "o" and len(parts) == 2:
-        out = object_page(base, instance, parts[1])
+        i = k.instances.get(instance)
+        out = object_page(base, instance, parts[1], bool(i and i.human))
     elif parts[0] == "i" and len(parts) == 2:
         out = index_page(base, instance, parts[1])
     elif parts == ["w"] or (parts[0] == "w" and len(parts) == 2):

@@ -18,6 +18,8 @@ Criteria (thresholds overridable in config `incubator`, e.g. {"min_knowledge": 1
   hints_no_harm     the randomized hold-back does not show that hints lower success (metrics.holdback_effect)
   labels            share of knowledge classified for the AI language (classify.py), and the student active
   training_data     question → answer examples the dataset export would write (dataset.py), with the evaluation held out
+  gold              (informative) labels set by people (classify.set_gold) against the language model's, and the truth check: do
+                    the measured weights rank knowledge people confirmed above knowledge they refuted?
 """
 from __future__ import annotations
 
@@ -91,6 +93,12 @@ def status(index: str | None = None) -> dict:
     out.append(_c("training_data", "erfuellt" if ex >= cfg["min_examples"] and data["held_out"] else "offen", ex, cfg["min_examples"],
                   f"question → answer examples; {data['held_out']} evaluation targets held out"
                   + ("" if data["held_out"] else " — no fixed question set yet, so a fine-tuned model could not be measured")))
+    gr = classify.gold_report()  # informative: the people's labels and the truth check of the measurement
+    acc = gr["llm"]["genauigkeit"]
+    t = gr["wahrheitsprobe"]
+    out.append(_c("gold", "nicht_gemessen" if acc is None else "erfuellt" if acc >= 0.8 else "offen", acc, 0.8,
+                  f"{gr['gold']} gold label(s) by people; LLM labels right {gr['llm']['richtig']} of {gr['llm']['n']} · truth check: "
+                  + (f"AUC {t['auc']} (confirmed {t['bestaetigt']} vs refuted {t['widerlegt']})" if t.get("zustand") == "gemessen" else t.get("grund", t.get("zustand")))))
     missing = [c["kriterium"] for c in out if c["kriterium"] in REQUIRED and c["zustand"] != "erfuellt"]
     return {"index": index or "all", "zustand": "reif" if not missing else "im_inkubator", "offen": missing, "kriterien": out, "zeit": g.now()}
 

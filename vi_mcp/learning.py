@@ -619,7 +619,30 @@ def holdout_metrics(clf, Xte, yte) -> dict:
     p = clf.predict_proba(Xte)[:, 1]
     return {"log_loss_holdout": round(float(log_loss(yte, p, labels=[0, 1])), 4), "brier_holdout": round(float(brier_score_loss(yte, p)), 4),
             # average precision for the minority class "not ok" — the warning works on it
-            "ap_fehler_holdout": round(float(average_precision_score(1 - yte, 1 - p)), 4)}
+            "ap_fehler_holdout": round(float(average_precision_score(1 - yte, 1 - p)), 4), **calibration(p, yte)}
+
+
+def calibration(p, y, bins: int = 10) -> dict:
+    """0.62.0: does a predicted 70 % come true 70 % of the time? Reliability table (equal-width bins: mean prediction, observed rate,
+    count) and the expected calibration error ECE = Σ n_b/N · |observed − predicted| (Guo et al. 2017). Pure.
+    class_weight='balanced' shifts the probabilities on purpose (the minority class "not ok" matters); the table makes that visible
+    instead of hiding it — ranking (AUC) and warning threshold do not depend on calibration, a probability shown as a number does."""
+    import numpy as np
+    p, y = np.asarray(p, dtype=float), np.asarray(y, dtype=float)
+    if not len(p):
+        return {}
+    edges = np.linspace(0, 1, bins + 1)
+    idx = np.clip(np.digitize(p, edges[1:-1]), 0, bins - 1)
+    table, ece = [], 0.0
+    for b in range(bins):
+        m = idx == b
+        n = int(m.sum())
+        if not n:
+            continue
+        pred, obs = float(p[m].mean()), float(y[m].mean())
+        ece += n / len(p) * abs(obs - pred)
+        table.append([round(float(edges[b]), 1), round(pred, 3), round(obs, 3), n])
+    return {"ece_holdout": round(ece, 4), "zuverlaessigkeit_holdout": table}
 
 
 def _keep_champion(report: dict) -> None:

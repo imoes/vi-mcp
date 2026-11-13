@@ -208,6 +208,12 @@ vi-mcp incubator hatch /srv/vi-hatched  # when mature: the training data plus th
 Thresholds in `config.json`: `"incubator": {"min_knowledge": 500, "min_checked": 0.2, "min_mrr": 0.6, "min_auc": 0.75, "min_labelled": 0.5,
 "min_examples": 1000}`.
 
+### Gold labels (0.62.0)
+
+People set gold labels on the article page of the internal search (`/intern/o/<id>`, form "Gold label") — only instances with
+`"human": true` in `config.json` see it (`vi-mcp instance NAME --human`). `vi-mcp incubator status` shows the
+model's accuracy against them and the truth check (confirmed vs refuted knowledge by measured weight).
+
 ### Training data for fine-tuning (0.62.0)
 
 ```bash

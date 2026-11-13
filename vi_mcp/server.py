@@ -342,7 +342,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path.rstrip("/") == "/signal":
             return self._signal()
-        if self.k.web_internal and self.path in ("/intern/login", "/intern/logout"):  # 0.62.0: sign-in form, at most 4 KB
+        if self.k.web_internal and (self.path in ("/intern/login", "/intern/logout")
+                                    or (self.path.startswith("/intern/o/") and self.path.endswith("/gold"))):  # 0.62.0: forms, at most 4 KB
             n = int(self.headers.get("Content-Length") or 0)
             if n > 4096:
                 return self._send(413, "form too large")

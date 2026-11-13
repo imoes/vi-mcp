@@ -361,3 +361,13 @@ def test_training_notice_is_early_in_the_instructions(gd):
     t = learning.training_notice()
     assert t.startswith("[Training]") and "no model yet" in t and "vi_solved" in t and "measured +X pts/N×" in t and len(t) <= 600
     assert server._training_notice() == t
+
+
+def test_calibration_table_and_ece():
+    """0.62.0: a perfectly calibrated forecaster has ECE 0; one that says 0.9 for events that happen half the time has ECE 0.4."""
+    from vi_mcp import learning
+    good = learning.calibration([0.25] * 4 + [0.75] * 4, [1, 0, 0, 0, 1, 1, 1, 0])
+    assert good["ece_holdout"] == 0.0 and good["zuverlaessigkeit_holdout"] == [[0.2, 0.25, 0.25, 4], [0.7, 0.75, 0.75, 4]]
+    bad = learning.calibration([0.9] * 10, [1, 0] * 5)
+    assert bad["ece_holdout"] == 0.4 and bad["zuverlaessigkeit_holdout"] == [[0.9, 0.9, 0.5, 10]]
+    assert learning.calibration([], []) == {}

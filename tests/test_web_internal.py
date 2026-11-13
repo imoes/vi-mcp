@@ -134,3 +134,18 @@ def test_words_page_datalist_and_empty_search_reason(k):
     assert "host:web1.example (1)" in html and "hidden" not in html
     html = req(k, "/intern/suche?q=host:web2.example", cookie=cookie)[2].decode()
     assert "host:web2.example is not in memory" in html and "did you mean" in html and "host:web1.example" in html
+
+
+def test_gold_label_form_for_people_only(k):
+    k.instances["max"] = config.Instance("max", hashlib.sha256(b"max-token-123").hexdigest(), human=True)
+    o = g.new_object("erkenntnis", "deploy steps for web1", ["thema:deploy"], {"quelle": "t"}, visibility="intern", instance="bob")
+    ai = login(k)
+    assert "Gold label" not in req(k, f"/intern/o/{o.id}", cookie=ai)[2].decode()  # alice is an AI instance
+    code, _t, body, _h = req(k, f"/intern/o/{o.id}/gold", "POST", b"answers=how&memory=procedure", cookie=ai, origin="https://vi.example")
+    assert code == 403 and "gold labels come from people only" in body.decode()
+    hd = req(k, "/intern/login", "POST", b"token=max-token-123", origin="https://vi.example")[3]
+    person = hd["Set-Cookie"].split(";")[0]
+    assert "Save gold label" in req(k, f"/intern/o/{o.id}", cookie=person)[2].decode()
+    code, _t, _b, hd = req(k, f"/intern/o/{o.id}/gold", "POST", b"answers=how&memory=procedure", cookie=person, origin="https://vi.example")
+    assert code == 303 and g.load(o.id).data["gold"]["answers"] == "how" and g.load(o.id).data["gold"]["wer"] == "max"
+    assert req(k, f"/intern/o/{o.id}/gold", "POST", b"answers=how&memory=procedure", cookie=person, origin="https://evil.example")[0] == 403

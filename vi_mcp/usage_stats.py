@@ -354,7 +354,9 @@ def report(days: float = 7) -> str:
              + (", ".join(f"#{r} {n}" for r, n in ck["je_rang"].items()) or "—"))
     m = learning.model()
     z.append(f"F Cleanup: {a['schlaefe']} sleeps (median {a['schlaf_ms_median'] // 1000} s, {a['neue_erkenntnisse']} new insights, {a['fehler']} step errors) · "
-             f"{on_demand.line()} · router AUC {m.data.get('auc_holdout') if m else '—'} · semantic edges {a['semantische_kanten']}")
+             f"{on_demand.line()} · router AUC {m.data.get('auc_holdout') if m else '—'}"
+             + (f", calibration error (ECE) {m.data['ece_holdout']}" if m and m.data.get("ece_holdout") is not None else "")
+             + f" · semantic edges {a['semantische_kanten']}")
     z += measurement_lines()
     z += network_lines(days)
     return "\n".join(z)
