@@ -663,6 +663,9 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
     """vi_recall (its own function since 0.61.0, so the index restriction can wrap it): search, then log, reinforce and answer."""
     hits, f, kind_used = search(args, only, first)
     as_text = g.as_text_tokens(args.get("filter") or "")  # 0.26.0: named in the answer instead of emptying the search silently
+    if args.get("reinforce", True) is not False:  # 0.62.0: what a real search returns unlabelled migrates first (classify.on_search)
+        from . import classify
+        classify.on_search([o for _s, o, _w in hits])
     # 0.31.0: a measurement must not change what it measures — a benchmark of 49 questions reinforced 733 objects once each
     # (10.11.2026), making them look more used and more recent than real use justifies. reinforce=false only reads.
     reinforce = args.get("reinforce", True) is not False

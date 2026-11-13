@@ -179,18 +179,84 @@ def apply(o: g.MemoryObject, lab: dict, who: str = "vi") -> bool:
     o.data = {**o.data, "klasse": {**lab, "zeit": g.now()}}
     o.change(who, "classified " + " ".join(tags), f"labels {lab['zustand']} ({lab['version']['schema']}, prompt {lab['version']['prompt']})")
     g.save(o)
+    _queue_table()
+    with g.lock:
+        g.db().execute("DELETE FROM klasse_warteschlange WHERE id = ?", (o.id,))
+        g.db().commit()
     return True
 
 
+QUEUE_MAX = 5000
+
+
+def _queue_table() -> None:
+    with g.lock:
+        g.db().execute("CREATE TABLE IF NOT EXISTS klasse_warteschlange (id TEXT PRIMARY KEY, zeit TEXT NOT NULL)")
+        g.db().commit()
+
+
+def on_search(objs) -> dict:
+    """0.62.0 — the user: "Wenn die Suche unqualifizierte Daten bekommt, dann müssen diese Objekte automatisch klassifiziert werden, um
+    die alte DB-Version in die neue Version zu migrieren." Knowledge a search returned without a label of the current version: the
+    student labels it at once where it is sure (a matrix product, no language model); the rest is queued, and sleep step 8f labels the
+    queue first — what is searched for migrates first. Never raises: a search must not fail because of labelling."""
+    out = {"schueler": 0, "eingereiht": 0}
+    try:
+        ph = prompt_hash()
+        todo = [o for o in objs if o is not None and o.kind in KINDS and o.visibility != "privat" and o.mode not in ("quarantaene", "widerlegt")
+                and (o.data.get("klasse") or {}).get("version", {}).get("prompt") != ph]
+        if not todo:
+            return out
+        _queue_table()
+        for o in todo:
+            lab = student_label(o)
+            if lab is not None:
+                apply(o, lab, "search")
+                out["schueler"] += 1
+                continue
+            with g.lock:
+                n = g.db().execute("SELECT COUNT(*) FROM klasse_warteschlange").fetchone()[0]
+                if n < QUEUE_MAX:
+                    g.db().execute("INSERT OR IGNORE INTO klasse_warteschlange (id, zeit) VALUES (?, ?)", (o.id, g.now()))
+                    g.db().commit()
+                    out["eingereiht"] += 1
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def queued() -> int:
+    _queue_table()
+    with g.lock:
+        return g.db().execute("SELECT COUNT(*) FROM klasse_warteschlange").fetchone()[0]
+
+
 def pending(limit: int = 20) -> list[str]:
-    """Knowledge without a label of the current version, newest first — what sleep labels next."""
+    """Knowledge without a label of the current version: first what searches returned (the queue, oldest first), then the newest."""
     ph = prompt_hash()
+    _queue_table()
+    with g.lock:
+        q = [r[0] for r in g.db().execute("SELECT id FROM klasse_warteschlange ORDER BY zeit LIMIT ?", (int(limit) * 20,))]
+    first = []
+    for oid in q:
+        o = g.load(oid)
+        if o is None or (o.data.get("klasse") or {}).get("version", {}).get("prompt") == ph or o.kind not in KINDS or o.visibility == "privat":
+            with g.lock:  # labelled meanwhile, gone or not knowledge: off the queue
+                g.db().execute("DELETE FROM klasse_warteschlange WHERE id = ?", (oid,))
+                g.db().commit()
+            continue
+        first.append(oid)
+    rest = _pending_rest(limit * 20, ph)
+    return (first + [i for i in rest if i not in set(first)])[:limit]
+
+
+def _pending_rest(n: int, ph: str) -> list[str]:
     with g.lock:
         rows = g.db().execute(
             "SELECT id, json_extract(daten, '$.klasse.version.prompt') FROM objekt WHERE art IN ('erkenntnis', 'regel', 'skill') "
             "AND modus NOT IN ('quarantaene', 'widerlegt', 'aufgegangen', 'archiviert') AND sicht <> 'privat' ORDER BY zeit DESC LIMIT ?",
-            (int(limit) * 20,)).fetchall()
-    return [oid for oid, p in rows if p != ph][:limit]
+            (int(n),)).fetchall()
+    return [oid for oid, p in rows if p != ph]
 
 
 def run(limit: int = 20, who: str = "sleep") -> dict:

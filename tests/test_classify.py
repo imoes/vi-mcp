@@ -156,3 +156,32 @@ def test_gold_from_people_only_measures_the_labels_and_the_truth_of_the_measurem
     assert t == {"zustand": "gemessen", "auc": 1.0, "bestaetigt": 1, "widerlegt": 1}  # the measured weights agree with the person
     assert vil.weight_of(a)[0] > vil.weight_of(b)[0]
     assert classify.truth_check(set())["zustand"] == "keine_menschen"
+
+
+def test_unlabelled_search_hits_migrate_first(gd, llm):
+    """The user: unlabelled data a search returns is classified automatically — the old database migrates where it is used."""
+    table, calls = llm
+    old = [g.new_object("erkenntnis", f"old note {i} about nginx", ["tool:nginx"], {"quelle": "t"}) for i in range(3)]
+    newer = g.new_object("erkenntnis", "a newer note nobody searched for", ["thema:x"], {"quelle": "t"})
+    out = tools.call_tool("vi_recall", {"filter": "tool:nginx", "semantic": False, "reinforce": False}, "a", False)
+    assert old[0].id in out and classify.queued() == 0  # a measurement (reinforce=false) changes nothing
+    tools.call_tool("vi_recall", {"filter": "tool:nginx", "semantic": False}, "a", False)
+    assert classify.queued() == 3
+    assert set(classify.pending(3)) == {o.id for o in old}  # what was searched comes first
+    assert newer.id in classify.pending(10) and classify.pending(10)[-1] == newer.id  # the queue comes before the newest
+    for o in old:
+        for v in ("A", "B"):
+            table[(v, o.text)] = _ans("how")
+    classify.run(3, "test")
+    assert {t for _v, t in calls} == {o.text for o in old} and classify.queued() == 0
+    assert all("answers:how" in g.load(o.id).hashtags for o in old)
+
+
+def test_on_search_lets_an_active_student_label_at_once(gd, llm, monkeypatch):
+    o = g.new_object("erkenntnis", "deploy steps", ["thema:deploy"], {"quelle": "t"})
+    lab = {"zustand": "schueler", "answers": "how", "zweite": "none", "memory": "procedure", "fragen": [],
+           "version": {"modell": "student@x", "prompt": classify.prompt_hash(), "schema": classify.SCHEMA_VERSION}}
+    monkeypatch.setattr(classify, "student_label", lambda obj: lab)
+    assert classify.on_search([g.load(o.id)]) == {"schueler": 1, "eingereiht": 0}
+    assert "answers:how" in g.load(o.id).hashtags and classify.queued() == 0
+    assert classify.on_search([g.load(o.id)]) == {"schueler": 0, "eingereiht": 0}  # labelled with the current version: nothing to do

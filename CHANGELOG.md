@@ -61,6 +61,11 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   0.75 (tentative; ≥ 0.667), memory kind 87 %, κ 0.80; most disagreements how ↔ what (5 of 8); in a check of 26 objects by me (not a
   human gold set) about 24–25 primary labels were plausible. 6 of 90 answers were outside the enum although the request carried a JSON
   schema — hence the check here. Tests: `tests/test_classify.py` (3).
+- **The old database migrates where it is used** (the user: "Wenn die Suche unqualifizierte Daten bekommt, dann müssen diese Objekte
+  automatisch klassifiziert werden, um die alte DB-Version in die neue Version zu migrieren"): knowledge a real search (`vi_recall`, the
+  internal web search) returns without a label of the current version is labelled at once by the student where it is sure, otherwise
+  queued (table `klasse_warteschlange`, at most 5,000); sleep step 8f labels the queue first, then the newest. A measurement
+  (`reinforce=false`) queues nothing; labelling never changes what a search shows. Tests: `tests/test_classify.py` (8).
 - **A student learns the labels, so new knowledge needs no language model** (distillation, as FineWeb-Edu did with 460,000 LLM ratings):
   one logistic regression per label kind on the bge-m3 vectors the memory already has, trained only on labels both prompt variants
   agreed on (at least 120, a class needs 15). It becomes active only with ≥ 80 % holdout accuracy; then it labels what it is ≥ 80 % sure

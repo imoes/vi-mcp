@@ -225,6 +225,8 @@ def search_page(base: str, instance: str, q: str, index: str = "") -> tuple[str,
         else:
             held[why] = held.get(why, 0) + 1
     ms = int((time.monotonic() - t0) * 1000)
+    from . import classify  # 0.62.0: what a search shows unlabelled migrates first — labelling never changes what is shown
+    classify.on_search(shown)
     how = notes[len(q):].strip(" ·") if notes.startswith(q) else notes
     body = (f'<h1>{len(shown)} result{"" if len(shown) == 1 else "s"} for “{e(q)}”</h1>'
             f'<p class="meta">{e(how) or "full text"} · {ms} ms' + (f' · only index {e(only)}' if only else "")

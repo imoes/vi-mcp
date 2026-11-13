@@ -194,6 +194,8 @@ vi-mcp classify --limit 20         # label them now (two prompt variants per obj
 - Labels are hashtags `answers:how|why|what|who|where|rule|unsure` and `memory:fact|procedure|episode|rule|unsure`, the version in
   `daten.klasse.version` (model, prompt hash, schema). `ask.<type>` in `vi_recall` puts objects labelled for that type first.
 - Cost measured on a shared llama.cpp server (13.11.2026): median 42 s, 90th percentile 126 s per call, two calls per object.
+- Migration of an existing memory: what searches return unlabelled is labelled first (student at once, else queued for sleep);
+  `vi-mcp classify --limit N` works through the rest by hand.
 - The student (`modell:klassen`, `vi_model`-like object in memory): trained in sleep from ≥ 120 agreed labels, active from 80 % holdout
   accuracy; it labels where it is ≥ 80 % sure, 10 % of those are audited by the language model (`daten.pruefung`: checked, equal).
 
