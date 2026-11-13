@@ -28,6 +28,12 @@ first draft (class blocks inside the server's parser): consistent with the cling
   through a real server on a random port); the wheel installs offline with `pip --no-deps` and imports without vi-mcp. Tests:
   `tests/test_clingo_object.py` (15).
 - `vi_logic action=objects` returns the objects of filters as JSON (the package's data path).
+- **An agent that answers in clingo-object** (`clingo_object.agent.solve(question, memory, llm)`): the language model writes a program
+  whose answer is `ans(…)`; it is solved with the caller's objects; a refusal of the notation, an empty answer or a violated constraint goes
+  back to the model in the solver's words, up to 4 rounds (the construct-and-check loop of ALM–ASP, KR 2026, and ASP-Bench, arXiv
+  2602.01171). Any OpenAI-compatible endpoint (`VI_LLM_URL`, `VI_LLM_MODEL`), never with `max_tokens`. Tests with a scripted model: it
+  corrects a missing parenthesis and a wrong hashtag kind and answers in round 3; says "empty" when nothing derives; sends no
+  `max_tokens` (`tests/test_clingo_object.py`).
 - **Training with clingo-object.** `vi-mcp dataset export` writes `logic.jsonl`: for every saved rule set that is not private, the task of
   its description → the assistant writes the program (`vi_logic` check with the source) → the solver's real answer → the answer citing the
   rule set; and every conclusion someone checked against reality (`rate`, now kept one by one in `logik_bewertung`): right ones as
@@ -65,7 +71,7 @@ first draft (class blocks inside the server's parser): consistent with the cling
 
 - Learning covers unary conclusions over objects (p("object id")) with up to two conditions; more needs more rated examples first.
   `logic.jsonl` and learning stay small until rule sets are saved and conclusions rated.
-- An agent loop that writes clingo-object programs and corrects them from the solver's answer; measured against `vi_recall` chains.
+- The agent is not yet measured with a real language model against `vi_recall` chains on the relational task set.
 - The relational task set on a production copy (clingo-object against hand-checked SQL) is not measured yet.
 - Local solving uses the stated priors of soft rules; the measured weights stay on the server (`check_on_server`).
 - Not run against PostgreSQL in this block (the new queries are plain `IN (?, …)`).

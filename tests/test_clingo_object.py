@@ -192,3 +192,59 @@ def test_the_wheel_installs_and_states_the_minimum_clingo(tmp_path):
     out = subprocess.run([sys.executable, "-I", "-c", f"import sys; sys.path.insert(0, {str(target)!r}); import clingo_object as c; "
                           "print(c.__file__, 'vi_mcp' in sys.modules)"], capture_output=True, text=True, check=True).stdout
     assert out.startswith(str(target)) and out.strip().endswith("False")
+
+
+# ── the agent: write, check, correct (construct-and-check loop) ───────────────
+
+class ServerCheck(ServerData):
+    """memory.check as the server answers it (the text of vi_logic check)."""
+
+    def check(self, source):
+        try:
+            return "\n".join(logic.lines(logic.check(source, viewer=self.viewer)))
+        except logic.LogicError as e:
+            raise RuntimeError(f"notation: {e}") from e
+
+
+def test_the_agent_corrects_its_program_from_the_solver(gd):
+    from clingo_object import agent
+    g.new_object("erkenntnis", "gate1 in the DMZ", ["host:gate1", "netz:dmz"], {"quelle": "t"}, reason="T", oid="erkenntnis:g1", link=False)
+    g.new_object("erkenntnis", "web1 internal", ["host:web1", "netz:intern"], {"quelle": "t"}, reason="T", oid="erkenntnis:w1", link=False)
+    replies = iter([
+        "```logic\nans(H) <= O in objects(\"netz:dmz\") & (O.host == H)\n```",              # & binds tighter: refused
+        "```logic\nans(H) <= (O in objects(\"netz:dmz\")) & (O.hosts == H)\n```",            # wrong kind: solves, no ans
+        "```logic\nans(H) <= (O in objects(\"netz:dmz\")) & (O.host == H)\n```",
+    ])
+    seen = []
+
+    def llm(messages):
+        seen.append(messages[-1]["content"])
+        return next(replies)
+    r = agent.solve("Which hosts are in the DMZ?", ServerCheck(), llm)
+    assert r["state"] == "answered" and r["answer"] == ['ans("gate1")'] and r["rounds"] == 3
+    assert "refused" in seen[1] and "parentheses" in seen[1] and "no ans" in seen[2]
+
+
+def test_the_agent_says_when_it_found_nothing(gd):
+    from clingo_object import agent
+    r = agent.solve("?", ServerCheck(), lambda m: "```logic\nans(X) <= p(X)\n```", max_rounds=2)
+    assert r["state"] == "empty" and r["answer"] == [] and r["rounds"] == 2
+
+
+def test_the_agent_never_sends_max_tokens(monkeypatch):
+    import json as _json
+    from clingo_object import agent
+    sent = []
+
+    class R:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return _json.dumps({"choices": [{"message": {"content": "ok"}}]}).encode()
+    monkeypatch.setattr(agent.urllib.request, "urlopen", lambda req, timeout=0: sent.append(_json.loads(req.data)) or R())
+    assert agent.openai_chat("http://127.0.0.1:1/v1/chat/completions", "m")([{"role": "user", "content": "x"}]) == "ok"
+    assert "max_tokens" not in sent[0] and "n_predict" not in sent[0] and sent[0]["chat_template_kwargs"] == {"enable_thinking": False}
