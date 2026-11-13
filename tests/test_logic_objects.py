@@ -60,7 +60,7 @@ def test_not_has_a_tag_is_written_with_not(gd):
 @pytest.mark.parametrize("bad, why", [
     ('x(H) <= (O.host == H)', "not bound"),
     ('x(O) <= O in objects("host:*") & y(O)', "parentheses"),
-    ('x(H) <= (O in objects("host:*")) & (O.host != H)', "== only"),
+    ('x(H) <= (O in objects("host:*")) & (O.host != H)', "is compared with"),
     ('x(O.host)', "comparison of its own"),
     ('x(O) <= objects("host:*")', "binds a variable"),
     ('linked("a", "b")', "object dialect"),
@@ -104,7 +104,7 @@ def test_the_object_limit_is_named(gd, monkeypatch):
     _hosts()
     monkeypatch.setattr(logic, "MAX_OBJECTS", 1)
     r = logic.check('h(O) <= (O in objects("host:*"))')
-    assert r["importiert"]["objekte"] == 1 and r["importiert"]["abgeschnitten"] == 2
+    assert r["importiert"]["objekte"] == 1 and r["importiert"]["abgeschnitten"] >= 2  # objects one edge away count against the limit too
     assert any("cut (limit 1 objects)" in line for line in logic.lines(r))
 
 
@@ -127,3 +127,55 @@ def test_proposals_are_listed_with_their_rule(gd):
     r = logic.check(DMZ_RULES + 'propose(tag(P, "status", "blocked")) <= (P in objects("plan:*")) & (P.host == H) & in_dmz(H)')
     assert r["vorschlaege"] == [{"aktion": "tag", "ziel": "erkenntnis:plan-gate1", "art": "status", "wert": "blocked", "regeln": [4]}]
     assert any("proposes tag status:blocked on erkenntnis:plan-gate1 · by rule #4" in line for line in logic.lines(r))
+
+
+# ── numbers and the boundary to the Python package clingo-object ─────────────
+
+
+def _aged(oid, kind, days, mode="test"):
+    from datetime import datetime, timedelta, timezone
+    o = g.new_object(kind, f"{oid} text", ["thema:oo"], {"quelle": "t"}, reason="T", oid=oid, mode=mode, link=False)
+    with g.lock:
+        g.db().execute("UPDATE objekt SET zeit = ? WHERE id = ?", ((datetime.now(timezone.utc) - timedelta(days=days)).isoformat(), oid))
+        g.db().commit()
+    return o
+
+
+def test_numbers_compare_from_either_side(gd):
+    _aged("erkenntnis:old", "erkenntnis", 120)
+    a = logic.ask('old(O) <= (O in objects("thema:oo")) & (100 < O.age)\nyoung(O) <= (O in objects("thema:oo")) & (O.age <= 100)',
+                  ['old("erkenntnis:old")', 'young("erkenntnis:old")'])
+    assert a == {'old("erkenntnis:old")': "true", 'young("erkenntnis:old")': "not_derived"}
+
+
+def test_an_edge_target_is_an_object(gd):
+    _hosts()
+    a = logic.ask('dmz_plan(P) <= (P in objects("plan:*")) & linked(P, O) & (O.zone == "dmz")', ['dmz_plan("erkenntnis:plan-gate1")'])
+    assert a['dmz_plan("erkenntnis:plan-gate1")'] == "true"
+
+
+@pytest.mark.parametrize("bad, why", [
+    ("class Skill:\n    pass", "clingo-object"),
+    ("def stale(self):\n    return a", "clingo-object"),
+    ('x(O) <= (O in objects("host:*")) & ~(O.age > 3)', "opposite comparison"),
+    ("p(Vi__1)", "reserved"),
+    ('x(O) <= (O in objects("host:*")) & O.stale()', "predicate"),
+])
+def test_classes_live_in_the_python_package_not_in_the_server_notation(bad, why):
+    """The user (13.11.2026): consistent with the clingo Python package — classes and methods are real Python in clingo-object, which
+    compiles them to flat rules; the server runs only this notation and never Python."""
+    with pytest.raises(logic.LogicError, match=why):
+        logic.translate(bad)
+
+
+def test_one_edge_away_respects_visibility_and_quarantine(gd):
+    _hosts()
+    plan = g.load("erkenntnis:plan-gate1")
+    g.new_object("erkenntnis", "private of b", ["host:p1"], {"quelle": "t"}, reason="T", instance="b", visibility="privat",
+                 oid="erkenntnis:priv", link=False)
+    g.new_object("erkenntnis", "held", ["host:q1"], {"quelle": "t"}, reason="T", mode="quarantaene", oid="erkenntnis:q", link=False)
+    plan.link("erkenntnis:priv", "x")
+    plan.link("erkenntnis:q", "x")
+    r = logic.check('near(B) <= (P in objects("plan:*")) & linked(P, B)', viewer="a")
+    assert r["folgerungen"] == ['near("erkenntnis:gate1")']
+    assert r["importiert"]["ueber_kanten"] == 1 and r["importiert"]["nicht_sichtbar"] == 1 and r["importiert"]["ausgeschlossen"] == 1

@@ -250,7 +250,12 @@ TOOLS = [
                     "Capitalised names are variables. action check: what follows, violated constraints, norm conflicts, contradictions, "
                     "rule weights. ask: true/false/both/unknown/not_derived/undetermined per atom (+ P(atom) with probabilities). "
                     "rate: a conclusion was checked against reality (correct true/false) — the rules that derive it learn their weight. "
-                    "save: keep a named rule set (then use rule_set=name in the other actions). Results are evidence 'inferred'.",
+                    "save: keep a named rule set (then use rule_set=name in the other actions). Results are evidence 'inferred'. "
+                    "Object dialect clingo-objekt (memory objects as facts, as you may see them): (O in objects(\"art:skill host:web*\")) "
+                    "binds O to the objects of a vi_recall filter; (O.host == H) reads a hashtag, (O.kind == \"skill\") a field (kind, mode, "
+                    "visibility, instance, index, text; numbers age, importance, confirmed, refuted, accesses, e.g. (O.age > 90)); "
+                    "linked(O, B) follows an edge (objects one edge away are imported too). Comparisons in parentheses. Classes, methods "
+                    "and inheritance are real Python in the package clingo-object (import clingo_object), which compiles them to this notation.",
      "inputSchema": _schema({"action": {"type": "string", "enum": ["check", "ask", "rate", "save"], "description": "default check"},
                              "source": {"type": "string", "description": "statements, one per line (added to rule_set if both are given)"},
                              "rule_set": {"type": "string", "description": "name or id of a saved rule set"},

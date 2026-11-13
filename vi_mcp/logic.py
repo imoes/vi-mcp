@@ -65,7 +65,9 @@ SCALE = 1000  # clingo weights are integers: log-odds × SCALE
 MAX_OBJECTS = 2000
 MAX_FILTERS = 20
 #: O.<field> → the objekt column; any other attribute name is a hashtag kind (O.host → host:…)
-OBJ_FIELDS = {"kind": "art", "mode": "modus", "visibility": "sicht", "instance": "instanz", "index": "idx", "text": "text"}
+OBJ_FIELDS = {"kind": "art", "mode": "modus", "visibility": "sicht", "instance": "instanz", "index": "idx", "text": "text",
+              # numbers (0.63.0): age in days, importance 0–3, confirmations, refutations, accesses
+              "age": "zeit", "importance": "wichtigkeit", "confirmed": "bestaetigt", "refuted": "widerlegt", "accesses": "zugriffe"}
 #: never imported, even when a filter asks for them (quarantine only via vi_quarantine, archive only via vi_archive)
 NEVER_IMPORTED = ("quarantaene", "archiviert")
 _DIALECT = ("objects", "linked", "propose")
@@ -192,7 +194,7 @@ _STATE: contextvars.ContextVar[dict | None] = contextvars.ContextVar("logic_stat
 def _state() -> dict:
     st = _STATE.get()
     if st is None:
-        st = {"filters": [], "bound": set(), "used": {}}
+        st = {"filters": [], "bound": set(), "used": {}, "fresh": 0, "nr": 0}
         _STATE.set(st)
     return st
 
@@ -221,6 +223,8 @@ def _term(n) -> str:
             raise LogicError(f"line {n.lineno}: string longer than 200 characters")
         return '"' + n.value.replace("\\", "\\\\").replace('"', '\\"') + '"'
     if isinstance(n, ast.Name):
+        if n.id.startswith("Vi__"):
+            raise LogicError(f"line {n.lineno}: variables starting with Vi__ are reserved")
         if _VAR.match(n.id):
             return n.id
         if _IDENT.match(n.id):
@@ -258,6 +262,8 @@ def _atom(n) -> str:
 
 
 _CMP = {ast.Eq: "=", ast.NotEq: "!=", ast.Lt: "<", ast.Gt: ">", ast.GtE: ">="}
+_FIELD_CMP = {ast.Eq: "=", ast.Lt: "<", ast.Gt: ">", ast.GtE: ">=", ast.LtE: "<="}
+_MIRROR = {ast.Lt: ast.Gt, ast.Gt: ast.Lt, ast.GtE: ast.LtE, ast.LtE: ast.GtE}
 
 
 def _objvar(n, what: str) -> str:
@@ -266,8 +272,8 @@ def _objvar(n, what: str) -> str:
     return n.id
 
 
-def _attribute(a: ast.Attribute, other) -> str:
-    """O.field == term → vi__obj / vi__tag (0.63.0)."""
+def _attribute(a: ast.Attribute, other, op: str = "=") -> str:
+    """O.field == term → vi__obj / vi__tag (0.63.0); O.age > 90 and the like through a fresh variable."""
     var = _objvar(a.value, f"{getattr(a.value, 'id', '?')}.{a.attr}")
     _state()["used"].setdefault(var, a.lineno)
     if isinstance(other, ast.Attribute):
@@ -275,17 +281,28 @@ def _attribute(a: ast.Attribute, other) -> str:
                          f"({var}.{a.attr} == V) & (P.{other.attr} == V)")
     val = _term(other)
     if a.attr in OBJ_FIELDS:
-        return f'vi__obj({var},"{a.attr}",{val})'
-    if not re.fullmatch(r"[a-z][a-z0-9_]{0,30}", a.attr):
+        pred = f'vi__obj({var},"{a.attr}",'
+    elif re.fullmatch(r"[a-z][a-z0-9_]{0,30}", a.attr):
+        pred = f'vi__tag({var},"{a.attr}",'
+    else:
         raise LogicError(f"line {a.lineno}: {a.attr!r} is no hashtag kind (lower case, digits, _)")
-    return f'vi__tag({var},"{a.attr}",{val})'
+    if op == "=":
+        return pred + val + ")"
+    st = _state()
+    st["fresh"] += 1
+    x = f"Vi__{st['fresh']}"
+    return f"{pred}{x}), {x} {op} {val}"
 
 
 def _literal(n) -> str:
     """One body literal: atom, ~atom (not derivable), -atom (explicitly false), or a comparison — and, in the object dialect (0.63.0),
     (O in objects("filter")), (O.field == value), linked(O, B)."""
     if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.Invert):
-        return "not " + _literal(n.operand)
+        o = n.operand
+        if (isinstance(o, ast.Compare) and len(o.ops) == 1 and not isinstance(o.ops[0], ast.Eq)
+                and (isinstance(o.left, ast.Attribute) or isinstance(o.comparators[0], ast.Attribute))):
+            raise LogicError(f"line {n.lineno}: write the opposite comparison instead of ~(…), e.g. (O.age <= 90) for ~(O.age > 90)")
+        return "not " + _literal(o)
     if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub):
         return "-" + _atom(n.operand)
     if isinstance(n, ast.Compare) and len(n.ops) == 1 and isinstance(n.ops[0], ast.In):
@@ -306,15 +323,19 @@ def _literal(n) -> str:
         st["bound"].add(var)
         return f"vi__in({st['filters'].index(f)},{var})"
     if isinstance(n, ast.Compare) and len(n.ops) == 1 and (isinstance(n.left, ast.Attribute) or isinstance(n.comparators[0], ast.Attribute)):
-        if not isinstance(n.ops[0], ast.Eq):
-            raise LogicError(f"line {n.lineno}: a field is compared with == only; for \"not\" write ~(O.host == \"web1\")")
-        a, other = (n.left, n.comparators[0]) if isinstance(n.left, ast.Attribute) else (n.comparators[0], n.left)
-        return _attribute(a, other)
+        op = type(n.ops[0])
+        if op not in _FIELD_CMP:
+            raise LogicError(f"line {n.lineno}: a field is compared with == < > <= >=; for \"not\" write ~(O.host == \"web1\")")
+        if isinstance(n.left, ast.Attribute):
+            return _attribute(n.left, n.comparators[0], _FIELD_CMP[op])
+        return _attribute(n.comparators[0], n.left, _FIELD_CMP[_MIRROR.get(op, op)])
     if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "linked":
         if n.keywords or len(n.args) not in (2, 3):
             raise LogicError(f"line {n.lineno}: linked(O, B) or linked(O, B, reason)")
         var = _objvar(n.args[0], "linked(…)")
         _state()["used"].setdefault(var, n.lineno)
+        if isinstance(n.args[1], ast.Name) and _VAR.match(n.args[1].id):  # edges exist only between imported objects: B is an object
+            _state()["bound"].add(n.args[1].id)
         return f"vi__edge({','.join(_term(x) for x in n.args)})"
     if isinstance(n, ast.Compare):
         if len(n.ops) != 1 or type(n.ops[0]) not in _CMP:
@@ -372,19 +393,28 @@ def translate_full(source: str) -> tuple[str, list[dict], list[str]]:
     if len(tree.body) > MAX_STATEMENTS:
         raise LogicError(f"more than {MAX_STATEMENTS} statements")
     out, stmts = [], []
-    state = {"filters": [], "bound": set(), "used": {}}
+    state = {"filters": [], "bound": set(), "used": {}, "fresh": 0, "nr": 0}
     token = _STATE.set(state)
     try:
-        for i, st in enumerate(tree.body):
+        for st in tree.body:
+            if isinstance(st, (ast.ClassDef, ast.FunctionDef)):
+                raise LogicError(f"line {st.lineno}: classes and methods belong to the Python package clingo-object (import clingo_object), "
+                                 "which runs where code is trusted and compiles them to flat rules of this notation — the server runs no Python")
+            state["nr"] += 1
             state["bound"], state["used"] = set(), {}
-            _statement(i + 1, st, out, stmts)
-            loose = sorted(v for v in state["used"] if v not in state["bound"])
-            if loose:
-                raise LogicError(f"line {state['used'][loose[0]]}: object variable {loose[0]} is not bound — add ({loose[0]} in objects(\"filter\")) "
-                                 "to the body")
+            _statement(state["nr"], st, out, stmts)
+            _check_bound()
     finally:
         _STATE.reset(token)
     return "\n".join(out), stmts, list(state["filters"])
+
+
+def _check_bound() -> None:
+    st = _state()
+    loose = sorted(v for v in st["used"] if v not in st["bound"])
+    if loose:
+        raise LogicError(f"line {st['used'][loose[0]]}: object variable {loose[0]} is not bound — add ({loose[0]} in objects(\"filter\")) "
+                         "or linked(X, " + loose[0] + ") to the body")
 
 
 def _statement(nr: int, st, out: list[str], stmts: list[dict]) -> None:
@@ -509,16 +539,38 @@ def _quote(v) -> str:
     return '"' + " ".join(str(v).split()).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def _import(filters: list[str], viewer: str | None) -> tuple[str, dict | None]:
-    """0.63.0 clingo-objekt, like DLV-DB's #import: the objects of each objects(…) filter, as the asking instance may see them, with their
-    fields, hashtags and the edges between them, as facts. Never quarantine or archive; what is cut or not visible is counted."""
-    if not filters:
-        return "", None
+def object_data(filters: list[str], viewer: str | None) -> dict:
+    """0.63.0 clingo-objekt, like DLV-DB's #import: the objects of each filter as the asking instance may see them — fields, hashtags, and
+    the edges from them — plus the objects one edge away (so linked(O, B) can read B). Never quarantine or archive; what is cut, not
+    visible or excluded is counted. The one data form for the server (facts) and the Python package clingo-object (action objects)."""
+    from datetime import datetime, timezone
+
     from . import memory as g
     try:
         g.db()
     except RuntimeError:
         raise LogicError("objects(…) reads the memory — run it through vi_logic on the server, not on a file") from None
+
+    def visible(sicht, inst) -> bool:
+        return viewer is None or sicht == "geteilt" or inst == viewer or (sicht == "intern" and viewer != g.OPEN_INSTANCE)
+
+    def load(ids: list[str]) -> list[tuple]:
+        out = []
+        with g.lock:
+            for k in range(0, len(ids), 500):
+                part = ids[k:k + 500]
+                out += g.db().execute("SELECT id, art, modus, sicht, instanz, idx, text, zeit, wichtigkeit, bestaetigt, widerlegt, zugriffe "
+                                      f"FROM objekt WHERE id IN ({','.join('?' * len(part))})", part).fetchall()
+        return out
+
+    def select(table_sql: str, ids: list[str]) -> list[tuple]:
+        out = []
+        with g.lock:
+            for k in range(0, len(ids), 500):
+                part = ids[k:k + 500]
+                out += g.db().execute(table_sql.format(ph=",".join("?" * len(part))), part).fetchall()
+        return out
+
     per, not_visible = [], 0
     for f in filters:
         groups, _remove, _words = g.parse_filter(f, g.known_kinds())
@@ -530,35 +582,71 @@ def _import(filters: list[str], viewer: str | None) -> tuple[str, dict | None]:
             not_visible += len(set(g.ids_for_filter(f, viewer=None)) - set(vis))
         per.append(vis)
     order = list(dict.fromkeys(i for ids in per for i in ids))
-    keep = order[:MAX_OBJECTS]
-    rows, tags, edges = [], [], []
-    with g.lock:
-        for k in range(0, len(keep), 500):
-            part = keep[k:k + 500]
-            ph = ",".join("?" * len(part))
-            rows += g.db().execute(f"SELECT id, art, modus, sicht, instanz, idx, text FROM objekt WHERE id IN ({ph})", part).fetchall()
-            tags += g.db().execute(f"SELECT objekt_id, tag FROM tag WHERE objekt_id IN ({ph})", part).fetchall()
-            edges += g.db().execute(f"SELECT a, b, grund FROM kante WHERE a IN ({ph})", part).fetchall()
+    rows = load(order[:MAX_OBJECTS])
+    cut = max(0, len(order) - MAX_OBJECTS)
     excluded = {r[0] for r in rows if r[2] in NEVER_IMPORTED}
-    ok = {r[0] for r in rows} - excluded
-    facts = [f"vi__in({k},{_quote(i)})." for k, ids in enumerate(per) for i in ids if i in ok]
-    for oid, art, modus, sicht, inst, idx, text in rows:
-        if oid not in ok:
-            continue
-        for field, v in (("kind", art), ("mode", modus), ("visibility", sicht), ("instance", inst), ("index", idx), ("text", (text or "")[:200])):
-            if v is not None and v != "":
-                facts.append(f'vi__obj({_quote(oid)},"{field}",{_quote(v)}).')
-    for oid, t in tags:
-        if oid in ok and ":" in t:
+    rows = [r for r in rows if r[0] not in excluded]
+    ok = {r[0] for r in rows}
+    edges = [e for e in select("SELECT a, b, grund FROM kante WHERE a IN ({ph})", sorted(ok))]
+    hop = sorted({b for _a, b, _w in edges if b not in ok})
+    room = MAX_OBJECTS - len(ok)
+    cut += max(0, len(hop) - room)
+    via_edge = 0
+    for r in load(hop[:max(0, room)]):
+        if r[2] in NEVER_IMPORTED:
+            excluded.add(r[0])
+        elif not visible(r[3], r[4]):
+            not_visible += 1
+        else:
+            rows.append(r)
+            ok.add(r[0])
+            via_edge += 1
+    tags: dict[str, dict[str, list[str]]] = {}
+    for oid, t in select("SELECT objekt_id, tag FROM tag WHERE objekt_id IN ({ph})", sorted(ok)):
+        if ":" in t:
             kind, val = t.split(":", 1)
-            facts.append(f'vi__tag({_quote(oid)},{_quote(kind)},{_quote(val)}).')
-    for a, b, why in edges:
-        if a in ok and b in ok:
-            facts.append(f"vi__edge({_quote(a)},{_quote(b)}).")
-            facts.append(f"vi__edge({_quote(a)},{_quote(b)},{_quote((why or '')[:200])}).")
-    info = {"filter": list(filters), "je_filter": [len([i for i in ids if i in ok]) for ids in per], "objekte": len(ok), "fakten": len(facts),
-            "abgeschnitten": max(0, len(order) - MAX_OBJECTS), "nicht_sichtbar": not_visible, "ausgeschlossen": len(excluded)}
-    return "\n".join(facts), info
+            tags.setdefault(oid, {}).setdefault(kind, []).append(val)
+    today = datetime.now(timezone.utc)
+    objects = []
+    for oid, art, modus, sicht, inst, idx, text, zeit, wicht, best, wid, zug in rows:
+        try:
+            age = (today - datetime.fromisoformat(str(zeit))).days
+        except (TypeError, ValueError):
+            age = None
+        objects.append({"id": oid, "kind": art, "mode": modus, "visibility": sicht, "instance": inst, "index": idx, "text": (text or "")[:200],
+                        "age": age, "importance": wicht, "confirmed": best, "refuted": wid, "accesses": zug,
+                        "tags": {k: sorted(v) for k, v in sorted(tags.get(oid, {}).items())}})
+    return {"filters": list(filters), "members": [[i for i in ids if i in ok] for ids in per], "objects": objects,
+            "edges": [[a_, b_, (w or "")[:200]] for a_, b_, w in edges if a_ in ok and b_ in ok],
+            "counts": {"cut": cut, "not_visible": not_visible, "excluded": len(excluded), "via_edge": via_edge}, "limit": MAX_OBJECTS}
+
+
+TEXT_FIELDS = ("kind", "mode", "visibility", "instance", "index", "text")
+NUMBER_FIELDS = ("age", "importance", "confirmed", "refuted", "accesses")
+
+
+def facts(data: dict) -> list[str]:
+    """The data of object_data as ASP facts — vi__in(K, O), vi__obj(O, field, value), vi__tag(O, kind, value), vi__edge(A, B[, reason])."""
+    out = [f"vi__in({k},{_quote(i)})." for k, ids in enumerate(data["members"]) for i in ids]
+    for o in data["objects"]:
+        q = _quote(o["id"])
+        out += [f'vi__obj({q},"{f}",{_quote(o[f])}).' for f in TEXT_FIELDS if o.get(f) not in (None, "")]
+        out += [f'vi__obj({q},"{f}",{int(o[f])}).' for f in NUMBER_FIELDS if o.get(f) is not None]
+        out += [f"vi__tag({q},{_quote(k)},{_quote(v)})." for k, vals in o["tags"].items() for v in vals]
+    for a_, b_, w in data["edges"]:
+        out += [f"vi__edge({_quote(a_)},{_quote(b_)}).", f"vi__edge({_quote(a_)},{_quote(b_)},{_quote(w)})."]
+    return out
+
+
+def _import(filters: list[str], viewer: str | None) -> tuple[str, dict | None]:
+    if not filters:
+        return "", None
+    data = object_data(filters, viewer)
+    fs = facts(data)
+    c = data["counts"]
+    return "\n".join(fs), {"filter": data["filters"], "je_filter": [len(m) for m in data["members"]], "objekte": len(data["objects"]),
+                           "fakten": len(fs), "abgeschnitten": c["cut"], "nicht_sichtbar": c["not_visible"], "ausgeschlossen": c["excluded"],
+                           "ueber_kanten": c["via_edge"]}
 
 
 def _cost(model: set[str], w: dict[int, float]) -> float:
@@ -808,7 +896,8 @@ def lines(r: dict) -> list[str]:
         out.append(f"  imported {imp['objekte']} objects ({', '.join(f'{f!r}: {n}' for f, n in zip(imp['filter'], imp['je_filter']))}), "
                    f"{imp['fakten']} facts" + (f" · {imp['nicht_sichtbar']} not visible to you" if imp["nicht_sichtbar"] else "")
                    + (f" · {imp['abgeschnitten']} cut (limit {MAX_OBJECTS} objects) — narrow the filter" if imp["abgeschnitten"] else "")
-                   + (f" · {imp['ausgeschlossen']} in quarantine or archive, never imported" if imp["ausgeschlossen"] else ""))
+                   + (f" · {imp['ausgeschlossen']} in quarantine or archive, never imported" if imp["ausgeschlossen"] else "")
+                   + (f" · {imp['ueber_kanten']} more one edge away" if imp.get("ueber_kanten") else ""))
     for p in r.get("vorschlaege", []):
         what = f"tag {p['art']}:{p['wert']} on {p['ziel']}" if p["aktion"] == "tag" else f"link {p['ziel']} → {p['b']} ({p['grund']})"
         out.append(f"  proposes {what} · by rule " + ", ".join(f"#{n}" for n in p["regeln"]) + " — vi_logic action=propose holds it for review")
