@@ -414,14 +414,15 @@ def _self_actual() -> dict:
             "FROM objekt o JOIN tag t ON t.objekt_id = o.id AND t.tag LIKE 'skill:%' WHERE o.art = 'erfahrung' AND o.zeit >= ? "
             "GROUP BY t.tag ORDER BY 2 DESC LIMIT 12", (since,)).fetchall()
         weak = g.db().execute(
-            "SELECT t1.tag, t2.tag, COUNT(*) FROM objekt o JOIN tag t1 ON t1.objekt_id = o.id AND t1.tag LIKE 'tool:%' "
+            "SELECT t1.tag, t2.tag, COUNT(*), MIN(o.zeit), MAX(o.zeit) FROM objekt o JOIN tag t1 ON t1.objekt_id = o.id AND t1.tag LIKE 'tool:%' "
             "JOIN tag t2 ON t2.objekt_id = o.id AND t2.tag LIKE 'fehler:%' WHERE o.art = 'erfahrung' AND o.zeit >= ? "
             "GROUP BY t1.tag, t2.tag HAVING COUNT(*) >= 3 ORDER BY 3 DESC LIMIT 8", (since,)).fetchall()
         relations = g.db().execute(
             "SELECT instanz, COUNT(*), MAX(zeit) FROM objekt WHERE art = 'gespraech' AND instanz <> 'vi' GROUP BY instanz ORDER BY 2 DESC").fetchall()
     actual = {"zeitraum": f"{PERIOD_IN_DAYS} d", "berechnet": g.now(),
            "kompetenz": [{"bereich": b, "erfahrungen": n, "erfolgsquote": round(ok / n, 2), "zeitraum": f"{PERIOD_IN_DAYS} d"} for b, n, ok in comp],
-           "schwaechen": [{"bereich": t, "fehler": f, "n": n} for t, f, n in weak],
+           # 0.63.0: first and last time — 184 errors in one hour that ended are no ongoing weakness (found on production, 13.11.2026)
+           "schwaechen": [{"bereich": t, "fehler": f, "n": n, "zuerst": a, "zuletzt": z} for t, f, n, a, z in weak],
            "beziehungen": [{"instanz": i, "gespraeche": n, "zuletzt": z} for i, n, z in relations]}
     self_model.set_actual(actual, "sleep: extension from the experiences of the last 30 days")
     return {"kompetenz": len(comp), "schwaechen": len(weak), "beziehungen": len(relations)}

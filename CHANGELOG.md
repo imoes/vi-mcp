@@ -80,6 +80,9 @@ first draft (class blocks inside the server's parser): consistent with the cling
 
 - The language core moved from `vi_mcp/logic.py` into `clingo_object/notation.py`; the server imports it — one implementation for both.
 - The server's notation refuses `class`/`def` with a pointer to the package: the server runs no Python from callers.
+- **A weakness in the VI's self model says when it happened** ("tool:analyse … (184×, 2026-11-13 15:02–15:58 UTC)"). *Found on
+  production (13.11.2026):* the line "(184×)" read like an ongoing failure — counted per hour, all 184 errors had come in one hour that
+  was over, and the analysis reported to CentralStation had to be corrected. Test: `tests/test_selbst_schlaf.py` (1 new).
 - The Debian package recommends `python3-clingo`; `release.sh` refuses when `clingo_object.__version__` differs from vi-mcp's.
 
 ### What was fixed

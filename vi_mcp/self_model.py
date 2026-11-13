@@ -32,6 +32,16 @@ DEFAULT_TARGET = {
 }
 
 
+def _span(s: dict) -> str:
+    """When a weakness happened — a burst that ended reads differently from an ongoing failure."""
+    a, z = str(s.get("zuerst") or ""), str(s.get("zuletzt") or "")
+    if not z:
+        return ""
+    if a[:10] == z[:10]:
+        return f", {a[:10]} {a[11:16]}–{z[11:16]} UTC"
+    return f", {a[:16].replace('T', ' ')} – {z[:16].replace('T', ' ')} UTC"
+
+
 def _table() -> None:
     with g.lock:
         g.db().execute("CREATE TABLE IF NOT EXISTS selbst_version (version INTEGER PRIMARY KEY, zeit TEXT NOT NULL, wer TEXT NOT NULL, "
@@ -71,7 +81,7 @@ def narrative(o: g.MemoryObject) -> str:
         parts.append("Experienced in: " + ", ".join(f"{k['bereich']} ({k['erfahrungen']} actions, {k['erfolgsquote'] * 100:.0f} % ok, {k['zeitraum']})" for k in comp) + ".")
     weak = actual.get("schwaechen", [])[:2]
     if weak:
-        parts.append("Weaknesses: " + ", ".join(f"{s['bereich']} {s['fehler']} ({s['n']}×)" for s in weak) + ".")
+        parts.append("Weaknesses: " + ", ".join(f"{s['bereich']} {s['fehler']} ({s['n']}×{_span(s)})" for s in weak) + ".")
     relations = actual.get("beziehungen", [])
     if relations:
         parts.append("Instances: " + ", ".join(f"{b['instanz']} ({b['gespraeche']} conversations)" for b in relations[:4]) + ".")

@@ -159,3 +159,14 @@ def test_self_proposal_can_replace_a_sentence(gd):
     assert style == [new] and self_model.core().data["soll"]["stil"][0]["replaced"] == old  # replaced, not added
     assert f"replaces: {old}" in self_model.versions()[0][5]  # the old sentence stays in the history
     assert new in self_model.core().data["erzaehlung"] and old not in self_model.core().data["erzaehlung"]
+
+
+def test_a_weakness_says_when_it_happened(gd):
+    """0.63.0, found on production (13.11.2026): "Weaknesses: tool:analyse … (184×)" read like an ongoing failure; all 184 had come in one
+    hour that was over. The self model now says from when to when."""
+    for _ in range(4):
+        _experience("analyse", "h1", False, error="HTTP 400 max_tokens not supported")
+    sleep_cycle._self_actual()
+    k = self_model.core()
+    text = self_model.narrative(k)
+    assert "Weaknesses: tool:analyse" in text and "(4×, " in text and " UTC)" in text
