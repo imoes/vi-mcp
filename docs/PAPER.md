@@ -257,7 +257,9 @@ The missing piece is a relevance label: 3 of 386 searches had a hit opened after
 UMBRELA [51], a language model now grades a few real searches per sleep (0–3 per hit; all hits of a search in one call, a stated
 deviation forced by about a minute per call on the shared server). On the production copy six searches gave nDCG@10 0.835, a rank-1
 answer in 50 % and nothing relevant in the top 10 in 33 %. The grades only measure; a relevance weight trained on them must first win on
-the fixed question set.
+the fixed question set. A first attempt did not: a logistic regression over the hits' features, trained on grades of 90 synthetic
+(doc2query) questions, gained +0.020 ± 0.005 nDCG@10 in grouped cross-validation but +0.002 ± 0.006 MRR on the fixed set — its weights
+had learned the synthetic questions (it demoted whole document kinds), not relevance. The labels must come from real searches.
 
 **Memories talk with weights.** Word weights travel between servers as ordinary signed ratings whose target is
 `sha256("vil-word-v1|" + word + "|" + type)`. No new protocol type is needed (older peers would reject it), and the word itself never

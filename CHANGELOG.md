@@ -3,6 +3,16 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## Unreleased
+
+### What is missing
+
+- **A relevance weight that ranks better — tried, not found.** A logistic regression on the features of each hit (rank, fusion score,
+  cosine, word overlap, importance, accesses, age, lengths, measured help, labels, word weight, kind), trained on UMBRELA grades of
+  90 doc2query questions of the classified sample (copy of production, 13.11.2026): grouped cross-validation +0.020 ± 0.005 nDCG@10,
+  but on the fixed question set MRR 0.738 → 0.739 (+0.002 ± 0.006) — no gain, not used. Its weights described the training queries
+  (company docs −2.34, external docs −1.73), not relevance. Labels have to come from real searches; sleep step 8h grades those now.
+
 ## 0.62.3 — 2026-11-13 — hints and warnings measured apart
 
 ### What was fixed
