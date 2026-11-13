@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+from collections import Counter
 import json
 import math
 import os
@@ -348,8 +349,16 @@ def _proposal_target_ok(p: dict, instance: str | None) -> str | None:
             return f"{t!r} is no hashtag of the form kind:value"
         if t.startswith(g.FIXED_TAG_PREFIXES):
             return f"{t}: a hashtag only the system sets"
-    elif not str(p.get("grund") or "").strip():
+    elif p["aktion"] == "link" and not str(p.get("grund") or "").strip():
         return "a link needs a reason"
+    elif p["aktion"] == "rule":
+        o = g.load(p["ziel"])
+        if o.kind != "regel" or "logik" not in o.data:
+            return f"{p['ziel']} is no rule set"
+        try:
+            translate(o.data["logik"]["quelle"] + "\n" + p["regel"])
+        except LogicError as e:
+            return f"the rule set with the learned rule is no valid notation: {e}"
     return None
 
 
@@ -372,31 +381,95 @@ def store_proposals(source: str, instance: str, rule_set: str | None = None) -> 
         if why:
             out["abgelehnt"].append({"vorschlag": what, "grund": why})
             continue
-        key = json.dumps({k: p[k] for k in ("aktion", "ziel", "art", "wert", "b", "grund") if k in p}, sort_keys=True)
-        oid = "vorschlag:" + hashlib.sha256(key.encode()).hexdigest()[:20]
-        old = g.load(oid)
-        if old is not None:
-            if old.mode == "quarantaene":
-                g.update_data(oid, lambda d: d.update(wiederholt=int(d.get("wiederholt", 0)) + 1))
-                with g.lock:
-                    g.db().commit()
-                out["wiederholt"].append(oid)
-            else:
-                out["erledigt"].append({"id": oid, "zustand": "released" if old.mode != "widerlegt" else "discarded"})
-            continue
-        target = g.load(p["ziel"])
         rules = [by_nr.get(n, f"#{n}") for n in p["regeln"]]
-        g.new_object("vorschlag", f"Proposal from a logic program: {what}",
-                     ["thema:logik", f"vorschlag:{p['aktion']}", "modus:quarantaene"],
-                     {"vorschlag": {k: p[k] for k in ("aktion", "ziel", "art", "wert", "b", "grund") if k in p}, "regeln": rules,
-                      # a proposal changes another object: always sensitive, so only the release right (a person: vi-mcp release) decides
-                      "pruefung": {"regeln": [f"logic proposal: {what}"[:160]], "pruefer": None},
-                      "programm_hash": prog_hash, "regelsatz": rule_set, "quelle": f"vi_logic propose by {instance}",
-                      "inhalt": "Rules that derive it:\n" + "\n".join(rules)},
-                     who=f"ki@{instance}", reason="vi_logic propose", oid=oid, mode="quarantaene", instance=instance,
-                     visibility=target.visibility if target is not None else None, link=False)
-        out["gespeichert"].append(oid)
+        _hold(p, what, rules, prog_hash, rule_set, instance, out)
     return out
+
+
+_PROPOSAL_KEYS = ("aktion", "ziel", "art", "wert", "b", "grund", "regel", "regelsatz")
+
+
+def _hold(p: dict, what: str, rules: list[str], prog_hash: str, rule_set: str | None, instance: str, out: dict) -> None:
+    """Store one proposal in quarantine — or count it again, or name that it was already decided."""
+    from . import memory as g
+    key = json.dumps({k: p[k] for k in _PROPOSAL_KEYS if k in p}, sort_keys=True)
+    oid = "vorschlag:" + hashlib.sha256(key.encode()).hexdigest()[:20]
+    old = g.load(oid)
+    if old is not None:
+        if old.mode == "quarantaene":
+            g.update_data(oid, lambda d: d.update(wiederholt=int(d.get("wiederholt", 0)) + 1))
+            with g.lock:
+                g.db().commit()
+            out["wiederholt"].append(oid)
+        else:
+            out["erledigt"].append({"id": oid, "zustand": "released" if old.mode != "widerlegt" else "discarded"})
+        return
+    target = g.load(p["ziel"])
+    g.new_object("vorschlag", f"Proposal from a logic program: {what}",
+                 ["thema:logik", f"vorschlag:{p['aktion']}", "modus:quarantaene"],
+                 {"vorschlag": {k: p[k] for k in _PROPOSAL_KEYS if k in p}, "regeln": rules,
+                  # a proposal changes another object: always sensitive, so only the release right (a person: vi-mcp release) decides
+                  "pruefung": {"regeln": [f"logic proposal: {what}"[:160]], "pruefer": None},
+                  "programm_hash": prog_hash, "regelsatz": rule_set, "quelle": f"vi_logic by {instance}",
+                  "inhalt": "Rules that derive it:\n" + "\n".join(rules)},
+                 who=f"ki@{instance}", reason="vi_logic proposal", oid=oid, mode="quarantaene", instance=instance,
+                 visibility=target.visibility if target is not None else None, link=False)
+    out["gespeichert"].append(oid)
+
+
+def save_rule_set(name: str, source: str, description: str, visibility: str | None, instance: str, who: str | None = None):
+    """A named rule set as an object of kind regel (the newest of a name wins). Only valid notation is kept."""
+    from . import memory as g
+    _program, stmts = translate(source)
+    return g.new_object("regel", f"Logic rule set {name}: " + (description or f"{len(stmts)} statements"),
+                        ["thema:logik", f"logik:{name}"], {"logik": {"name": name, "quelle": source, "aussagen": len(stmts),
+                                                                     "clingo": CLINGO_VERSION, "beschreibung": description},
+                                                           "inhalt": source, "quelle": f"vi_logic save by {who or instance}"},
+                        importance=1, who=f"ki@{who or instance}", reason="vi_logic save", instance=instance, visibility=visibility)
+
+
+def learn_rules(rule_set_obj, instance: str, min_examples: int = 4) -> dict:
+    """0.63.0 (concept C3, built): learn rules for the most rated conclusion predicate of a rule set from the conclusions checked against
+    reality (logik_bewertung), with clingo as the optimiser (clingo_object.learn). The oldest 80 % train, the newest 20 % are held out and
+    reported. Each learned rule is held in quarantine as a proposal to extend the rule set — a person releases it."""
+    from clingo_object import learn as co_learn
+    src = rule_set_obj.data["logik"]["quelle"]
+    name = rule_set_obj.data["logik"]["name"]
+    rows = list(reversed(rated_conclusions(program_hash(src))))  # oldest first
+    unary = [(a.split("(", 1)[0], a.split("(", 1)[1][1:-2], right) for a, right in rows
+             if re.fullmatch(r'[a-z][a-z0-9_]*\("[^"]+"\)', a)]
+    if len(unary) < min_examples:
+        return {"zustand": "zu_wenig", "grund": f"{len(unary)} rated conclusions of the form p(\"object id\") — at least {min_examples} needed"}
+    head = Counter(h for h, _o, _r in unary).most_common(1)[0][0]
+    ex = [(o, r) for h, o, r in unary if h == head]
+    cut = max(1, int(len(ex) * 0.8))
+    train, held = ex[:cut], ex[cut:]
+    filters = translate_full(src)[2]
+    if not filters:
+        return {"zustand": "keine_objekte", "grund": "the rule set reads no objects (objects(…)) — nothing to learn over"}
+    best_f, best_data, best_n = None, None, -1
+    pos_ids = {o for o, r in train if r}
+    for f in filters:
+        d = object_data([f], instance, edges=False)
+        n = len(pos_ids & {x["id"] for x in d["objects"]})
+        if n > best_n:
+            best_f, best_data, best_n = f, d, n
+    res = co_learn.learn(head, best_f, best_data, [o for o, r in train if r], [o for o, r in train if not r],
+                         [o for o, r in held if r], [o for o, r in held if not r])
+    out = {"zustand": "gelernt" if res["rules"] else "nichts", "kopf": head, "filter": best_f, "lernen": len(train), "zurueckgehalten": len(held),
+           **res, "gespeichert": [], "wiederholt": [], "abgelehnt": [], "erledigt": []}
+    for rule in res["rules"]:
+        p = {"aktion": "rule", "ziel": rule_set_obj.id, "regel": rule["rule"], "regelsatz": name}
+        why = _proposal_target_ok(p, instance)
+        what = f"add to rule set {name}: {rule['rule']}"
+        if why:
+            out["abgelehnt"].append({"vorschlag": what, "grund": why})
+            continue
+        _hold(p, what, [f"learned from {len(train)} rated conclusions; train {rule['train']}; held out {rule['held_out']}"],
+              program_hash(src), name, instance, out)
+    return out
+
+
 
 
 def check_proposal(o, instance: str | None) -> None:
@@ -415,6 +488,11 @@ def apply_proposal(o, instance: str, reason: str) -> None:
     why = f"logic proposal {o.id} released by {instance}: {reason}"[:300]
     if p["aktion"] == "tag":
         target.tag([f"{p['art']}:{p['wert']}"], [], f"ki@{instance}", why)
+    elif p["aktion"] == "rule":  # a new version of the rule set (the newest of a name wins); the old one stays as history
+        lg = target.data["logik"]
+        new = save_rule_set(lg["name"], lg["quelle"] + "\n" + p["regel"], lg.get("beschreibung") or "", target.visibility, target.instance,
+                            who=instance)
+        new.link(target.id, f"previous version (learned rule added by proposal {o.id})")
     else:
         target.link(p["b"], f"{p['grund']} (proposal {o.id})"[:200])
         target.change(f"ki@{instance}", f"+edge {p['b']}", why)

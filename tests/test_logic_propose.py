@@ -113,3 +113,28 @@ def test_rule_sets_and_rated_conclusions_become_training_data(gd, tmp_path):
     assert any(k["meta"].get("source") == "logic.rate" and k["label"] is False for k in kto)
     assert "logic.jsonl | 2 |" in (tmp_path / "out" / "DATASHEET.md").read_text()
     assert all(r["meta"]["rule_set"] != "mine" for r in rows)
+
+
+def test_rules_are_learned_from_rated_conclusions_and_held_for_review(gd):
+    """C3 (0.63.0): a rule set derives review(O) for every test object; people rated the DMZ ones right and the internal ones wrong.
+    clingo, as the optimiser over a small hypothesis space, finds the narrower rule; it is held as a proposal and, released, becomes a
+    new version of the rule set."""
+    for i in range(10):
+        zone = "dmz" if i % 2 == 0 else "intern"
+        g.new_object("erkenntnis", f"note {i}", ["thema:oo", f"zone:{zone}", f"host:h{i}"], {"quelle": "t"}, reason="T",
+                     oid=f"erkenntnis:n{i}", mode="test", link=False)
+    src = 'review(O) <= (O in objects("thema:oo")) & (O.mode == "test")'
+    tools.call_tool("vi_logic", {"action": "save", "name": "rev", "source": src, "visibility": "internal"}, "a", False)
+    for i in range(10):
+        tools.call_tool("vi_logic", {"action": "rate", "rule_set": "rev", "conclusion": f'review("erkenntnis:n{i}")',
+                                     "correct": i % 2 == 0}, "a", False)
+    out = tools.call_tool("vi_logic", {"action": "learn", "rule_set": "rev"}, "a", False)
+    assert 'soft(review(O) <= (O in objects("thema:oo")) & (O.zone == "dmz")' in out
+    assert "from 8 rated conclusions (2 held out to test)" in out and "held out: 1/1 right, 0/1 wrong" in out
+    held = _held(out)
+    assert len(held) == 1 and g.load(held[0]).data["vorschlag"]["aktion"] == "rule"
+    tools.call_tool("vi_release", {"id": held[0], "reason": "the narrower rule is right"}, "release-cli", False, True)
+    newest = tools._logic_set("rev", "a")
+    assert '(O.zone == "dmz")' in newest.data["logik"]["quelle"] and src in newest.data["logik"]["quelle"]
+    # ratings belong to a program text: the new version has none yet
+    assert "nothing learned" in tools.call_tool("vi_logic", {"action": "learn", "rule_set": "rev"}, "a", False)

@@ -369,7 +369,7 @@ VI: logical descriptions in a Python-like notation, checked by formal logic (ans
 
 | Parameter | Type | Required | Meaning |
 |---|---|---|---|
-| `action` | string (check, ask, rate, save, objects, propose) |  | default check; objects: the memory objects of filters as JSON (data for clingo-object); propose: hold what the rules propose (propose(tag(…)) / propose(link(…))) for review (German: `aktion`) |
+| `action` | string (check, ask, rate, save, objects, propose, learn) |  | default check; objects: the memory objects of filters as JSON (data for clingo-object); propose: hold what the rules propose (propose(tag(…)) / propose(link(…))) for review; learn: learn rules from the rule set's rated conclusions, held for review (German: `aktion`) |
 | `filters` | array of string |  | objects: vi_recall filters, e.g. ["art:skill", "host:web*"] |
 | `edges` | boolean |  | objects: also edges and the objects one edge away (default true) |
 | `source` | string |  | statements, one per line (added to rule_set if both are given) (German: `quelle`) |

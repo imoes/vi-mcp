@@ -256,9 +256,10 @@ TOOLS = [
                     "visibility, instance, index, text; numbers age, importance, confirmed, refuted, accesses, e.g. (O.age > 90)); "
                     "linked(O, B) follows an edge (objects one edge away are imported too). Comparisons in parentheses. Classes, methods "
                     "and inheritance are real Python in the package clingo-object (import clingo_object), which compiles them to this notation.",
-     "inputSchema": _schema({"action": {"type": "string", "enum": ["check", "ask", "rate", "save", "objects", "propose"],
+     "inputSchema": _schema({"action": {"type": "string", "enum": ["check", "ask", "rate", "save", "objects", "propose", "learn"],
                                         "description": "default check; objects: the memory objects of filters as JSON (data for clingo-object); "
-                                                       "propose: hold what the rules propose (propose(tag(…)) / propose(link(…))) for review"},
+                                                       "propose: hold what the rules propose (propose(tag(…)) / propose(link(…))) for review; "
+                                                       "learn: learn rules from the rule set's rated conclusions, held for review"},
                              "filters": {"type": "array", "items": _S, "description": "objects: vi_recall filters, e.g. [\"art:skill\", \"host:web*\"]"},
                              "edges": {"type": "boolean", "description": "objects: also edges and the objects one edge away (default true)"},
                              "source": {"type": "string", "description": "statements, one per line (added to rule_set if both are given)"},
@@ -605,19 +606,33 @@ def _logic(args: dict, instance: str | None) -> str:
                 out.append("a person (vi-mcp quarantine / vi-mcp release on the server) or another instance with the release right decides — "
                            "you cannot release your own proposal")
             return "\n".join(out)
+        if action == "learn":  # 0.63.0: rules learned from rated conclusions, held for review as additions to the rule set
+            if base is None:
+                raise Rejected("learn needs rule_set: the rule set whose rated conclusions it learns from")
+            r = logic.learn_rules(base, instance)
+            if r["zustand"] in ("zu_wenig", "keine_objekte"):
+                return f"nothing learned: {r['grund']}"
+            out = [f"learned for {r['kopf']}(O) over objects(\"{r['filter']}\") from {r['lernen']} rated conclusions "
+                   f"({r['zurueckgehalten']} held out to test), {r['candidates']} candidate rules"]
+            out += [f"  {x['rule']}\n     training: {x['train']['positives']}/{x['train']['of_positives']} right covered, "
+                    f"{x['train']['negatives']}/{x['train']['of_negatives']} wrong covered · held out: {x['held_out']['positives']}/"
+                    f"{x['held_out']['of_positives']} right, {x['held_out']['negatives']}/{x['held_out']['of_negatives']} wrong" for x in r["rules"]]
+            out += [f"held for review: {oid}" for oid in r["gespeichert"]] + [f"already waiting: {oid}" for oid in r["wiederholt"]]
+            out += [f"already decided ({x['zustand']}): {x['id']}" for x in r["erledigt"]]
+            out += [f"refused: {x['vorschlag']} — {x['grund']}" for x in r["abgelehnt"]]
+            if not r["rules"]:
+                out.append("no rule covers the examples better than none")
+            return "\n".join(out)
         if action == "save":
             nm = str(args.get("name") or "").strip().lower()
             if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", nm):
                 raise Rejected("save needs a name: lower case, digits, - and _ (at most 64)")
-            program, stmts = logic.translate(src)  # only a valid rule set is kept
             desc = str(args.get("description") or "").strip()
             vis = args.get("visibility") or None  # api_en already turned shared/internal/private into the stored value
-            o = g.new_object("regel", f"Logic rule set {nm}: " + (desc or f"{len(stmts)} statements"),
-                             ["thema:logik", f"logik:{nm}"], {"logik": {"name": nm, "quelle": src, "aussagen": len(stmts), "clingo": logic.CLINGO_VERSION},
-                                                             "inhalt": src, "quelle": f"vi_logic save by {instance}"},
-                             importance=1, who=f"ki@{instance}", reason="vi_logic save", instance=instance, visibility=vis)
-            return f"saved {o.id} as rule set {nm} ({len(stmts)} statements) — use rule_set=\"{nm}\""
-        raise Rejected(f"unknown action {action!r}: check, ask, rate, save, objects, propose")
+            o = logic.save_rule_set(nm, src, desc, vis, instance)
+            stmts = o.data["logik"]["aussagen"]
+            return f"saved {o.id} as rule set {nm} ({stmts} statements) — use rule_set=\"{nm}\""
+        raise Rejected(f"unknown action {action!r}: check, ask, rate, save, objects, propose, learn")
     except logic.LogicError as e:
         raise Rejected(f"notation: {e}") from e
 

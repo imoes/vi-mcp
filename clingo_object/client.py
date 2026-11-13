@@ -131,5 +131,9 @@ class Memory:
     def propose(self, source: str) -> str:
         return self.call("vi_logic", {"action": "propose", "source": source})
 
+    def learn(self, rule_set: str) -> str:
+        """Rules learned on the server from the rule set's rated conclusions, held there for a person to release."""
+        return self.call("vi_logic", {"action": "learn", "rule_set": rule_set})
+
     def rate(self, source: str, conclusion: str, correct: bool) -> str:
         return self.call("vi_logic", {"action": "rate", "source": source, "conclusion": conclusion, "correct": bool(correct)})

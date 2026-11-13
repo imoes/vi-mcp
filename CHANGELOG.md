@@ -33,6 +33,13 @@ first draft (class blocks inside the server's parser): consistent with the cling
   rule set; and every conclusion someone checked against reality (`rate`, now kept one by one in `logik_bewertung`): right ones as
   examples, wrong ones as KTO negatives in `kto.jsonl`. `finetune` kit: `train.py --stage logic`. Programs run as a viewer that sees
   shared and internal objects, never private ones. Test: `tests/test_logic_propose.py` (1 new).
+- **Rules learned from rated conclusions.** `vi_logic action=learn rule_set=NAME`: from the conclusions people rated for that rule set
+  (oldest 80 % to learn, newest 20 % held out and reported), clingo itself — as an optimiser over a small hypothesis space of up to two
+  field/hashtag conditions the right examples share — picks the rules that cover the most right and fewest wrong conclusions
+  (`clingo_object/learn.py`). Each learned rule is a `soft(…)` proposal in quarantine with its coverage; released, it becomes a new
+  version of the rule set. ILASP was not used: free for non-commercial use only (https://ilasp.com/download). Test: a rule set that
+  derived review(O) for every test object, rated right only in the DMZ, learns `(O.zone == "dmz")` — held out: 1/1 right, 0/1 wrong
+  covered (`tests/test_logic_propose.py`).
 
 ### What was measured
 
@@ -56,8 +63,8 @@ first draft (class blocks inside the server's parser): consistent with the cling
 
 ### What is missing
 
-- Learning rules from rated conclusions (ILASP/FastLAS or clingo itself) is a concept, not built; rule weights learn already (`rate`),
-  and `logic.jsonl` is small until rule sets are saved and conclusions rated.
+- Learning covers unary conclusions over objects (p("object id")) with up to two conditions; more needs more rated examples first.
+  `logic.jsonl` and learning stay small until rule sets are saved and conclusions rated.
 - An agent loop that writes clingo-object programs and corrects them from the solver's answer; measured against `vi_recall` chains.
 - The relational task set on a production copy (clingo-object against hand-checked SQL) is not measured yet.
 - Local solving uses the stated priors of soft rules; the measured weights stay on the server (`check_on_server`).
