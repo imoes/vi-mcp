@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.62.2 — not yet released — a hint verdict needs its standard error
+## 0.62.2 — 2026-11-13 — a hint verdict needs its standard error
 
 ### What was fixed
 
