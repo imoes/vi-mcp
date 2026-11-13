@@ -3,6 +3,18 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.62.3 — not yet released — hints and warnings measured apart
+
+### What was fixed
+
+- **The matched hint lift counted warnings as hints.** A warning is another intervention — shown by construction before risky
+  actions, with its own line (success after a warning) in `vi_stats` C. *Found on production after the 0.62.2 deploy (13.11.2026,
+  24 h):* with the standard error the line still said −7.1 ± 2.9 points, beyond 2 standard errors. Broken down, all 335 hinted
+  `analyse` actions of centralstation had a warning (49 % success) against 8 without a hint (75 %), and claude-code/Bash was 96 % vs
+  99 %. *Correction to the 0.62.2 entry:* the −3.3 ± 2.6 there came from a snapshot taken earlier that day; on the live 24 h the
+  difference was beyond 2 SE — but it measured warnings, not hints. Now actions with a warning are left out of the hint lift and their
+  number is named in the line. Test: `tests/test_hint_quality.py` (1 new).
+
 ## 0.62.2 — 2026-11-13 — a hint verdict needs its standard error
 
 ### What was fixed

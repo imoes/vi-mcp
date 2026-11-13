@@ -57,8 +57,15 @@ def hint_lift_matched(hours: float = 24, viewer: str | None = None) -> dict:
     instances, mostly centralstation's `analyse` with a 39 % base rate and nearly always a hint, about +9 — Simpson's paradox."""
     since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
     strata: dict[tuple[str, str], dict] = {}
+    warned = 0
     for _, o, _g in g.recall("art:erfahrung (ok:ja OR ok:nein)", limit=20000, viewer=viewer):
         if o.ts < since or (o.data.get("vorher") or {}).get("aus_gedaechtnis"):
+            continue
+        if (o.data.get("vorher") or {}).get("warnung"):
+            # 0.62.2: a warning is another intervention, given by construction before risky actions, with its own line in vi_stats.
+            # Found on production (13.11.2026): all 335 hinted `analyse` actions of a day had a warning; mixed in, they made "hints"
+            # look harmful (−7.1 ± 2.9 points); without them −2.8 ± 2.5.
+            warned += 1
             continue
         t = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
         d = strata.setdefault((o.instance or "?", t), {"mit": {"n": 0, "ok": 0}, "ohne": {"n": 0, "ok": 0}})
@@ -93,13 +100,15 @@ def hint_lift_matched(hours: float = 24, viewer: str | None = None) -> dict:
         verdict = "lower with hints (observational: hints and warnings go to riskier actions — check the randomized lines before reweighting)"
     else:
         verdict = "no difference beyond 2 standard errors"
-    return {"lift": lift, "standardfehler": se, "urteil": verdict, "schichten": sum(1 for d in strata.values() if d["mit"]["n"] and d["ohne"]["n"]),
+    return {"lift": lift, "standardfehler": se, "urteil": verdict, "ohne_warnungen": warned,
+            "schichten": sum(1 for d in strata.values() if d["mit"]["n"] and d["ohne"]["n"]),
             "mit_vergleichbar": used["mit"], "mit_gesamt": total_with, "ohne_vergleichbar": used["ohne"], "stunden": hours}
 
 
 def matched_line(m: dict) -> str:
     return (f"matched within instance and tool (Mantel-Haenszel): " + (f"lift {m['lift'] * 100:+.1f} ± {m['standardfehler'] * 100:.1f} points" if m["lift"] is not None else "—")
-            + f" over {m['schichten']} stratum/strata, {m['mit_vergleichbar']} of {m['mit_gesamt']} actions with a hint comparable → {m['urteil']}")
+            + f" over {m['schichten']} stratum/strata, {m['mit_vergleichbar']} of {m['mit_gesamt']} actions with a hint comparable"
+            + (f" ({m['ohne_warnungen']} actions with a warning left out — the warnings line)" if m.get("ohne_warnungen") else "") + f" → {m['urteil']}")
 
 
 def _rate(d: dict) -> dict:

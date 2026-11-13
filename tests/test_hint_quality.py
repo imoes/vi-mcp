@@ -163,3 +163,21 @@ def test_a_small_matched_difference_is_no_verdict_without_two_standard_errors(gd
     assert -0.08 < m["lift"] < -0.06 and m["standardfehler"] > 0.05
     assert m["urteil"] == "no difference beyond 2 standard errors"
     assert "±" in metrics.matched_line(m)
+
+
+def test_warned_actions_are_not_counted_as_hints(gd):
+    """0.62.2: a warning is its own intervention (before risky actions, own line); mixed into the hint lift it made hints look harmful."""
+    for ok, n in ((True, 50), (False, 50)):  # warned and failing often — must not count
+        for _ in range(n):
+            o = _exp("cs", "analyse", ok, True)
+            o.data["vorher"]["warnung"] = True
+            g.save(o)
+    for ok, n in ((True, 19), (False, 1)):
+        for _ in range(n):
+            _exp("cs", "analyse", ok, True)
+    for ok, n in ((True, 19), (False, 1)):
+        for _ in range(n):
+            _exp("cs", "analyse", ok, False)
+    m = metrics.hint_lift_matched(24)
+    assert m["ohne_warnungen"] == 100 and m["mit_vergleichbar"] == 20 and abs(m["lift"]) < 1e-9
+    assert "100 actions with a warning left out" in metrics.matched_line(m)
