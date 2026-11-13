@@ -67,7 +67,12 @@ first draft (class blocks inside the server's parser): consistent with the cling
 
   The held-out questions were written after the prompt was changed and never used to tune it. The last step is a rule of the language,
   not of the prompt: the solver's refusal taught the model the right form in round 2 of both questions that had failed. Small sample
-  (16 questions, one run) — a trend, not a proof. Not compared yet: the same questions answered through `vi_recall` alone.
+  (16 questions, one run) — a trend, not a proof.
+
+  Compared with answering through `vi_recall` alone (the same model, the same 16 questions, up to 4 searches of up to 50 hits, then an
+  answer): 2/16 exact (the two questions whose answer is empty), precision 0.50, recall 0.30, 20.1 s per question — against 15/16,
+  1.00, 0.99 and 5.2 s with clingo-object. Where an answer has hundreds of rows (403 findings, 313 pages), a search that shows 50 hits
+  cannot be complete; a program over the objects is.
 
 ### What has changed
 
@@ -87,7 +92,6 @@ first draft (class blocks inside the server's parser): consistent with the cling
 
 - Learning covers unary conclusions over objects (p("object id")) with up to two conditions; more needs more rated examples first.
   `logic.jsonl` and learning stay small until rule sets are saved and conclusions rated.
-- The agent is not yet compared with answering the same questions through `vi_recall` chains.
 - The relational task set on a production copy (clingo-object against hand-checked SQL) is not measured yet.
 - Local solving uses the stated priors of soft rules; the measured weights stay on the server (`check_on_server`).
 - Not run against PostgreSQL in this block (the new queries are plain `IN (?, …)`).
