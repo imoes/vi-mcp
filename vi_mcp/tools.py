@@ -780,6 +780,8 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
         return f"nothing in memory for “{f}” · unknown words: {hint} · vi_vocabulary shows the words that exist"
     if reason == "unbekannt":
         return f"nothing in memory for “{f}” · unknown words: none of the words occurs in memory · vi_vocabulary(prefix=…) shows similar ones"
+    if reason == "ausgeschlossen":  # 0.62.5
+        return f"nothing in memory for “{f}” · the words occur only in what your exclusions (!…) leave out — nothing else is known about it"
     return f"nothing in memory for “{f}” · known words, but no object carries them together — fewer conditions or OR find more"
 
 

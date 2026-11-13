@@ -118,13 +118,21 @@ def suggest(value: str, pool: list[str], n: int = 3) -> list[str]:
 
 def empty_reason(filter_text: str, viewer: str | None = "aktuell") -> tuple[str, list[tuple[str, list[str]]]]:
     """Why a search found nothing: ('unbekannt', unknown terms) — it asked for words the memory does not know, or free text of which no
-    word occurs (the full-text search falls back to OR, so none matched); ('verfehlt', []) — the words are known, not together."""
+    word occurs (the full-text search falls back to OR, so none matched); ('ausgeschlossen', []) — they occur only in what the query
+    itself excludes; ('verfehlt', []) — the words are known, not together."""
     unknown = unknown_terms(filter_text, viewer)
     if unknown:
         return "unbekannt", unknown
-    groups, _remove, words = g.parse_filter(filter_text or "", g.known_kinds())
+    groups, remove, words = g.parse_filter(filter_text or "", g.known_kinds())
     if words and not groups:
         return "unbekannt", []
+    if remove and groups:
+        # 0.62.5: the words occur, but only in objects the query itself excludes (`!instanz:…`, `!art:…`) — found on production
+        # (13.11.2026): CentralStation's host lookups exclude its own experiences, and 6 of 79 empty ones were counted as "a search
+        # problem" although nothing else was there. Asked again without the exclusions: hits → the empty answer was right.
+        positive = " ".join("(" + " OR ".join(gr) + ")" if len(gr) > 1 else gr[0] for gr in groups)
+        if g.recall(positive, limit=1, viewer=viewer):
+            return "ausgeschlossen", []
     return "verfehlt", []
 
 

@@ -3,6 +3,17 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.62.5 — not yet released — an empty search the query itself caused is named so
+
+### What was fixed
+
+- **Searches the query itself emptied were counted as search problems.** The reason for an empty search had two values: an unknown
+  word (the right answer) or known words that never meet (a search problem). *Found on production (13.11.2026, 24 h, read only):*
+  all 79 empty searches were CentralStation host lookups `(host:X) !instanz:centralstation !art:antwort !art:erfahrung`; 6 counted as
+  "a search problem", although the host occurred only in what the query excludes. A third, named reason `ausgeschlossen`: the search
+  asked again without its exclusions, as the same viewer, finds something — the empty answer was right; the agent is told so, and
+  `vi_stats` E counts it apart. Test: `tests/test_vocabulary.py` (1 new).
+
 ## 0.62.4 — 2026-11-13 — logic install into any directory; a learned relevance weight, measured and not used
 
 ### What was fixed

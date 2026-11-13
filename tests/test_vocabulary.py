@@ -50,3 +50,15 @@ def test_vi_vocabulary_tool_and_statistics_split(gd):
     assert s["ohne_treffer"] == 2 and s["leer_grund"] == {"unbekannt": 1, "verfehlt": 1}
     rep = usage_stats.report(1)
     assert "word unknown in memory (nothing known: the right answer) 1" in rep and "words known, not together (a search problem) 1" in rep
+
+
+def test_a_search_that_excludes_the_only_matches_is_named_not_a_search_problem(gd):
+    """0.62.5, found on production: CentralStation's host lookups exclude its own experiences; when only those carry the host, the
+    empty answer is right, and it was counted as "known words, not together (a search problem)"."""
+    g.new_object("erfahrung", "Bash on web9", ["host:web9.example", "tool:Bash", "ok:ja"], {}, instance="centralstation")
+    g.new_object("erkenntnis", "db1 backup", ["host:db1.example"], {"quelle": "t"})
+    assert vocabulary.empty_reason("(host:web9.example) !instanz:centralstation !art:erfahrung", None)[0] == "ausgeschlossen"
+    assert vocabulary.empty_reason("host:web9.example host:db1.example", None)[0] == "verfehlt"  # both known, never together
+    out = tools.call_tool("vi_recall", {"filter": "(host:web9.example) !instanz:centralstation !art:erfahrung", "semantic": False},
+                          "centralstation", False)
+    assert "occur only in what your exclusions" in out

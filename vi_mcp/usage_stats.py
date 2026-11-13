@@ -344,7 +344,7 @@ def report(days: float = 7) -> str:
     known = s["n"] - s["treffer_unbekannt"]
     z.append(f"E Search: {s['n']} searches, without hits {s['ohne_treffer']} ({_pct(s['ohne_treffer'], known)} of {known} with a recorded hit count"
              + (f"; {s['treffer_unbekannt']} older ones without a hit count" if s["treffer_unbekannt"] else "") + ")"
-             + (" — why: " + ", ".join(f"{ {'unbekannt': 'word unknown in memory (nothing known: the right answer)', 'verfehlt': 'words known, not together (a search problem)', 'nicht_erfasst': 'not recorded (before 0.62.0)'}.get(k, k)} {v}"
+             + (" — why: " + ", ".join(f"{ {'unbekannt': 'word unknown in memory (nothing known: the right answer)', 'verfehlt': 'words known, not together (a search problem)', 'ausgeschlossen': 'found only what the query itself excludes (the right answer)', 'nicht_erfasst': 'not recorded (before 0.62.0)'}.get(k, k)} {v}"
                                      for k, v in sorted(s["leer_grund"].items())) if s.get("leer_grund") else "") + " · search kind "
              + (", ".join(f"{k} {v}" for k, v in s["je_art"].items()) or "—") + " · median "
              + (", ".join(f"{k} {v} ms" for k, v in s["ms_median"].items()) or "—"))
