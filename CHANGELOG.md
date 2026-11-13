@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## Unreleased
+## 0.62.4 — 2026-11-13 — logic install into any directory; a learned relevance weight, measured and not used
 
 ### What was fixed
 
