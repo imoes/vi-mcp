@@ -188,6 +188,23 @@ def test_warning_before_risky_actions(gd):
     assert "Warning before risky actions: active" in learning.explanation()
 
 
+@pytest.mark.skipif(not HAS_SKLEARN, reason="scikit-learn fehlt")
+def test_a_tool_that_fails_often_is_no_reason_to_warn(gd):
+    """0.62.6, production 13.11.2026: 826 of 848 warnings came before one automated tool failing 61 % of the time, and named only that
+    tool — "check arguments, paths and reachability" before every one of its actions. Only what fails more often than the tool warns."""
+    rnd = random.Random(11)
+    for _ in range(500):
+        action("deploy_run", f"gut{rnd.randint(1, 5)}", rnd.random() < 0.97)
+    for _ in range(300):
+        host = "kaputt9" if rnd.random() < 0.2 else f"web{rnd.randint(1, 5)}"
+        action("analyse", host, (rnd.random() < 0.05) if host == "kaputt9" else (rnd.random() < 0.5))
+    r = learning.train("Test")
+    assert r["warnung"]["zustand"] == "aktiv"
+    assert learning.warning(intuition.triggers("analyse", {"host": "web3"})) is None  # only the tool's own rate: no warning
+    w = learning.warning(intuition.triggers("analyse", {"host": "kaputt9"}))
+    assert w and w.index("host:kaputt9:") < w.index("tool:analyse:")  # the host is the reason, the tool's rate only context
+
+
 def test_hint_feedback_is_direct_learning_signal(gd):
     """0.20.9: vi_bestaetige/vi_widerlege of a hint just shown becomes the label of the pair (situation + hint)."""
     h = g.new_object("erkenntnis", "web7 braucht den Proxy", ["host:web7"], {"quelle": "x"}, reason="T", instance="b")

@@ -567,9 +567,19 @@ def warning(triggers: list[str], ts: str | None = None) -> str | None:
     q, gw = m.data.get("quoten") or {}, m.data.get("gewichte") or {}
     tot = q.get("_gesamt") or [1, 0]
     rate_total = tot[1] / max(1, tot[0])
-    reasons = sorted((k for k in base if gw.get(k, 0.0) < 0 and k in q and q[k][1] / max(1, q[k][0]) > rate_total), key=lambda k: gw[k])[:3]
+
+    def rate(k):
+        return q[k][1] / max(1, q[k][0])
+    # 0.62.6: the tool's own failure rate is no reason — it says "this tool fails often" before every one of its actions. Measured on
+    # production (13.11.2026): 826 of 848 warnings in 24 h came before one tool that fails 61 % of the time, and 245 of 300 recomputed
+    # ones named only tool:/skill: of that tool. A reason must fail more often than the tool itself does.
+    own = [k for k in base if k.startswith(("tool:", "skill:")) and k in q]
+    bar = max([rate_total] + [rate(k) for k in own])
+    reasons = sorted((k for k in base if not k.startswith(("tool:", "skill:")) and gw.get(k, 0.0) < 0 and k in q and rate(k) > bar),
+                     key=lambda k: gw[k])[:3]
     if not reasons:
-        return None  # no nameable reason, no warning
+        return None  # no nameable reason beyond the tool, no warning
+    reasons = reasons + [k for k in own if rate(k) > rate_total][:1]  # the tool's rate as context, never as the reason
     parts = "; ".join(f"{k}: {q[k][1]} of {q[k][0]} actions failed ({round(100 * q[k][1] / q[k][0])} %)" for k in reasons)
     return (f"[VI warning] Actions like this one often fail — {parts}; overall {round(100 * rate_total)} %. In the test, "
             f"{w['scheiterten']} of {w['gewarnt']} actions classified this way failed ({w['praezision_pct']} %). Check arguments, paths and reachability first.")

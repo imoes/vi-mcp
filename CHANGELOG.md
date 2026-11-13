@@ -33,6 +33,12 @@ Linked from [README.md](README.md).
   hypothesis of the language model: …". It also writes a transferable lesson (`lehre`: when it applies, what to do, what to avoid), placed
   right after the problem so it is in the key statement hints show. Whether this raises success after showing is not measured yet.
   Tests: `tests/test_solutions.py` (2 new).
+- **A warning needs a reason beyond "this tool fails often".** *Measured on production (13.11.2026, 24 h):* 826 of 848 warnings came
+  before one automated tool that fails 61 % of the time, and recomputed on a copy, 245 of 300 named only that tool — "check arguments,
+  paths and reachability" before every one of its actions, which carries no information. Now a reason must fail more often than the tool
+  itself (a host at 83–89 %, say); the tool's rate is shown only as context. On the copy (latest 2,000 actions of that tool): warnings
+  2,000 → 955, failed after a warning 80 % instead of 46 % among those no longer warned; over all tools the latest 2,000 actions:
+  495 → 141 warnings. In-sample: the counted rates come from the same data. Test: `tests/test_lernen.py` (1 new).
 
 ### What was measured
 
