@@ -40,7 +40,7 @@ STORED_VALUES: dict[str, dict[str, str]] = {
     "action": {"approve": "freigeben", "discard": "verwerfen", "state": "state", "sync": "sync"},
     "visibility": {"shared": "geteilt", "internal": "intern", "private": "privat"},
     "outcome": {"good": "gut", "bad": "schlecht"},
-    "kind": {"tool": "werkzeug", "before": "vorher", "after": "nachher"},
+    "kind": {"tool": "werkzeug", "before": "vorher", "after": "nachher", "projekt": "projekt", "spezial": "spezial"},
     "mode": {"test": "test", "active": "aktiv", "off": "aus"},
 }
 

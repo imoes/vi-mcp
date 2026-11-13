@@ -212,8 +212,12 @@ TOOLS = [
                                                   "required": ["concept", "box", "score"]}}}, ["text", "hashtags", "source"])},
     {"name": "vi_indexes",
      "description": "VI: the indexes of the memory — projects and special VIs: objects, experiences, knowledge per index and the state of an "
-                    "index's own router model (used for its project only if it beats the shared one). vi_recall(index=…) searches one.",
-     "inputSchema": _schema({})},
+                    "index's own router model (used for its project only if it beats the shared one). vi_recall(index=…) searches one. With "
+                    "index and description/tags/kind it describes that index instead (a token is required).",
+     "inputSchema": _schema({"index": {"type": "string", "description": "optional: the index to describe"},
+                             "description": {"type": "string", "description": "optional: what the index is for"},
+                             "tags": {"type": "array", "items": {"type": "string"}, "description": "optional: tags of the index (replace the old ones)"},
+                             "kind": {"type": "string", "enum": ["projekt", "spezial"], "description": "optional: projekt or spezial (a special VI)"}})},
     {"name": "vi_code_sync",
      "description": "VI, for `vi-mcp index import-code`: the code of a git repository in an index. action state: which files (blob SHA) the "
                     "index holds of the repository; action sync: pieces of changed files (upserted by index/repo/path/symbol) and removed "
@@ -1024,7 +1028,14 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         return json.dumps(r, ensure_ascii=False)
     if name == "vi_indexes":  # 0.61.0
         from . import indexes
-        return "Indexes (objects · experiences · knowledge · own model):\n" + "\n".join(indexes.lines())
+        if args.get("index") and any(args.get(k) is not None for k in ("description", "tags", "kind")):
+            if instance == config.OPEN:
+                raise Rejected("describing an index needs a token")
+            try:
+                return indexes.describe(args["index"], args.get("description"), args.get("tags"), args.get("kind"))
+            except ValueError as e:
+                raise Rejected(str(e)) from e
+        return "Indexes (kind · objects · experiences · knowledge · own model):\n" + "\n".join(indexes.lines())
     if name == "vi_context":  # 0.61.0
         s = session.current()
         if s is not None and s.project:

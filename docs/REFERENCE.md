@@ -325,7 +325,14 @@ VI: store knowledge as an object. When: a non-obvious problem was solved, a last
 
 ### `vi_indexes`
 
-VI: the indexes of the memory — projects and special VIs: objects, experiences, knowledge per index and the state of an index's own router model (used for its project only if it beats the shared one). vi_recall(index=…) searches one.
+VI: the indexes of the memory — projects and special VIs: objects, experiences, knowledge per index and the state of an index's own router model (used for its project only if it beats the shared one). vi_recall(index=…) searches one. With index and description/tags/kind it describes that index instead (a token is required).
+
+| Parameter | Type | Required | Meaning |
+|---|---|---|---|
+| `index` | string |  | optional: the index to describe |
+| `description` | string |  | optional: what the index is for (German: `beschreibung`) |
+| `tags` | array of string |  | optional: tags of the index (replace the old ones) |
+| `kind` | string (projekt, spezial) |  | optional: projekt or spezial (a special VI) (German: `art`) |
 
 ### `vi_code_sync`
 

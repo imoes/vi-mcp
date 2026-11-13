@@ -100,6 +100,7 @@ def open_db(fpath: Path | str) -> None:
     archive in the schema <schema>_lager of the same database (vi_mcp/db.py translates the SQLite SQL)."""
     global _db, fts, fpath_active, archive_path, archive_schema
     from . import db as dbmod
+    _known_indexes.clear()  # 0.61.0: another database, other indexes
     _KINDS_CACHE.update(t=float("-inf"), kinds=frozenset())  # another database: other kinds
     if dbmod.is_url(fpath):
         con = dbmod.connect(str(fpath))
@@ -175,6 +176,15 @@ def _migrate(con: Any) -> None:
         con.execute("ALTER TABLE objekt ADD COLUMN idx TEXT NOT NULL DEFAULT 'global'")
         log("migration: column idx added (every object in index global)")
     con.execute("CREATE INDEX IF NOT EXISTS objekt_idx ON objekt(idx, art)")
+    # 0.61.0: the indexes themselves — name as primary key, with kind, description and tags (the user: "jeden Index auch Tags und
+    # Beschreibung mitgeben, wenn sie in einer Tabelle stehen"). objekt.idx refers to it; an added column cannot become a real foreign key
+    # in SQLite without rebuilding the table, so the reference is kept by the code (indexes.ensure) and checked by a test.
+    con.execute("CREATE TABLE IF NOT EXISTS vi_index (name TEXT PRIMARY KEY, art TEXT NOT NULL DEFAULT 'projekt', "
+                "beschreibung TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]', erstellt TEXT NOT NULL, "
+                "quelle TEXT NOT NULL DEFAULT 'automatisch')")
+    con.execute("INSERT OR IGNORE INTO vi_index (name, art, beschreibung, erstellt, quelle) VALUES "
+                "('global', 'global', 'shared knowledge of all projects', ?, 'system')", (now(),))
+    con.execute("INSERT OR IGNORE INTO vi_index (name, erstellt) SELECT DISTINCT idx, ? FROM objekt WHERE idx <> 'global'", (now(),))
     # 0.37.0: an image is its own kind (bild); 0.35.x stored it as an insight with medium:bild. The id stays (edges, history, hints
     # refer to it); kind, art: hashtag and the now redundant medium:bild change.
     old = [r[0] for r in con.execute("SELECT id FROM objekt WHERE art = 'erkenntnis' AND json_extract(daten, '$.bild') IS NOT NULL")]
@@ -435,8 +445,17 @@ def load_many(oids: list[str]) -> dict[str, MemoryObject]:
     return outputs
 
 
+#: 0.61.0: index names known to exist in vi_index (saves an INSERT per save)
+_known_indexes: set[str] = set()
+
+
 def save(o: MemoryObject) -> MemoryObject:
     tags = sorted(set(o.hashtags) | {f"art:{o.kind}", f"instanz:{o.instance}"})
+    if o.idx not in _known_indexes:  # 0.61.0: every index an object refers to has its row (the primary key of vi_index)
+        with lock:
+            db().execute("INSERT OR IGNORE INTO vi_index (name, art, erstellt) VALUES (?, ?, ?)",
+                         (o.idx, "global" if o.idx == "global" else "projekt", now()))
+        _known_indexes.add(o.idx)
     with lock:
         db().execute(f"INSERT OR REPLACE INTO objekt ({', '.join(COLUMNS)}) VALUES ({', '.join('?' * len(COLUMNS))})",
                      (o.id, o.kind, o.ts, o.last_at, o.text, _data_json(o), o.importance,

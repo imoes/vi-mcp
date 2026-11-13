@@ -190,3 +190,24 @@ def test_backfill_puts_old_project_data_into_its_index_and_rename_merges(gd, mon
     assert "index cue → ansible" in indexes.move(k1.id, "ansible", "admin", "belongs to the special VI")
     with pytest.raises(ValueError, match="reason"):
         indexes.rename("cue", "x", "admin", "")
+
+
+def test_the_index_table_has_a_row_for_every_index_with_description_and_tags(gd):
+    # the user (13.11.2026): a primary key for the index, one index per object, and a table that gives each index tags and a description
+    g.new_object("erkenntnis", "project knowledge", ["thema:a"], {"quelle": "t"}, index="cue-print")
+    reg = indexes.registry()
+    assert reg["global"]["art"] == "global" and reg["cue-print"]["art"] == "projekt"
+    with g.lock:
+        orphans = g.db().execute("SELECT DISTINCT idx FROM objekt WHERE idx NOT IN (SELECT name FROM vi_index)").fetchall()
+    assert orphans == []  # every index an object refers to has its row
+    out = tools.call_tool("vi_indexes", {"index": "ansible", "description": "Ansible roles and playbooks", "tags": ["Team:IT", "ansible"],
+                                         "kind": "spezial"}, "a", False)
+    assert out == "index ansible (spezial): Ansible roles and playbooks · tags ansible, team:it"
+    listing = tools.call_tool("vi_indexes", {}, "a", False)
+    assert "ansible" in listing and "(spezial)" in listing and "[tags: ansible, team:it]" in listing  # listed although it holds nothing yet
+    with pytest.raises(tools.Rejected, match="kind must be"):
+        tools.call_tool("vi_indexes", {"index": "x", "kind": "global"}, "a", False)
+    indexes.describe("cue-print", "CUE print stack")
+    indexes.rename("cue-print", "cue", "admin", "shorter")
+    reg = indexes.registry()
+    assert "cue-print" not in reg and reg["cue"]["beschreibung"] == "CUE print stack"  # the row moved with its description

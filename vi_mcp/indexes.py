@@ -82,21 +82,70 @@ def index_for(explicit: str | None, project: str | None, cfg: dict | None = None
 
 # ── administration (vi-mcp index …, vi_indexes) ────────────────────────────
 
+KINDS = ("global", "projekt", "spezial")
+
+
+def registry() -> dict[str, dict]:
+    """The rows of vi_index: name (primary key) → kind, description, tags, created, origin."""
+    import json
+    from . import memory as g
+    with g.lock:
+        rows = g.db().execute("SELECT name, art, beschreibung, tags, erstellt, quelle FROM vi_index").fetchall()
+    return {r[0]: {"art": r[1], "beschreibung": r[2], "tags": json.loads(r[3] or "[]"), "erstellt": r[4], "quelle": r[5]} for r in rows}
+
+
+def describe(name: str, description: str | None = None, tags: list[str] | None = None, kind: str | None = None) -> str:
+    """Give an index a description, tags and its kind (projekt / spezial). Creates the row if the index has no objects yet."""
+    import json
+    from . import memory as g
+    n = normalize(name)
+    if not n:
+        raise ValueError("an index name is required")
+    if kind is not None and kind not in KINDS[1:]:
+        raise ValueError(f"kind must be one of {', '.join(KINDS[1:])}")
+    if n == GLOBAL and kind is not None:
+        raise ValueError("global stays global")
+    clean = None
+    if tags is not None:
+        clean = sorted({str(t).strip().lower() for t in tags if str(t).strip()})
+        bad = [t for t in clean if not re.match(r"^[a-z0-9][a-z0-9:._-]{0,60}$", t)]
+        if bad:
+            raise ValueError(f"tags: a-z, 0-9, ':', '.', '-', '_' only — {', '.join(bad[:3])}")
+    with g.lock:
+        g.db().execute("INSERT OR IGNORE INTO vi_index (name, art, erstellt, quelle) VALUES (?, ?, ?, 'beschrieben')",
+                       (n, kind or "projekt", g.now()))
+        if description is not None:
+            g.db().execute("UPDATE vi_index SET beschreibung = ? WHERE name = ?", (description.strip()[:2000], n))
+        if clean is not None:
+            g.db().execute("UPDATE vi_index SET tags = ? WHERE name = ?", (json.dumps(clean), n))
+        if kind is not None:
+            g.db().execute("UPDATE vi_index SET art = ? WHERE name = ?", (kind, n))
+        g.db().commit()
+    g._known_indexes.add(n)
+    r = registry()[n]
+    return f"index {n} ({r['art']}): {r['beschreibung'] or '—'}" + (f" · tags {', '.join(r['tags'])}" if r["tags"] else "")
+
 def summary() -> list[dict]:
     """Every index: objects, experiences, knowledge, its own model's state. global first, then by size."""
     from . import learning
     from . import memory as g
     with g.lock:
         rows = g.db().execute("SELECT idx, art, COUNT(*) FROM objekt WHERE modus NOT IN ('widerlegt', 'aufgegangen') GROUP BY idx, art").fetchall()
-    per: dict[str, dict] = {}
+    reg = registry()
+    per: dict[str, dict] = {name: {"index": name, "objekte": 0, "erfahrungen": 0, "wissen": 0, "code": 0} for name in reg}
+    with g.lock:
+        code = dict(g.db().execute("SELECT o.idx, COUNT(*) FROM objekt o JOIN tag t ON t.objekt_id = o.id WHERE t.tag = 'art_wissen:code' "
+                                   "AND o.modus = 'aktiv' GROUP BY o.idx").fetchall())
     for idx, art, n in rows:
-        e = per.setdefault(idx, {"index": idx, "objekte": 0, "erfahrungen": 0, "wissen": 0})
+        e = per.setdefault(idx, {"index": idx, "objekte": 0, "erfahrungen": 0, "wissen": 0, "code": 0})
         e["objekte"] += n
         if art == "erfahrung":
             e["erfahrungen"] += n
         elif art in ("erkenntnis", "regel", "skill", "bild", "seite"):
             e["wissen"] += n
     for idx, e in per.items():
+        r = reg.get(idx) or {}
+        e.update(art=r.get("art", "?"), beschreibung=r.get("beschreibung", ""), tags=r.get("tags", []), code=code.get(idx, 0))
         m = g.load(learning.model_id(idx)) if idx != GLOBAL else learning.model()
         e["modell"] = "—" if m is None else f"{m.mode}" + (f", AUC {m.data.get('auc_holdout')}" if m.data.get("auc_holdout") is not None else "")
         if m is not None and idx != GLOBAL:
@@ -107,7 +156,10 @@ def summary() -> list[dict]:
 def lines() -> list[str]:
     out = []
     for e in summary():
-        out.append(f"  {e['index']:24} {e['objekte']:7} objects · {e['erfahrungen']:7} experiences · {e['wissen']:6} knowledge · model {e['modell']}")
+        out.append(f"  {e['index']:24} ({e['art']}) {e['objekte']:7} objects · {e['erfahrungen']:7} experiences · {e['wissen']:6} knowledge"
+                   f" (code pieces {e['code']}) · model {e['modell']}")
+        if e.get("beschreibung") or e.get("tags"):
+            out.append(f"    {e.get('beschreibung') or ''}" + (f" [tags: {', '.join(e['tags'])}]" if e.get("tags") else ""))
         if e.get("modell_urteil"):
             out.append(f"    {e['modell_urteil']}")
     return out or ["  — no objects"]
@@ -139,7 +191,14 @@ def rename(old: str, new: str, who: str, reason: str) -> str:
         raise ValueError("a reason is required")
     with g.lock:
         n = g.db().execute("UPDATE objekt SET idx = ? WHERE idx = ? AND id <> ?", (b, a, learning.model_id(a))).rowcount
+        # the row of vi_index: renamed if b is new (description and tags go along), dropped if a was merged into an existing b
+        if g.db().execute("SELECT 1 FROM vi_index WHERE name = ?", (b,)).fetchone():
+            if g.db().execute("SELECT COUNT(*) FROM objekt WHERE idx = ?", (a,)).fetchone()[0] == 0:
+                g.db().execute("DELETE FROM vi_index WHERE name = ?", (a,))
+        else:
+            g.db().execute("UPDATE vi_index SET name = ? WHERE name = ?", (b, a))
         g.db().commit()
+    g._known_indexes.discard(a)
     m = g.load(learning.model_id(a))
     if m is not None and m.mode != "test":
         m.mode = "test"
@@ -194,6 +253,11 @@ def main(argv: list[str]) -> int:
     rn.add_argument("old")
     rn.add_argument("new")
     rn.add_argument("--reason", required=True)
+    ds = u.add_parser("describe", help="give an index a description, tags (comma separated) and its kind")
+    ds.add_argument("index")
+    ds.add_argument("--text")
+    ds.add_argument("--tags")
+    ds.add_argument("--kind", choices=KINDS[1:])
     bf = u.add_parser("backfill", help="existing experiences and knowledge into their conversation's project index (counts without --apply)")
     bf.add_argument("--apply", action="store_true")
     u.add_parser("import-code", help="put the code of a git repository into an index (vi-mcp index import-code REPO --index X)", add_help=False)
@@ -210,6 +274,8 @@ def main(argv: list[str]) -> int:
             print(move(o.id, o.index, "admin", o.reason))
         elif o.cmd == "rename":
             print(rename(o.old, o.new, "admin", o.reason))
+        elif o.cmd == "describe":
+            print(describe(o.index, o.text, o.tags.split(",") if o.tags is not None else None, o.kind))
         elif o.cmd == "backfill":
             print(json.dumps(backfill(o.apply), indent=2, ensure_ascii=False))
         else:
