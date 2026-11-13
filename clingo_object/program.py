@@ -83,5 +83,21 @@ class Program:
     def lines(self, memory=None) -> list[str]:
         return notation.lines(self.check(memory))
 
+    # ── on the server (clingo_object.Memory): the same text, measured rule weights, proposals and ratings ───────
+    def check_on_server(self, memory) -> str:
+        return memory.check(self.notation())
+
+    def save(self, memory, name: str, description: str = "", visibility: str | None = None) -> str:
+        """Keep the compiled program as a named rule set on the server (vi_logic save) — people and agents can then use rule_set=name."""
+        return memory.save(name, self.notation(), description, visibility)
+
+    def propose(self, memory) -> str:
+        """The server derives the proposals itself from the compiled text and holds them for review — nothing is taken from here."""
+        return memory.propose(self.notation())
+
+    def rate(self, memory, conclusion: str, correct: bool) -> str:
+        """A conclusion was checked against reality: the server credits or blames the rules that derive it (their weights learn)."""
+        return memory.rate(self.notation(), conclusion, correct)
+
 
 __all__ = ["Program", "Rule"]

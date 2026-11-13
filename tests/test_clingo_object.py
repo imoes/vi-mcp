@@ -128,3 +128,47 @@ def test_only_the_classes_of_the_program_count():
     """A subclass the program was not given never joins silently: Knowledge alone has no kinds, so its method applies to nothing."""
     assert "stale" not in Program(Knowledge).notation()
     assert "art:skill" not in Program(Knowledge, Insight).notation()
+
+
+# ── B3: the client against a real server (tests/test_http.py's fixture) ──────
+
+from tests.test_http import srv  # noqa: E402,F401  — the fixture: a real vi-mcp on a random port
+
+
+def test_memory_client_against_a_real_server(srv, tmp_path, monkeypatch):
+    from clingo_object import Memory, ServerError
+    port, tok_a, _tok_b = srv
+    tf = tmp_path / "token"
+    tf.write_text(tok_a)
+    mem = Memory(f"http://127.0.0.1:{port}/mcp", tf)
+    assert tok_a not in repr(mem)
+    g.new_object("erkenntnis", "gate1 in the DMZ", ["host:gate1", "zone:dmz"], {"quelle": "t"}, reason="T", oid="erkenntnis:gate1", link=False)
+    g.new_object("skill", "old skill", ["thema:oo"], {"quelle": "t"}, reason="T", oid="skill:x", mode="test", link=False)
+    with g.lock:
+        g.db().execute("UPDATE objekt SET zeit = ? WHERE id = 'skill:x'", ((datetime.now(timezone.utc) - timedelta(days=60)).isoformat(),))
+        g.db().commit()
+    data = mem.objects(["zone:dmz"])
+    assert [o["id"] for o in data["objects"]] == ["erkenntnis:gate1"]
+    prog = _program()
+    local = prog.check(mem)  # objects fetched over MCP, solved here
+    assert 'review("skill:x")' in local["folgerungen"]
+    assert 'review("skill:x")' in prog.check_on_server(mem)  # the same text on the server
+    assert "saved" in prog.save(mem, "oo-review", "stale knowledge to review")
+    assert "booked as right" in prog.rate(mem, 'review("skill:x")', True)
+    with pytest.raises(ServerError, match="initialize: HTTP 401|token refused"):
+        bad = tmp_path / "bad"
+        bad.write_text("wrong-token")
+        Memory(f"http://127.0.0.1:{port}/mcp", bad).objects(["zone:dmz"])
+
+
+def test_memory_finds_url_and_token_like_the_hook(tmp_path, monkeypatch):
+    from clingo_object import client
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("VI_MCP_URL", raising=False)
+    monkeypatch.delenv("VI_MCP_TOKEN_FILE", raising=False)
+    (tmp_path / ".config" / "vi-mcp").mkdir(parents=True)
+    (tmp_path / ".config" / "vi-mcp" / "hook.json").write_text('{"url": "https://vi.example/mcp", "token_file": "~/t"}')
+    url, tf = client._config()
+    assert url == "https://vi.example/mcp" and tf == tmp_path / "t"
+    monkeypatch.setenv("VI_MCP_URL", "http://127.0.0.1:9/mcp")
+    assert client._config()[0] == "http://127.0.0.1:9/mcp"  # the environment wins

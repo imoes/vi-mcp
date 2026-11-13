@@ -9,11 +9,12 @@ Program that compiles to the notation (notation) the VI server runs and that sol
 Runs where code is trusted (an agent's machine, tests, an administrator); the server runs only the compiled notation, never Python.
 Standard library plus clingo; it never imports vi_mcp.
 """
+from .client import Memory, ServerError
 from .expr import ExprError, Obj, Var, linked, never, propose_link, propose_tag, rel, soft
 from .model import VIObject, compile_class
 from .notation import CLINGO_VERSION, LogicError
 from .program import Program
 
 __version__ = "0.63.0"
-__all__ = ["CLINGO_VERSION", "ExprError", "LogicError", "Obj", "Program", "VIObject", "Var", "compile_class", "linked", "never",
-           "propose_link", "propose_tag", "rel", "soft"]
+__all__ = ["CLINGO_VERSION", "ExprError", "LogicError", "Memory", "Obj", "Program", "ServerError", "VIObject", "Var", "compile_class",
+           "linked", "never", "propose_link", "propose_tag", "rel", "soft"]
