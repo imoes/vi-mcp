@@ -14,7 +14,7 @@ first draft (class blocks inside the server's parser): consistent with the cling
 - **Memory objects in the logic.** `(O in objects("art:skill host:web*"))` binds `O` to the objects of a `vi_recall` filter, as the asking
   instance may see them; `(O.host == H)` reads a hashtag, `(O.kind == "skill")` a field, `(O.age > 90)` a number (age, importance,
   confirmed, refuted, accesses); `linked(O, B)` follows an edge (objects one edge away come along). Never quarantine or archive; what is
-  cut (2,000 objects), not visible or excluded is counted and shown. Tests: `tests/test_logic_objects.py` (29).
+  cut (2,000 objects), not visible or excluded is counted and shown. Tests: `tests/test_logic_objects.py` (28).
 - **Rules may propose changes, a person decides.** A head `propose(tag(O, "status", "stale"))` or `propose(link(A, B, "reason"))`;
   `vi_logic action=propose` derives the proposals on the server and holds each in quarantine (kind `vorschlag`) with the rules behind it.
   Its author cannot release it; `vi-mcp release` re-checks and applies it with the proposal's id in the target's change log; discarding
