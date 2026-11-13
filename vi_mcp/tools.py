@@ -556,13 +556,13 @@ def _logic(args: dict, instance: str | None) -> str:
         raise Rejected("source or rule_set is required")
     try:
         if action == "check":
-            return "\n".join(logic.lines(logic.check(src)))
+            return "\n".join(logic.lines(logic.check(src, viewer=instance)))
         if action == "ask":
             qs = [str(q) for q in (args.get("queries") or [])]
             if not qs:
                 raise Rejected("ask needs queries")
-            vals = logic.ask(src, qs)
-            probs = logic.ask_probabilities(src, qs) if args.get("probabilities") else {}
+            vals = logic.ask(src, qs, viewer=instance)
+            probs = logic.ask_probabilities(src, qs, viewer=instance) if args.get("probabilities") else {}
             out = [f"{q}: {v}" + (f" · P = {probs[q]}" if q in probs else "") for q, v in vals.items()]
             if probs:
                 out.append("probabilities " + ("exact" if probs.get("_exact") else "approximate (not every answer set was seen)"))
@@ -570,7 +570,7 @@ def _logic(args: dict, instance: str | None) -> str:
         if action == "rate":
             if not args.get("conclusion") or "correct" not in args:
                 raise Rejected("rate needs conclusion and correct")
-            r = logic.rate(src, str(args["conclusion"]), bool(args["correct"]))
+            r = logic.rate(src, str(args["conclusion"]), bool(args["correct"]), viewer=instance)
             if not r["gutgeschrieben"]:
                 return "nothing credited: " + r["grund"]
             return "\n".join([f"booked as {'right' if r['richtig'] else 'wrong'}:"] + [

@@ -61,6 +61,15 @@ RULE_VERSION = "vil-rule-v1"
 PRIOR_N = 2.0
 SCALE = 1000  # clingo weights are integers: log-odds × SCALE
 
+#: 0.63.0 clingo-objekt: memory objects as facts — at most this many objects per program (the rest is named "abgeschnitten")
+MAX_OBJECTS = 2000
+MAX_FILTERS = 20
+#: O.<field> → the objekt column; any other attribute name is a hashtag kind (O.host → host:…)
+OBJ_FIELDS = {"kind": "art", "mode": "modus", "visibility": "sicht", "instance": "instanz", "index": "idx", "text": "text"}
+#: never imported, even when a filter asks for them (quarantine only via vi_quarantine, archive only via vi_archive)
+NEVER_IMPORTED = ("quarantaene", "archiviert")
+_DIALECT = ("objects", "linked", "propose")
+
 PRELUDE = """
 conflict(norm, A) :- obligatory(A), forbidden(A).
 violation(A) :- obligatory(A), not done(A).
@@ -174,6 +183,20 @@ def main(argv: list[str]) -> int:
 
 # ── reading the notation ────────────────────────────────────────────────────
 
+import contextvars  # noqa: E402
+
+#: per translation: the filters of objects(…) in order, and per statement the object variables bound and used
+_STATE: contextvars.ContextVar[dict | None] = contextvars.ContextVar("logic_state", default=None)
+
+
+def _state() -> dict:
+    st = _STATE.get()
+    if st is None:
+        st = {"filters": [], "bound": set(), "used": {}}
+        _STATE.set(st)
+    return st
+
+
 _IDENT = re.compile(r"^[a-z][a-z0-9_]*$")
 _VAR = re.compile(r"^[A-Z_][A-Za-z0-9_]*$")
 
@@ -207,6 +230,9 @@ def _term(n) -> str:
         return str(-n.operand.value)
     if isinstance(n, ast.Call):
         return _atom(n)
+    if isinstance(n, ast.Attribute):
+        raise LogicError(f"line {n.lineno}: a field like {getattr(n.value, 'id', '?')}.{n.attr} is read in a comparison of its own: "
+                         f"({getattr(n.value, 'id', '?')}.{n.attr} == V), then use V")
     raise LogicError(f"line {getattr(n, 'lineno', '?')}: {type(n).__name__} is not a term (allowed: names, strings, integers, f(…))")
 
 
@@ -222,6 +248,11 @@ def _atom(n) -> str:
         raise LogicError(f"line {n.lineno}: keyword arguments are not part of the notation")
     if n.func.id in ("never", "soft"):
         raise LogicError(f"line {n.lineno}: {n.func.id}(…) is a statement of its own, not a term")
+    if n.func.id == "objects":
+        raise LogicError(f"line {n.lineno}: objects(\"filter\") binds a variable: (O in objects(\"art:skill\")) — in parentheses")
+    if n.func.id in ("linked", "propose"):
+        raise LogicError(f"line {n.lineno}: {n.func.id}(…) is a word of the object dialect — linked(O, B) only in a body, "
+                         "propose(tag(…)) / propose(link(…)) only as a head")
     _ident(n.func.id, n.lineno)
     return f"{n.func.id}({','.join(_term(a) for a in n.args)})" if n.args else n.func.id  # no blanks: as clingo prints symbols
 
@@ -229,12 +260,62 @@ def _atom(n) -> str:
 _CMP = {ast.Eq: "=", ast.NotEq: "!=", ast.Lt: "<", ast.Gt: ">", ast.GtE: ">="}
 
 
+def _objvar(n, what: str) -> str:
+    if not (isinstance(n, ast.Name) and _VAR.match(n.id)):
+        raise LogicError(f"line {getattr(n, 'lineno', '?')}: {what} needs an object variable (capitalised), e.g. O")
+    return n.id
+
+
+def _attribute(a: ast.Attribute, other) -> str:
+    """O.field == term → vi__obj / vi__tag (0.63.0)."""
+    var = _objvar(a.value, f"{getattr(a.value, 'id', '?')}.{a.attr}")
+    _state()["used"].setdefault(var, a.lineno)
+    if isinstance(other, ast.Attribute):
+        raise LogicError(f"line {a.lineno}: compare a field with a value or a variable, not with another field — bind it first: "
+                         f"({var}.{a.attr} == V) & (P.{other.attr} == V)")
+    val = _term(other)
+    if a.attr in OBJ_FIELDS:
+        return f'vi__obj({var},"{a.attr}",{val})'
+    if not re.fullmatch(r"[a-z][a-z0-9_]{0,30}", a.attr):
+        raise LogicError(f"line {a.lineno}: {a.attr!r} is no hashtag kind (lower case, digits, _)")
+    return f'vi__tag({var},"{a.attr}",{val})'
+
+
 def _literal(n) -> str:
-    """One body literal: atom, ~atom (not derivable), -atom (explicitly false), or a comparison."""
+    """One body literal: atom, ~atom (not derivable), -atom (explicitly false), or a comparison — and, in the object dialect (0.63.0),
+    (O in objects("filter")), (O.field == value), linked(O, B)."""
     if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.Invert):
         return "not " + _literal(n.operand)
     if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub):
         return "-" + _atom(n.operand)
+    if isinstance(n, ast.Compare) and len(n.ops) == 1 and isinstance(n.ops[0], ast.In):
+        c = n.comparators[0]
+        if not (isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == "objects" and len(c.args) == 1 and not c.keywords
+                and isinstance(c.args[0], ast.Constant) and isinstance(c.args[0].value, str)):
+            raise LogicError(f"line {n.lineno}: `in` only as (O in objects(\"filter\")) — the filter is a string as in vi_recall, and the "
+                             "whole comparison goes in parentheses because & binds tighter than in")
+        var = _objvar(n.left, "objects(…)")
+        f = c.args[0].value.strip()
+        if not f or len(f) > 300:
+            raise LogicError(f"line {n.lineno}: objects(…) needs a filter of 1–300 characters")
+        st = _state()
+        if f not in st["filters"]:
+            if len(st["filters"]) >= MAX_FILTERS:
+                raise LogicError(f"line {n.lineno}: at most {MAX_FILTERS} different objects(…) filters in one program")
+            st["filters"].append(f)
+        st["bound"].add(var)
+        return f"vi__in({st['filters'].index(f)},{var})"
+    if isinstance(n, ast.Compare) and len(n.ops) == 1 and (isinstance(n.left, ast.Attribute) or isinstance(n.comparators[0], ast.Attribute)):
+        if not isinstance(n.ops[0], ast.Eq):
+            raise LogicError(f"line {n.lineno}: a field is compared with == only; for \"not\" write ~(O.host == \"web1\")")
+        a, other = (n.left, n.comparators[0]) if isinstance(n.left, ast.Attribute) else (n.comparators[0], n.left)
+        return _attribute(a, other)
+    if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "linked":
+        if n.keywords or len(n.args) not in (2, 3):
+            raise LogicError(f"line {n.lineno}: linked(O, B) or linked(O, B, reason)")
+        var = _objvar(n.args[0], "linked(…)")
+        _state()["used"].setdefault(var, n.lineno)
+        return f"vi__edge({','.join(_term(x) for x in n.args)})"
     if isinstance(n, ast.Compare):
         if len(n.ops) != 1 or type(n.ops[0]) not in _CMP:
             raise LogicError(f"line {n.lineno}: comparisons allowed in a body: == != < > >= (one at a time; <= is the rule arrow)")
@@ -251,6 +332,14 @@ def _conj(n) -> list[str]:
 def _head(n) -> str:
     if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub):
         return "-" + _atom(n.operand)
+    if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "propose":
+        a = n.args[0] if len(n.args) == 1 and not n.keywords else None
+        if not (isinstance(a, ast.Call) and isinstance(a.func, ast.Name) and a.func.id in ("tag", "link") and len(a.args) == 3 and not a.keywords):
+            raise LogicError(f"line {n.lineno}: propose(tag(O, \"kind\", \"value\")) or propose(link(A, B, \"reason\"))")
+        _state()["used"].setdefault(_objvar(a.args[0], "propose(…)"), n.lineno)
+        if a.func.id == "link":
+            _state()["used"].setdefault(_objvar(a.args[1], "propose(link(…))"), n.lineno)
+        return f"vi__propose({a.func.id}({','.join(_term(x) for x in a.args)}))"
     return _atom(n)
 
 
@@ -266,6 +355,12 @@ def rule_hash(asp_rule: str) -> str:
 def translate(source: str) -> tuple[str, list[dict]]:
     """The notation → an ASP program (without weights) and the list of statements (art, nr, line, text, asp, hash, soft, prior).
     Raises LogicError with the reason. Soft rules carry the marker {W<nr>} where their weight goes (`_weighted`)."""
+    program, stmts, _filters = translate_full(source)
+    return program, stmts
+
+
+def translate_full(source: str) -> tuple[str, list[dict], list[str]]:
+    """translate, plus the filters of objects(…) in the order their numbers refer to (0.63.0)."""
     if len(source or "") > MAX_SOURCE:
         raise LogicError(f"program longer than {MAX_SOURCE} characters")
     try:
@@ -277,48 +372,61 @@ def translate(source: str) -> tuple[str, list[dict]]:
     if len(tree.body) > MAX_STATEMENTS:
         raise LogicError(f"more than {MAX_STATEMENTS} statements")
     out, stmts = [], []
-    for i, st in enumerate(tree.body):
-        nr = i + 1
-        if not isinstance(st, ast.Expr):
-            raise LogicError(f"line {st.lineno}: {type(st).__name__} — only facts, rules (head <= body), soft(…) and never(…) are allowed")
-        e = st.value
-        soft, prior = False, None
-        if isinstance(e, ast.Call) and isinstance(e.func, ast.Name) and e.func.id == "soft":
-            if e.keywords or not 1 <= len(e.args) <= 2:
-                raise LogicError(f"line {st.lineno}: soft(rule) or soft(rule, belief between 0 and 1)")
-            if len(e.args) == 2:
-                b = e.args[1]
-                if not (isinstance(b, ast.Constant) and isinstance(b.value, (int, float)) and not isinstance(b.value, bool) and 0 < b.value < 1):
-                    raise LogicError(f"line {st.lineno}: the belief of soft(…) is a number strictly between 0 and 1")
-                prior = float(b.value)
-            soft, e = True, e.args[0]
-        if isinstance(e, ast.Call) and isinstance(e.func, ast.Name) and e.func.id == "never":
-            if soft:
-                raise LogicError(f"line {st.lineno}: never(…) is a check, it has no weight")
-            if len(e.args) != 1 or e.keywords:
-                raise LogicError(f"line {st.lineno}: never(…) takes one condition")
-            out.append(f"vi__violated({nr}) :- {', '.join(_conj(e.args[0]))}.")
-            stmts.append({"art": "never", "nr": nr, "zeile": st.lineno, "text": ast.unparse(e)})
-            continue
-        if isinstance(e, ast.Compare) and len(e.ops) == 1 and isinstance(e.ops[0], ast.LtE):
-            head, body, art = _head(e.left), _conj(e.comparators[0]), "rule"
-        else:
-            head, body, art = _head(e), [], "fact"
-        asp = f"{head} :- {', '.join(body)}." if body else f"{head}."
-        if soft:  # LPMLN → ASP (lpmln2asp): every ground instance may be dropped at a cost; vi__unsat(nr, vars) marks a dropped one
-            names = list(dict.fromkeys(x.id for x in ast.walk(e) if isinstance(x, ast.Name) and _VAR.match(x.id) and x.id != "_"))
-            inst = "(" + ",".join(names) + ("," if len(names) == 1 else "") + ")"
-            nb = body + [f"not vi__unsat({nr},{inst})"]
-            out.append(f"{head} :- {', '.join(nb)}.")
-            out.append(f"vi__unsat({nr},{inst}) :- {', '.join(body + ['not ' + head])}.")
-            out.append(f"vi__fired({nr},{_as_term(head)}) :- {', '.join(nb)}.")
-            out.append(f":~ vi__unsat({nr},T). [{{W{nr}}}@0,{nr},T]")
-        else:
-            out.append(asp)
-            out.append(f"vi__fired({nr},{_as_term(head)}) :- {', '.join(body)}." if body else f"vi__fired({nr},{_as_term(head)}).")
-        stmts.append({"art": art, "nr": nr, "zeile": st.lineno, "text": ast.unparse(st.value), "asp": asp, "hash": rule_hash(asp),
-                      "soft": soft, "prior": prior})
-    return "\n".join(out), stmts
+    state = {"filters": [], "bound": set(), "used": {}}
+    token = _STATE.set(state)
+    try:
+        for i, st in enumerate(tree.body):
+            state["bound"], state["used"] = set(), {}
+            _statement(i + 1, st, out, stmts)
+            loose = sorted(v for v in state["used"] if v not in state["bound"])
+            if loose:
+                raise LogicError(f"line {state['used'][loose[0]]}: object variable {loose[0]} is not bound — add ({loose[0]} in objects(\"filter\")) "
+                                 "to the body")
+    finally:
+        _STATE.reset(token)
+    return "\n".join(out), stmts, list(state["filters"])
+
+
+def _statement(nr: int, st, out: list[str], stmts: list[dict]) -> None:
+    if not isinstance(st, ast.Expr):
+        raise LogicError(f"line {st.lineno}: {type(st).__name__} — only facts, rules (head <= body), soft(…) and never(…) are allowed")
+    e = st.value
+    soft, prior = False, None
+    if isinstance(e, ast.Call) and isinstance(e.func, ast.Name) and e.func.id == "soft":
+        if e.keywords or not 1 <= len(e.args) <= 2:
+            raise LogicError(f"line {st.lineno}: soft(rule) or soft(rule, belief between 0 and 1)")
+        if len(e.args) == 2:
+            b = e.args[1]
+            if not (isinstance(b, ast.Constant) and isinstance(b.value, (int, float)) and not isinstance(b.value, bool) and 0 < b.value < 1):
+                raise LogicError(f"line {st.lineno}: the belief of soft(…) is a number strictly between 0 and 1")
+            prior = float(b.value)
+        soft, e = True, e.args[0]
+    if isinstance(e, ast.Call) and isinstance(e.func, ast.Name) and e.func.id == "never":
+        if soft:
+            raise LogicError(f"line {st.lineno}: never(…) is a check, it has no weight")
+        if len(e.args) != 1 or e.keywords:
+            raise LogicError(f"line {st.lineno}: never(…) takes one condition")
+        out.append(f"vi__violated({nr}) :- {', '.join(_conj(e.args[0]))}.")
+        stmts.append({"art": "never", "nr": nr, "zeile": st.lineno, "text": ast.unparse(e)})
+        return
+    if isinstance(e, ast.Compare) and len(e.ops) == 1 and isinstance(e.ops[0], ast.LtE):
+        head, body, art = _head(e.left), _conj(e.comparators[0]), "rule"
+    else:
+        head, body, art = _head(e), [], "fact"
+    asp = f"{head} :- {', '.join(body)}." if body else f"{head}."
+    if soft:  # LPMLN → ASP (lpmln2asp): every ground instance may be dropped at a cost; vi__unsat(nr, vars) marks a dropped one
+        names = list(dict.fromkeys(x.id for x in ast.walk(e) if isinstance(x, ast.Name) and _VAR.match(x.id) and x.id != "_"))
+        inst = "(" + ",".join(names) + ("," if len(names) == 1 else "") + ")"
+        nb = body + [f"not vi__unsat({nr},{inst})"]
+        out.append(f"{head} :- {', '.join(nb)}.")
+        out.append(f"vi__unsat({nr},{inst}) :- {', '.join(body + ['not ' + head])}.")
+        out.append(f"vi__fired({nr},{_as_term(head)}) :- {', '.join(nb)}.")
+        out.append(f":~ vi__unsat({nr},T). [{{W{nr}}}@0,{nr},T]")
+    else:
+        out.append(asp)
+        out.append(f"vi__fired({nr},{_as_term(head)}) :- {', '.join(body)}." if body else f"vi__fired({nr},{_as_term(head)}).")
+    stmts.append({"art": art, "nr": nr, "zeile": st.lineno, "text": ast.unparse(st.value), "asp": asp, "hash": rule_hash(asp),
+                  "soft": soft, "prior": prior})
 
 
 # ── weights ─────────────────────────────────────────────────────────────────
@@ -397,15 +505,81 @@ def _solve(program: str, limit: int = MAX_MODELS, timeout: float | None = None, 
             "complete": finished and bool(result.exhausted), "notes": msgs[:5]}
 
 
+def _quote(v) -> str:
+    return '"' + " ".join(str(v).split()).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _import(filters: list[str], viewer: str | None) -> tuple[str, dict | None]:
+    """0.63.0 clingo-objekt, like DLV-DB's #import: the objects of each objects(…) filter, as the asking instance may see them, with their
+    fields, hashtags and the edges between them, as facts. Never quarantine or archive; what is cut or not visible is counted."""
+    if not filters:
+        return "", None
+    from . import memory as g
+    try:
+        g.db()
+    except RuntimeError:
+        raise LogicError("objects(…) reads the memory — run it through vi_logic on the server, not on a file") from None
+    per, not_visible = [], 0
+    for f in filters:
+        groups, _remove, _words = g.parse_filter(f, g.known_kinds())
+        if not groups:
+            raise LogicError(f"objects({_quote(f)}) needs at least one kind:value condition that exists in memory (e.g. art:skill, "
+                             "host:web1*) — free words are no set; vi_vocabulary lists the kinds")
+        vis = g.ids_for_filter(f, viewer=viewer)
+        if viewer is not None:
+            not_visible += len(set(g.ids_for_filter(f, viewer=None)) - set(vis))
+        per.append(vis)
+    order = list(dict.fromkeys(i for ids in per for i in ids))
+    keep = order[:MAX_OBJECTS]
+    rows, tags, edges = [], [], []
+    with g.lock:
+        for k in range(0, len(keep), 500):
+            part = keep[k:k + 500]
+            ph = ",".join("?" * len(part))
+            rows += g.db().execute(f"SELECT id, art, modus, sicht, instanz, idx, text FROM objekt WHERE id IN ({ph})", part).fetchall()
+            tags += g.db().execute(f"SELECT objekt_id, tag FROM tag WHERE objekt_id IN ({ph})", part).fetchall()
+            edges += g.db().execute(f"SELECT a, b, grund FROM kante WHERE a IN ({ph})", part).fetchall()
+    excluded = {r[0] for r in rows if r[2] in NEVER_IMPORTED}
+    ok = {r[0] for r in rows} - excluded
+    facts = [f"vi__in({k},{_quote(i)})." for k, ids in enumerate(per) for i in ids if i in ok]
+    for oid, art, modus, sicht, inst, idx, text in rows:
+        if oid not in ok:
+            continue
+        for field, v in (("kind", art), ("mode", modus), ("visibility", sicht), ("instance", inst), ("index", idx), ("text", (text or "")[:200])):
+            if v is not None and v != "":
+                facts.append(f'vi__obj({_quote(oid)},"{field}",{_quote(v)}).')
+    for oid, t in tags:
+        if oid in ok and ":" in t:
+            kind, val = t.split(":", 1)
+            facts.append(f'vi__tag({_quote(oid)},{_quote(kind)},{_quote(val)}).')
+    for a, b, why in edges:
+        if a in ok and b in ok:
+            facts.append(f"vi__edge({_quote(a)},{_quote(b)}).")
+            facts.append(f"vi__edge({_quote(a)},{_quote(b)},{_quote((why or '')[:200])}).")
+    info = {"filter": list(filters), "je_filter": [len([i for i in ids if i in ok]) for ids in per], "objekte": len(ok), "fakten": len(facts),
+            "abgeschnitten": max(0, len(order) - MAX_OBJECTS), "nicht_sichtbar": not_visible, "ausgeschlossen": len(excluded)}
+    return "\n".join(facts), info
+
+
 def _cost(model: set[str], w: dict[int, float]) -> float:
     """LPMLN: every dropped ground instance of a soft rule costs the rule's weight."""
     return sum(x * sum(1 for a in model if a.startswith(f"vi__unsat({nr},")) for nr, x in w.items())
 
 
-def _run(source: str) -> dict:
-    """Translate, weight and solve. With soft rules: all stable models with their LPMLN probability where the enumeration is complete,
-    otherwise the most probable ones (clingo optimisation) and probabilities marked approximate."""
-    program, stmts = translate(source)
+def _run(source: str, viewer: str | None = None) -> dict:
+    """Translate, import the objects (0.63.0), weight and solve. With soft rules: all stable models with their LPMLN probability where
+    the enumeration is complete, otherwise the most probable ones (clingo optimisation) and probabilities marked approximate.
+    viewer: the asking instance — objects(…) imports only what it may see (None = the server itself)."""
+    program, stmts, filters = translate_full(source)
+    facts, imported = _import(filters, viewer)
+    if facts:
+        program = facts + "\n" + program
+    r = _run_program(program, stmts)
+    r["importiert"] = imported
+    return r
+
+
+def _run_program(program: str, stmts: list[dict]) -> dict:
     program, w = _weighted(program, stmts)
     if not w:
         r = _solve(program)
@@ -435,13 +609,14 @@ def _visible(a: str) -> bool:
     return not a.startswith(("vi__", "conflict("))
 
 
-def check(source: str) -> dict:
+def check(source: str, viewer: str | None = None) -> dict:
     """Translate and solve: what follows, which constraints are violated, which contradictions and norm conflicts exist — and, where
     rules are soft or measured, each rule's weight. With soft rules the answer is the most probable stable model(s) (LPMLN MAP)."""
-    r = _run(source)
+    r = _run(source, viewer)
     stmts = r["stmts"]
     if r["timeout"] and not r["models"]:
-        return {"zustand": "zeitlimit", "grund": f"no answer within {TIMEOUT_S} s — the search was stopped", "aussagen": len(stmts)}
+        return {"zustand": "zeitlimit", "grund": f"no answer within {TIMEOUT_S} s — the search was stopped", "aussagen": len(stmts),
+                **({"importiert": r["importiert"]} if r.get("importiert") else {})}
     if not r["models"]:
         # only strong negation between hard rules can make the translated program unsatisfiable (never(…) only marks): p and -p together
         return {"zustand": "widerspruch", "grund": "the program derives an atom and its strong negation (p and -p) — see contradictions",
@@ -470,11 +645,31 @@ def check(source: str) -> dict:
            "aussagen": len(stmts), "hinweise": r["notes"], "evidenz": "inferred"}
     if rules:
         out["regeln"] = rules
+    if r.get("importiert"):
+        out["importiert"] = r["importiert"]
+    props = proposals(common)
+    if props:
+        out["vorschlaege"] = props
     if r["w"]:
         out["wahrscheinlichste"] = len(best)
         out["wahrscheinlichkeit"] = "exact over all stable models" if r["exact"] else f"approximate: {len(r['models'])} of more stable models"
         out["verletzt_p"] = {s["nr"]: round(sum(p for m, p in zip(r["models"], r["prob"]) if f"vi__violated({s['nr']})" in m), 3)
                              for s in stmts if s["art"] == "never"}
+    return out
+
+
+def proposals(model: set[str]) -> list[dict]:
+    """0.63.0: what the rules propose to write — propose(tag(O, kind, value)) / propose(link(A, B, reason)) — with the rule numbers
+    that derive each one (its reason chain). Only what holds in every most probable answer set."""
+    import clingo
+    out = []
+    for a in sorted(x for x in model if x.startswith("vi__propose(")):
+        sym = clingo.parse_term(a).arguments[0]
+        args = [x.string if x.type == clingo.SymbolType.String else str(x) for x in sym.arguments]
+        rules = sorted(int(f[10:].split(",", 1)[0]) for f in model if f.startswith("vi__fired(") and f.endswith(f",{a})"))
+        p = {"aktion": sym.name, "ziel": args[0], "regeln": rules}
+        p.update({"art": args[1], "wert": args[2]} if sym.name == "tag" else {"b": args[1], "grund": args[2]})
+        out.append(p)
     return out
 
 
@@ -498,11 +693,11 @@ def _query(q: str) -> str:
         raise LogicError(f"query {q!r}: {e.msg}") from None
 
 
-def ask(source: str, queries: list[str]) -> dict:
+def ask(source: str, queries: list[str], viewer: str | None = None) -> dict:
     """Answers for atoms in the notation: true, false, both, unknown, not_derived — or undetermined across answer sets. With soft rules
     the value comes from the most probable model(s) and `ask_probabilities` gives P(atom)."""
     qs = [_query(q) for q in queries[:50]]
-    r = _run(source)
+    r = _run(source, viewer)
     if not r["models"]:
         both = set(_contradictions(r["program"]))
         return {q: ("both" if q.lstrip("-") in both else "unknown") for q in qs}
@@ -530,22 +725,22 @@ def ask(source: str, queries: list[str]) -> dict:
     return out
 
 
-def ask_probabilities(source: str, queries: list[str]) -> dict:
+def ask_probabilities(source: str, queries: list[str], viewer: str | None = None) -> dict:
     """P(atom) under LPMLN: the summed probability of the stable models containing it. Without soft rules every model is equally likely."""
     qs = [_query(q) for q in queries[:50]]
-    r = _run(source)
+    r = _run(source, viewer)
     if not r["models"]:
         return {q: None for q in qs}
     prob = r["prob"] or [1 / len(r["models"])] * len(r["models"])
     return {q: round(sum(p for m, p in zip(r["models"], prob) if q in m), 3) for q in qs} | {"_exact": r["exact"]}
 
 
-def rate(source: str, conclusion: str, correct: bool) -> dict:
+def rate(source: str, conclusion: str, correct: bool, viewer: str | None = None) -> dict:
     """A conclusion was checked against reality: credit (or blame) exactly the rules that derive it in some stable model.
     A correct conclusion no rule derives teaches nothing here — it points to a missing rule, which is reported, not invented."""
     from . import memory as g
     q = _query(conclusion)
-    r = _run(source)
+    r = _run(source, viewer)
     if not r["models"]:
         raise LogicError("the program has no stable model — resolve the contradiction first (check)")
     term = _as_term(q)
@@ -608,6 +803,15 @@ def lines(r: dict) -> list[str]:
     out += [f"  violated never #{v['nr']} (line {v['zeile']}): {v['never']}"
             + (f" · P = {r['verletzt_p'].get(v['nr'])}" if r.get("verletzt_p") else "") for v in r["verletzt"]]
     out += [f"  norm conflict: {c}" for c in r["normkonflikte"]]
+    imp = r.get("importiert")
+    if imp:
+        out.append(f"  imported {imp['objekte']} objects ({', '.join(f'{f!r}: {n}' for f, n in zip(imp['filter'], imp['je_filter']))}), "
+                   f"{imp['fakten']} facts" + (f" · {imp['nicht_sichtbar']} not visible to you" if imp["nicht_sichtbar"] else "")
+                   + (f" · {imp['abgeschnitten']} cut (limit {MAX_OBJECTS} objects) — narrow the filter" if imp["abgeschnitten"] else "")
+                   + (f" · {imp['ausgeschlossen']} in quarantine or archive, never imported" if imp["ausgeschlossen"] else ""))
+    for p in r.get("vorschlaege", []):
+        what = f"tag {p['art']}:{p['wert']} on {p['ziel']}" if p["aktion"] == "tag" else f"link {p['ziel']} → {p['b']} ({p['grund']})"
+        out.append(f"  proposes {what} · by rule " + ", ".join(f"#{n}" for n in p["regeln"]) + " — vi_logic action=propose holds it for review")
     for x in r.get("regeln", []):
         out.append(f"  rule #{x['nr']} (line {x['zeile']}) {'soft' if x['soft'] else 'hard'} · p {x['p']} · weight {x['gewicht']} · measured "
                    f"{x['gemessen'][0]:g} right / {x['gemessen'][1]:g} wrong · network {x['netz']}" + (f" · {x['verworfen']} instance(s) dropped in the answer" if x.get("verworfen") else "")
