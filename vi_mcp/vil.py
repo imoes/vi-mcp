@@ -91,18 +91,26 @@ def parse(text: str, now: datetime | None = None) -> Utterance:
 
 
 def prior_rank(o, qtype: str | None) -> int:
-    """0 = the kind of knowledge that answers this type of question, 1 = anything else (stable order inside)."""
-    prefixes = PRIOR.get(qtype or "", ())
-    if not prefixes:
-        return 1
+    """0 = labelled as answering this type (classify.py, answers:<type>), 1 = unlabelled but of the kind that usually answers it (the
+    fixed PRIOR), 2 = anything else. Stable order inside each rank: priority, not exclusion."""
+    if not qtype:
+        return 2
     tags = set(o.hashtags) | {f"art:{o.kind}"}
-    return 0 if any(t == p or (p.endswith(":") and t.startswith(p)) for t in tags for p in prefixes) else 1
+    if f"answers:{qtype}" in tags:
+        return 0
+    if any(t.startswith("answers:") and t != "answers:unsure" for t in tags):
+        return 2  # labelled as answering something else: the label wins over the fixed prior
+    prefixes = PRIOR.get(qtype, ())
+    return 1 if any(t == p or (p.endswith(":") and t.startswith(p)) for t in tags for p in prefixes) else 2
 
 
 MEMORY = {"skill": "procedure", "regel": "rule", "erfahrung": "episode", "gespraech": "episode"}
 
 
 def memory_of(o) -> str:
+    lab = next((t[7:] for t in o.hashtags if t.startswith("memory:") and t != "memory:unsure"), None)
+    if lab:  # labelled by classify.py
+        return lab
     if o.kind in MEMORY:
         return MEMORY[o.kind]
     if any(t.startswith("art_wissen:loesung") for t in o.hashtags):

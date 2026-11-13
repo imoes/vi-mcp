@@ -182,6 +182,19 @@ location /web/ { proxy_pass http://127.0.0.1:8765/web/; proxy_set_header X-Forwa
 The page is read-only and public on purpose. It shows only networks of kind `free` and `open`; `vi-mcp web off` switches it off.
 Check: `curl -s https://<host>/web/ | grep -c "VI network"`.
 
+### Classification for the AI language (0.62.0)
+
+```bash
+vi-mcp classify --dry-run          # how many knowledge objects have no label of the current prompt version
+vi-mcp classify --limit 20         # label them now (two prompt variants per object, the server's llm or config classify)
+```
+
+- `config.json`: `"classify": {"url": "https://<llm-host>/<model>/v1/chat/completions", "model": "<name>", "per_sleep": 10}`. Only with this key
+  does sleep (step `8f_klassifizieren`) label new knowledge by itself — a shared language model is not loaded unasked.
+- Labels are hashtags `answers:how|why|what|who|where|rule|unsure` and `memory:fact|procedure|episode|rule|unsure`, the version in
+  `daten.klasse.version` (model, prompt hash, schema). `ask.<type>` in `vi_recall` puts objects labelled for that type first.
+- Cost measured on a shared llama.cpp server (13.11.2026): median 42 s, 90th percentile 126 s per call, two calls per object.
+
 ### Internal knowledge search (0.62.0)
 
 ```bash

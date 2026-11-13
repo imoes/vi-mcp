@@ -38,10 +38,10 @@ Gedächtnisse über Organisationsgrenzen miteinander reden: kurz, ausführbar wi
   kleines Modell lernt die Labels für alles Neue, und das Ranking lernt aus dem, was nach einer Antwort genutzt wird. Das Sprachmodell
   selbst wird nie trainiert.
 
-*Was es gibt (0.62.0):* Fragen in der Sprache (`vi_recall` mit `ask.how deploy @web1 #projekt`, Antworten als `tell`-Zeilen mit `format: "vil"`) und das Vokabular — `vi_vocabulary` und die Seite „Words“ der internen Suche zeigen die Wörter, die es gibt, und
+*Was es gibt (0.62.0):* Fragen in der Sprache (`vi_recall` mit `ask.how deploy @web1 #projekt`, Antworten als `tell`-Zeilen mit `format: "vil"`), die Klassifikation des Wissens durch ein Sprachmodell (`answers:`, `memory:`, `vi-mcp classify`) und das Vokabular — `vi_vocabulary` und die Seite „Words“ der internen Suche zeigen die Wörter, die es gibt, und
 ergänzen halb getippte; eine Suche ohne Treffer sagt, ob sie nach einem unbekannten Wort fragte (nichts bekannt) oder nach bekannten
-Wörtern, die nicht zusammenkommen. *Als Nächstes:* die Klassifikation und ihre Messung,
-Gewichte je Wort, die Sprache zwischen Servern gemessen gegen Prosa.
+Wörtern, die nicht zusammenkommen. *Als Nächstes:* ein kleines Modell, das die
+Labels lernt, die Messung der Fragearten-Ordnung, Gewichte je Wort, die Sprache zwischen Servern gemessen gegen Prosa.
 
 ## Vision
 

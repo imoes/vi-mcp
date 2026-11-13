@@ -577,6 +577,10 @@ python3 -m vi_mcp embed setup|auto|compare|status|remove [--backend auto|cuda|vu
                                         detected (CUDA, Vulkan, CPU). auto = what the packages run: never replaces an external service
 python3 -m vi_mcp index list|move ID INDEX|rename OLD NEW|backfill [--apply]|train INDEX   (--reason for move/rename)
 python3 -m vi_mcp index import-code REPO --index X [--url URL --token-file F] [--dry-run]
+python3 -m vi_mcp index export INDEX FILE | import FILE --as INDEX | compare INDEX [--dry-run]   (0.62.0)
+python3 -m vi_mcp classify [--limit N] [--dry-run]  label knowledge for the AI language (which question it answers); sleep
+                                        does it when config classify names a model (0.62.0)
+python3 -m vi_mcp web internal [on|off] [--base PATH]  internal knowledge search with sign-in under /intern (0.62.0)
                                         the code of a git repository into an index (only changed files; removed ones archived)
                                         indexes (0.61.0): projects and special VIs — every object belongs to one; a project's
                                         index comes first in search and hints; an index with enough data trains its own model
@@ -981,6 +985,7 @@ First line of each module's docstring.
 | `bandit` | Bandit — Thompson sampling per hint (stage 2, docs/TRAINING.md 4b), measured by the advantage over the tool without a hint. |
 | `capabilities` | 0.53.0: which skills exist, which system each one serves, which tools it has, and where its manual is — at the start of a session. |
 | `checks` | Deterministic check of foreign content — always runs first; only it may reject for good. |
+| `classify` | Classify knowledge for the AI language (0.62.0): which question an object answers, what kind of memory it is. |
 | `code_import` | Code in the index (0.61.0): `vi-mcp index import-code <repo> --index X` puts the code of a git repository into an index. |
 | `config` | Configuration — one file, readable by the owner only. |
 | `configure` | 0.48.0: configuring the server after installation — one catalogue of questions, two front ends. |

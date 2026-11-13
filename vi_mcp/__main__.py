@@ -18,6 +18,10 @@
                                           detected (CUDA, Vulkan, CPU). auto = what the packages run: never replaces an external service
   python3 -m vi_mcp index list|move ID INDEX|rename OLD NEW|backfill [--apply]|train INDEX   (--reason for move/rename)
   python3 -m vi_mcp index import-code REPO --index X [--url URL --token-file F] [--dry-run]
+  python3 -m vi_mcp index export INDEX FILE | import FILE --as INDEX | compare INDEX [--dry-run]   (0.62.0)
+  python3 -m vi_mcp classify [--limit N] [--dry-run]  label knowledge for the AI language (which question it answers); sleep
+                                          does it when config classify names a model (0.62.0)
+  python3 -m vi_mcp web internal [on|off] [--base PATH]  internal knowledge search with sign-in under /intern (0.62.0)
                                           the code of a git repository into an index (only changed files; removed ones archived)
                                           indexes (0.61.0): projects and special VIs — every object belongs to one; a project's
                                           index comes first in search and hints; an index with enough data trains its own model
@@ -256,6 +260,9 @@ def _cli(argv: list[str]) -> int:
         from . import setup
         setup._restart()
         return 0
+    if command == "classify":  # 0.62.0
+        from . import classify
+        return classify.main(argv[1:])
     if command == "stdio":
         from . import stdio_bridge
         return stdio_bridge.main(argv[1:])

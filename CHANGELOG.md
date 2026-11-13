@@ -51,6 +51,16 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   src:<source>`, evidence measured, documented, hearsay (from another server), inferred (by a language model) or unknown — named, never
   silently "observed". `tell`, `do`, `rate`, `def` are refused with the tool that does them; a `do` from a message is never run.
   Tests: `tests/test_vil.py` (9).
+- **Knowledge is classified for the language** (the user: "Im Endeffekt ist das ja das Konzept des maschinellen Lernens, dass man Daten
+  klassifiziert"): a language model labels which question an object answers (`answers:how|why|what|who|where|rule`) and what kind of
+  memory it is (`memory:fact|procedure|episode|rule`), plus up to three questions a colleague would type (doc2query). Two prompt variants
+  with different wording and label order; agreement → the label, disagreement → `answers:unsure` (named); every answer checked against the
+  schema here; every label with its version. `ask.<type>` puts labelled objects first, the fixed prior only for unlabelled ones; `tell`
+  lines name the labelled memory kind. `vi-mcp classify`, sleep step 8f with an explicit `classify` model.
+  *Measured on a production sample (13.11.2026, 45 objects so far, both variants, read only):* question type agreement 82 %, Cohen's κ
+  0.75 (tentative; ≥ 0.667), memory kind 87 %, κ 0.80; most disagreements how ↔ what (5 of 8); in a check of 26 objects by me (not a
+  human gold set) about 24–25 primary labels were plausible. 6 of 90 answers were outside the enum although the request carried a JSON
+  schema — hence the check here. Tests: `tests/test_classify.py` (3).
 
 ### What has changed
 
@@ -72,8 +82,9 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **Sessions of the internal search** live in the server process: a restart signs everybody out.
 - **Found in the browser test and fixed before release:** the sign-in was refused in every browser — the pages had the `no-referrer`
   policy of `/web`, so Chrome sent `Origin: null`.
-- **The AI language** beyond vocabulary and `ask` questions — classification of the knowledge by a language model with its measurement,
-  weights per word, the language between servers — is a design (README), not code yet. The question-type prior is fixed, not measured.
+- **The AI language** beyond vocabulary, `ask` questions and classification — the small model that learns the labels from the embeddings
+  (so new objects need no language model), weights per word, the language between servers — is a design (README), not code yet. Whether
+  the question-type order raises success is not measured yet; no human gold set exists.
 - **A second order-dependent test:** `tests/test_http.py::test_two_sessions_two_conversations` failed once in a full run on SQLite and
   passed 4 times alone; cause not found.
 - **Flaky test order on PostgreSQL:** one full run had `tests/test_hook.py::test_error_hint_and_own_tools` fail after

@@ -149,6 +149,9 @@ def _run(reason: str) -> g.MemoryObject:
         from . import index_transfer
         step("8e_index_vergleich", lambda: [{k: r[k] for k in ("index", "inhalte", "klassen", "vorrang_aus_neu", "vorrang_wieder_an")}
                                              for r in index_transfer.compare_all("sleep")])  # 0.62.0: origin against target per content
+        from . import classify
+        if classify.configured():  # 0.62.0: labels for the AI language — only with an explicit classify model (the shared LLM is not loaded unasked)
+            step("8f_klassifizieren", lambda: classify.run(classify.per_sleep(), "sleep"))
     from . import evaluation
     step("9_pruefung", lambda: evaluation.nightly())  # 0.55.0: once a day the fixed question set and the router numbers
     duration = int((time.monotonic() - t0) * 1000)
