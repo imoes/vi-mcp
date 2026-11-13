@@ -369,7 +369,8 @@ VI: logical descriptions in a Python-like notation, checked by formal logic (ans
 
 | Parameter | Type | Required | Meaning |
 |---|---|---|---|
-| `action` | string (check, ask, rate, save) |  | default check (German: `aktion`) |
+| `action` | string (check, ask, rate, save, objects) |  | default check; objects: the memory objects of filters as JSON (data for clingo-object) (German: `aktion`) |
+| `filters` | array of string |  | objects: vi_recall filters, e.g. ["art:skill", "host:web*"] |
 | `source` | string |  | statements, one per line (added to rule_set if both are given) (German: `quelle`) |
 | `rule_set` | string |  | name or id of a saved rule set |
 | `queries` | array of string |  | ask: atoms, e.g. forbidden(run("freeipa","gate1")) |

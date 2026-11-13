@@ -179,3 +179,21 @@ def test_one_edge_away_respects_visibility_and_quarantine(gd):
     r = logic.check('near(B) <= (P in objects("plan:*")) & linked(P, B)', viewer="a")
     assert r["folgerungen"] == ['near("erkenntnis:gate1")']
     assert r["importiert"]["ueber_kanten"] == 1 and r["importiert"]["nicht_sichtbar"] == 1 and r["importiert"]["ausgeschlossen"] == 1
+
+
+def test_the_objects_action_gives_the_same_data_as_json(gd):
+    """A2: the data path for clingo-object — the same visibility as the server's own import."""
+    import json
+    from vi_mcp import tools
+    _hosts()
+    g.new_object("erkenntnis", "private of b", ["zone:dmz", "host:p9"], {"quelle": "t"}, reason="T", instance="b", visibility="privat",
+                 oid="erkenntnis:priv9", link=False)
+    d = json.loads(tools.call_tool("vi_logic", {"action": "objects", "filters": ["zone:dmz", "plan:*"]}, "a", False))
+    ids = {o["id"] for o in d["objects"]}
+    assert ids == {"erkenntnis:gate1", "erkenntnis:plan-gate1"} and d["members"] == [["erkenntnis:gate1"], ["erkenntnis:plan-gate1"]]
+    gate = next(o for o in d["objects"] if o["id"] == "erkenntnis:gate1")
+    assert gate["tags"]["zone"] == ["dmz"] and gate["kind"] == "erkenntnis" and isinstance(gate["age"], int)
+    assert d["counts"]["not_visible"] == 1 and d["limit"] == logic.MAX_OBJECTS
+    assert ["erkenntnis:plan-gate1", "erkenntnis:gate1", "same host"] in d["edges"]
+    with pytest.raises(tools.Rejected, match="needs filters"):
+        tools.call_tool("vi_logic", {"action": "objects"}, "a", False)

@@ -256,7 +256,9 @@ TOOLS = [
                     "visibility, instance, index, text; numbers age, importance, confirmed, refuted, accesses, e.g. (O.age > 90)); "
                     "linked(O, B) follows an edge (objects one edge away are imported too). Comparisons in parentheses. Classes, methods "
                     "and inheritance are real Python in the package clingo-object (import clingo_object), which compiles them to this notation.",
-     "inputSchema": _schema({"action": {"type": "string", "enum": ["check", "ask", "rate", "save"], "description": "default check"},
+     "inputSchema": _schema({"action": {"type": "string", "enum": ["check", "ask", "rate", "save", "objects"],
+                                        "description": "default check; objects: the memory objects of filters as JSON (data for clingo-object)"},
+                             "filters": {"type": "array", "items": _S, "description": "objects: vi_recall filters, e.g. [\"art:skill\", \"host:web*\"]"},
                              "source": {"type": "string", "description": "statements, one per line (added to rule_set if both are given)"},
                              "rule_set": {"type": "string", "description": "name or id of a saved rule set"},
                              "queries": {"type": "array", "items": _S, "description": "ask: atoms, e.g. forbidden(run(\"freeipa\",\"gate1\"))"},
@@ -552,6 +554,14 @@ def _logic(args: dict, instance: str | None) -> str:
     if not logic.available():
         raise Rejected(f"the logic layer is off on this server ({logic.unavailable_reason()}) — an administrator runs: sudo vi-mcp logic install")
     action = str(args.get("action") or "check")
+    if action == "objects":  # 0.63.0: the data path for the Python package clingo-object — JSON, as the caller may see it
+        fs = [str(f) for f in (args.get("filters") or []) if str(f).strip()]
+        if not fs or len(fs) > logic.MAX_FILTERS:
+            raise Rejected(f"objects needs filters: 1–{logic.MAX_FILTERS} vi_recall filters with at least one kind:value each")
+        try:
+            return json.dumps(logic.object_data(fs, instance), ensure_ascii=False)
+        except logic.LogicError as e:
+            raise Rejected(f"notation: {e}") from e
     src = str(args.get("source") or "")
     base = None
     if args.get("rule_set"):
@@ -593,7 +603,7 @@ def _logic(args: dict, instance: str | None) -> str:
                                                              "inhalt": src, "quelle": f"vi_logic save by {instance}"},
                              importance=1, who=f"ki@{instance}", reason="vi_logic save", instance=instance, visibility=vis)
             return f"saved {o.id} as rule set {nm} ({len(stmts)} statements) — use rule_set=\"{nm}\""
-        raise Rejected(f"unknown action {action!r}: check, ask, rate, save")
+        raise Rejected(f"unknown action {action!r}: check, ask, rate, save, objects")
     except logic.LogicError as e:
         raise Rejected(f"notation: {e}") from e
 
