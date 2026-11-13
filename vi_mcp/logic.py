@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import json
 import math
 import os
 import re
@@ -759,6 +760,99 @@ def proposals(model: set[str]) -> list[dict]:
         p.update({"art": args[1], "wert": args[2]} if sym.name == "tag" else {"b": args[1], "grund": args[2]})
         out.append(p)
     return out
+
+
+def _proposal_target_ok(p: dict, instance: str | None) -> str | None:
+    """Why a proposal cannot be held or applied — or None. The same check when it is stored and again when it is released."""
+    from . import memory as g
+    for oid in [p["ziel"]] + ([p["b"]] if p["aktion"] == "link" else []):
+        o = g.load(oid)
+        if o is None:
+            return f"{oid} does not exist"
+        if instance is not None and not g.visible_to(o, instance):
+            return f"{oid} is not visible to {instance}"
+        if o.mode in NEVER_IMPORTED:
+            return f"{oid} is in quarantine or archive"
+    if p["aktion"] == "tag":
+        t = f"{p['art']}:{p['wert']}"
+        if not g.TAG.match(t):
+            return f"{t!r} is no hashtag of the form kind:value"
+        if t.startswith(g.FIXED_TAG_PREFIXES):
+            return f"{t}: a hashtag only the system sets"
+    elif not str(p.get("grund") or "").strip():
+        return "a link needs a reason"
+    return None
+
+
+def store_proposals(source: str, instance: str, rule_set: str | None = None) -> dict:
+    """0.63.0 clingo-objekt, like DLV-DB's #export but never silent: what the rules propose (propose(tag(…)) / propose(link(…))), derived
+    here on the server from the program — nothing a client claims is taken — and held in quarantine as objects of kind vorschlag. A person
+    or another instance with the release right decides; its author cannot (p2p.approve). Releasing applies it, discarding leaves a
+    tombstone. The same proposal again is counted, not stored twice."""
+    from . import memory as g
+    r = check(source, viewer=instance)
+    if r["zustand"] in ("zeitlimit", "widerspruch"):
+        raise LogicError(f"no proposals from a program in state {r['zustand']}: {r['grund']}")
+    _program, stmts = translate(source)
+    by_nr = {s["nr"]: s["text"] for s in stmts if "nr" in s}
+    prog_hash = hashlib.sha256((source or "").encode()).hexdigest()[:16]
+    out = {"gespeichert": [], "wiederholt": [], "abgelehnt": [], "erledigt": []}
+    for p in r.get("vorschlaege", []):
+        why = _proposal_target_ok(p, instance)
+        what = f"tag {p['art']}:{p['wert']} on {p['ziel']}" if p["aktion"] == "tag" else f"link {p['ziel']} → {p['b']} ({p['grund']})"
+        if why:
+            out["abgelehnt"].append({"vorschlag": what, "grund": why})
+            continue
+        key = json.dumps({k: p[k] for k in ("aktion", "ziel", "art", "wert", "b", "grund") if k in p}, sort_keys=True)
+        oid = "vorschlag:" + hashlib.sha256(key.encode()).hexdigest()[:20]
+        old = g.load(oid)
+        if old is not None:
+            if old.mode == "quarantaene":
+                g.update_data(oid, lambda d: d.update(wiederholt=int(d.get("wiederholt", 0)) + 1))
+                with g.lock:
+                    g.db().commit()
+                out["wiederholt"].append(oid)
+            else:
+                out["erledigt"].append({"id": oid, "zustand": "released" if old.mode != "widerlegt" else "discarded"})
+            continue
+        target = g.load(p["ziel"])
+        rules = [by_nr.get(n, f"#{n}") for n in p["regeln"]]
+        g.new_object("vorschlag", f"Proposal from a logic program: {what}",
+                     ["thema:logik", f"vorschlag:{p['aktion']}", "modus:quarantaene"],
+                     {"vorschlag": {k: p[k] for k in ("aktion", "ziel", "art", "wert", "b", "grund") if k in p}, "regeln": rules,
+                      # a proposal changes another object: always sensitive, so only the release right (a person: vi-mcp release) decides
+                      "pruefung": {"regeln": [f"logic proposal: {what}"[:160]], "pruefer": None},
+                      "programm_hash": prog_hash, "regelsatz": rule_set, "quelle": f"vi_logic propose by {instance}",
+                      "inhalt": "Rules that derive it:\n" + "\n".join(rules)},
+                     who=f"ki@{instance}", reason="vi_logic propose", oid=oid, mode="quarantaene", instance=instance,
+                     visibility=target.visibility if target is not None else None, link=False)
+        out["gespeichert"].append(oid)
+    return out
+
+
+def check_proposal(o, instance: str | None) -> None:
+    """Before a release: is the proposal still applicable? Raises ValueError with the reason."""
+    p = o.data.get("vorschlag") or {}
+    why = _proposal_target_ok(p, None) if p else "no proposal data"
+    if why:
+        raise ValueError(f"the proposal can no longer be applied: {why}")
+
+
+def apply_proposal(o, instance: str, reason: str) -> None:
+    """A released proposal takes effect: the tag is set or the edge laid, with the proposal's id and rules in the target's change log."""
+    from . import memory as g
+    p = o.data["vorschlag"]
+    target = g.load(p["ziel"])
+    why = f"logic proposal {o.id} released by {instance}: {reason}"[:300]
+    if p["aktion"] == "tag":
+        target.tag([f"{p['art']}:{p['wert']}"], [], f"ki@{instance}", why)
+    else:
+        target.link(p["b"], f"{p['grund']} (proposal {o.id})"[:200])
+        target.change(f"ki@{instance}", f"+edge {p['b']}", why)
+        g.save(target)
+    g.update_data(o.id, lambda d: d.update(angewandt=g.now()))
+    with g.lock:
+        g.db().commit()
 
 
 def _contradictions(program: str) -> list[str]:

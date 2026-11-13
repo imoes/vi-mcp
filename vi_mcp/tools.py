@@ -256,8 +256,9 @@ TOOLS = [
                     "visibility, instance, index, text; numbers age, importance, confirmed, refuted, accesses, e.g. (O.age > 90)); "
                     "linked(O, B) follows an edge (objects one edge away are imported too). Comparisons in parentheses. Classes, methods "
                     "and inheritance are real Python in the package clingo-object (import clingo_object), which compiles them to this notation.",
-     "inputSchema": _schema({"action": {"type": "string", "enum": ["check", "ask", "rate", "save", "objects"],
-                                        "description": "default check; objects: the memory objects of filters as JSON (data for clingo-object)"},
+     "inputSchema": _schema({"action": {"type": "string", "enum": ["check", "ask", "rate", "save", "objects", "propose"],
+                                        "description": "default check; objects: the memory objects of filters as JSON (data for clingo-object); "
+                                                       "propose: hold what the rules propose (propose(tag(…)) / propose(link(…))) for review"},
                              "filters": {"type": "array", "items": _S, "description": "objects: vi_recall filters, e.g. [\"art:skill\", \"host:web*\"]"},
                              "source": {"type": "string", "description": "statements, one per line (added to rule_set if both are given)"},
                              "rule_set": {"type": "string", "description": "name or id of a saved rule set"},
@@ -591,6 +592,18 @@ def _logic(args: dict, instance: str | None) -> str:
             return "\n".join([f"booked as {'right' if r['richtig'] else 'wrong'}:"] + [
                 f"  rule #{c['nr']} {c['regel']} · now p {c['p']} · weight {c['gewicht']} · measured {c['eigen'][0]:g} right / {c['eigen'][1]:g} wrong"
                 for c in r["gutgeschrieben"]])
+        if action == "propose":  # 0.63.0: derived here, held in quarantine, applied only when someone else releases it
+            r = logic.store_proposals(src, instance, base.data["logik"]["name"] if base is not None else None)
+            out = [f"held for review: {oid}" for oid in r["gespeichert"]]
+            out += [f"already waiting (counted again): {oid}" for oid in r["wiederholt"]]
+            out += [f"already decided ({x['zustand']}): {x['id']}" for x in r["erledigt"]]
+            out += [f"refused: {x['vorschlag']} — {x['grund']}" for x in r["abgelehnt"]]
+            if not out:
+                return "the program proposes nothing — a proposal is a head propose(tag(O, \"kind\", \"value\")) or propose(link(A, B, \"reason\"))"
+            if r["gespeichert"]:
+                out.append("a person (vi-mcp quarantine / vi-mcp release on the server) or another instance with the release right decides — "
+                           "you cannot release your own proposal")
+            return "\n".join(out)
         if action == "save":
             nm = str(args.get("name") or "").strip().lower()
             if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", nm):
@@ -603,7 +616,7 @@ def _logic(args: dict, instance: str | None) -> str:
                                                              "inhalt": src, "quelle": f"vi_logic save by {instance}"},
                              importance=1, who=f"ki@{instance}", reason="vi_logic save", instance=instance, visibility=vis)
             return f"saved {o.id} as rule set {nm} ({len(stmts)} statements) — use rule_set=\"{nm}\""
-        raise Rejected(f"unknown action {action!r}: check, ask, rate, save, objects")
+        raise Rejected(f"unknown action {action!r}: check, ask, rate, save, objects, propose")
     except logic.LogicError as e:
         raise Rejected(f"notation: {e}") from e
 

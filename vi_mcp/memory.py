@@ -30,7 +30,8 @@ from pathlib import Path
 from . import anonymize
 from .log_output import log
 
-KINDS = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell", "skill", "bewertung", "bild", "seite")
+KINDS = ("erfahrung", "antwort", "erkenntnis", "regel", "reflex", "gespraech", "suche", "frage", "selbst", "schlaf", "modell", "skill", "bewertung", "bild", "seite",
+         "vorschlag")  # 0.63.0: a change a logic program proposes (logic.store_proposals), held in quarantine until someone else releases it
 #: strittig = refuted by exactly one foreign instance (still appears, with a note); widerlegt = refuted by the author
 #: or by ≥ 2 different instances (no longer appears)
 #: archiviert = stub (text, hashtags) stays, content compressed in the archive; visible only with modus:archiviert in the filter
@@ -40,7 +41,7 @@ MODES = ("aktiv", "test", "aus", "defekt", "strittig", "widerlegt", "archiviert"
 #: Collective: who may read an object? privat = only the author instance (results may contain credentials),
 #: geteilt = all instances. The loop (server) sees everything. Exhaustive for KINDS.
 VISIBILITY_PER_KIND = {"erfahrung": "privat", "antwort": "privat", "erkenntnis": "geteilt", "regel": "geteilt", "reflex": "geteilt",
-                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt", "skill": "geteilt", "bewertung": "privat", "bild": "geteilt", "seite": "geteilt"}
+                "gespraech": "geteilt", "suche": "geteilt", "frage": "geteilt", "selbst": "geteilt", "schlaf": "geteilt", "modell": "geteilt", "skill": "geteilt", "bewertung": "privat", "bild": "geteilt", "seite": "geteilt", "vorschlag": "intern"}
 #: author of objects the server creates itself (loop) — a named instance, not NULL
 SERVER_INSTANCE = "vi"
 #: weight bonus per different FOREIGN instance that confirmed (self-confirmation does not count as evidence)
@@ -55,6 +56,8 @@ DATA_MAX = 400_000
 #: game hour) — that made anything older than 2 weeks practically vanish (30 d: 0.03). DECAY_D = 0.3 is a starting value.
 DECAY_D = 0.3
 TAG = re.compile(r"^[a-z][a-z0-9_-]{0,30}:[^\s()]+$")
+#: hashtags only the system sets (instanz: comes from the token) — Objekt.tag refuses them, so do logic proposals (0.63.0)
+FIXED_TAG_PREFIXES = ("art:", "tool:", "instanz:", "herkunft:", "herausgeber:", "pruefer:", "modus:")
 #: hashtags that are administration, not content (ignored for linking and drilldown)
 ADMIN_PREFIXES = ("art:", "cache:", "ok:", "serial:", "tag:", "instanz:", "zustand:", "an:", "von:", "ueberraschung:",
               "modus:", "herkunft:", "konflikt:", "selbst:", "selbstbereich:", "modell:", "fusion:", "dublette:", "scorer:", "ziel:", "note:")
@@ -284,7 +287,7 @@ class MemoryObject:
         for t in list(add) + list(remove):
             if not TAG.match(t):
                 raise ValueError(f"hashtag {t!r} does not have the form kind:value")
-            if t.startswith(("art:", "tool:", "instanz:", "herkunft:", "herausgeber:", "pruefer:", "modus:")):
+            if t.startswith(FIXED_TAG_PREFIXES):
                 raise ValueError(f"{t}: fixed hashtag (instanz: is the author from the token; art:, tool:, herkunft:, herausgeber:, pruefer: and modus: are set by the system)")
         self.hashtags = sorted((set(self.hashtags) | set(add)) - set(remove))
         self.change(who, " ".join([f"+{t}" for t in add] + [f"-{t}" for t in remove]), reason)
