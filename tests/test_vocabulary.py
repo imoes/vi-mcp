@@ -62,3 +62,13 @@ def test_a_search_that_excludes_the_only_matches_is_named_not_a_search_problem(g
     out = tools.call_tool("vi_recall", {"filter": "(host:web9.example) !instanz:centralstation !art:erfahrung", "semantic": False},
                           "centralstation", False)
     assert "occur only in what your exclusions" in out
+
+
+def test_an_unknown_kind_gets_the_same_value_under_the_kind_that_exists(gd):
+    """0.62.5, found on production: `quelle:confluence` answered "not in memory" without a suggestion; the tag is quelle_art:confluence."""
+    for i in range(3):
+        g.new_object("erkenntnis", f"KB page {i}", ["quelle_art:confluence", "thema:linux"], {"quelle": "t"})
+    g.new_object("erkenntnis", "secret page", ["herkunft_x:confluence"], {"quelle": "t"}, instance="b", visibility="privat")
+    out = tools.call_tool("vi_recall", {"filter": "quelle:confluence", "semantic": False}, "a", False)
+    assert "did you mean quelle_art:confluence" in out
+    assert "herkunft_x" not in out  # nothing the viewer may not see

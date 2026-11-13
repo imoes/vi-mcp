@@ -3,6 +3,16 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.62.6 — not yet released — an unknown kind is answered with the kind that exists
+
+### What was fixed
+
+- **A search for a tag kind that does not exist got no suggestion.** *Found on production (13.11.2026):* an agent searched
+  `quelle:confluence`, got "quelle:confluence is not in memory" and concluded the VI held no Confluence pages — 12,994 objects carry
+  `quelle_art:confluence` (1,877 of them server KB pages). Suggestions came only from values of the same kind. Now, when that gives
+  fewer than three, the same value under other kinds is offered ("did you mean quelle_art:confluence?"), most used first, only what the
+  asking instance may see. Test: `tests/test_vocabulary.py` (1 new).
+
 ## 0.62.5 — 2026-11-13 — the quarantine lists held entries; empty searches named; the LLM weight layer stops when it does nothing
 
 ### What has changed

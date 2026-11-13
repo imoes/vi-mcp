@@ -97,7 +97,16 @@ def unknown_terms(filter_text: str, viewer: str | None = "aktuell") -> list[tupl
             continue
         kind, _, val = term.partition(":")
         pool = [t.partition(":")[2] for t, _n in values(kind, "", viewer, MAX_CANDIDATES)]
-        out.append((term, [f"{kind}:{v}" for v in suggest(val, pool)]))
+        sug = [f"{kind}:{v}" for v in suggest(val, pool)]
+        if len(sug) < 3 and val:
+            # 0.62.5: the same value under another kind — found on production (13.11.2026): an agent searched `quelle:confluence`, got
+            # "not in memory" without a suggestion and concluded there were no Confluence pages; 12,994 objects carry
+            # `quelle_art:confluence`. Only what the viewer may see, most used first.
+            with g.lock:
+                rows = g.db().execute(f"SELECT tag, COUNT(*) FROM tag WHERE tag LIKE ? AND objekt_id IN ({vis}) GROUP BY tag ORDER BY COUNT(*) DESC LIMIT 20",
+                                      ("%:" + val, *par)).fetchall()
+            sug += [t for t, _n in rows if t.partition(":")[2] == val and t != term and t not in sug][:3 - len(sug)]
+        out.append((term, sug))
     return out
 
 
