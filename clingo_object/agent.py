@@ -134,3 +134,48 @@ def solve(question: str, memory, llm=None, max_rounds: int = MAX_ROUNDS, vocabul
         return {"state": "answered", "rounds": max_rounds, **last_ok, "transcript": transcript}
     return {"state": "failed" if transcript and transcript[-1]["error"] else "empty", "rounds": max_rounds, "answer": [],
             "program": transcript[-1]["program"] if transcript else "", "transcript": transcript}
+
+
+#: kinds that name single objects or authors, not properties — no help for writing a program
+SKIP_KINDS = frozenset({"seite", "serial", "tag", "instanz", "space"})
+
+
+def vocabulary(memory, max_kinds: int = 15, per_kind: int = 8) -> str:
+    """The hashtag kinds of the memory with their most used values, from vi_vocabulary (counts only what the caller may see)."""
+    kinds = []
+    for line in memory.call("vi_vocabulary", {"limit": max_kinds + len(SKIP_KINDS)}).splitlines():
+        m = re.match(r"^\s+([a-z][a-z0-9_-]*):\s+\(", line)
+        if m and m.group(1) not in SKIP_KINDS:
+            kinds.append(m.group(1))
+    out = []
+    for k in kinds[:max_kinds]:
+        vals = [m.group(1).split(":", 1)[1] for m in (re.match(r"^\s+(\S+:\S+)\s+\(", x)
+                for x in memory.call("vi_vocabulary", {"word_kind": k, "limit": per_kind}).splitlines()) if m]
+        if vals:
+            out.append(f"- {k}: {', '.join(vals)}")
+    return "\n".join(out)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """python3 -m clingo_object.agent "question" — answers from the VI memory with a clingo-object program (server and token like the
+    hook, language model from VI_LLM_URL / VI_LLM_MODEL)."""
+    import argparse
+    import sys
+    from .client import Memory
+    a = argparse.ArgumentParser(prog="python3 -m clingo_object.agent", description=main.__doc__)
+    a.add_argument("question")
+    a.add_argument("--rounds", type=int, default=MAX_ROUNDS)
+    a.add_argument("--show-program", action="store_true")
+    o = a.parse_args(argv)
+    mem = Memory()
+    r = solve(o.question, mem, max_rounds=o.rounds, vocabulary=vocabulary(mem))
+    print(f"state: {r['state']} · rounds: {r['rounds']} · {len(r['answer'])} answer(s) · evidence: inferred")
+    for x in r["answer"]:
+        print("  " + x)
+    if o.show_program or r["state"] != "answered":
+        print("program:\n" + r["program"])
+    return 0 if r["state"] == "answered" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -34,7 +34,8 @@ first draft (class blocks inside the server's parser): consistent with the cling
   back to the model in the solver's words, up to 4 rounds (the construct-and-check loop of ALM–ASP, KR 2026, and ASP-Bench, arXiv
   2602.01171). Any OpenAI-compatible endpoint (`VI_LLM_URL`, `VI_LLM_MODEL`), never with `max_tokens`. Tests with a scripted model: it
   corrects a missing parenthesis and a wrong hashtag kind and answers in round 3; says "empty" when nothing derives; sends no
-  `max_tokens` (`tests/test_clingo_object.py`).
+  `max_tokens` (`tests/test_clingo_object.py`). From the command line: `python3 -m clingo_object.agent "question"` — server and token
+  like the hook, the memory's vocabulary (hashtag kinds with their most used values) fetched from `vi_vocabulary` and given to the model.
 - **Training with clingo-object.** `vi-mcp dataset export` writes `logic.jsonl`: for every saved rule set that is not private, the task of
   its description → the assistant writes the program (`vi_logic` check with the source) → the solver's real answer → the answer citing the
   rule set; and every conclusion someone checked against reality (`rate`, now kept one by one in `logik_bewertung`): right ones as

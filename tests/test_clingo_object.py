@@ -248,3 +248,33 @@ def test_the_agent_never_sends_max_tokens(monkeypatch):
     monkeypatch.setattr(agent.urllib.request, "urlopen", lambda req, timeout=0: sent.append(_json.loads(req.data)) or R())
     assert agent.openai_chat("http://127.0.0.1:1/v1/chat/completions", "m")([{"role": "user", "content": "x"}]) == "ok"
     assert "max_tokens" not in sent[0] and "n_predict" not in sent[0] and sent[0]["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+def test_the_agent_reads_the_vocabulary_from_the_server(gd):
+    from clingo_object import agent
+
+    class Mem:
+        def call(self, tool, args):
+            return tools.call_tool(tool, args, "a", False)
+    g.new_object("erkenntnis", "gate1 in the DMZ", ["host:gate1", "netz:dmz"], {"quelle": "t"}, reason="T", oid="erkenntnis:g1", link=False)
+    v = agent.vocabulary(Mem())
+    assert "- netz: dmz" in v and "- host: gate1" in v and "instanz" not in v
+
+
+def test_the_agent_end_to_end_over_a_real_server(srv, tmp_path):
+    """The path of `python3 -m clingo_object.agent`: Memory over HTTP (objects, vocabulary), a scripted language model, an answer."""
+    from clingo_object import Memory, agent
+    port, tok_a, _b = srv
+    tf = tmp_path / "token"
+    tf.write_text(tok_a)
+    mem = Memory(f"http://127.0.0.1:{port}/mcp", tf)
+    g.new_object("erkenntnis", "gate1 in the DMZ", ["host:gate1", "netz:dmz"], {"quelle": "t"}, reason="T", oid="erkenntnis:g1", link=False)
+    voc = agent.vocabulary(mem)
+    assert "- netz: dmz" in voc
+    seen = []
+
+    def llm(messages):
+        seen.append(messages[0]["content"])
+        return '```logic\nans(H) <= (O in objects("netz:dmz")) & (O.host == H)\n```'
+    r = agent.solve("Which hosts are in the DMZ?", mem, llm, vocabulary=voc)
+    assert r["state"] == "answered" and r["answer"] == ['ans("gate1")'] and "- netz: dmz" in seen[0]
