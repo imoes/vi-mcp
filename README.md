@@ -38,7 +38,7 @@ to each other across organisations: short, executable like code, readable by peo
 
 *What exists (0.62.0):* questions in the language (`vi_recall` with `ask.how deploy @web1 #project`, answers as `tell` lines with `format: "vil"`), the classification of the knowledge by a language model (`answers:`, `memory:`, `vi-mcp classify`, with a small model on the embeddings that learns the labels for new knowledge) and the vocabulary — `vi_vocabulary` and the "Words" page of the internal search list the words that exist and complete
 half-typed ones, and a search without hits says whether it asked for an unknown word (nothing known) or for known words that do not meet.
-*Next:* the measurement of the question-type order, weights per word, the language between servers
+Training data to fine-tune an AI with what a VI learned: `vi-mcp dataset export` (question → answer, which hints helped, with a datasheet). *Next:* the measurement of the question-type order, weights per word, the language between servers
 measured against prose.
 
 ## Vision

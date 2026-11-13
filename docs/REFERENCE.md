@@ -581,6 +581,7 @@ python3 -m vi_mcp index export INDEX FILE | import FILE --as INDEX | compare IND
 python3 -m vi_mcp classify [--limit N] [--dry-run]  label knowledge for the AI language (which question it answers); sleep
                                         does it when config classify names a model (0.62.0)
 python3 -m vi_mcp web internal [on|off] [--base PATH]  internal knowledge search with sign-in under /intern (0.62.0)
+python3 -m vi_mcp dataset export DIR [--index X]  training data (qa/kto/dpo .jsonl, DATASHEET.md) to fine-tune a model (0.62.0)
                                         the code of a git repository into an index (only changed files; removed ones archived)
                                         indexes (0.61.0): projects and special VIs — every object belongs to one; a project's
                                         index comes first in search and hints; an index with enough data trains its own model
@@ -990,6 +991,7 @@ First line of each module's docstring.
 | `config` | Configuration — one file, readable by the owner only. |
 | `configure` | 0.48.0: configuring the server after installation — one catalogue of questions, two front ends. |
 | `content` | Content as a feature — the router weights hints not only by situation but also by meaning. |
+| `dataset` | Training data from the memory (0.62.0) — the goal: a VI that comes out of the incubator fine-tunes an AI. |
 | `db` | Database access: SQLite (default, standard library) or PostgreSQL (optional, psycopg 3). |
 | `db_migrate` | Move a SQLite database to PostgreSQL (0.50.0): `vi-mcp db migrate`, `vi-mcp db status`. |
 | `doc_triggers` | Triggers for documentation (0.26.0): imported documentation gets host: and thema: hashtags so it can appear before matching actions. |

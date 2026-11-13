@@ -197,6 +197,17 @@ vi-mcp classify --limit 20         # label them now (two prompt variants per obj
 - The student (`modell:klassen`, `vi_model`-like object in memory): trained in sleep from ≥ 120 agreed labels, active from 80 % holdout
   accuracy; it labels where it is ≥ 80 % sure, 10 % of those are audited by the language model (`daten.pruefung`: checked, equal).
 
+### Training data for fine-tuning (0.62.0)
+
+```bash
+vi-mcp dataset export /srv/vi-dataset                # qa.jsonl, kto.jsonl, dpo.jsonl, manifest.json, DATASHEET.md (0600, directory 0700)
+vi-mcp dataset export /srv/vi-dataset-cue --index cue-print
+```
+
+Read `DATASHEET.md` first: counts, what was left out and why, the evaluation hold-out, the scrubbing audit, label quality and versions.
+The files are internal (company knowledge unanonymised). Format: `qa` in the chat format most SFT tools read (`messages`), `kto` with
+`prompt`/`completion`/`label`, `dpo` with `prompt`/`chosen`/`rejected`.
+
 ### Internal knowledge search (0.62.0)
 
 ```bash

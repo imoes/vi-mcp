@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.62.0 — not yet released — Index files, an internal knowledge search, and the vocabulary of an AI language
+## 0.62.0 — not yet released — Index files, an internal knowledge search, an AI language, and training data
 
 The user (12./13.11.2026): "Der Export oder Import von Projekten kann uns beim Scoring der Inhalte helfen. So können wir vergleichen.",
 "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" and "Wenn sich in der Konversation eine Korrektur in
@@ -67,6 +67,15 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   of (`daten.klasse.zustand: schueler`, version `student@<time>`), the language model labels the rest, and 10 % of the student's sure
   labels go to the language model as an audit — agreement is counted on the model object `modell:klassen`, so drift becomes visible.
   Sleep step 8f trains it before labelling. Tests: `tests/test_classify.py` (5).
+- **Training data to fine-tune an AI** (the goal the user set: "Wenn eine VI aus dem Inkubator kommt, soll man damit dann eine KI
+  fine-tunen"): `vi-mcp dataset export DIR [--index X]` writes `qa.jsonl` (SFT: question → knowledge with source; questions from the
+  classification or the object's text), `kto.jsonl` (situation → hint, desirable or not, from the measured helped/not-helped counters,
+  ≥ 5 ratings — KTO takes exactly this binary signal), `dpo.jsonl` (the same trigger, one hint helped clearly more) and a
+  `manifest.json` with a `DATASHEET.md` (what is in it, what was left out and why, versions of router, classification and student, label
+  quality, known gaps). Never in it: private objects, experiences, conversations (they belong to their instance — the hint data are the
+  aggregated counters), quarantine, refuted or archived objects, code pieces. **Contamination guard:** the targets of the fixed question
+  set and questions equal to an evaluation question are held out, so a fine-tuned model can still be measured. **Scrubbing audit:** every
+  text goes through the credential scrubber again; changes are counted. Files 0600, directory 0700. Tests: `tests/test_dataset.py` (2).
 
 ### What has changed
 
@@ -88,6 +97,8 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **Sessions of the internal search** live in the server process: a restart signs everybody out.
 - **Found in the browser test and fixed before release:** the sign-in was refused in every browser — the pages had the `no-referrer`
   policy of `/web`, so Chrome sent `Origin: null`.
+- **Fine-tuning itself** is not part of vi-mcp (the project trains no language model); the export is its input. No full task
+  trajectories: user prompts are masked and never stored.
 - **The AI language** beyond vocabulary, `ask` questions, classification and its student — weights per word, the language between
   servers — is a design (README), not code yet. The student has not been trained on real data yet (the sample run is in progress). Whether
   the question-type order raises success is not measured yet; no human gold set exists.

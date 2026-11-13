@@ -40,7 +40,7 @@ Gedächtnisse über Organisationsgrenzen miteinander reden: kurz, ausführbar wi
 
 *Was es gibt (0.62.0):* Fragen in der Sprache (`vi_recall` mit `ask.how deploy @web1 #projekt`, Antworten als `tell`-Zeilen mit `format: "vil"`), die Klassifikation des Wissens durch ein Sprachmodell (`answers:`, `memory:`, `vi-mcp classify`, mit einem kleinen Modell auf den Embeddings, das die Labels für neues Wissen lernt) und das Vokabular — `vi_vocabulary` und die Seite „Words“ der internen Suche zeigen die Wörter, die es gibt, und
 ergänzen halb getippte; eine Suche ohne Treffer sagt, ob sie nach einem unbekannten Wort fragte (nichts bekannt) oder nach bekannten
-Wörtern, die nicht zusammenkommen. *Als Nächstes:* die Messung der Fragearten-Ordnung, Gewichte je Wort, die Sprache zwischen Servern gemessen gegen Prosa.
+Wörtern, die nicht zusammenkommen. Trainingsdaten, um eine KI mit dem Gelernten einer VI feinzujustieren: `vi-mcp dataset export` (Frage → Antwort, welche Hinweise halfen, mit Datenblatt). *Als Nächstes:* die Messung der Fragearten-Ordnung, Gewichte je Wort, die Sprache zwischen Servern gemessen gegen Prosa.
 
 ## Vision
 
