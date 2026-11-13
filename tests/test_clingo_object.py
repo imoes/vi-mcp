@@ -172,3 +172,23 @@ def test_memory_finds_url_and_token_like_the_hook(tmp_path, monkeypatch):
     assert url == "https://vi.example/mcp" and tf == tmp_path / "t"
     monkeypatch.setenv("VI_MCP_URL", "http://127.0.0.1:9/mcp")
     assert client._config()[0] == "http://127.0.0.1:9/mcp"  # the environment wins
+
+
+def test_the_wheel_installs_and_states_the_minimum_clingo(tmp_path):
+    """Packaging: a pure-Python wheel built with the standard library; pip installs it (--no-deps, offline) and it imports alone."""
+    import subprocess
+    import sys
+    import zipfile
+    from clingo_object import notation
+    whl = subprocess.run([sys.executable, "deploy/clingo-object/build_wheel.py", str(tmp_path)], capture_output=True, text=True, check=True)
+    path = whl.stdout.strip()
+    with zipfile.ZipFile(path) as z:
+        names = z.namelist()
+        meta = z.read(next(n for n in names if n.endswith("METADATA"))).decode()
+    assert "clingo_object/notation.py" in names and not any(n.startswith("vi_mcp/") for n in names)
+    assert f"Requires-Dist: clingo>={notation.CLINGO_MIN}" in meta and "Name: clingo-object" in meta
+    target = tmp_path / "site"
+    subprocess.run([sys.executable, "-m", "pip", "install", "--no-deps", "--no-index", "--quiet", "--target", str(target), path], check=True)
+    out = subprocess.run([sys.executable, "-I", "-c", f"import sys; sys.path.insert(0, {str(target)!r}); import clingo_object as c; "
+                          "print(c.__file__, 'vi_mcp' in sys.modules)"], capture_output=True, text=True, check=True).stdout
+    assert out.startswith(str(target)) and out.strip().endswith("False")

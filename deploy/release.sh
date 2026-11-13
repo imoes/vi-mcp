@@ -23,17 +23,21 @@ if [ "${1:-}" = "--gh" ]; then
     GNUPGHOME="${VI_MCP_REPO_GNUPG:-$HOME/.config/vi-mcp/repo-gnupg}" gpg --list-secret-keys 2>/dev/null | grep -q '^sec' \
         || { echo "repository signing key missing (VI_MCP_REPO_GNUPG) — needed to publish to the apt/dnf repository" >&2; exit 2; }
 fi
+# 0.63.0: the package clingo-object is released with vi-mcp and carries the same version (one release, one number)
+[ "$(python3 -c "import clingo_object; print(clingo_object.__version__)")" = "$version" ] \
+    || { echo "clingo_object.__version__ differs from vi_mcp.__version__ ($version)" >&2; exit 2; }
 deb=$(deploy/debian/build.sh)
+whl=$(python3 deploy/clingo-object/build_wheel.py dist)
 rpm=$(deploy/rpm/build.sh | tail -1)
 msi=$(deploy/windows/build.sh | tail -1)
 cd dist
 rm -f SHA256SUMS SHA256SUMS.sig
-sha256sum "$(basename "$deb")" "$(basename "$rpm")" "$(basename "$msi")" > SHA256SUMS
+sha256sum "$(basename "$deb")" "$(basename "$rpm")" "$(basename "$msi")" "$(basename "$whl")" > SHA256SUMS
 openssl pkeyutl -sign -inkey "$key" -rawin -in SHA256SUMS -out SHA256SUMS.sig
 cd ..
 deploy/pruefe-release.sh dist
 if [ "${1:-}" = "--gh" ]; then
-    gh release create "v$version" "$deb" "$rpm" "$msi" dist/SHA256SUMS dist/SHA256SUMS.sig --title "vi-mcp $version" \
+    gh release create "v$version" "$deb" "$rpm" "$msi" "$whl" dist/SHA256SUMS dist/SHA256SUMS.sig --title "vi-mcp $version" \
         --notes-file <(python3 - "$version" <<'PY'
 import sys
 v = sys.argv[1]; s = open("CHANGELOG.md").read(); i = s.index(f"## {v} "); j = s.find("\n## ", i + 1)

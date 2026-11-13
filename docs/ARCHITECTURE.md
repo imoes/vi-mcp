@@ -805,6 +805,39 @@ same table `vil_gewicht_netz`, same rating channel: `p2p._word_weights_out` adds
 `logic.known_hash`). Open network: rules without string constants and without anonymisation findings only. clingo comes from the
 distribution, or from `vi-mcp logic install` into `/var/lib/vi-mcp/python`, appended to `sys.path` after the system's packages.
 
+## clingo-objekt: memory objects in the logic, the package clingo-object (0.63.0)
+
+The user (13.11.2026): the data lie as objects in SQL, so we program with them in clingo — "wir machen aus clingo eine objektorientierte
+Programmiersprache", like Delphi grew out of Pascal; and, on the first draft, "consistent with the python3-clingo package, developed further
+in Python". Hence two layers with one language:
+
+| layer | where | what |
+|---|---|---|
+| notation (`clingo_object/notation.py`) | server and client | the Python-like text above, translated to ASP and solved; the only thing the server runs — never Python |
+| package `clingo-object` (`import clingo_object`) | where code is trusted: an agent's machine, tests, an administrator | real Python classes and expressions that compile to the notation |
+
+**Objects as facts** (like DLV-DB's `#import`): `(O in objects("filter"))` binds `O` to the objects of a `vi_recall` filter as the asking
+instance may see them; `logic.object_data` loads them with fields (`kind mode visibility instance index text`, numbers `age importance
+confirmed refuted accesses`), hashtags and edges, plus the objects one edge away, never quarantine or archive, at most `MAX_OBJECTS`; what
+is cut, not visible or excluded is counted and shown. `notation.facts` turns them into `vi__in`, `vi__obj`, `vi__tag`, `vi__edge`.
+`(O.host == H)`, `(O.age > 90)`, `linked(O, B)` read them; an object variable must be bound by `objects()` or `linked`.
+`vi_logic action=objects` returns the same data as JSON — the data path of the package.
+
+**Proposals** (like `#export`, never silent): a head `propose(tag(O, "kind", "value"))` / `propose(link(A, B, "reason"))`; `check` lists
+them with the rules that derive them; `vi_logic action=propose` derives them on the server again (nothing a client claims is taken) and
+stores each as an object of kind `vorschlag` in quarantine. It is always sensitive, so only the release right decides, and never its author
+(`p2p.approve`); releasing re-checks and applies it with the proposal's id in the target's change log; discarding leaves a tombstone; the
+same proposal again is counted. System tags (`memory.FIXED_TAG_PREFIXES`), invisible and vanished targets are refused with a reason.
+
+**Classes** (`clingo_object.model`): `class Skill(Knowledge): kind = "skill"`, methods `def stale(self): return (self.mode == "test") &
+(self.age > 30)`. Each method compiles to one flat rule whose membership filter holds exactly the kinds whose Python MRO resolves to that
+definition — overriding needs no negation; only the classes given to the `Program` count. `Program.check(memory)` solves locally with the
+clingo API (rule weights = stated priors); `check_on_server`, `save`, `propose`, `rate` send the same text — tested to give the same
+answers. `clingo_object.Memory` is the MCP client: URL and token found like the hook, direct then proxy, a token never printed.
+Packaging: deb/rpm/MSI ship `clingo_object` beside `vi_mcp`; the wheel `clingo-object` (built with the standard library,
+`deploy/clingo-object/build_wheel.py`) requires `clingo>=CLINGO_MIN`, the one place the minimum is stated; `release.sh` refuses when
+`clingo_object.__version__` differs from vi-mcp's.
+
 ## Sleep on a workstation (0.62.0)
 
 `sleep_cycle.due` had two triggers: the nightly hour (only if no sleep in 24 h) and the importance threshold. A workstation off at night

@@ -54,7 +54,9 @@ MAX_SOFT_ENUM = 256
 TIMEOUT_S = 5.0
 
 
-CLINGO_VERSION = "5.8.3"
+CLINGO_VERSION = "5.8.3"  # tested with; `vi-mcp logic install` installs exactly this one
+#: the one place the minimum clingo is stated — the wheel's Requires-Dist (deploy/clingo-object/build_wheel.py) and the check below
+CLINGO_MIN = "5.8"
 
 
 RULE_VERSION = "vil-rule-v1"

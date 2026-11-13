@@ -3,6 +3,47 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.63.0 — not yet released — clingo-object: the memory's objects in the logic, as an object-oriented language
+
+The user (13.11.2026): "Derzeit legen wir Daten per SQL in Objekten ab. Also müssen wir mit diesen Objekten in clingo programmieren" — "wir
+machen aus clingo eine objektorientierte Programmiersprache", like Delphi grew out of Pascal; and "clingo ist die Sprache für LLMs". On the
+first draft (class blocks inside the server's parser): consistent with the clingo Python package, developed further in Python.
+
+### What is new
+
+- **Memory objects in the logic.** `(O in objects("art:skill host:web*"))` binds `O` to the objects of a `vi_recall` filter, as the asking
+  instance may see them; `(O.host == H)` reads a hashtag, `(O.kind == "skill")` a field, `(O.age > 90)` a number (age, importance,
+  confirmed, refuted, accesses); `linked(O, B)` follows an edge (objects one edge away come along). Never quarantine or archive; what is
+  cut (2,000 objects), not visible or excluded is counted and shown. Tests: `tests/test_logic_objects.py` (29).
+- **Rules may propose changes, a person decides.** A head `propose(tag(O, "status", "stale"))` or `propose(link(A, B, "reason"))`;
+  `vi_logic action=propose` derives the proposals on the server and holds each in quarantine (kind `vorschlag`) with the rules behind it.
+  Its author cannot release it; `vi-mcp release` re-checks and applies it with the proposal's id in the target's change log; discarding
+  leaves a tombstone; the same proposal again is counted. System tags, invisible and vanished targets are refused with a reason.
+  Tests: `tests/test_logic_propose.py` (6).
+- **The Python package clingo-object** (`import clingo_object`, wheel `clingo-object` in the release, also shipped in deb/rpm/MSI):
+  real Python classes — `class Skill(Knowledge): kind = "skill"` with methods like `def stale(self): return (self.mode == "test") &
+  (self.age > 30)`, inheritance and overriding by Python's MRO — and expressions by operator overloading compile to the notation the
+  server runs; `Program.check(memory)` solves the same text locally with the clingo API, `check_on_server`, `save`, `propose`, `rate` send
+  it. `clingo_object.Memory` finds server and token like the hook. *Verified:* local and server answers agree on the same objects (also
+  through a real server on a random port); the wheel installs offline with `pip --no-deps` and imports without vi-mcp. Tests:
+  `tests/test_clingo_object.py` (15).
+- `vi_logic action=objects` returns the objects of filters as JSON (the package's data path).
+
+### What has changed
+
+- The language core moved from `vi_mcp/logic.py` into `clingo_object/notation.py`; the server imports it — one implementation for both.
+- The server's notation refuses `class`/`def` with a pointer to the package: the server runs no Python from callers.
+- The Debian package recommends `python3-clingo`; `release.sh` refuses when `clingo_object.__version__` differs from vi-mcp's.
+
+### What is missing
+
+- Training with clingo-object: fine-tuning data (`logic.jsonl`) and learning rules from rated conclusions (ILASP/FastLAS or clingo
+  itself) are planned, not built. Rule weights learn already (`rate`).
+- An agent loop that writes clingo-object programs and corrects them from the solver's answer; measured against `vi_recall` chains.
+- The relational task set on a production copy (clingo-object against hand-checked SQL) is not measured yet.
+- Local solving uses the stated priors of soft rules; the measured weights stay on the server (`check_on_server`).
+- Not run against PostgreSQL in this block (the new queries are plain `IN (?, …)`).
+
 ## 0.62.6 — not yet released — networks for containers; an empty search points to the network; an unknown kind is answered with the kind that exists
 
 ### What is new
