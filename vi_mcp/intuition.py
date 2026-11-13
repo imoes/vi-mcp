@@ -574,7 +574,17 @@ def after(tool: str, args: dict, ok: bool, duration_ms: int, error: str | None, 
     used = adopted(o) if ok else []  # 0.59.0: implicit feedback — a hint whose command/path/option the agent took over
     hints = reflexes.after(tool, dict(args or {}), result or "") if ok else []
     if ok is False and error:  # 0.53.0: rule 3 by itself — what the memory knows about this error
-        hints += error_hints(tool, args or {}, error, instance)
+        found_eh = error_hints(tool, args or {}, error, instance)
+        if found_eh:  # 0.62.6: recorded and, like the hints before an action, held back at random — so their effect can be measured
+            import random as _random
+            held = HOLD_BACK > 0 and _random.random() < HOLD_BACK
+            ids = [m.group(1) for m in (re.search(r"\[([^\]]+)\]", h) for h in found_eh) if m]
+            g.update_data(o.id, lambda d: d.update({"fehler_hinweise": ids, "fehler_haltewahrscheinlichkeit": HOLD_BACK,
+                                                    "fehler_zurueckgehalten": held}))
+            with g.lock:
+                g.db().commit()
+            if not held:
+                hints += found_eh
     if ok is not None:  # a rated action is a new observation for router and bandit
         from . import on_demand
         on_demand.nudge("experience")

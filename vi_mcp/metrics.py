@@ -321,3 +321,59 @@ def arm_effect(since: str | None = None, viewer: str | None = None) -> dict:
     d, se = num / den, math.sqrt(var) / den
     return {"zustand": "gemessen", "differenz": round(d, 4), "standardfehler": round(se, 4), "llm": n_l, "basis": n_b,
             "urteil": f"with LLM layer − without {d * 100:+.1f} ± {se * 100:.1f} points ({n_l} vs {n_b} actions)"}
+
+
+#: 0.62.6: an error is recovered when the next action with the same tool in the same conversation succeeds, within this many actions
+RECOVER_WINDOW = 3
+
+
+def error_hint_effect(hours: float = 24 * 30, viewer: str | None = None) -> dict:
+    """0.62.6: the effect of what vi_after shows after a failed action (intuition.error_hints). Over failures that had error hints to show,
+    those whose hints were held back by the coin flip (fehler_zurueckgehalten) against those that showed them; the outcome is recovery —
+    the next action with the same tool in the same conversation, within RECOVER_WINDOW actions, succeeds. A failure without such a retry
+    is counted as "no retry", not as either. Mantel-Haenszel within (instance, tool). Causal, because holding back is random."""
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
+    convs: dict[str, list] = {}
+    for _, o, _g in g.recall("art:erfahrung", limit=50000, viewer=viewer):
+        if o.ts >= since and o.conversation:
+            convs.setdefault(o.conversation, []).append(o)
+    strata: dict[tuple, dict] = {}
+    no_retry = 0
+    for acts in convs.values():
+        acts.sort(key=lambda x: x.ts)
+        for i, o in enumerate(acts):
+            if "fehler_hinweise" not in o.data or "fehler_haltewahrscheinlichkeit" not in o.data:
+                continue
+            t = next((x for x in o.hashtags if x.startswith("tool:")), "tool:?")
+            later = [a for a in acts[i + 1:] if not (a.data.get("vorher") or {}).get("aus_gedaechtnis")][:RECOVER_WINDOW]  # answered from memory: no action
+            nxt = next((a for a in later if t in a.hashtags and ("ok:ja" in a.hashtags or "ok:nein" in a.hashtags)), None)
+            if nxt is None:
+                no_retry += 1
+                continue
+            c = strata.setdefault((o.instance or "?", t), {True: [0, 0], False: [0, 0]})[not o.data.get("fehler_zurueckgehalten")]
+            c[0] += "ok:ja" in nxt.hashtags
+            c[1] += 1
+    num = den = var = 0.0
+    n_s = n_h = used = 0
+    for c in strata.values():
+        (a, n1), (b, n0) = c[True], c[False]
+        if not n1 or not n0:
+            continue
+        w = n1 * n0 / (n1 + n0)
+        p1, p0 = a / n1, b / n0
+        num += w * (p1 - p0)
+        den += w
+        var += w * w * (p1 * (1 - p1) / n1 + p0 * (1 - p0) / n0)
+        n_s, n_h, used = n_s + n1, n_h + n0, used + 1
+    shown_total = sum(c[True][1] for c in strata.values())
+    if not den or n_h < 30:
+        return {"zustand": "zu_wenig", "zurueckgehalten": n_h, "gezeigt": shown_total, "ohne_wiederholung": no_retry,
+                "urteil": f"{n_h} failures with error hints held back in comparable strata — at least 30 needed ({shown_total} shown, "
+                          f"{no_retry} without a retry of the same tool)"}
+    d, se = num / den, math.sqrt(var) / den
+    verdict = ("error hints raise recovery" if d > 2 * se else "error hints lower recovery" if d < -2 * se
+               else "no difference beyond 2 standard errors")
+    return {"zustand": "gemessen", "differenz": round(d, 4), "standardfehler": round(se, 4), "gezeigt": n_s, "zurueckgehalten": n_h,
+            "ohne_wiederholung": no_retry, "schichten": used,
+            "urteil": f"recovery shown − held back {d * 100:+.1f} ± {se * 100:.1f} points ({n_s} vs {n_h} failures, {used} strata, "
+                      f"{no_retry} without a retry): {verdict}"}

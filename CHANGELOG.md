@@ -39,6 +39,14 @@ Linked from [README.md](README.md).
   itself (a host at 83–89 %, say); the tool's rate is shown only as context. On the copy (latest 2,000 actions of that tool): warnings
   2,000 → 955, failed after a warning 80 % instead of 46 % among those no longer warned; over all tools the latest 2,000 actions:
   495 → 141 warnings. In-sample: the counted rates come from the same data. Test: `tests/test_lernen.py` (1 new).
+- **What `vi_after` shows after an error is recorded and its effect measured.** Since 0.53.0 a failed action brings what the memory
+  knows about its error, but which hints came was never stored, so whether they help was not measurable. Now the experience records them
+  (`fehler_hinweise`), and like the hints before an action they are held back on a random 5 % (`hold_back`). `vi_stats` C gets the line
+  "after an error": recovery (the next action with the same tool in the same conversation, within 3 actions, succeeds) shown minus held
+  back, Mantel-Haenszel within instance and tool; a failure without such a retry is counted apart; calls answered from memory are no
+  action. *Recomputed on a production copy:* of the failures of the last 7 days, 1,456 of 1,457 of CentralStation's automated analysis,
+  94 of 100 shell commands and 25 of 28 other tool calls of Claude Code would get error hints today — the measurement has the data, but
+  at 5 % it needs weeks for 30 held-back failures. Tests: `tests/test_error_hint_effect.py` (2 new).
 
 ### What was measured
 
