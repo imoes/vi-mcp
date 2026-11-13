@@ -109,7 +109,7 @@ def unavailable_reason() -> str:
 def install(target: Path | None = None) -> int:
     """vi-mcp logic install [--target DIR] — clingo from PyPI into a directory of its own (it brings cffi and pycparser)."""
     import subprocess
-    if available() and target is None:
+    if target is None and available():
         import clingo
         print(f"clingo {clingo.__version__} is already importable")
         return 0
@@ -125,9 +125,20 @@ def install(target: Path | None = None) -> int:
     if r.returncode != 0:
         print("pip failed — without pip: apt install python3-pip (Debian/Ubuntu) or dnf install python3-clingo (Fedora); behind a proxy set https_proxy")
         return r.returncode
+    # 0.62.4: check the directory just installed into — before, only extra_dirs() was searched, so `--target DIR` outside the default
+    # places installed correctly and still reported "still not importable" with exit 1 (reported from the CentralStation container)
+    if target is not None and str(target) not in sys.path:
+        sys.path.append(str(target))
     ok = available()
-    print("clingo importable — restart the service so it loads it" if ok else f"still not importable: {unavailable_reason()}")
-    return 0 if ok else 1
+    if not ok:
+        print(f"still not importable: {unavailable_reason()}")
+        return 1
+    if target is not None and target not in extra_dirs():
+        print(f"clingo importable from {target} — the service finds it only with VI_MCP_EXTRA_PYTHON={target} in its environment; "
+              "set it, then restart the service")
+    else:
+        print("clingo importable — restart the service so it loads it")
+    return 0
 
 
 def main(argv: list[str]) -> int:

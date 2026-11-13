@@ -200,3 +200,24 @@ def test_tool_check_ask_save_rate(tmp_path):
         assert "vi_logic" not in {t["name"] for t in tools.listing(config.OPEN)}  # writes weights and objects: a token is required
     finally:
         g.close_db()
+
+
+def test_install_into_a_target_outside_the_default_places_checks_that_target(tmp_path, monkeypatch, capsys):
+    """0.62.4, reported from the CentralStation container: `vi-mcp logic install --target DIR` installed correctly and still said
+    "still not importable" (exit 1) — the check looked only in the default places."""
+    import subprocess
+    import sys as _sys
+    target = tmp_path / "py"
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda cmd, check=False: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0))
+    monkeypatch.delenv("VI_MCP_EXTRA_PYTHON", raising=False)
+    seen = []
+    monkeypatch.setattr(logic, "available", lambda: seen.append(str(target) in _sys.path) or True)
+    try:
+        assert logic.install(target) == 0
+        assert "--target" in calls[0] and str(target) in calls[0]
+        assert seen == [True]  # the target was on the import path when it was checked
+        assert f"VI_MCP_EXTRA_PYTHON={target}" in capsys.readouterr().out  # the service needs to be told
+    finally:
+        if str(target) in _sys.path:
+            _sys.path.remove(str(target))

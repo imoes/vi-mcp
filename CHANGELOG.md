@@ -5,6 +5,14 @@ Linked from [README.md](README.md).
 
 ## Unreleased
 
+### What was fixed
+
+- **`vi-mcp logic install --target DIR` reported failure after a correct install.** It checked only the default places
+  (`VI_MCP_EXTRA_PYTHON`, `/var/lib/vi-mcp/python`, `~/.local/share/vi-mcp/python`), so a target outside them said "still not
+  importable" with exit 1. *Reported from the CentralStation container (13.11.2026, 0.62.3), where `/var/lib/vi-mcp` is a volume and
+  clingo went to `/opt/vi-mcp-python`.* Now the target is checked, and the command says that the service finds such a directory only
+  with `VI_MCP_EXTRA_PYTHON` set. Test: `tests/test_logic.py` (1 new).
+
 ### What is missing
 
 - **A relevance weight that ranks better — tried, not found.** A logistic regression on the features of each hit (rank, fusion score,
