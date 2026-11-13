@@ -207,6 +207,8 @@ def _run(reason: str) -> g.MemoryObject:
         if classify.configured():  # 0.62.0: labels for the AI language — only with an explicit classify model (the shared LLM is not loaded unasked)
             step("8f_klassifizieren", lambda: {"schueler_training": {k: v for k, v in classify.train_student("sleep").items() if k in ("zustand", "n", "grund")},
                                                **classify.run_with_student(classify.per_sleep(), "sleep")})
+            from . import relevance  # 0.62.0: the label the search lacked — a language model grades real searches (UMBRELA), measured only
+            step("8h_relevanz", lambda: relevance.run(relevance.per_sleep(), "sleep"))
     from . import evaluation
     step("9_pruefung", lambda: evaluation.nightly())  # 0.55.0: once a day the fixed question set and the router numbers
     duration = int((time.monotonic() - t0) * 1000)

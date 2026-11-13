@@ -52,7 +52,7 @@ def test_agreement_labels_disagreement_is_unsure_and_the_schema_is_checked_here(
     assert {t for _v, t in calls} == {c.text}  # labelled objects of the current version are not asked again
 
 
-def test_labels_drive_the_ask_prior_and_the_tell_memory_kind(gd, llm):
+def test_labels_name_the_tell_memory_kind_and_can_lift_when_measured(gd, llm):
     table, _calls = llm
     plain = g.new_object("erkenntnis", "web1 deploy log of last week", ["host:web1.example", "thema:deploy"], {"quelle": "t"}, importance=3)
     how = g.new_object("erkenntnis", "web1 deploy: the steps", ["host:web1.example", "thema:deploy"], {"quelle": "t"})
@@ -61,9 +61,12 @@ def test_labels_drive_the_ask_prior_and_the_tell_memory_kind(gd, llm):
         table[(v, how.text)] = _ans("how")
     classify.run(10, "test")
     out = tools.call_tool("vi_recall", {"filter": "ask.how deploy @web1", "semantic": False, "reinforce": False, "format": "vil"}, "a", False)
-    lines = out.splitlines()[1:]
-    assert lines[0].startswith(f"tell.procedure {how.id}") and lines[1].startswith(f"tell.episode {plain.id}")
+    by_id = {line.split()[1]: line for line in out.splitlines()[1:]}
+    assert by_id[how.id].startswith("tell.procedure") and by_id[plain.id].startswith("tell.episode")  # the labels name the memory kind
     assert vil.prior_rank(g.load(how.id), "how") == 0 and vil.prior_rank(g.load(plain.id), "how") == 2
+    hits = [(0, g.load(plain.id), 0), (0, g.load(how.id), 0)]
+    assert vil.order(hits, "how") == hits  # default: relevance stays (measured)
+    assert vil.order(hits, "how", "labels")[0][1].id == how.id  # the label lift, available to measure
 
 
 def test_without_a_model_nothing_runs_and_sleep_needs_an_explicit_classify_model(gd, monkeypatch):

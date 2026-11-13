@@ -223,6 +223,12 @@ People set gold labels on the article page of the internal search (`/intern/o/<i
 `"human": true` in `config.json` see it (`vi-mcp instance NAME --human`). `vi-mcp incubator status` shows the
 model's accuracy against them and the truth check (confirmed vs refuted knowledge by measured weight).
 
+### Relevance judgements (0.62.0)
+
+With an explicit `classify` model, every sleep grades `classify.relevance_per_sleep` (default 3) logged searches with free text by
+UMBRELA's scale 0–3 (about 40 s per search on a shared server). By hand: `vi-mcp relevance run 10`; the result:
+`vi-mcp relevance report 7` or the line "judged by the language model" in `vi_stats` E. The judgements live in table `relevanz_urteil`.
+
 ### Logic layer (0.62.0)
 
 `vi_logic` needs clingo in the server's Python. Fedora/RHEL: `dnf install python3-clingo` (the RPM recommends it). Debian/Ubuntu have no

@@ -13,7 +13,8 @@ readable and the meaning travels as measured weights.
   guessed); a company network gets all.
 - A receiver keeps the weights in vil_gewicht_netz and combines them with its own, each foreign rater weighted by its measured benefit as
   a publisher (as net_score does), at most CAP observations per rater. A weight from another server is a measurement, never a command.
-- Use: in a VIL question (`ask.<type>`), hits of the same priority are ordered by the combined weight of their words for that type.
+- Use: shown in `tell` lines and exchanged. As a ranking signal for `ask` questions it was measured on a production copy and lowered MRR
+  by 0.056 ± 0.010 (vil.ORDER) — they measure whether a hint helped an action, not whether a hit answers a question; off by default.
 """
 from __future__ import annotations
 
@@ -149,7 +150,7 @@ def weight_for(word: str, qtype: str | None) -> float:
 
 
 def hit_weight(o, qtype: str | None) -> float:
-    """Mean weight of an object's words for a question type — the order within one priority rank of a VIL question."""
+    """Mean weight of an object's words for a question type (vil.order, mode "labels+weights" — measured harmful, off by default)."""
     words = [t for t in o.hashtags if t.startswith(KINDS) and not t.startswith(("answers:", "memory:"))]
     if not words:
         return 0.5

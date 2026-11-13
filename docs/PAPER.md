@@ -187,7 +187,7 @@ Design choices and their grounds:
   the search; `tell` is `vi_learn`, `rate` is `vi_feedback`, `def` adds a word. A `do` arriving in a message is never run — foreign
   content is data, not instruction (CaMeL: control flow only from the trusted request [14]; OWASP LLM01 [15]).
 - **Question types** follow coarse question taxonomies (Li & Roth: six coarse classes classify at 92.5 % accuracy vs 89.3 % for fifty fine
-  ones [16]). The type orders the hits — priority, not exclusion.
+  ones [16]). The type was meant to order the hits; measured, it does not help (5.4) — it is recorded for learning, not used to rank.
 - **Words are the memory's hashtags**, one marker per meaning, linear and order-free — the agglutinative principle, and named roles
   instead of positions (case rather than word order; WALS ch. 20, 81 [17, 18]). Short forms: `@web1` is every host starting with `web1`,
   `@web1.example` exactly that host; `#topic` is `thema:topic`.
@@ -221,20 +221,20 @@ becomes the named state `answers:unsure`. The model's own confidence is not used
 carries its version (model, prompt hash, schema), so a new prompt relabels instead of mixing. The model also writes up to three questions
 a colleague would type to find the object (doc2query; document expansion raised MS MARCO MRR@10 from 0.184 to 0.277 [27]).
 
-*Measured on a stratified production sample* (13.11.2026; 300 objects drawn, 176 labelled by both variants at the time of writing, an
-open-weight model on a shared llama.cpp server): agreement 85.8 %, Cohen's κ 0.80 for the question type (the threshold for reliable
-annotation is often put at α ≥ 0.8, tentative at ≥ 0.667 [28]); 91.5 %, κ 0.87 for the memory kind; most disagreements were how ↔ what
-and what ↔ where. **19 of 352 answers (5.4 %) were outside the label enumeration although the request carried a JSON schema** — every
-answer is therefore checked again and asked once more, otherwise `unsure`. Latency: median 56 s, 90th percentile 140 s per call on the
+*Measured on a stratified production sample* (13.11.2026; 300 objects, both variants, 600 calls, an open-weight model on a shared
+llama.cpp server): agreement 86.3 %, Cohen's κ 0.80 for the question type (the threshold for reliable annotation is often put at
+α ≥ 0.8, tentative at ≥ 0.667 [28]); 92.3 %, κ 0.88 for the memory kind; most disagreements were what → where and how → what.
+**28 of 600 answers (4.7 %) were outside the label enumeration although the request carried a JSON schema** — every answer is therefore
+checked again and asked once more, otherwise `unsure`. Latency: median 56 s, 90th percentile 140 s per call on the
 shared server. In a check of 26 objects by the author of this report (not a human gold set), about 24–25 primary labels were plausible.
 
 Because labelling every object with a language model is slow, a **student** learns the labels: one logistic regression per label kind on
 the bge-m3 vectors the memory already has, trained only on agreed labels (≥ 120, ≥ 15 per class), labelling only where ≥ 80 % sure; 10 %
 of its sure labels are audited by the language model and the agreement is recorded, so drift becomes visible. Its gate is the accuracy of
 the labels it actually gives: C is chosen by 5-fold cross-validation, and it is active only if its sure labels are ≥ 90 % right on ≥ 10 %
-of the objects. *Measured on the production sample* (186 agreed labels, the stored vectors, the real code): with C = 10 it is sure on 21 %
-of objects for the question type at 93.9 % accuracy and on 15 % for the memory kind at 92.6 % (overall accuracy 74–76 %); rare classes
-(`why`, `where`, `rule`) stay with the language model. The first design — C = 1 and an overall-accuracy gate of 0.8 — would never have
+of the objects. *Measured on the production sample* (252 agreed labels, the stored vectors, the gate's own cross-validation): with C = 10
+it is sure on 15.5 % of objects for the question type at 94.4 % accuracy and on 24.6 % for the memory kind at 95.0 % (overall accuracy
+75–78 %); C = 100 is sure more often but 86–87 % right, below the gate; rare classes (`where`, `rule`) stay with the language model. The first design — C = 1 and an overall-accuracy gate of 0.8 — would never have
 labelled anything: on unit-length vectors no prediction reached 0.8. Measuring on real data, not only on synthetic clusters, found it. Classifiers trained on LLM labels reach roughly the quality of those trained on human labels [29]; FineWeb-Edu
 used exactly this pattern at scale [30]. Old data migrates where it is used: what a real search returns unlabelled is labelled at once by
 the student or queued, and sleep labels the queue first.
@@ -242,10 +242,22 @@ the student or queued, and sleep labels the queue first.
 ### 5.4 The meaning layer: weights per word
 
 The meaning of a word is its measured weight: for every word `kind:value` and question type, the beta mean of helped/not helped over the
-knowledge carrying it, recomputed in sleep. Within one priority rank of an `ask` question, hits are ordered by the mean weight of their
-words for that type, falling back to the word's overall weight where the type is unmeasured. (Without that fallback every hit of an
-unmeasured type weighed 0.5 and the order was chance; a test on SQLite passed by luck and failed on PostgreSQL, where the tie order
-differs — an instance of rule 5, no inference from an accident.)
+knowledge carrying it, recomputed in sleep.
+
+**Does the language rank better? Measured: no.** On a copy of production with its fixed question set (140 questions whose question word
+gives the type, two query styles, 280 queries, paired against the plain hybrid order with MRR 0.737) every reordering lost: the fixed
+prior as a priority rank −0.059 ± 0.012 (34 worse, 7 better; `where` from 1.0 to 0.54), and −0.289 ± 0.021 once word weights were
+computed; a lift of at most two places for objects labelled with the type −0.006 ± 0.003; that plus the word weights −0.056 ± 0.010
+(47 worse, 4 better). So the type no longer reorders anything; it is recorded with each search. Our reading (a hypothesis): the word
+weights measure whether a *hint helped an action* — a different label from whether a *hit answers a question*. A meaning layer for
+retrieval has to be learned from what is used after a search. We report this because the design was plausible, the literature does not
+establish type matching as helpful either, and only the measurement showed the harm — the first version would have shipped it.
+
+The missing piece is a relevance label: 3 of 386 searches had a hit opened afterwards, too few for click models [52]. Following
+UMBRELA [51], a language model now grades a few real searches per sleep (0–3 per hit; all hits of a search in one call, a stated
+deviation forced by about a minute per call on the shared server). On the production copy six searches gave nDCG@10 0.835, a rank-1
+answer in 50 % and nothing relevant in the top 10 in 33 %. The grades only measure; a relevance weight trained on them must first win on
+the fixed question set.
 
 **Memories talk with weights.** Word weights travel between servers as ordinary signed ratings whose target is
 `sha256("vil-word-v1|" + word + "|" + type)`. No new protocol type is needed (older peers would reject it), and the word itself never
@@ -376,8 +388,8 @@ A system built on "evidence or hypothesis" must report its own errors. In the wo
 - **Order-dependent tests.** Two tests fail rarely in a full run and pass alone; the cause is unknown.
 - **The logic layer learns weights, not rules,** and its counting is an approximation of LPMLN weight learning where several rules derive
   the same conclusion. Whether agents use `vi_logic` instead of reasoning in prose is not measured yet.
-- **The question-type order is a prior,** its benefit not yet measured; whether type matching between question and document raises
-  retrieval quality is not established in the literature either.
+- **The language does not yet rank better.** Every reordering by question type, label or word weight lowered MRR on the production
+  copy (5.4); a relevance weight learned from what is used after a search is the open step.
 
 ## 9 Conclusion
 
@@ -446,6 +458,8 @@ reference 1 (Guo et al.) were not re-checked in that session — the identifiers
 48. Yang, Ishay, Lee. NeurASP: Embracing Neural Networks into Answer Set Programming (IJCAI 2020). https://www.ijcai.org/proceedings/2020/243
 49. Law, Russo, Broda. The ILASP System for Inductive Learning of Answer Set Programs. https://arxiv.org/abs/2005.00904
 50. Potassco. clingo (Python package `clingo`). https://pypi.org/project/clingo/
+51. Upadhyay et al. UMBRELA: UMbrela is the (Open-Source Reproduction of the) Bing RELevance Assessor. https://arxiv.org/abs/2406.06519
+52. Wang et al. Position Bias Estimation for Unbiased Learning to Rank in Personal Search (WSDM 2018). https://research.google/pubs/position-bias-estimation-for-unbiased-learning-to-rank-in-personal-search/
 
 Further sources used in the design notes of the same session: Gilardi et al., ChatGPT outperforms crowd workers (https://arxiv.org/abs/2303.15056);
 Ziems et al., LLMs for computational social science (https://arxiv.org/abs/2305.03514); Agora protocol (https://arxiv.org/html/2410.11905v1);
@@ -462,8 +476,9 @@ A2A specification (https://a2a-protocol.org/latest/specification/); MCP specific
 | exploration − ranked | −6.4 ± 3.7 / −6.9 ± 3.4 points | daily measurement 12./13.11.2026 (7 days each) |
 | warnings | success after 51 %, without 98 % | `vi_stats`, 24 h to 13.11.2026 |
 | empty searches | 111 of 424, all monitoring lookups of 57 unknown hosts | production search log, read only, 13.11.2026 |
-| LLM label agreement | type 85.8 % (κ 0.80), memory 91.5 % (κ 0.87), n = 176 | stratified production sample, 13.11.2026 |
-| answers outside the schema | 19 of 352 (5.4 %) | same run |
+| LLM label agreement | type 86.3 % (κ 0.80), memory 92.3 % (κ 0.88), n = 300 | stratified production sample, 13.11.2026 |
+| answers outside the schema | 28 of 600 (4.7 %) | same run |
+| student (C = 10, sure ≥ 0.8) | type 94.4 % right on 15.5 %; memory 95.0 % on 24.6 % | 252 agreed labels, 5-fold CV |
 | index file round trip | 185 objects; export 180 in 0.25 s (218 KB); import 0.78 s; way back 0 copies (40 before the fix) | two local test servers, 13.11.2026 |
 | LLM weight layer, offline | log loss −0.00006 ± 0.00011 / observation, 3,645 holdout | production, 13.11.2026 |
 

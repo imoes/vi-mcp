@@ -44,3 +44,17 @@ def test_thresholds_from_config_measured_search_and_hatching(gd, tmp_path, monke
     assert m["inkubator"]["zustand"] == "im_inkubator" and m["inkubator"]["offen"]
     assert "## Incubator\nState when hatched: im_inkubator — open criteria:" in (tmp_path / "out" / "DATASHEET.md").read_text()
     assert json.loads((tmp_path / "out" / "manifest.json").read_text())["inkubator"]["offen"] == m["inkubator"]["offen"]
+
+
+def test_status_never_builds_the_search_trajectories(gd, monkeypatch):
+    """Found on a production copy (40,861 objects): vi_incubator built the agentic trajectories — two searches per object — and ran for
+    more than 10 minutes. The status counts question → answer examples only; trajectories are built on export."""
+    from vi_mcp import dataset
+    g.new_object("erkenntnis", "deploy web1: stop, copy, start", ["host:web1.example"], {"quelle": "t"})
+
+    def boom(*a, **k):
+        raise AssertionError("status must not build trajectories")
+    monkeypatch.setattr(dataset, "agentic_examples", boom)
+    assert incubator.status()["kriterien"]
+    with pytest.raises(AssertionError):
+        dataset.build()  # the export still builds them

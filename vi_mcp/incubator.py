@@ -88,7 +88,7 @@ def status(index: str | None = None) -> dict:
     out.append(_c("labels", "erfuellt" if lab_ok else "offen", lshare, cfg["min_labelled"],
                   f"{labelled} of {n} classified; student {'active' if st is not None and st.mode == 'aktiv' else st.mode if st else 'not trained'}"))
     from . import dataset
-    data = dataset.build(index)
+    data = dataset.build(index, agentic=False)  # the criterion counts question → answer examples; trajectories only on export
     ex = len(data["qa"])
     out.append(_c("training_data", "erfuellt" if ex >= cfg["min_examples"] and data["held_out"] else "offen", ex, cfg["min_examples"],
                   f"question → answer examples; {data['held_out']} evaluation targets held out"

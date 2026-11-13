@@ -60,13 +60,17 @@ def test_a_foreign_word_weight_arrives_signed_and_changes_the_combined_weight_an
     assert word_weights.combined("host:web1.example", "how")["netz"] == 1
 
 
-def test_vil_orders_equal_priority_hits_by_word_weight_and_vocabulary_shows_it(gd):
+def test_word_weights_reorder_only_in_the_measuring_mode_and_vocabulary_shows_them(gd):
+    from vi_mcp import vil
     good = _k("deploy with the pipeline", ["thema:deploy", "tool:gitlab"], 9, 1)
     poor = _k("deploy by hand over ssh", ["thema:deploy", "tool:scp"], 1, 9)
     word_weights.compute()
+    ids = lambda t: [line.split("]")[0].strip(" [") for line in t.splitlines()[1:] if line.startswith("  [")]  # noqa: E731
+    plain = tools.call_tool("vi_recall", {"filter": "deploy", "semantic": False, "reinforce": False}, "a", False)
     out = tools.call_tool("vi_recall", {"filter": "ask.what deploy", "semantic": False, "reinforce": False}, "a", False)
-    ids = [line.split("]")[0].strip(" [") for line in out.splitlines()[1:] if line.startswith("  [")]
-    assert ids.index(good.id) < ids.index(poor.id)
+    assert ids(out) == ids(plain)  # default: the weights do not reorder (measured harmful on a production copy, vil.ORDER)
+    hits = [(0, g.load(poor.id), 0), (0, g.load(good.id), 0)]
+    assert [h[1].id for h in vil.order(hits, "what", "labels+weights")] == [good.id, poor.id]  # the measuring mode uses them
     # no word has a measurement for what-questions: the overall weight decides, not chance
     assert word_weights.hit_weight(g.load(good.id), "what") > word_weights.hit_weight(g.load(poor.id), "what")
     assert word_weights.weight_for("tool:gitlab", "what") == word_weights.combined("tool:gitlab", "any")["gewicht"]

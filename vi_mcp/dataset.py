@@ -76,8 +76,10 @@ def _answer(o: g.MemoryObject, audit: Counter) -> str:
     return _clean(text, audit, "answer")
 
 
-def build(index: str | None = None) -> dict:
-    """All examples and the bookkeeping, in memory (export writes them)."""
+def build(index: str | None = None, agentic: bool = True) -> dict:
+    """All examples and the bookkeeping, in memory (export writes them). agentic=False skips the trajectories — they run two searches
+    per object (up to AGENTIC_MAX), which a status check must not pay: found on a copy of production (40,861 objects), where
+    vi_incubator ran for more than 10 minutes."""
     from . import vil
     targets, eval_qs = _eval_hold_out()
     skipped, audit = Counter(), Counter()
@@ -124,7 +126,7 @@ def build(index: str | None = None) -> dict:
             dpo.append({"prompt": f"Situation: {t}. Which piece of knowledge helps?", "chosen": _clean(best[0].text, audit, "hint"),
                         "rejected": _clean(worst[0].text, audit, "hint"),
                         "meta": {"trigger": t, "chosen": best[0].id, "rejected": worst[0].id, "weights": [best[1], worst[1]]}})
-    agentic, agentic_skipped = agentic_examples(qa_objects, eval_qs, audit)
+    agentic, agentic_skipped = agentic_examples(qa_objects, eval_qs, audit) if agentic else ([], Counter())
     skipped.update(agentic_skipped)
     return {"qa": qa, "kto": kto, "dpo": dpo, "agentic": agentic, "skipped": dict(skipped), "scrubbed": dict(audit), "held_out": len(targets)}
 

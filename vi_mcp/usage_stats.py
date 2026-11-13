@@ -352,6 +352,8 @@ def report(days: float = 7) -> str:
     ck = evaluation.click_stats(days)  # 0.57.0
     z.append(f"    opened afterwards (suche_log since 0.57.0): {ck['mit_klick']} of {ck['suchen']} searches · opened hits by rank "
              + (", ".join(f"#{r} {n}" for r, n in ck["je_rang"].items()) or "—"))
+    from . import relevance
+    z.append(relevance.line(days))  # 0.62.0
     m = learning.model()
     z.append(f"F Cleanup: {a['schlaefe']} sleeps (median {a['schlaf_ms_median'] // 1000} s, {a['neue_erkenntnisse']} new insights, {a['fehler']} step errors) · "
              f"{on_demand.line()} · router AUC {m.data.get('auc_holdout') if m else '—'}"

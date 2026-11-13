@@ -1064,6 +1064,7 @@ First line of each module's docstring.
 | `redteam` | Memory-poisoning test (0.62.0) — how often does planted knowledge reach an agent? Runs in a throw-away memory, never in the real one. |
 | `reflection` | Reflection — the language model thinks about experiences during sleep (stage 4; Park et al. 2023, section 4.2). |
 | `reflexes` | Reflexes — Python code that the VI writes into its own memory. |
+| `relevance` | Relevance judgements of real searches by a language model (0.62.0) — the label the search was missing. |
 | `reviewer` | Plausibility reviewer — the local language model reads every imported object, after the fixed rules. |
 | `sandbox` | Sandbox — reflex code runs in its own process, never in the server. |
 | `scorer` | Scorer — rates whether work succeeded. "The tool did not crash" is not enough for that (measured: 63 of 64). |

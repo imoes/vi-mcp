@@ -45,9 +45,8 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   search problems. Agents' searches had none. Tests: `tests/test_vocabulary.py` (3), `tests/test_web_internal.py` (8).
 - **VIL questions — an AI asks the memory in the AI language:** `vi_recall` (and the internal search) take
   `ask.how|why|what|who|where|rule` plus words: `kind:value`, `@host` (`@web1` → every host starting with it, `@web1.example` exactly),
-  `#thema`, `since:30d` or `since:2026-10-01`, `!` and `OR` as before. The question type puts the kind of knowledge that usually answers it
-  first — solutions for `how`, errors for `why`, rules for `rule` — priority, not exclusion; a fixed prior until the classification and the
-  measured weights replace it. `format: "vil"` answers in the language: `tell.<memory> <id> "text" ev:<evidence> w:<weight>/<ratings>
+  `#thema`, `since:30d` or `since:2026-10-01`, `!` and `OR` as before. The question type is recorded with the search (to learn
+  from) but does not reorder the hits — see "What has changed": every reordering measured lowered retrieval quality. `format: "vil"` answers in the language: `tell.<memory> <id> "text" ev:<evidence> w:<weight>/<ratings>
   src:<source>`, evidence measured, documented, hearsay (from another server), inferred (by a language model) or unknown — named, never
   silently "observed". `tell`, `do`, `rate`, `def` are refused with the tool that does them; a `do` from a message is never run.
   Tests: `tests/test_vil.py` (9).
@@ -55,12 +54,14 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   klassifiziert"): a language model labels which question an object answers (`answers:how|why|what|who|where|rule`) and what kind of
   memory it is (`memory:fact|procedure|episode|rule`), plus up to three questions a colleague would type (doc2query). Two prompt variants
   with different wording and label order; agreement → the label, disagreement → `answers:unsure` (named); every answer checked against the
-  schema here; every label with its version. `ask.<type>` puts labelled objects first, the fixed prior only for unlabelled ones; `tell`
-  lines name the labelled memory kind. `vi-mcp classify`, sleep step 8f with an explicit `classify` model.
-  *Measured on a production sample (13.11.2026, 45 objects so far, both variants, read only):* question type agreement 82 %, Cohen's κ
-  0.75 (tentative; ≥ 0.667), memory kind 87 %, κ 0.80; most disagreements how ↔ what (5 of 8); in a check of 26 objects by me (not a
-  human gold set) about 24–25 primary labels were plausible. 6 of 90 answers were outside the enum although the request carried a JSON
-  schema — hence the check here. Tests: `tests/test_classify.py` (3).
+  schema here; every label with its version. `tell` lines name the labelled memory kind (the label does not reorder hits —
+  measured, see "What has changed"). `vi-mcp classify`, sleep step 8f with an explicit `classify` model.
+  *Measured on a stratified production sample (13.11.2026, read only, all 300 objects × 2 variants, 600 calls, 0 errors, every call
+  finished with `stop`):* question type agreement 86.3 %, Cohen's κ 0.80; memory kind 92.3 %, κ 0.88; A's primary type is among B's two
+  types in 97.0 %; most disagreements what → where (11) and how → what (10). **28 of 600 answers were outside the schema** although the
+  request carried it (`secondary: when` 14, `episode` as a type 14) — hence the check here. Latency on the shared server: median 55.9 s,
+  90th percentile 140.3 s per call. In a check of 26 objects by me (not a human gold set) about 24–25 primary labels were plausible.
+  Tests: `tests/test_classify.py` (3).
 - **The old database migrates where it is used** (the user: "Wenn die Suche unqualifizierte Daten bekommt, dann müssen diese Objekte
   automatisch klassifiziert werden, um die alte DB-Version in die neue Version zu migrieren"): knowledge a real search (`vi_recall`, the
   internal web search) returns without a label of the current version is labelled at once by the student where it is sure, otherwise
@@ -78,10 +79,11 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   `student@<time>`), the language model labels the rest, and 10 % of the student's sure labels go to the language model as an audit —
   agreement is counted on the model object `modell:klassen`, so drift becomes visible. Sleep step 8f trains it before labelling.
   **Its gate is the accuracy of the labels it gives:** C is chosen per label kind by 5-fold cross-validation from 1, 10, 100; active only
-  if its sure labels are ≥ 90 % right on ≥ 10 % of the objects. *Measured on the production sample (13.11.2026, 186 agreed labels, the
-  stored bge-m3 vectors, the real code):* active with C = 10 — question type sure on 21 % of objects at 93.9 % accuracy (overall 74.1 %),
-  memory kind sure on 15 % at 92.6 % (overall 76.0 %); `why`, `where`, `rule` have fewer than 15 examples and stay with the language
-  model. The first version would never have labelled anything: with C = 1 no prediction reached 0.8 (unit-length vectors keep the logits
+  if its sure labels are ≥ 90 % right on ≥ 10 % of the objects. *Measured on the production sample (13.11.2026, all 300 objects:
+  252 agreed labels as `_labelled` selects them, the stored bge-m3 vectors, the gate's own 5-fold grid):* active with C = 10 — question
+  type sure on 15.5 % of objects at 94.4 % accuracy (overall 75.0 %), memory kind sure on 24.6 % at 95.0 % (overall 78.3 %); C = 100
+  would be sure more often (57 % / 59 %) but only 86–87 % right, below the gate. `where` (12) and `rule` (8) have fewer than 15
+  examples and stay with the language model. (An earlier partial run with 186 labels: 93.9 % on 21 % / 92.6 % on 15 %.) The first version would never have labelled anything: with C = 1 no prediction reached 0.8 (unit-length vectors keep the logits
   small), and its overall-accuracy gate of 0.8 would never have opened. Tests: `tests/test_classify.py` (5).
 - **Training data to fine-tune an AI** (the goal the user set: "Wenn eine VI aus dem Inkubator kommt, soll man damit dann eine KI
   fine-tunen"): `vi-mcp dataset export DIR [--index X]` writes `qa.jsonl` (SFT: question → knowledge with source; questions from the
@@ -129,8 +131,8 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   these weights as ordinary signed ratings whose target is `sha256("vil-word-v1|word|type")`: no new logbook type (older peers would reject
   it), and the word never travels in clear — a receiver attributes a weight only to a word it knows. An open network gets no host names
   and nothing the anonymisation flags; a company network gets all. A receiver combines foreign weights with its own, each server weighted
-  by its measured benefit as a publisher, at most 20 observations each; a foreign weight is a measurement, never a command. In a VIL
-  question, hits of equal priority are ordered by the words' weights; `vi_vocabulary(word_kind=…)` shows them. *Research behind it
+  by its measured benefit as a publisher, at most 20 observations each; a foreign weight is a measurement, never a command. `tell` lines
+  and `vi_vocabulary(word_kind=…)` show them; as a ranking signal they were measured harmful and are off (see "What has changed"). *Research behind it
   (13.11.2026):* raw model weights, adapters or vectors work only between identical models and leak content (vec2text: 92 % of short
   texts recovered, arXiv 2310.06816) — so the symbol stays readable and the meaning travels as measured weight. Tests:
   `tests/test_word_weights.py` (4).
@@ -175,8 +177,38 @@ der VI ergibt, dann soll das gleich korrigiert werden."
     empty on Ubuntu 24.04) — `sudo vi-mcp logic install` puts it with pip `--target` into `/var/lib/vi-mcp/python` (works under PEP 668,
     tested with Python 3.12.3), the package says so after installation and never fetches it unasked; Windows: in the venv of `install.ps1`.
 
+- **A language model grades real searches — the relevance label the search lacked** (`relevance.py`, sleep step 8h, `vi-mcp relevance
+  run|report`, a line in `vi_stats` E). *Why:* clicks are too thin to learn relevance from — 3 of 386 searches had a hit opened
+  afterwards (production, 24 h) — and click models need many clicks per query–document pair; in IR a language model as relevance
+  assessor took their place (Thomas et al. at Bing, reproduced as UMBRELA, https://arxiv.org/abs/2406.06519; at the TREC 2024 RAG Track
+  its judgements could replace manual ones for run-level effectiveness, https://arxiv.org/abs/2411.08275). A few logged searches with
+  free text per sleep (config `classify.relevance_per_sleep`, default 3; pure tag lookups are exact and skipped) go to the classify model
+  with their top 10 hits; each hit gets UMBRELA's grade 0–3, checked against the schema here, versioned (model, prompt hash); private
+  objects are never sent (stored as "not sent"). Stated deviation: all hits of a search in one call — the shared server needs about a
+  minute per call. The grades measure (nDCG@10, rank 1 answers, nothing relevant) and are the labels a relevance weight will be trained
+  on; they never reorder a search. *Measured with the real model on the production copy (13.11.2026):* 6 real searches graded in 223 s,
+  0 failures — nDCG@10 0.835, rank 1 answers the question in 50 %, nothing relevant in the top 10 in 33 %; only 17 searches of 30 days
+  had free text (the rest are tag lookups). Tests: `tests/test_relevance.py` (4).
+
 ### What has changed
 
+- **The question type of a VIL question no longer reorders the hits — measured.** The first design put the kind of knowledge that usually
+  answers a type first (a fixed prior as a priority rank). *Measured on a copy of production (13.11.2026, the fixed question set: 140
+  questions whose type the question word gives × 2 query styles = 280 queries, paired against the plain hybrid order, MRR 0.737):* the
+  fixed prior −0.059 ± 0.012 MRR (34 queries worse, 7 better; `where` 1.0 → 0.54), and −0.289 ± 0.021 once word weights were computed
+  as sleep does; a lift of at most 2 places for objects labelled `answers:<type>` (the 257 agreed LLM labels written into the copy)
+  −0.006 ± 0.003 (4 worse, 0 better); that plus ±1 place by the word weights −0.056 ± 0.010 (47 worse, 4 better). Nothing reordered for
+  the better, so `vil.ORDER` is `off`: the search's relevance order stays; the modes stay to measure against. *Hypothesis:* the word
+  weights measure whether a hint helped an action, not whether a hit answers a question — a relevance weight has to be learned from what
+  is used after a search. The type of every question is in the search log for that. Tests: `tests/test_vil.py`, `tests/test_classify.py`.
+- **`vi_incubator` no longer builds the search trajectories.** *Found on a copy of production (40,861 objects):* the status built the
+  agentic training examples — two searches per object, up to 2,000 objects — and ran for more than 10 minutes; now it counts question →
+  answer examples and takes 11.2 s on the same copy; trajectories are built on export. Test: `tests/test_incubator.py`.
+- **Migration from 0.60.0 checked on a copy of production** (13.11.2026, 587 MB, 40,861 objects, read-only snapshot through the backup
+  API): opening it with this version added the column `idx` and the tables `klasse_warteschlange`, `logik_gewicht`, `vi_index`,
+  `vil_gewicht`, `vil_gewicht_netz`, lost none; VIL search, vocabulary, word weights, incubator, logic (check and rate) and statistics ran;
+  `vi-mcp db migrate` then copied 36 tables and 954,532 rows to PostgreSQL in 25 s with no difference in any row count, and the same
+  functions gave the same results there.
 - **Text on the web pages** (also `/web`): `**bold**` is rendered, and indented continuation lines of a list item stay in that item
   (they became separate paragraphs).
 - **Rule 8 for every AI** (`tools.RULES`): a correction to VI knowledge is made at once, in the same step — `vi_refute` with evidence,
@@ -199,15 +231,17 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   torch for ROCm or CUDA, trl, peft) await the user's decision. `evaluate.py` measures answers, not yet the agentic search (whether
   the fine-tuned model finds the target with the tool more often than the base model). No full task trajectories: user prompts are masked and never stored.
 - **The AI language** between servers carries word weights and `ask` questions inside one memory; asking another server in VIL (an
-  `ask` over the network forum answered with `tell` lines) is a design (README), not code yet. Whether
-  the question-type order raises success is not measured yet; no human gold set exists.
+  `ask` over the network forum answered with `tell` lines) is a design (README), not code yet. No ranking
+  signal from the language helps retrieval yet (measured, see above); no human gold set exists.
+- **No relevance weight yet:** the graded searches are collected and measured; a weight learned from them, and whether it ranks better
+  on the fixed question set, is the next step. The grades come from one model in list form — no human has checked them.
 - **The logic layer learns weights, not rules:** a correct conclusion no rule derives is reported as a missing rule, not invented
   (learning rules from examples, as ILASP does, is not included). Rating counts each checked conclusion as one observation of every rule
   that derives it (a beta count) — not the maximum-likelihood gradient of LPMLN weight learning; exact for a rule that alone decides a
   conclusion, an approximation where several rules share one.
 - **Logic between servers:** rule weights travel; asking another server's rules (`def rule` over the network) is not code yet.
 - **A second order-dependent test:** `tests/test_http.py::test_two_sessions_two_conversations` failed once in a full run on SQLite and
-  passed 4 times alone; cause not found.
+  once on PostgreSQL (13.11.2026), and passed alone every time (4× and 3×); cause not found.
 - **Poisoning by plausible but wrong knowledge** is not caught by fixed rules (6 of 10 held-out attacks of a token instance got through);
   against it only measurement helps — the hint bandit demotes what fails, confirmation by others counts. A review of new knowledge from a
   single instance before it is shown to others is a design question for the user.

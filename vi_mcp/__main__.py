@@ -267,6 +267,9 @@ def _cli(argv: list[str]) -> int:
     if command == "redteam":  # 0.62.0: the memory-poisoning test in a throw-away memory
         from . import redteam
         return redteam.main(argv[1:])
+    if command == "relevance":  # 0.62.0: a language model grades real searches (UMBRELA) — the relevance label
+        from . import relevance
+        return relevance.main(argv[1:])
     if command == "logic":  # 0.62.0: the logic layer (clingo) — install, status, check a file
         from . import logic
         return logic.main(argv[1:])

@@ -31,15 +31,34 @@ def _seed():
     return plain, how
 
 
-def test_ask_how_puts_the_answering_kind_first_and_answers_in_vil(gd):
+def test_ask_how_keeps_relevance_and_answers_in_vil(gd):
     plain, how = _seed()
+    base = tools.call_tool("vi_recall", {"filter": "deploy host:web1*", "semantic": False, "reinforce": False}, "a", False)
     out = tools.call_tool("vi_recall", {"filter": "ask.how deploy @web1", "semantic": False, "reinforce": False}, "a", False)
-    ids = [line.split("]")[0].strip(" [") for line in out.splitlines()[1:] if line.startswith("  [")]
-    assert ids[0] == how.id and plain.id in ids and "VIL ask.how" in out  # priority, not exclusion
+    ids = lambda t: [line.split("]")[0].strip(" [") for line in t.splitlines()[1:] if line.startswith("  [")]  # noqa: E731
+    assert ids(out) == ids(base) and "VIL ask.how" in out  # an unlabelled fixed prior no longer reorders (measured harmful)
     out = tools.call_tool("vi_recall", {"filter": "ask.how deploy @web1", "semantic": False, "reinforce": False, "format": "vil"}, "a", False)
     lines = out.splitlines()[1:]
-    assert lines[0] == f'tell.procedure {how.id} "deploy web1: stop, copy, start" ev:measured w:0.83/10 src:"https://wiki.example/deploy"'
-    assert lines[1] == f'tell.fact {plain.id} "deploy notes for web1: the deploy took 4 minutes" ev:unknown w:0.5/0 src:"t"'
+    by_id = {line.split()[1]: line for line in lines}
+    assert by_id[how.id] == f'tell.procedure {how.id} "deploy web1: stop, copy, start" ev:measured w:0.83/10 src:"https://wiki.example/deploy"'
+    assert by_id[plain.id] == f'tell.fact {plain.id} "deploy notes for web1: the deploy took 4 minutes" ev:unknown w:0.5/0 src:"t"'
+
+
+class _O:
+    def __init__(self, tags):
+        self.hashtags, self.kind = tags, "erkenntnis"
+
+
+def test_order_is_off_by_default_and_lifts_labelled_hits_at_most_lift_places_when_measured(gd):
+    hits = [(0, _O(["thema:x"]), 0) for _ in range(5)] + [(0, _O(["answers:how"]), 0)]
+    assert vil.order(hits, "how") == hits  # default "off": measured, every reordering lowered MRR
+    out = vil.order(hits, "how", "labels")
+    assert out.index(hits[5]) == 5 - vil.LIFT  # moved up, but not past the more relevant hits further ahead
+    assert [h for h in out if h is not hits[5]] == hits[:5]  # the rest keeps its relevance order
+    assert vil.order(hits, "how", "off") == hits and vil.order(hits, None) == hits
+    skill = [(0, _O(["thema:x"]), 0), (0, _O(["art_wissen:loesung"]), 0)]
+    assert vil.order(skill, "how", "labels") == skill  # the fixed prior alone moves nothing
+    assert vil.order(skill, "how", "prior")[0] is skill[1]  # the old, measured-harmful mode stays available to measure against
 
 
 def test_since_other_acts_and_evidence(gd):

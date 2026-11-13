@@ -111,13 +111,18 @@ def available() -> bool:
 
 def _ask(system: str, user: str, order: list[str]) -> str:
     """One call, temperature 0, schema-constrained, thinking off, no token cap (project rule)."""
+    return _ask_schema(system, user, _schema(order), "label")
+
+
+def _ask_schema(system: str, user: str, schema: dict, name: str) -> str:
+    """The classify model with any JSON schema (also relevance.py) — temperature 0, thinking off, no token cap."""
     from . import reflection
     if reflection.ask_fn is not None:  # tests
         return reflection.ask_fn(system, user)
     cfg = _config()
     body = {"messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], "temperature": 0,
             "chat_template_kwargs": {"enable_thinking": False},
-            "response_format": {"type": "json_schema", "json_schema": {"name": "label", "schema": _schema(order)}}}
+            "response_format": {"type": "json_schema", "json_schema": {"name": name, "schema": schema}}}
     if cfg.get("model"):
         body["model"] = cfg["model"]
     header = {"Content-Type": "application/json", **({"Authorization": f"Bearer {cfg['token']}"} if cfg.get("token") else {})}

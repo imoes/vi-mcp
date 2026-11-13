@@ -770,7 +770,18 @@ the knowledge carrying it (table `vil_gewicht`, sleep step 8g). Between memories
 `sha256("vil-word-v1|word|type")` — the existing, signed rating path, no new logbook type, the word never in clear; `p2p.inbox` routes a
 rating whose target is one of the memory's own word hashes to `vil_gewicht_netz`, everything else to `net_score` as before. Open networks
 get only tool/thema/fehler/skill/art_wissen/answers/memory words without internals. `combined` weighs foreign raters by their publisher
-benefit (as `net_score`), capped at 20 observations each. Use: the secondary order of equal-priority hits of an `ask` question.
+benefit (as `net_score`), capped at 20 observations each. Use: `tell` lines and the exchange; as an ordering signal for `ask` questions it lowered MRR on a production copy and is off (`vil.ORDER`).
+
+## Relevance judgements (0.62.0)
+
+`relevance.py`. Clicks after a search are too rare to be a relevance label (3 of 386 on production); the label comes from a language
+model instead, after UMBRELA (Thomas et al.; arXiv 2406.06519). Sleep step 8h (only with an explicit `classify` model) takes up to
+`classify.relevance_per_sleep` logged searches with free text that are not judged yet (`suche_log`; pure tag lookups are exact and
+skipped), sends the query and its top 10 hits (title plus 600 characters of content, private objects never) in one call with a JSON
+schema, checks the answer (each passage once, grade 0–3), asks once more, and stores one row per hit in `relevanz_urteil` (search key =
+hash of time, instance and query; grade; version = list prompt, model, prompt hash; reason for a failed search or an object not sent).
+`report` gives nDCG@10 (gain 2^g − 1, ideal = the same grades sorted), rank 1 answers (grade ≥ 2) and searches with nothing relevant;
+`vi_stats` E shows it. The grades never reorder a search; they are the training and test labels for a relevance weight.
 
 ## Logic layer (0.62.0)
 

@@ -721,11 +721,11 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
             hits = [h for h in hits if max(h[1].ts or "", h[1].last_at or "") >= u.since]
             f += f" · since {u.since[:10]}: {before - len(hits)} older hit(s) left out"
         if u.qtype and hits:
-            from . import word_weights  # 0.62.0: within one priority rank, the words' measured weights for this question type order the hits
-            ranked = sorted(hits, key=lambda h: (vil.prior_rank(h[1], u.qtype), -round(word_weights.hit_weight(h[1], u.qtype), 2)))
+            # 0.62.0: relevance stays (vil.ORDER "off" — every reordering by type, label or word weight lowered MRR on a production copy)
+            ranked = vil.order(hits, u.qtype)
             moved = sum(1 for a, b in zip(hits, ranked) if a is not b)
             hits = ranked
-            f += f" · VIL ask.{u.qtype}" + (f": hits that answer {u.qtype}-questions first ({moved} moved)" if moved else "")
+            f += f" · VIL ask.{u.qtype}" + (f": {moved} hit(s) labelled for {u.qtype}-questions moved up" if moved else "")
         f += "".join(f" · {n}" for n in u.notes)
     code_asked = "art_wissen:code" in f or "datei:" in f
     if not only and not code_asked:  # 0.61.0: imported code of other indexes would swamp a general search — hidden, counted

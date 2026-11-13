@@ -14,8 +14,9 @@ An utterance:  ACT[.TYPE] WORD…  — tolerant: anything that does not start wi
          @web1.example → host:web1.example   #x → thema:x   since:30d / since:2026-10-01 (recency)
          !word negates, (a OR b), "phrase", free text — unchanged
 
-The question type orders the hits (priority, not exclusion) by the kind of knowledge that usually answers it — a fixed prior for now;
-the classification of the knowledge by a language model and the measured weights replace it (README, next steps). The raw utterance stays
+The question type does not reorder the hits (ORDER "off"): every reordering measured on a production copy — the fixed prior, a lift
+for labelled objects, the word weights — lowered MRR (see ORDER). The type is kept in the search log, so a relevance weight can be
+learned for it; the modes of `order` stay to measure against. The raw utterance stays
 in the search log, so the type of every question is there to learn from.
 
 The answer (format "vil"): one line per hit
@@ -89,6 +90,38 @@ def parse(text: str, now: datetime | None = None) -> Utterance:
         return f"{neg}host:{word}" + ("" if "." in word or word.endswith("*") else "*")
     rest = _SHORT.sub(short, rest)
     return Utterance(act, qtype, " ".join(rest.split()), since, notes)
+
+
+#: How the question type orders hits. Measured 13.11.2026 on a production copy (fixed question set, 140 typed questions × 2 styles =
+#: 280 queries, paired against the plain hybrid order, MRR 0.737):
+#:   "prior"          the fixed prior as a priority rank (first design)       −0.059 ± 0.012 without word weights, −0.289 ± 0.021 with them
+#:   "labels"         a hit labelled answers:<type> lifted ≤ LIFT places        −0.006 ± 0.003 (4 worse, 0 better; 257 labelled objects)
+#:   "labels+weights" plus ±1 place by the measured word weight for the type   −0.056 ± 0.010 (47 worse, 4 better)
+#: Nothing reordered for the better, so the default is "off": the search's relevance order stays. Hypothesis for the word weights: they
+#: measure whether a hint helped an action, not whether a hit answers a question — another label; a relevance weight has to be learned
+#: from what is used after a search (suche_log). The modes stay to measure against.
+ORDER = "off"
+ORDERS = ("off", "labels", "labels+weights", "prior")
+LIFT = 2
+
+
+def order(hits: list, qtype: str | None, mode: str | None = None) -> list:
+    """The hits of a VIL question in their new order: relevance first, bounded lifts (see ORDER). hits = [(score, object, …)]."""
+    mode = mode or ORDER
+    if not qtype or mode == "off" or not hits:
+        return list(hits)
+    if mode == "prior":
+        from . import word_weights
+        return sorted(hits, key=lambda h: (prior_rank(h[1], qtype), -round(word_weights.hit_weight(h[1], qtype), 2)))
+    keyed = []
+    for i, h in enumerate(hits):
+        lift = LIFT if f"answers:{qtype}" in h[1].hashtags else 0
+        if mode == "labels+weights":
+            from . import word_weights
+            w = word_weights.hit_weight(h[1], qtype)
+            lift += 1 if w >= 0.6 else -1 if w <= 0.4 else 0
+        keyed.append((i - lift - 0.5 * (lift > 0) + 0.5 * (lift < 0), i, h))  # ±0.5: ahead of (behind) the hit it moves past
+    return [h for _k, _i, h in sorted(keyed, key=lambda x: (x[0], x[1]))]
 
 
 def prior_rank(o, qtype: str | None) -> int:
