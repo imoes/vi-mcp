@@ -25,6 +25,7 @@
   python3 -m vi_mcp dataset export DIR [--index X]  training data (qa/kto/dpo .jsonl, DATASHEET.md) to fine-tune a model (0.62.0)
   python3 -m vi_mcp incubator status [--index X] | hatch DIR [--index X] [--force]  maturity of a VI for fine-tuning (0.62.0)
   python3 -m vi_mcp finetune guide | plan | kit DIR [--base M] [--force] | record DIR  fine-tune an AI with this VI (0.62.0)
+  python3 -m vi_mcp redteam [--json]       memory-poisoning test in a throw-away memory: how often planted knowledge reaches an agent (0.62.0)
                                           the code of a git repository into an index (only changed files; removed ones archived)
                                           indexes (0.61.0): projects and special VIs — every object belongs to one; a project's
                                           index comes first in search and hints; an index with enough data trains its own model
@@ -263,6 +264,9 @@ def _cli(argv: list[str]) -> int:
         from . import setup
         setup._restart()
         return 0
+    if command == "redteam":  # 0.62.0: the memory-poisoning test in a throw-away memory
+        from . import redteam
+        return redteam.main(argv[1:])
     if command == "finetune":  # 0.62.0: the interface for fine-tuning an AI with this VI
         from . import finetune
         return finetune.main(argv[1:])

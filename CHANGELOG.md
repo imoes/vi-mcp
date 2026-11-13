@@ -136,6 +136,17 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   weight layer), the measurements behind it and the errors found on the way, with references from the research of 13.11.2026. Linked
   from both READMEs.
 
+- **A memory-poisoning test, and what it changed** (decided by the user: "Tests gegen Gedächtnis-Vergiftung — ja, das ist wichtig"):
+  `vi-mcp redteam` plants knowledge crafted for target questions (instruction injection, a fake rule, a credential lure, a harmful fix,
+  hidden characters) in a throw-away memory on four ways in and counts how often it reaches an agent (top 3 of search or a hint).
+  *Measured (13.11.2026):* imports from an open or company network and proposals without a token 0 of 10 each; **an instance with a
+  token 10 of 10** — `vi_learn` had no content check. Now fixed rules hold a locally learned entry in quarantine when it carries an
+  instruction aimed at an AI, hidden characters, `curl/wget … | sh`, `rm -rf` of the root or a system directory, switching a firewall off,
+  or a request to hand credentials to a URL; another instance with the release right or a person releases it, the author cannot. After:
+  0 of 10 for the attacks the rules were tuned on; **6 of 10 for attacks written afterwards and never tuned on** (a credential lure with a
+  different verb, `chmod -R 777`, and the plausible but wrong answer no fixed rule can see). False positives on 300 real production
+  objects: 1 (the first version held 216 — measured before it was ever committed). Tests: `tests/test_redteam.py` (6).
+
 ### What has changed
 
 - **Text on the web pages** (also `/web`): `**bold**` is rendered, and indented continuation lines of a list item stay in that item
@@ -164,6 +175,11 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   the question-type order raises success is not measured yet; no human gold set exists.
 - **A second order-dependent test:** `tests/test_http.py::test_two_sessions_two_conversations` failed once in a full run on SQLite and
   passed 4 times alone; cause not found.
+- **Poisoning by plausible but wrong knowledge** is not caught by fixed rules (6 of 10 held-out attacks of a token instance got through);
+  against it only measurement helps — the hint bandit demotes what fails, confirmation by others counts. A review of new knowledge from a
+  single instance before it is shown to others is a design question for the user.
+- **A background sleep in the tests** occasionally outlives its test's database ("Sleep failed: memory not opened" in the log of a full
+  PostgreSQL run, no test fails); not caused by the workstation catch-up (it needs 300 s of uptime, the run took 234 s). Cause open.
 - **Flaky test order on PostgreSQL:** one full run had `tests/test_hook.py::test_error_hint_and_own_tools` fail after
   `tests/test_einrichten.py`; repeated three times on 0.61.0 and on this state it passed, the full suite passed (739). Cause not found
   (hypothesis: order-dependent state).

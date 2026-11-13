@@ -824,6 +824,8 @@ def approve(o: g.MemoryObject, instance: str, reflex_permission: bool, release_p
         raise ValueError(f"{o.id} is not in quarantine")
     if not (reason or "").strip():
         raise ValueError("reason is required")
+    if (o.data.get("pruefung") or {}).get("verdacht") and o.instance == instance:  # 0.62.0: no instance releases its own held entry
+        raise ValueError("the author cannot release its own entry held by the fixed rules — another instance or a person decides")
     if "pruefer:ausstehend" in o.hashtags and not release_permission:
         raise ValueError("the review is still pending")
     h = sensitive(o)

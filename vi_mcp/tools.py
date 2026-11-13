@@ -1069,9 +1069,19 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                 idx = indexes.normalize(args.get("index")) or (indexes.from_project(args["project"]) if args.get("project") else None)
                 if idx is None and g.current_index.get() is None and session.recent_project(instance):  # hook's vi_context just before
                     idx = indexes.from_project(session.recent_project(instance))
-                o = g.new_object("bild" if data.get("bild") else "erkenntnis", text, tags, {**data, **({"key": key, "repeats": 1} if key else {})},
+                # 0.62.0: the poisoning test planted 10 of 10 entries of a token instance into search or hints — fixed rules now hold a
+                # suspicious entry in quarantine with its reasons; another instance with the release right (or a person) releases it
+                from . import checks
+                held = checks.suspicion("\n".join([text, str(data.get("inhalt") or ""), str(data.get("quelle") or "")]))
+                extra = {"pruefung": {"regeln": held, "pruefer": None, "verdacht": True}} if held else {}
+                o = g.new_object("bild" if data.get("bild") else "erkenntnis", text,
+                                 tags + (["pruefer:ausstehend", "modus:quarantaene"] if held else []),
+                                 {**data, **({"key": key, "repeats": 1} if key else {}), **extra},
                                  importance=int(args.get("importance") or 1), who=f"ki@{instance}", reason="vi_learn",
-                                 visibility=args.get("visibility"), instance=instance, index=idx)
+                                 visibility=args.get("visibility"), instance=instance, index=idx, mode="quarantaene" if held else "aktiv")
+                if held:
+                    return (f"held {o.id} in quarantine — fixed rules found: {'; '.join(held)[:300]}. It is shown to nobody until another "
+                            "instance with the release right (or a person) releases it with vi_release; the author cannot release its own.")
         except ValueError as e:
             raise Rejected(str(e)) from e
         from . import on_demand

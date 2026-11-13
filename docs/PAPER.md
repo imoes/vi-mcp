@@ -326,8 +326,14 @@ A system built on "evidence or hypothesis" must report its own errors. In the wo
   precision or recall below 0.5 on 9 of 27 annotation tasks [41]).
 - **No fine-tuning run yet.** The kit is untested on real hardware; whether the exported data improves a model is open.
 - **The total effect of hints is not yet measured** (hold-back not deployed).
-- **Poisoning.** Quarantine and review exist, but no adversarial test: PoisonedRAG succeeds 97 % of the time with five texts per target
-  question [42], AgentPoison above 80 % with under 0.1 % poisoned entries [43].
+- **Poisoning.** PoisonedRAG succeeds 97 % of the time with five texts per target question [42], AgentPoison above 80 % with under 0.1 %
+  poisoned entries [43]. Our own poisoning test (`vi-mcp redteam`, a throw-away memory, success = top 3 of search or shown as a hint)
+  found imports and token-less proposals held 10 of 10, but **10 of 10 planted entries of an instance with a token reached an agent**.
+  Fixed rules now hold such entries (instructions to an AI, hidden characters, piping a download to a shell, wiping system directories,
+  switching a firewall off, handing credentials to a URL): 0 of 10 for the attacks the rules were tuned on, but **6 of 10 for attacks
+  written afterwards** — fixed rules close known channels and generalise poorly; a plausible but wrong answer is invisible to them. The
+  first version of the rules held 216 of 300 real objects; the version kept holds 1 — measuring false positives on real data was as
+  important as measuring attacks.
 - **Off-policy training is gated, not proven.** Every training fits an inverse-propensity-weighted router beside the uncorrected one and
   keeps it only if it is better on the holdout by more than 2 SE; whether it ever wins on production data is not yet known.
 - **Order-dependent tests.** Two tests fail rarely in a full run and pass alone; the cause is unknown.

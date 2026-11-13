@@ -779,6 +779,14 @@ never met the first and on quiet days not the second. Added: a catch-up (last sl
 request for `idle_min`) and, with `sleep.workstation`, the importance trigger waits for the same quiet. Activity is the last MCP request
 (`server.do_POST` → `sleep_cycle.touch`), i.e. an AI working with the memory.
 
+## Poisoning test and held entries (0.62.0)
+
+`redteam.py` measures in a throw-away memory how often planted knowledge reaches an agent, on four ways in (open network, company network,
+proposal without a token, instance with a token) plus a held-out set of attacks never used to tune the rules. `checks.suspicion` is the
+fixed rule set for locally learned entries — narrow on purpose (a broad first version flagged 72 % of real objects): instructions aimed at
+an AI, hidden characters, `_DANGER` patterns. A suspicious `vi_learn` lands in quarantine with its reasons (`daten.pruefung.verdacht`);
+`p2p.approve` refuses the author. Fixed rules may hold; they cannot judge plausibility — that stays with measurement.
+
 ## Internal knowledge search (0.62.0)
 
 The user: "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" — decided: internal, with sign-in. The

@@ -56,6 +56,37 @@ def directives(text: str) -> list[str]:
     return [f"{name}:{m.group(0)[:40]}" for name, pattern in _INSTRUCTION if (m := pattern.search(text or ""))]
 
 
+#: 0.62.0: what an instance with a token learns is checked too — the poisoning test of 13.11.2026 got 10 of 10 planted entries of such an
+#: instance into search or hints (redteam.py). Patterns of harm that a legitimate note almost never needs as plain advice.
+_DANGER = [
+    ("pipe_to_shell", re.compile(r"\b(curl|wget)\b[^\n|]{0,200}\|\s*(sudo\s+)?(ba|z|da)?sh\b", re.I)),
+    ("wipe_root", re.compile(r"\brm\s+-[a-z]*r[a-z]*f?[a-z]*\s+(/|/\*|~)(\s|$)", re.I)),
+    ("wipe_system", re.compile(r"\brm\s+-[a-z]*r[a-z]*\s+/(etc|usr|boot|var|home|root|opt|srv|lib|bin|sbin)(/[\w.-]+)?/?(\s|$)", re.I)),
+    ("firewall_off", re.compile(r"\b(systemctl\s+(stop|disable)\s+(nftables|firewalld|ufw|iptables)|ufw\s+disable|iptables\s+-F)\b", re.I)),
+    # a lure asks to hand a secret over: a verb of giving near the secret and a URL (API documentation that only shows ?token= is not one)
+    ("credential_to_url", re.compile(r"\b(paste|send|post|submit|upload|enter|copy|einfügen|schick\w*|send\w*|kopier\w*)\b[^\n]{0,80}"
+                                     r"(token|passwor[dt]|secret|api[_ -]?key|credential|zugangsdaten)[^\n]{0,120}https?://", re.I)),
+]
+
+
+def suspicion(text: str) -> list[str]:
+    """0.62.0: reasons to hold a locally learned entry for review — instructions to an AI, hidden characters, harmful commands offered as
+    advice, a request to hand credentials to a URL. Pure; an empty list means nothing suspicious. Fixed rules may hold (never a model).
+    Not caught by design: a plausible but wrong answer without a harmful pattern (the core of PoisonedRAG) — against that only measurement
+    helps (the hint bandit demotes what fails, confirmation by others counts)."""
+    # Narrow on purpose. The first version reused the import findings and flagged 216 of 300 real production objects (72 %): Confluence
+    # sections repeat their heading, runbooks mention commands and secrets. Only the strong signals hold an entry: an instruction aimed
+    # at an AI (the pattern family "direktive"), hidden characters, the harmful patterns above, and stuffing that dominates the text.
+    # A bare role marker at a line start ("user:") is YAML or config in a local note, not role spoofing — left to the import rules.
+    t = text or ""
+    out = [f"instruction: {d}" for d in directives(t)
+           if d.startswith("direktive:") and d.split(":", 1)[1].strip().lower() not in ("user", "system", "assistant", "user:", "system:", "assistant:")]
+    if _INVISIBLE.search(t):
+        out.append("hidden or control characters")
+    out += [f"harmful: {name}" for name, pat in _DANGER if pat.search(t)]
+    return out
+
+
 def _binary(blob: str) -> bool:
     try:
         d = base64.b64decode(blob + "=" * (-len(blob) % 4))

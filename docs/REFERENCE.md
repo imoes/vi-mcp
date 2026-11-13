@@ -603,6 +603,7 @@ python3 -m vi_mcp web internal [on|off] [--base PATH]  internal knowledge search
 python3 -m vi_mcp dataset export DIR [--index X]  training data (qa/kto/dpo .jsonl, DATASHEET.md) to fine-tune a model (0.62.0)
 python3 -m vi_mcp incubator status [--index X] | hatch DIR [--index X] [--force]  maturity of a VI for fine-tuning (0.62.0)
 python3 -m vi_mcp finetune guide | plan | kit DIR [--base M] [--force] | record DIR  fine-tune an AI with this VI (0.62.0)
+python3 -m vi_mcp redteam [--json]       memory-poisoning test in a throw-away memory: how often planted knowledge reaches an agent (0.62.0)
                                         the code of a git repository into an index (only changed files; removed ones archived)
                                         indexes (0.61.0): projects and special VIs — every object belongs to one; a project's
                                         index comes first in search and hints; an index with enough data trains its own model
@@ -1041,6 +1042,7 @@ First line of each module's docstring.
 | `on_demand` | Training on demand (since 0.20.0) — instead of only in the nightly sleep. |
 | `p2p` | The memory on the network: anonymous outbox, checked inbox, quarantine, right to be forgotten, value per publisher. |
 | `questions` | Questions between instances — instances learn from each other by asking each other. |
+| `redteam` | Memory-poisoning test (0.62.0) — how often does planted knowledge reach an agent? Runs in a throw-away memory, never in the real one. |
 | `reflection` | Reflection — the language model thinks about experiences during sleep (stage 4; Park et al. 2023, section 4.2). |
 | `reflexes` | Reflexes — Python code that the VI writes into its own memory. |
 | `reviewer` | Plausibility reviewer — the local language model reads every imported object, after the fixed rules. |
