@@ -66,6 +66,12 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   internal web search) returns without a label of the current version is labelled at once by the student where it is sure, otherwise
   queued (table `klasse_warteschlange`, at most 5,000); sleep step 8f labels the queue first, then the newest. A measurement
   (`reinforce=false`) queues nothing; labelling never changes what a search shows. Tests: `tests/test_classify.py` (8).
+- **Sleep on a workstation** (the user: "Wir müssen auch bedenken, dass dieser Server auf einer Workstation laufen kann und nicht 24 h
+  durchläuft. Beim Schlafen muss das berücksichtigt werden"): a sleep older than 24 h is caught up as soon as the server has run 5 minutes,
+  no MCP request came for 10 minutes and there is something new to consolidate (a machine that is off at 03:00 UTC never had its nightly run, and quiet days never reached the
+  threshold — such a VI slept rarely, and its daily measurement fell out with it). With `"sleep": {"workstation": true}` (asked by
+  `vi-mcp configure` / debconf) the importance trigger also waits for a quiet moment, so the language model and training do not run while
+  someone works. Servers keep the nightly run and sleep under load as before. Tests: `tests/test_sleep_workstation.py` (3).
 - **A student learns the labels, so new knowledge needs no language model** (distillation, as FineWeb-Edu did with 460,000 LLM ratings):
   one logistic regression per label kind on the bge-m3 vectors the memory already has, trained only on labels both prompt variants
   agreed on (at least 120, a class needs 15). It becomes active only with ≥ 80 % holdout accuracy; then it labels what it is ≥ 80 % sure

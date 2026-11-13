@@ -131,6 +131,9 @@ QUESTIONS = [
       "Search, wiki, forum and knowledge of the free and open networks under /web — never company networks or internal knowledge.", "false", priority="high"),
     Q("web_base", "Web page and instances", "string", "Path of the web page as the browser sees it",
       "/web, or /vi-mcp/web if it goes through the existing /vi-mcp/ location of the reverse proxy.", "/web", check=_base),
+    Q("sleep_workstation", "Server", "boolean", "Runs on a workstation (not around the clock)",
+      "Sleep (language model, training) then waits for a quiet moment instead of running while someone works; a missed nightly run is "
+      "caught up either way (0.62.0).", "false"),
     Q("web_internal", "Web page and instances", "boolean", "Internal knowledge search with sign-in",
       "Search shared and internal knowledge in the browser under /intern, signed in with a VI token — never private knowledge (0.62.0).",
       "false"),
@@ -170,6 +173,7 @@ def current() -> dict[str, str]:
             "db": db if db.startswith(("postgresql://", "postgres://")) else "",
             "wiki": _b(wiki.exists()), "web": _b(raw.get("web", False)), "web_base": raw.get("web_base") or "/web",
             "web_internal": _b(raw.get("web_internal", False)), "web_internal_base": raw.get("web_internal_base") or "/intern",
+            "sleep_workstation": _b((raw.get("sleep") or {}).get("workstation", False)),
             "llm_url": (raw.get("llm") or {}).get("url", ""), "llm_model": (raw.get("llm") or {}).get("model", ""),
             "reviewer_prompt": raw.get("reviewer_prompt") or "", "embed_url": (raw.get("embed") or {}).get("url", ""),
             "local_models": raw.get("local_models") or "auto",
@@ -336,6 +340,10 @@ def apply(answers: dict[str, str], restart: bool = True) -> list[str]:
         setraw("web", answers["web"] == "true", f"web page {'on' if answers['web'] == 'true' else 'off'}")
     if "web_base" in answers and answers["web_base"].rstrip("/") != cur["web_base"]:
         setraw("web_base", answers["web_base"].rstrip("/"), f"web page path → {answers['web_base']}")
+    if "sleep_workstation" in answers and answers["sleep_workstation"] != cur["sleep_workstation"]:
+        raw_sleep = dict(raw.get("sleep") or {})
+        raw_sleep["workstation"] = answers["sleep_workstation"] == "true"
+        setraw("sleep", raw_sleep, f"sleep on a workstation {'on' if raw_sleep['workstation'] else 'off'}")
     if "web_internal" in answers and answers["web_internal"] != cur["web_internal"]:
         setraw("web_internal", answers["web_internal"] == "true", f"internal knowledge search {'on' if answers['web_internal'] == 'true' else 'off'}")
     if "web_internal_base" in answers and answers["web_internal_base"].rstrip("/") != cur["web_internal_base"]:

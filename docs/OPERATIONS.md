@@ -199,6 +199,13 @@ vi-mcp classify --limit 20         # label them now (two prompt variants per obj
 - The student (`modell:klassen`, `vi_model`-like object in memory): trained in sleep from ≥ 120 agreed labels, active from 80 % holdout
   accuracy; it labels where it is ≥ 80 % sure, 10 % of those are audited by the language model (`daten.pruefung`: checked, equal).
 
+### Sleep on a workstation (0.62.0)
+
+A server that is not up around the clock catches a missed sleep up by itself: older than 24 h, the server up for 5 minutes, no MCP request
+for 10 minutes. On a workstation set `"sleep": {"workstation": true, "idle_min": 10}` in `config.json` (or answer the question in
+`vi-mcp configure`): then sleep also waits for such a quiet moment when enough new experiences have accumulated. The sleep report names
+the reason (`catch-up: last sleep … h ago`, `… workstation quiet`).
+
 ### Incubator (0.62.0)
 
 ```bash

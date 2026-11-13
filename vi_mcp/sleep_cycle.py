@@ -1,7 +1,9 @@
 """Sleep — the consolidation run (docs/FORSCHUNG.md A4, A5, C2).
 
 Runs in its own thread started by the loop (since 0.20.5; writes are guarded by g.lock, model and vectors by on_demand.TRAINING), once per night (SLEEP_HOUR UTC) or as soon as the sum
-of the importance of new experiences since the last run exceeds THRESHOLD (Park's reflection trigger, scaled to 0–3).
+of the importance of new experiences since the last run exceeds THRESHOLD (Park's reflection trigger, scaled to 0–3). 0.62.0: a sleep
+older than CATCHUP_H is caught up in the next quiet moment (a workstation that is off at night), and config sleep.workstation lets the
+importance trigger wait for quiet too.
 Steps — each one counts, each one is in the report (object `schlaf:<zeit>`, state `fertig` or `fehler`):
   1 Triage      experiences since the last run, priority = surprise + importance/3 + future relevance
   2 Replay      clusters by (host, skill) over the top experiences, plus k older ones with the same hashtags per cluster
@@ -41,6 +43,49 @@ PERIOD_IN_DAYS = 30
 _WEIGHT = {"neu": 1.0, "wiederholt": 0.6, "erholt": 0.6, "chronisch": 0.2, "keine": 0.0, "unbekannt": 0.0}
 
 
+#: 0.62.0 — the user: "Wir müssen auch bedenken, dass dieser Server auf einer Workstation laufen kann und nicht 24 h durchläuft. Beim
+#: Schlafen muss das berücksichtigt werden." A machine that is off at SLEEP_HOUR never had its nightly run, and quiet days never reached
+#: the threshold: such a VI slept rarely and its daily measurement fell out with it. Now a sleep older than CATCHUP_H is caught up as soon
+#: as the server has run GRACE_S and no MCP request came for idle_min minutes; with config sleep.workstation the importance trigger waits
+#: for such a quiet moment too, so sleep (language model, training) does not run while someone works.
+import time as _time
+
+CATCHUP_H = 24
+GRACE_S = 300
+IDLE_MIN = 10
+_STARTED = _time.monotonic()
+_last_activity = [_time.monotonic()]
+
+
+def touch() -> None:
+    """An MCP request arrived (server.do_POST)."""
+    _last_activity[0] = _time.monotonic()
+
+
+def idle_s() -> float:
+    return _time.monotonic() - _last_activity[0]
+
+
+def uptime_s() -> float:
+    return _time.monotonic() - _STARTED
+
+
+def _cfg() -> dict:
+    from . import config
+    try:
+        c = config.read_raw(config.fpath()).get("sleep") or {}
+    except Exception:  # noqa: BLE001
+        c = {}
+    return {"workstation": bool(c.get("workstation", False)), "idle_min": float(c.get("idle_min", IDLE_MIN))}
+
+
+def _new_since(since: str) -> bool:
+    """Is there anything new to consolidate? A catch-up without new experiences would only load the language model (and an empty
+    memory, e.g. a fresh installation, has nothing to sleep over)."""
+    with g.lock:
+        return bool(g.db().execute("SELECT 1 FROM objekt WHERE art = 'erfahrung' AND zeit > ? LIMIT 1", (since,)).fetchone())
+
+
 def last() -> g.MemoryObject | None:
     t = g.recall("art:schlaf", limit=1, viewer=None)
     return t[0][1] if t else None
@@ -56,12 +101,19 @@ def due(now: datetime | None = None) -> str | None:
     # nightly run was skipped without this being recorded anywhere (seen 09.11.2026).
     if now.hour == SLEEP_HOUR and (not l or datetime.fromisoformat(l.ts) < now - timedelta(hours=24)):
         return f"nightly run {SLEEP_HOUR:02d}:00 UTC (no sleep in 24 h)"
+    cfg = _cfg()
+    quiet = idle_s() >= cfg["idle_min"] * 60
+    if (not l or datetime.fromisoformat(l.ts) < now - timedelta(hours=CATCHUP_H)) and uptime_s() >= GRACE_S and quiet and _new_since(since):
+        ago = "never slept" if not l else f"last sleep {int((now - datetime.fromisoformat(l.ts)).total_seconds() // 3600)} h ago"
+        return f"catch-up: {ago} (machine off or busy at {SLEEP_HOUR:02d}:00 UTC), quiet for {int(idle_s() // 60)} min"
     if l and datetime.fromisoformat(l.ts) > now - timedelta(minutes=MIN_GAP_MIN):
         return None  # too soon after the last sleep; importance keeps accumulating
     with g.lock:
         sum_total = g.db().execute("SELECT COALESCE(SUM(wichtigkeit), 0) FROM objekt WHERE art = 'erfahrung' AND zeit > ?", (since,)).fetchone()[0]
     if sum_total >= THRESHOLD:
-        return f"importance of new experiences {sum_total} ≥ {THRESHOLD}"
+        if cfg["workstation"] and not quiet:
+            return None  # a workstation: wait for a quiet moment instead of sleeping while someone works
+        return f"importance of new experiences {sum_total} ≥ {THRESHOLD}" + (", workstation quiet" if cfg["workstation"] else "")
     return None
 
 

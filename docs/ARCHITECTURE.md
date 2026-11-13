@@ -772,6 +772,13 @@ rating whose target is one of the memory's own word hashes to `vil_gewicht_netz`
 get only tool/thema/fehler/skill/art_wissen/answers/memory words without internals. `combined` weighs foreign raters by their publisher
 benefit (as `net_score`), capped at 20 observations each. Use: the secondary order of equal-priority hits of an `ask` question.
 
+## Sleep on a workstation (0.62.0)
+
+`sleep_cycle.due` had two triggers: the nightly hour (only if no sleep in 24 h) and the importance threshold. A workstation off at night
+never met the first and on quiet days not the second. Added: a catch-up (last sleep older than `CATCHUP_H`, uptime ≥ `GRACE_S`, no MCP
+request for `idle_min`) and, with `sleep.workstation`, the importance trigger waits for the same quiet. Activity is the last MCP request
+(`server.do_POST` → `sleep_cycle.touch`), i.e. an AI working with the memory.
+
 ## Internal knowledge search (0.62.0)
 
 The user: "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" — decided: internal, with sign-in. The

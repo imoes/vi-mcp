@@ -350,6 +350,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._internal("POST", self.rfile.read(n) if n > 0 else b"")
         if self.path.rstrip("/") != "/mcp":
             return self._send(404, "only /mcp and /signal")
+        from . import sleep_cycle
+        sleep_cycle.touch()  # 0.62.0: an AI is working with the memory — a workstation does not sleep under its feet
         inst = self._check()
         if not inst:
             return
