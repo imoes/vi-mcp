@@ -46,6 +46,12 @@ Linked from [README.md](README.md).
   30 fused hits, on a copy of production (13.11.2026, 150 targets × 2 styles, paired): MRR 0.734 → 0.846 (+0.112 ± 0.021; 75 queries
   better, 25 worse), Hit@5 0.833 → 0.930; questions +0.139 ± 0.031, keywords +0.084 ± 0.026; median latency 0.68 → 2.16 s. Switched on
   by the configuration `rerank` (it was supported since 0.57.0, but not configured on that server).
+- **Embedding the key statement together with the start of the content ranks clearly worse — not adopted.** Idea after contextual
+  retrieval (Anthropic, 2024: context prepended to each chunk before embedding). On a copy of production (13.11.2026) the 21,502 objects
+  with content were re-embedded as key statement + the first 1,500 characters of the content, same 300 queries: hybrid MRR 0.734 →
+  0.471 (questions 0.685 → 0.376, keywords 0.784 → 0.567), with the reranker 0.846 → 0.724 (keywords 0.868 → 0.880, Hit@5 0.953 →
+  0.973; questions 0.824 → 0.569). The vector stays the key statement's. *Hypothesis, not tested:* the content's start dilutes what
+  tells one object from its neighbours (many parts of the same page share it); a separate content vector fused by rank would keep both.
 
 ### What was fixed
 
