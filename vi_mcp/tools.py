@@ -777,12 +777,33 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
     reason, unknown = vocabulary.empty_reason(args.get("filter") or "", instance)  # suggestions only from what this instance may see
     if reason == "unbekannt" and unknown:
         hint = "; ".join(f"{t} is not in memory" + (f" (did you mean {', '.join(sug)}?)" if sug else "") for t, sug in unknown[:5])
-        return f"nothing in memory for “{f}” · unknown words: {hint} · vi_vocabulary shows the words that exist"
+        return f"nothing in memory for “{f}” · unknown words: {hint} · vi_vocabulary shows the words that exist" + _net_hint()
     if reason == "unbekannt":
-        return f"nothing in memory for “{f}” · unknown words: none of the words occurs in memory · vi_vocabulary(prefix=…) shows similar ones"
+        return f"nothing in memory for “{f}” · unknown words: none of the words occurs in memory · vi_vocabulary(prefix=…) shows similar ones" + _net_hint()
     if reason == "ausgeschlossen":  # 0.62.5
         return f"nothing in memory for “{f}” · the words occur only in what your exclusions (!…) leave out — nothing else is known about it"
-    return f"nothing in memory for “{f}” · known words, but no object carries them together — fewer conditions or OR find more"
+    return f"nothing in memory for “{f}” · known words, but no object carries them together — fewer conditions or OR find more" + _net_hint()
+
+
+def _net_hint() -> str:
+    """0.62.6: an empty local search names the live way to the other servers (rule 4). Found on production (13.11.2026): an agent of a
+    local VI found no Confluence pages, read vi_net_status instead of asking, and concluded they existed nowhere — they were internal
+    knowledge on another server, which an open network never carries. Networks whose service has reported (netz_stand) and that are on."""
+    from . import p2p
+    try:
+        p2p._tables()
+        with g.lock:
+            seen = {r[0] for r in g.db().execute("SELECT netz FROM netz_stand")}
+        nets = {n: d for n, d in p2p.networks().items() if n in seen and p2p.is_on(n)}
+    except Exception:  # noqa: BLE001 — a hint must never cost the answer
+        return ""
+    if not nets:
+        return ""
+    company = [n for n, d in nets.items() if d["kind"] == "company"]
+    names = ", ".join(sorted(nets))
+    return (f" · other servers may know it: vi_net_search(network=…, query=…) asks the members of {names} live"
+            + (f" (internal knowledge only in {', '.join(company)})" if company
+               else " — these networks are open: internal knowledge of other servers comes only through a company network"))
 
 
 def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, release_permission: bool = False, family: str | None = None) -> str:

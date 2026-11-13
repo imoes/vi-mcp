@@ -72,3 +72,17 @@ def test_an_unknown_kind_gets_the_same_value_under_the_kind_that_exists(gd):
     out = tools.call_tool("vi_recall", {"filter": "quelle:confluence", "semantic": False}, "a", False)
     assert "did you mean quelle_art:confluence" in out
     assert "herkunft_x" not in out  # nothing the viewer may not see
+
+
+def test_an_empty_search_names_the_live_network_search(gd, monkeypatch):
+    """0.62.6, found on production: an agent of a local VI read vi_net_status instead of asking the other server live."""
+    from vi_mcp import p2p
+    out = tools.call_tool("vi_recall", {"filter": "zzqqxx", "semantic": False}, "a", False)
+    assert "vi_net_search" not in out  # no network service has reported: nothing to suggest
+    p2p.record_state("standard", {"modus": "peer"})
+    out = tools.call_tool("vi_recall", {"filter": "zzqqxx", "semantic": False}, "a", False)
+    assert "vi_net_search(network=…, query=…) asks the members of standard live" in out and "only through a company network" in out
+    monkeypatch.setattr(p2p, "networks", lambda: {"standard": {"kind": "open"}, "firma": {"kind": "company"}})
+    p2p.record_state("firma", {"modus": "peer"})
+    out = tools.call_tool("vi_recall", {"filter": "zzqqxx", "semantic": False}, "a", False)
+    assert "firma, standard live (internal knowledge only in firma)" in out

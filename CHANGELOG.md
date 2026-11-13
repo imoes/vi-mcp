@@ -3,7 +3,23 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.62.6 — not yet released — an unknown kind is answered with the kind that exists
+## 0.62.6 — not yet released — an empty search points to the network; an unknown kind is answered with the kind that exists
+
+### What is new
+
+- **An empty search names the live way to the other servers.** When `vi_recall` finds nothing, the answer now ends with "other servers
+  may know it: vi_net_search(network=…, query=…) asks the members of … live", naming every network whose service has reported and that
+  is on, and says whether internal knowledge can come that way: only a company network carries it. *Found on production
+  (13.11.2026):* an agent of CentralStation's local VI found no Confluence pages, read `vi_net_status` instead of asking, and concluded
+  they existed nowhere; they were internal knowledge on the central server, which the open network `standard` never carries
+  (`p2p.answer_search` answers open networks with shared knowledge only). Test: `tests/test_vocabulary.py` (1 new).
+
+### What was measured
+
+- **The cross-encoder reranker ranks the fixed question set clearly better.** bge-reranker-v2-m3 (llama.cpp `/v1/rerank`) over the best
+  30 fused hits, on a copy of production (13.11.2026, 150 targets × 2 styles, paired): MRR 0.734 → 0.846 (+0.112 ± 0.021; 75 queries
+  better, 25 worse), Hit@5 0.833 → 0.930; questions +0.139 ± 0.031, keywords +0.084 ± 0.026; median latency 0.68 → 2.16 s. Switched on
+  by the configuration `rerank` (it was supported since 0.57.0, but not configured on that server).
 
 ### What was fixed
 
