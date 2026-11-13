@@ -50,6 +50,8 @@ PY
         n=$(basename "$f" .json); [ "$n" = config ] && continue
         if systemctl is-enabled --quiet "vi-p2p@$n.service" 2>/dev/null; then systemctl restart "vi-p2p@$n.service" >/dev/null 2>&1 || true; fi
     done
+    # 0.62.0: the logic layer needs clingo — Fedora ships python3-clingo, Debian/Ubuntu do not; it is never fetched from PyPI unasked
+    /usr/bin/vi-mcp logic status >/dev/null 2>&1 || echo "vi-mcp: logic layer (vi_logic) off — clingo is missing; to switch it on: sudo vi-mcp logic install"
     ;;
 wiki)
     # 0.47.0: a new installation joins the public wiki network vi-wiki.org (free network, outgoing only). Opt out: VI_MCP_KEIN_WIKI=1.

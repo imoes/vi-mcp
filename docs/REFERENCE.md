@@ -6,7 +6,7 @@ Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server co
 
 ## MCP tools
 
-60 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
+61 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
 
 ### `vi_before`
 
@@ -362,6 +362,23 @@ VI: is this VI (or one index) mature enough to fine-tune an AI with it? Every cr
 | Parameter | Type | Required | Meaning |
 |---|---|---|---|
 | `index` | string |  | optional: one index (a project or special VI) |
+
+### `vi_logic`
+
+VI: logical descriptions in a Python-like notation, checked by formal logic (answer set programming, clingo). Facts zone("gate1", "dmz"); rules head <= body with & (and), ~x (not derivable), -x (explicitly false), comparisons in parentheses (H != "a"); never(cond) = a constraint whose violation is reported; soft(rule) or soft(rule, 0.9) = a rule with a learned weight; built in: obligatory/forbidden/permitted/done → violation, conflict. Capitalised names are variables. action check: what follows, violated constraints, norm conflicts, contradictions, rule weights. ask: true/false/both/unknown/not_derived/undetermined per atom (+ P(atom) with probabilities). rate: a conclusion was checked against reality (correct true/false) — the rules that derive it learn their weight. save: keep a named rule set (then use rule_set=name in the other actions). Results are evidence 'inferred'.
+
+| Parameter | Type | Required | Meaning |
+|---|---|---|---|
+| `action` | string (check, ask, rate, save) |  | default check (German: `aktion`) |
+| `source` | string |  | statements, one per line (added to rule_set if both are given) (German: `quelle`) |
+| `rule_set` | string |  | name or id of a saved rule set |
+| `queries` | array of string |  | ask: atoms, e.g. forbidden(run("freeipa","gate1")) |
+| `probabilities` | boolean |  | ask: also P(atom) under the rule weights |
+| `conclusion` | string |  | rate: the atom that was checked |
+| `correct` | boolean |  | rate: was the conclusion right? |
+| `name` | string |  | save: name of the rule set (lower case, digits, - _) |
+| `description` | string |  | save: what the rule set decides, one sentence (German: `beschreibung`) |
+| `visibility` | string (private, shared, internal) |  | save: default shared (German: `sicht`) |
 
 ### `vi_code_sync`
 
@@ -955,6 +972,7 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 | `VI_MCP_CONFIG` | Path of the server configuration (default `~/.config/vi-mcp/config.json`; the package: `/etc/vi-mcp/config.json`). |
 | `VI_MCP_CONFIGURE_STATE` | Which configuration questions were answered (default `/etc/vi-mcp/configure.json`). |
 | `VI_MCP_EXPORT_KEY` | Ed25519 key that signs index files (`vi-mcp index export`, 0.62.0; default `export.key` in the network directory `/var/lib/vi-p2p`, made on the first export). |
+| `VI_MCP_EXTRA_PYTHON` | Directory with Python packages that the distribution lacks — clingo for the logic layer (`vi-mcp logic install`, 0.62.0; default `/var/lib/vi-mcp/python` as root, else `~/.local/share/vi-mcp/python`), appended to the import path after the system's packages. |
 | `VI_MCP_FEEDBACK_NUDGE` | Claude Code hook: `0` switches off the one feedback request at the end of a session (event `Stop`, 0.59.0). |
 | `VI_MCP_FREIGABE_TOKEN_FILE` | Token file of `vi-mcp release` (the release right). |
 | `VI_MCP_KEIN_DIENST` | Tests and containers: `vi-mcp net …` does not start or stop systemd services. |
@@ -1032,6 +1050,7 @@ First line of each module's docstring.
 | `learning` | Learning — the router learns from the hint lift instead of us setting its weights (docs/TRAINING.md 4a/4b). |
 | `log_output` | Server log output — one line per event on stderr (systemd → journal). |
 | `logbook` | Logbook — per server a signed, chained sequence of entries; the basis of the network. Knows neither transport nor memory. |
+| `logic` | Logical descriptions in a Python-like notation, checked by formal logic (0.62.0) — the logic layer of the AI language. |
 | `main_loop` | The loop — exactly one, because there is exactly one server process. |
 | `memory` | The memory: every entry is an object (table objekt → class MemoryObject, mapping without ORM). |
 | `metrics` | Observation points — how to tell whether the VI is useful. |

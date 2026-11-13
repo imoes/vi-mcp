@@ -34,7 +34,7 @@ Architecture: all
 Maintainer: ${maintainer}
 Depends: python3 (>= 3.11), python3-sklearn, python3-cryptography, python3-numpy, python3-yaml, adduser, systemd, debconf (>= 0.5) | debconf-2.0
 Recommends: python3-libtorrent
-Suggests: python3-psycopg
+Suggests: python3-psycopg, python3-pip
 Section: net
 Priority: optional
 Installed-Size: ${groesse}

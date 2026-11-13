@@ -7,7 +7,8 @@ weights per word. This module is the symbol layer for `ask`; the answer comes ba
 
 An utterance:  ACT[.TYPE] WORD…  — tolerant: anything that does not start with a known act is an ordinary vi_recall filter.
 
-  act    ask (question), tell, do, promise, def, rate — only ask is executed here; the others are named, never run (a foreign `do` is data)
+  act    ask (question), tell, do, promise, def, rate — only ask is executed here; the others are named, never run (a foreign `do` is data).
+         The body of a `def rule` is the logic notation of logic.py (facts, head <= body, never(…), soft(…)), checked by vi_logic.
   type   for ask: how · why · what · who · where · rule — which question it is
   words  kind:value as in vi_recall, plus short forms:  @web1 → host:web1* (a name without a dot: every host starting with it),
          @web1.example → host:web1.example   #x → thema:x   since:30d / since:2026-10-01 (recency)

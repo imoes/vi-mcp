@@ -772,6 +772,27 @@ rating whose target is one of the memory's own word hashes to `vil_gewicht_netz`
 get only tool/thema/fehler/skill/art_wissen/answers/memory words without internals. `combined` weighs foreign raters by their publisher
 benefit (as `net_score`), capped at 20 observations each. Use: the secondary order of equal-priority hits of an `ask` question.
 
+## Logic layer (0.62.0)
+
+`logic.py`, tool `vi_logic`. Logical descriptions in a Python-like notation are read by `ast` against a whitelist (facts, `head <= body`,
+`&`, `~` = negation as failure, unary `-` = strong negation, parenthesised comparisons, `never(…)`, `soft(…)`), translated to ASP and
+solved by clingo (async solve, 5 s, at most 50 models; 256 when soft rules are present, so that probabilities are exact where the
+enumeration completes). Never executed, no `#` directive reaches clingo. A built-in prelude gives the deontic square.
+
+| construct | ASP | why |
+|---|---|---|
+| `never(c)` | `vi__violated(n) :- c.` | a violation is reported with its number, not turned into UNSAT |
+| `h <= b` | `h :- b.` plus `vi__fired(n, h) :- b.` | `fired` tells `rate` which rule derived a conclusion |
+| `soft(h <= b)` | `h :- b, not vi__unsat(n, V).` `vi__unsat(n, V) :- b, not h.` `:~ vi__unsat(n, V). [w@0, n, V]` | LPMLN by the lpmln2asp scheme; V = the rule's variables, so each ground instance is dropped on its own |
+
+Results: the most probable model(s) decide `ask` (true/false/both/unknown/not_derived/undetermined); `ask_probabilities` sums
+exp(−cost) over all stable models. A contradiction between hard rules makes the program unsatisfiable — `_contradictions` solves again with
+`-p` renamed to `neg__p` and names every atom that holds both ways. Weights: table `logik_gewicht` (rule hash, ASP text, right, wrong);
+p = beta mean over the stated belief (2 pseudo-observations, 0.5 without one), own counters and the network's (`word_weights.combine`,
+same table `vil_gewicht_netz`, same rating channel: `p2p._word_weights_out` adds `logic.outgoing`, `word_weights.known_hash` also asks
+`logic.known_hash`). Open network: rules without string constants and without anonymisation findings only. clingo comes from the
+distribution, or from `vi-mcp logic install` into `/var/lib/vi-mcp/python`, appended to `sys.path` after the system's packages.
+
 ## Sleep on a workstation (0.62.0)
 
 `sleep_cycle.due` had two triggers: the nightly hour (only if no sleep in 24 h) and the importance threshold. A workstation off at night

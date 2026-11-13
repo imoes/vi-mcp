@@ -223,6 +223,24 @@ People set gold labels on the article page of the internal search (`/intern/o/<i
 `"human": true` in `config.json` see it (`vi-mcp instance NAME --human`). `vi-mcp incubator status` shows the
 model's accuracy against them and the truth check (confirmed vs refuted knowledge by measured weight).
 
+### Logic layer (0.62.0)
+
+`vi_logic` needs clingo in the server's Python. Fedora/RHEL: `dnf install python3-clingo` (the RPM recommends it). Debian/Ubuntu have no
+package:
+
+```bash
+sudo vi-mcp logic install          # pip --target /var/lib/vi-mcp/python clingo==5.8.3 (needs python3-pip; behind a proxy set https_proxy)
+vi-mcp logic status                # "logic layer: clingo 5.8.3" or why it is off
+sudo systemctl restart vi-mcp      # the running server loads it on restart
+vi-mcp logic check rules.lp        # a file in the notation: what follows, violated never(…), rule weights
+vi-mcp logic ask rules.lp 'forbidden(run("freeipa","gate1"))'
+```
+
+The directory is appended to the import path after the system's packages, so a later `python3-clingo` from the distribution wins. After a
+Python upgrade (another minor version) the compiled parts no longer load — `vi-mcp logic status` names it; run the install again.
+`VI_MCP_EXTRA_PYTHON` points to another directory. Rule weights live in table `logik_gewicht` and are copied by `vi-mcp db migrate` like
+every table.
+
 ### Fine-tuning (0.62.0)
 
 ```bash

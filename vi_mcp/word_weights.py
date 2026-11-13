@@ -92,7 +92,10 @@ def outgoing(net: str, limit: int = 2000) -> list[dict]:
 def known_hash(h: str) -> bool:
     _tables()
     with g.lock:
-        return bool(g.db().execute("SELECT 1 FROM vil_gewicht WHERE hash = ? LIMIT 1", (h,)).fetchone())
+        if g.db().execute("SELECT 1 FROM vil_gewicht WHERE hash = ? LIMIT 1", (h,)).fetchone():
+            return True
+    from . import logic  # 0.62.0: rule weights travel on the same channel
+    return logic.known_hash(h)
 
 
 def receive(c: dict, pub: str, net: str, seq: int) -> bool:
@@ -111,19 +114,27 @@ def receive(c: dict, pub: str, net: str, seq: int) -> bool:
 def combined(word: str, qtype: str = "any") -> dict:
     """Own weight plus the network's: beta mean over this memory (weight 1) and every foreign rater (weight = its benefit as a publisher,
     0.5 while unknown), each capped at CAP observations."""
+    y, n_ = own(word, qtype)
+    c = combine(y, n_, word_hash(word, qtype))
+    return {"gewicht": round((1 + c["ja"]) / (2 + c["ja"] + c["nein"]), 3), "eigen": [y, n_], "netz": c["netz"]}
+
+
+def combine(y: float, n_: float, h: str) -> dict:
+    """Own counters (weight 1) plus every foreign rater's for the target hash h (weight = its benefit as a publisher, 0.5 while unknown),
+    each capped at CAP observations — shared by word weights and rule weights (logic.py)."""
     from . import p2p
     from .logbook import pseudonym
-    y, n_ = own(word, qtype)
+    _tables()
     with g.lock:
-        foreign = g.db().execute("SELECT pub, ja, nein FROM vil_gewicht_netz WHERE hash = ?", (word_hash(word, qtype),)).fetchall()
-    value = p2p.publisher_value()
+        foreign = g.db().execute("SELECT pub, ja, nein FROM vil_gewicht_netz WHERE hash = ?", (h,)).fetchall()
+    value = p2p.publisher_value() if foreign else {}
     yes = no = 0.0
     for wgt, a, b in [(1.0, y, n_)] + [(value.get(pseudonym(p), {}).get("mittel", 0.5), a, b) for p, a, b in foreign]:
         if a + b <= 0:
             continue
         f = min(1.0, CAP / (a + b))
         yes, no = yes + wgt * a * f, no + wgt * b * f
-    return {"gewicht": round((1 + yes) / (2 + yes + no), 3), "eigen": [y, n_], "netz": len(foreign)}
+    return {"ja": yes, "nein": no, "netz": len(foreign)}
 
 
 def weight_for(word: str, qtype: str | None) -> float:

@@ -85,6 +85,7 @@ NET_FIELDS = {
 ENV_VARS = {
     "VI_MCP_CONFIG": "Path of the server configuration (default `~/.config/vi-mcp/config.json`; the package: `/etc/vi-mcp/config.json`).",
     "VI_MCP_EXPORT_KEY": "Ed25519 key that signs index files (`vi-mcp index export`, 0.62.0; default `export.key` in the network directory `/var/lib/vi-p2p`, made on the first export).",
+    "VI_MCP_EXTRA_PYTHON": "Directory with Python packages that the distribution lacks — clingo for the logic layer (`vi-mcp logic install`, 0.62.0; default `/var/lib/vi-mcp/python` as root, else `~/.local/share/vi-mcp/python`), appended to the import path after the system's packages.",
     "VI_MCP_CONFIGURE_STATE": "Which configuration questions were answered (default `/etc/vi-mcp/configure.json`).",
     "VI_MCP_TOKEN_DIR": "Where `vi-mcp configure` writes the token of a new instance (default `/root`, file `vi-mcp-token-<name>`, 0600).",
     "VI_MCP_FREIGABE_TOKEN_FILE": "Token file of `vi-mcp release` (the release right).",

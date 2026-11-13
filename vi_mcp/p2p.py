@@ -513,8 +513,8 @@ def outbox(net: str = STANDARD) -> dict:
 def _word_weights_out(net: str) -> list[dict]:
     """0.62.0: the measured weights of this memory's words travel as ordinary ratings (word_weights.py) — never failing the outbox."""
     try:
-        from . import word_weights
-        return word_weights.outgoing(net)
+        from . import logic, word_weights
+        return word_weights.outgoing(net) + logic.outgoing(net)  # rule weights of the logic layer on the same channel
     except Exception:  # noqa: BLE001
         return []
 

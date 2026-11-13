@@ -45,6 +45,7 @@ LEARN (vi_learn: text = one concrete key statement; content = complete, with com
 7. A reusable fact about a system was looked up or measured (path, port, version, peculiarity, access route without secrets).
 8. Something turns out to be wrong — a hint contradicts what you just measured or read, or the user corrects it: correct it at once, in the same step, not at the end of the session: vi_refute the wrong object (reason with evidence), vi_learn the correction (with source).
 Search before learning: if it is already there, vi_confirm instead of creating it again. After hints: vi_feedback(helped=[ids], wrong=[ids]) — one call, no reason needed; it is how the VI learns which hint to show. vi_confirm / vi_refute when you checked the knowledge itself.
+Logic: whether something is allowed, forbidden, required or consistent under rules is decided by vi_logic (rules in a Python-like notation, clingo), not by prose reasoning; vi_logic(action="rate") books a conclusion you checked, so the rules' weights learn.
 Fine-tuning: if the user wants to fine-tune (train, adapt) a model with the knowledge of this VI, call vi_finetune — it says whether the VI is mature and gives the steps; vi_finetune(action="guide") explains how fine-tuning works.
 Code: the code of a solution, a fix, a reusable script or a query belongs in content, complete and runnable. Not a copy of a file that lives in a repository: name repository, path and commit instead — the code of a repository comes into its project index through the code import (vi-mcp index import-code), and vi_recall finds it there.
 Network wiki: what the whole network should maintain (a runbook, the answer to a recurring question) goes on a page with vi_page_write (network, page, text, base_rev = the revision you edited); vi_page_read shows a page with its open conflicts — resolve one by writing with base_rev = one head and also_parents = the others.
@@ -241,6 +242,25 @@ TOOLS = [
      "description": "VI: is this VI (or one index) mature enough to fine-tune an AI with it? Every criterion — knowledge, checked share, "
                     "search quality, hint model, no harm from hints, labels, training data — with threshold, measured value and state.",
      "inputSchema": _schema({"index": {"type": "string", "description": "optional: one index (a project or special VI)"}})},
+    {"name": "vi_logic",
+     "description": "VI: logical descriptions in a Python-like notation, checked by formal logic (answer set programming, clingo). "
+                    "Facts zone(\"gate1\", \"dmz\"); rules head <= body with & (and), ~x (not derivable), -x (explicitly false), "
+                    "comparisons in parentheses (H != \"a\"); never(cond) = a constraint whose violation is reported; soft(rule) or "
+                    "soft(rule, 0.9) = a rule with a learned weight; built in: obligatory/forbidden/permitted/done → violation, conflict. "
+                    "Capitalised names are variables. action check: what follows, violated constraints, norm conflicts, contradictions, "
+                    "rule weights. ask: true/false/both/unknown/not_derived/undetermined per atom (+ P(atom) with probabilities). "
+                    "rate: a conclusion was checked against reality (correct true/false) — the rules that derive it learn their weight. "
+                    "save: keep a named rule set (then use rule_set=name in the other actions). Results are evidence 'inferred'.",
+     "inputSchema": _schema({"action": {"type": "string", "enum": ["check", "ask", "rate", "save"], "description": "default check"},
+                             "source": {"type": "string", "description": "statements, one per line (added to rule_set if both are given)"},
+                             "rule_set": {"type": "string", "description": "name or id of a saved rule set"},
+                             "queries": {"type": "array", "items": _S, "description": "ask: atoms, e.g. forbidden(run(\"freeipa\",\"gate1\"))"},
+                             "probabilities": {"type": "boolean", "description": "ask: also P(atom) under the rule weights"},
+                             "conclusion": {"type": "string", "description": "rate: the atom that was checked"},
+                             "correct": {"type": "boolean", "description": "rate: was the conclusion right?"},
+                             "name": {"type": "string", "description": "save: name of the rule set (lower case, digits, - _)"},
+                             "description": {"type": "string", "description": "save: what the rule set decides, one sentence"},
+                             "visibility": {"type": "string", "enum": ["private", "shared", "internal"], "description": "save: default shared"}})},
     {"name": "vi_code_sync",
      "description": "VI, for `vi-mcp index import-code`: the code of a git repository in an index. action state: which files (blob SHA) the "
                     "index holds of the repository; action sync: pieces of changed files (upserted by index/repo/path/symbol) and removed "
@@ -507,6 +527,70 @@ def listing(instance: str | None = None) -> list[dict]:
 
 def known(name: str) -> bool:
     return api_en.canonical_name(name) in _NAMES or any(t["name"] == name for t in reflexes.tool_schemas())
+
+
+def _logic_set(ref: str, instance: str | None):
+    """A saved rule set by id or name, as the asking instance may see it."""
+    o = g.load(ref) if ":" in ref else None
+    if o is None:
+        with g.lock:
+            rows = g.db().execute("SELECT o.id FROM objekt o JOIN tag t ON t.objekt_id = o.id WHERE t.tag = ? AND o.art = 'regel' "
+                                  "AND o.modus IN ('aktiv', 'test') ORDER BY o.zeit DESC", (f"logik:{ref}",)).fetchall()
+        o = next((x for x in (g.load(r[0]) for r in rows) if x is not None and g.visible_to(x, instance)), None)
+    if o is None or not g.visible_to(o, instance) or "logik" not in o.data:
+        raise Rejected(f"no rule set {ref!r} visible to you — vi_recall thema:logik lists the saved ones")
+    return o
+
+
+def _logic(args: dict, instance: str | None) -> str:
+    from . import logic
+    if not logic.available():
+        raise Rejected(f"the logic layer is off on this server ({logic.unavailable_reason()}) — an administrator runs: sudo vi-mcp logic install")
+    action = str(args.get("action") or "check")
+    src = str(args.get("source") or "")
+    base = None
+    if args.get("rule_set"):
+        base = _logic_set(str(args["rule_set"]), instance)
+        src = base.data["logik"]["quelle"] + ("\n" + src if src else "")
+    if not src.strip():
+        raise Rejected("source or rule_set is required")
+    try:
+        if action == "check":
+            return "\n".join(logic.lines(logic.check(src)))
+        if action == "ask":
+            qs = [str(q) for q in (args.get("queries") or [])]
+            if not qs:
+                raise Rejected("ask needs queries")
+            vals = logic.ask(src, qs)
+            probs = logic.ask_probabilities(src, qs) if args.get("probabilities") else {}
+            out = [f"{q}: {v}" + (f" · P = {probs[q]}" if q in probs else "") for q, v in vals.items()]
+            if probs:
+                out.append("probabilities " + ("exact" if probs.get("_exact") else "approximate (not every answer set was seen)"))
+            return "\n".join(out + ["evidence: inferred"])
+        if action == "rate":
+            if not args.get("conclusion") or "correct" not in args:
+                raise Rejected("rate needs conclusion and correct")
+            r = logic.rate(src, str(args["conclusion"]), bool(args["correct"]))
+            if not r["gutgeschrieben"]:
+                return "nothing credited: " + r["grund"]
+            return "\n".join([f"booked as {'right' if r['richtig'] else 'wrong'}:"] + [
+                f"  rule #{c['nr']} {c['regel']} · now p {c['p']} · weight {c['gewicht']} · measured {c['eigen'][0]:g} right / {c['eigen'][1]:g} wrong"
+                for c in r["gutgeschrieben"]])
+        if action == "save":
+            nm = str(args.get("name") or "").strip().lower()
+            if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", nm):
+                raise Rejected("save needs a name: lower case, digits, - and _ (at most 64)")
+            program, stmts = logic.translate(src)  # only a valid rule set is kept
+            desc = str(args.get("description") or "").strip()
+            vis = args.get("visibility") or None  # api_en already turned shared/internal/private into the stored value
+            o = g.new_object("regel", f"Logic rule set {nm}: " + (desc or f"{len(stmts)} statements"),
+                             ["thema:logik", f"logik:{nm}"], {"logik": {"name": nm, "quelle": src, "aussagen": len(stmts), "clingo": logic.CLINGO_VERSION},
+                                                             "inhalt": src, "quelle": f"vi_logic save by {instance}"},
+                             importance=1, who=f"ki@{instance}", reason="vi_logic save", instance=instance, visibility=vis)
+            return f"saved {o.id} as rule set {nm} ({len(stmts)} statements) — use rule_set=\"{nm}\""
+        raise Rejected(f"unknown action {action!r}: check, ask, rate, save")
+    except logic.LogicError as e:
+        raise Rejected(f"notation: {e}") from e
 
 
 def _proposal(text: str, tags: list[str], data: dict, importance: int) -> str:
@@ -1134,6 +1218,8 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             return "\n".join(incubator.lines(incubator.status(indexes.normalize(args.get("index")) if args.get("index") else None)))
         except ValueError as e:
             raise Rejected(str(e)) from e
+    if name == "vi_logic":  # 0.62.0
+        return _logic(args, instance)
     if name == "vi_vocabulary":  # 0.62.0
         from . import vocabulary
         # the asking instance decides what it sees — never the session context alone (without one, viewer None would see everything)

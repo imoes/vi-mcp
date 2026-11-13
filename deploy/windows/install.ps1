@@ -73,7 +73,7 @@ function Invoke-Logged([string]$exe, [string[]]$arguments) {
 $PythonVersion = "3.13.9"
 $PythonUrl = "https://api.nuget.org/v3-flatcontainer/python/$PythonVersion/python.$PythonVersion.nupkg"
 $PythonSha256 = "ea7541c98f77b6f344460b88db6e677573069979bcbf0ba18747cc2c125aba25"
-$Packages = @("numpy>=1.26", "scikit-learn>=1.4", "cryptography>=41", "pyyaml>=6", "truststore>=0.10")  # truststore: 0.60.0, TLS via Windows
+$Packages = @("numpy>=1.26", "scikit-learn>=1.4", "cryptography>=41", "pyyaml>=6", "truststore>=0.10", "clingo==5.8.3")  # truststore: 0.60.0, TLS via Windows; clingo: 0.62.0, the logic layer (vi_logic)
 
 try {
     Log "vi-mcp install: InstallDir=$InstallDir Server=$Server Proxy=$(if ($Proxy) { 'set' } else { 'none' })$(if ($fromPrevious) { ' (from the previous installation: ' + ($fromPrevious -join ', ') + ')' })"

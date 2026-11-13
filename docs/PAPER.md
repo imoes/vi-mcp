@@ -254,6 +254,39 @@ anonymisation flags as internal (the hash of a host name could be guessed by dic
 combines foreign weights with its own, each foreign server weighted by its measured benefit as a publisher and capped at 20
 observations — a foreign weight is a measurement, never a command. The symbol stays readable; the meaning travels as measured weight.
 
+### 5.5 The logic layer: rules decided by formal logic, reliability in weights
+
+Words and weights say *where* knowledge is and *how much it helped*; they cannot say what *follows* from rules. The owner asked for a
+way to express logical descriptions "in Python, but by the principles of formal logic". We compared a Python-embedded Datalog, a
+three-valued evaluator of our own and answer set programming, and chose ASP with the solver clingo [44, 50]: its stable-model semantics
+contains stratified Datalog as a special case, it is nonmonotonic (rules with exceptions, as norms have), strong negation gives explicit
+falsity next to "not derivable", and it searches and optimises.
+
+**Notation.** A program is written in Python syntax and read by Python's `ast` against a whitelist — never executed: facts
+`zone("gate1", "dmz")`, rules `head <= body` with `&`, `~x` for negation as failure, `-x` for strong negation, parenthesised comparisons,
+`never(c)` for a constraint and `soft(rule[, belief])` for a weighted rule. A prelude gives the deontic square (obligatory, forbidden,
+permitted; a violation is an obligation not done, obligation and prohibition together a named conflict) [45].
+
+**Every case named.** ASP answers an inconsistent program with *no* answer set and treats a violated integrity constraint the same way —
+the reason vanishes. We translate `never(c)` into a marker atom and report the violated constraint with its line; a contradiction
+between hard rules is solved again with `-p` renamed, and the atoms that hold both ways are listed (Belnap's *both*). An atom is
+*true*, *false*, *both*, *unknown* (the program does not mention it), *not derived* (the program defines it, this instance does not follow)
+or *undetermined* (answer sets disagree) — the Kleene distinction between "no value" and "false" kept in the answer, not only in theory.
+
+**Rules in weights.** The owner's next step was "clingo is also written in weights, so that with weight-space programming we learn clingo
+fast". A `soft` rule is an LPMLN rule [46]: each ground instance may be dropped at the cost of its weight, a stable model's probability is
+proportional to exp(−cost), and P(atom) sums over the models. We compile soft rules to weak constraints by the lpmln2asp scheme that
+plingo uses [47]; the instance's variables are part of the marker, so a penguin drops its own instance of "birds fly" without the rule
+losing its force for other birds (the first implementation dropped the whole rule — caught by the test, fixed before commit). The weight is
+the log-odds of the rule's measured probability: the stated belief as two pseudo-observations, plus every conclusion checked against
+reality (`vi_logic rate`) booked on exactly the rules that derive it (`fired` markers), plus the same counters from other servers on the
+rating channel of the word weights, target `sha256("vil-rule-v1|rule")`, open networks only for rules without constants. In the test, six
+"wrong" ratings move `soft(flies(X) <= bird(X), 0.9)` from p = 0.90 to 0.225 and the conclusion to *not derived*; twelve "right" ones
+bring it back. Two deliberate limits: a hard rule stays hard whatever is measured (its measurement is shown with the advice to soften it —
+the author's assertion and the measured world kept apart), and only weights are learned, never rules — learning rules from examples
+(ILASP [49]) and neural atoms (NeurASP [48]) are the next steps, not this one. The counting is a simplification of LPMLN's
+maximum-likelihood learning: exact when one rule alone decides a conclusion.
+
 ## 6 Incubation and fine-tuning
 
 ### 6.1 The incubator
@@ -341,6 +374,8 @@ A system built on "evidence or hypothesis" must report its own errors. In the wo
 - **Off-policy training is gated, not proven.** Every training fits an inverse-propensity-weighted router beside the uncorrected one and
   keeps it only if it is better on the holdout by more than 2 SE; whether it ever wins on production data is not yet known.
 - **Order-dependent tests.** Two tests fail rarely in a full run and pass alone; the cause is unknown.
+- **The logic layer learns weights, not rules,** and its counting is an approximation of LPMLN weight learning where several rules derive
+  the same conclusion. Whether agents use `vi_logic` instead of reasoning in prose is not measured yet.
 - **The question-type order is a prior,** its benefit not yet measured; whether type matching between question and document raises
   retrieval quality is not established in the literature either.
 
@@ -404,6 +439,13 @@ reference 1 (Guo et al.) were not re-checked in that session — the identifiers
 41. Pangakis et al. Automated Annotation with Generative AI Requires Validation. https://arxiv.org/abs/2306.00176
 42. Zou et al. PoisonedRAG. https://arxiv.org/abs/2402.07867
 43. Chen et al. AgentPoison. https://arxiv.org/abs/2407.12784
+44. Lifschitz. What Is Answer Set Programming? https://www.cs.utexas.edu/~vl/papers/wiasp.pdf
+45. Stanford Encyclopedia of Philosophy. Deontic Logic. https://plato.stanford.edu/entries/logic-deontic/
+46. Lee, Wang. Weight Learning in a Probabilistic Extension of Answer Set Programs (KR 2018). https://arxiv.org/abs/1808.04527
+47. Hahn et al. plingo: A System for Probabilistic Reasoning in Clingo Based on LPMLN. https://arxiv.org/abs/2206.11515
+48. Yang, Ishay, Lee. NeurASP: Embracing Neural Networks into Answer Set Programming (IJCAI 2020). https://www.ijcai.org/proceedings/2020/243
+49. Law, Russo, Broda. The ILASP System for Inductive Learning of Answer Set Programs. https://arxiv.org/abs/2005.00904
+50. Potassco. clingo (Python package `clingo`). https://pypi.org/project/clingo/
 
 Further sources used in the design notes of the same session: Gilardi et al., ChatGPT outperforms crowd workers (https://arxiv.org/abs/2303.15056);
 Ziems et al., LLMs for computational social science (https://arxiv.org/abs/2305.03514); Agora protocol (https://arxiv.org/html/2410.11905v1);

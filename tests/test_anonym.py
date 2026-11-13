@@ -367,3 +367,20 @@ def test_index_file_names_no_instance_conversation_or_index_internals(gd, tmp_pa
     index_transfer.export("kunde-x", tmp_path / "x.json")
     raw = (tmp_path / "x.json").read_text()
     assert "alice-laptop" not in raw and "20261113042" not in raw and o.id not in raw and "gespraech" not in raw
+
+
+def test_rule_weights_into_an_open_network_carry_no_names(gd, monkeypatch):
+    """0.62.0: rule weights of the logic layer travel as ratings — a rule with a string constant (a host, a person) could be confirmed
+    by guessing its hash, so the open network gets only rules without constants; the company network gets all."""
+    import pytest
+    pytest.importorskip("clingo")
+    from vi_mcp import logic, p2p, word_weights
+    for src, concl in (('soft(down(H) <= host(H) & (H == "db7.firma.lan"))\nhost("db7.firma.lan")', 'down("db7.firma.lan")'),
+                       ('soft(flies(X) <= bird(X))\nbird("t")', 'flies("t")')):
+        for _ in range(word_weights.MIN_N):
+            logic.rate(src, concl, True)
+    monkeypatch.setattr(p2p, "is_company", lambda net: net == "firma")
+    out = logic.outgoing("standard")
+    assert [r["ziel"] for r in out] == [logic.rule_hash("flies(X) :- bird(X).")]
+    assert all(set(r) == {"ziel", "gezeigt", "ja", "nein", "bestaetigt", "widerlegt"} for r in out)  # a hash and numbers, no text
+    assert len(logic.outgoing("firma")) == 2

@@ -152,6 +152,29 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   different verb, `chmod -R 777`, and the plausible but wrong answer no fixed rule can see). False positives on 300 real production
   objects: 1 (the first version held 216 — measured before it was ever committed). Tests: `tests/test_redteam.py` (6).
 
+- **Logic: rules in a Python-like notation, decided by formal logic** (the user: "Zur VIL brauchen wir noch die Möglichkeit, uns in Python
+  auszudrücken, für logische Beschreibungen … nach den Prinzipien der formalen Logik"; engine chosen by the user after the comparison:
+  "Dann nehmen wir clingo her"). New tool `vi_logic` (check, ask, rate, save), module `logic.py`, command `vi-mcp logic install|status|check|ask`.
+  - Notation: facts `zone("gate1", "dmz")`, rules `head <= body` with `&`, `~x` (not derivable), `-x` (explicitly false), comparisons in
+    parentheses, `never(cond)` (a constraint whose violation is *reported* with number and line instead of an empty answer),
+    `soft(rule[, belief])`; built in the deontic square (obligatory/forbidden/permitted/done → `violation`, `conflict`). Read by Python's
+    `ast` with a whitelist and never executed; clingo receives only the translation (no `#script`, no directive — tested).
+  - Answers name every case: true, false, **both** (p and -p — named instead of the empty answer ASP would give), **unknown** (the program
+    says nothing about it), **not_derived** (the program defines it, this instance does not follow), **undetermined** (answer sets disagree);
+    a search stopped by the 5 s limit or the 50-model limit says so. Evidence of every result: `inferred`.
+  - **Rules in weights** (the user: "clingo wird auch in Gewichte geschrieben, sodass wir mit Weight-Space Programming clingo schnell lernen
+    können"): a `soft` rule is an LPMLN rule — every ground instance may be dropped at the cost of its weight, the weight is the log-odds of
+    its measured probability, P(atom) is computed over the stable models. `vi_logic(action="rate")` books a conclusion checked against
+    reality on exactly the rules that derive it. The weights travel between servers on the rating channel of the word weights (target
+    `sha256("vil-rule-v1|<rule>")`); an open network gets only rules without string constants. A hard rule stays hard whatever is measured —
+    its measurement is shown next to it with the advice to make it soft. Saved rule sets are `regel` objects (`logik:<name>`).
+  - *Measured (tests, 13.11.2026):* the DMZ example reports the violated `never` (#5, line 5); `soft(flies(X) <= bird(X), 0.9)` gives
+    P(flies(tweety)) = 0.90 while the penguin's instance alone is dropped; six "wrong" ratings turn the rule's p from 0.90 to 0.225 and
+    the conclusion to not_derived, twelve "right" ones bring it back. Tests: `tests/test_logic.py` (33), `tests/test_anonym.py` (1 new).
+  - clingo 5.8.3: Fedora ships `python3-clingo` (RPM: Recommends); Debian and Ubuntu do not (checked: `apt-cache policy python3-clingo`
+    empty on Ubuntu 24.04) — `sudo vi-mcp logic install` puts it with pip `--target` into `/var/lib/vi-mcp/python` (works under PEP 668,
+    tested with Python 3.12.3), the package says so after installation and never fetches it unasked; Windows: in the venv of `install.ps1`.
+
 ### What has changed
 
 - **Text on the web pages** (also `/web`): `**bold**` is rendered, and indented continuation lines of a list item stay in that item
@@ -178,6 +201,11 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **The AI language** between servers carries word weights and `ask` questions inside one memory; asking another server in VIL (an
   `ask` over the network forum answered with `tell` lines) is a design (README), not code yet. Whether
   the question-type order raises success is not measured yet; no human gold set exists.
+- **The logic layer learns weights, not rules:** a correct conclusion no rule derives is reported as a missing rule, not invented
+  (learning rules from examples, as ILASP does, is not included). Rating counts each checked conclusion as one observation of every rule
+  that derives it (a beta count) — not the maximum-likelihood gradient of LPMLN weight learning; exact for a rule that alone decides a
+  conclusion, an approximation where several rules share one.
+- **Logic between servers:** rule weights travel; asking another server's rules (`def rule` over the network) is not code yet.
 - **A second order-dependent test:** `tests/test_http.py::test_two_sessions_two_conversations` failed once in a full run on SQLite and
   passed 4 times alone; cause not found.
 - **Poisoning by plausible but wrong knowledge** is not caught by fixed rules (6 of 10 held-out attacks of a token instance got through);
