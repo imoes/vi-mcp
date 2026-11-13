@@ -13,7 +13,8 @@ Linked from [README.md](README.md).
   never reads. *Reported from CentralStation (13.11.2026):* there memory and network service are separate containers; `join` writes the
   network's instance and live-search token into the memory's configuration, which that container did not have — CentralStation joined
   the company network only by mounting it into a one-off container and sharing the network namespace; the open network `standard` there
-  never had a live-search entry at all. Test: `tests/test_netz_443.py` (1 new).
+  never had a live-search entry at all. Running `setup` again now wires a live search the memory never got (the service had a token
+  hash, the memory no entry — a new token replaces the orphaned hash). Tests: `tests/test_netz_443.py` (2 new).
 
 - **An empty search names the live way to the other servers.** When `vi_recall` finds nothing, the answer now ends with "other servers
   may know it: vi_net_search(network=…, query=…) asks the members of … live", naming every network whose service has reported and that

@@ -172,3 +172,21 @@ def test_setup_for_a_memory_in_another_container(tmp_path, monkeypatch, capsys):
     assert "netz-firma" in m["instances"] and m["p2p"]["networks"]["firma"]["kind"] == "company"
     assert m["p2p"]["networks"]["firma"]["local"]["url"] == f"http://vi-p2p-firma:{raw['local_port']}"
     assert (tmp_path / "firma-mcp-token").exists()  # the network's own token file, not standard's
+
+
+def test_setup_again_wires_a_live_search_the_memory_never_got(tmp_path, monkeypatch, capsys):
+    """0.62.6: the service had a token hash, the memory no entry (a first setup in another container) — setup again wires it."""
+    monkeypatch.setenv("VI_MCP_KEIN_DIENST", "1")
+    monkeypatch.setattr(net_cli, "_bound", lambda port: False)
+    monkeypatch.setenv("VI_P2P_CONFIG", str(tmp_path / "config.json"))
+    token = tmp_path / "mcp-token"
+    token.write_text("t\n")
+    (tmp_path / "config.json").write_text(json.dumps({"db": str(tmp_path / "std" / "netz.db"), "seed": str(tmp_path / "std" / "schluessel"),
+                                                      "mcp_token_file": str(token), "local_port": 9765, "local_token_sha256": "orphaned"}))
+    memory = tmp_path / "memory.json"
+    memory.write_text(json.dumps({"port": 8765, "instances": {}}))
+    assert net_cli.main(["setup", "--mode", "peer", "--founder", "ab" * 32, "--memory-config", str(memory), "--memory-url", "http://vi-mcp:8765/mcp"]) == 0
+    m = json.loads(memory.read_text())
+    raw = json.loads((tmp_path / "config.json").read_text())
+    assert m["p2p"]["local"]["url"] == "http://127.0.0.1:9765" and raw["local_token_sha256"] != "orphaned"
+    assert "Live search wired" in capsys.readouterr().out

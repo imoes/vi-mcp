@@ -263,6 +263,15 @@ def _memory_config(o) -> Path | None:
     return m if m.exists() or not split else None  # one host: as before (created on first use); split: it must be there
 
 
+def _memory_has_local(mem: Path, net: str) -> bool:
+    try:
+        p2p = config.read_raw(mem).get("p2p") or {}
+    except (OSError, ValueError):
+        return False
+    entry = p2p.get("local") if net == "standard" else ((p2p.get("networks") or {}).get(net) or {}).get("local")
+    return bool(entry and entry.get("url") and entry.get("token"))
+
+
 def setup(o) -> int:
     p = nd.fpath()
     raw = nd.english_file(json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {})  # 0.51.0: written in English
@@ -384,7 +393,9 @@ def setup(o) -> int:
             print(f"The memory reads instances at start: restart the memory (its container) — its configuration {mem} now holds the instance")
         elif reason := _service("restart", "vi-mcp"):
             print(f"Hint: vi-mcp not restarted: {reason}")
-    if not raw.get("local_token_sha256"):  # 0.42.0: live search — the memory holds the token, the service its hash
+    # 0.62.6: also when the memory lacks the entry although the service has a hash — a setup whose memory config was elsewhere (a
+    # container) left the live search unwired for good (CentralStation, network standard); a new token replaces the orphaned hash
+    if not raw.get("local_token_sha256") or (mem is not None and not _memory_has_local(mem, NETWORK or "standard")):  # 0.42.0: live search — the memory holds the token, the service its hash
         used = {int(c.get("local_port") or 0) for n, c in network_configs(p.parent).items() if n != (NETWORK or "standard")}
         raw["local_port"] = int(raw.get("local_port") or free_port(used, FIRST_SEARCH_PORT))
         local_token = secrets.token_urlsafe(32)
