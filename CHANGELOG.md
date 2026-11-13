@@ -3,6 +3,17 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.62.2 — not yet released — a hint verdict needs its standard error
+
+### What was fixed
+
+- **`vi_stats` reported "hints hurt" from noise.** The matched hint lift (within instance and tool, Mantel-Haenszel) gave a verdict at
+  ±5 points without a standard error. *Found on production (13.11.2026):* one day, 4 strata, −7 points → "hints hurt — check weighting".
+  On the same data with a standard error it was −3.3 ± 2.6 points, over 7 days and 13 strata −0.5 ± 0.6 (without actions that had a
+  warning −0.1 ± 0.6). Now the lift carries its standard error (stratified variance of the risk difference), a verdict needs more than
+  2 standard errors and 5 points, and the line says it is observational — hints and warnings go to riskier actions; whether hints cause
+  a difference is the randomized lines' answer. Test: `tests/test_hint_quality.py` (1 new).
+
 ## 0.62.1 — 2026-11-13 — review and release work with a single AI
 
 ### What was fixed

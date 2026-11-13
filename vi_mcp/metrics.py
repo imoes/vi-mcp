@@ -66,33 +66,39 @@ def hint_lift_matched(hours: float = 24, viewer: str | None = None) -> dict:
         side = d["mit" if _with_hint(o) else "ohne"]
         side["n"] += 1
         side["ok"] += 1 if ok else 0
-    num = den = 0.0
+    num = den = var = 0.0
     used = {"mit": 0, "ohne": 0}
     total_with = sum(d["mit"]["n"] for d in strata.values())
     for d in strata.values():
         a, b = d["mit"], d["ohne"]
         if not a["n"] or not b["n"]:
             continue
+        p1, p0 = a["ok"] / a["n"], b["ok"] / b["n"]
         w = a["n"] * b["n"] / (a["n"] + b["n"])
-        num += w * (a["ok"] / a["n"] - b["ok"] / b["n"])
+        num += w * (p1 - p0)
         den += w
+        var += w * w * (p1 * (1 - p1) / a["n"] + p0 * (1 - p0) / b["n"])
         used["mit"] += a["n"]
         used["ohne"] += b["n"]
     lift = num / den if den else None
+    # 0.62.1: the verdict needs the difference beyond 2 standard errors (and at least 5 points). Found on production (13.11.2026): 24 h
+    # said "hints hurt" at −7 points over 4 strata; with a standard error it was −3.3 ± 2.6 on the same data, and 7 days −0.5 ± 0.6 —
+    # noise read as a verdict. Observational: hints and warnings go to riskier actions; the randomized lines measure the effect.
+    se = math.sqrt(var) / den if den else None
     if used["mit"] < AT_LEAST or used["ohne"] < AT_LEAST or lift is None:
         verdict = f"too little data in comparable strata (at least {AT_LEAST} per side)"
-    elif lift > 0.05:
-        verdict = "hints help"
-    elif lift < -0.05:
-        verdict = "hints hurt — check weighting"
+    elif lift > max(0.05, 2 * se):
+        verdict = "higher with hints (observational — the randomized lines say whether hints cause it)"
+    elif lift < -max(0.05, 2 * se):
+        verdict = "lower with hints (observational: hints and warnings go to riskier actions — check the randomized lines before reweighting)"
     else:
-        verdict = "no measurable difference"
-    return {"lift": lift, "urteil": verdict, "schichten": sum(1 for d in strata.values() if d["mit"]["n"] and d["ohne"]["n"]),
+        verdict = "no difference beyond 2 standard errors"
+    return {"lift": lift, "standardfehler": se, "urteil": verdict, "schichten": sum(1 for d in strata.values() if d["mit"]["n"] and d["ohne"]["n"]),
             "mit_vergleichbar": used["mit"], "mit_gesamt": total_with, "ohne_vergleichbar": used["ohne"], "stunden": hours}
 
 
 def matched_line(m: dict) -> str:
-    return (f"matched within instance and tool (Mantel-Haenszel): " + (f"lift {m['lift'] * 100:+.0f} points" if m["lift"] is not None else "—")
+    return (f"matched within instance and tool (Mantel-Haenszel): " + (f"lift {m['lift'] * 100:+.1f} ± {m['standardfehler'] * 100:.1f} points" if m["lift"] is not None else "—")
             + f" over {m['schichten']} stratum/strata, {m['mit_vergleichbar']} of {m['mit_gesamt']} actions with a hint comparable → {m['urteil']}")
 
 

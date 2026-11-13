@@ -149,3 +149,17 @@ def test_exploration_effect_and_ips_lift_from_logged_offers(gd):
     assert ex["zustand"] == "gemessen" and ex["differenz"] == -1.0 and "ranked hint beats a random candidate" in ex["urteil"]
     lift = metrics.ips_lift(24)
     assert lift["d"]["lift"] == 1.0 and lift["e"]["lift"] == -1.0 and "a" not in lift  # "a" was always shown: no counterfactual
+
+
+def test_a_small_matched_difference_is_no_verdict_without_two_standard_errors(gd):
+    """0.62.1, found on production: one day, 4 strata, −7 points was reported as "hints hurt"; with a standard error it was noise."""
+    for ok, n in ((True, 13), (False, 7)):  # 65 % with hints
+        for _ in range(n):
+            _exp("claude", "Bash", ok, True)
+    for ok, n in ((True, 72), (False, 28)):  # 72 % without
+        for _ in range(n):
+            _exp("claude", "Bash", ok, False)
+    m = metrics.hint_lift_matched(24)
+    assert -0.08 < m["lift"] < -0.06 and m["standardfehler"] > 0.05
+    assert m["urteil"] == "no difference beyond 2 standard errors"
+    assert "±" in metrics.matched_line(m)
