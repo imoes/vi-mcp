@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from . import memory as g
-from . import reflexes
+from . import indexes, reflexes
 
 #: Tools that change something (word parts in the name) — never answered from memory. A client can
 #: state `read_only` explicitly; then its statement applies, not the name pattern.
@@ -307,7 +307,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     matching = set(search_triggers) - general
     # 0.61.0: Vorrang, kein Ausschluss — in a project its index comes right after "important and matching", before the number of
     # matching triggers; the router still breaks the ties. g.current_index is the session's project (session.on_behalf).
-    cand.sort(key=lambda o: (-(o.importance >= 3 and bool(matching & set(o.hashtags))), -(project_idx is not None and o.idx == project_idx),
+    cand.sort(key=lambda o: (-(o.importance >= 3 and bool(matching & set(o.hashtags))), -indexes.first(o, project_idx),
                              -len(matching & set(o.hashtags))))
     # 0.49.0: before a shell command a hint must share more than the tool and generic words — a host, a program, an error. Counted.
     unspecific = [o for o in cand if general and not (matching & set(o.hashtags))]
@@ -431,7 +431,8 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
                "router": router, "exploration": exploration, "rest_n": len(rest), "suchen": search, "aus_gedaechtnis": answer is not None,
                "angebot": offer, **({"arm": layer_arm} if layer_arm else {}),
                **({"haltewahrscheinlichkeit": HOLD_BACK, "zurueckgehalten": held} if eligible else {}),
-               **({"idx": project_idx, "idx_vorrang": sum(1 for o in shown_obj if o.idx == project_idx)} if project_idx else {}),
+               **({"idx": project_idx, "idx_vorrang": sum(1 for o in shown_obj if indexes.first(o, project_idx)),
+                  "idx_vorrang_aus": sum(1 for o in shown_obj if o.idx == project_idx and o.data.get("vorrang_aus"))} if project_idx else {}),
                **({"code_datei": code_file} if code_file else {}),
                "repeat_suppressed": [o.id for o in repeated]}
     before_id = secrets.token_hex(8)
@@ -788,7 +789,7 @@ def prompt_hints(text: str, instance: str | None, shown: list[str] | None = None
     pidx = g.current_index.get()  # 0.61.0: with equal shared words, the project's index first, then the full-text rank
     pidx = pidx if pidx and pidx != "global" else None
     scored = [x for x in scored if "art_wissen:code" not in x[2].hashtags]  # 0.61.0: code is searched, not offered as a hint
-    for s, _rank, o in sorted(scored, key=lambda x: (x[0], not (pidx and x[2].idx == pidx), x[1])):
+    for s, _rank, o in sorted(scored, key=lambda x: (x[0], not indexes.first(x[2], pidx), x[1])):
         if -s < best and -s <= 2:
             continue
         from . import bandit

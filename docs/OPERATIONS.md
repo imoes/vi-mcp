@@ -345,6 +345,16 @@ vi-mcp index import-code ~/Dev/code/vi-mcp --index vi-mcp --url https://<host>/v
   #!/bin/sh
   vi-mcp index import-code "$(git rev-parse --show-toplevel)" --index vi-mcp --url "$VI_MCP_URL" --token-file "$VI_MCP_TOKEN_FILE" >/dev/null 2>&1 &
   ```
+- **Index files (0.62.0)** — compare the same knowledge on two servers of one organisation:
+  ```bash
+  vi-mcp index export vi-mcp /tmp/vi-mcp.json                    # on server A: signed, internal, 0600; report names what was skipped and why
+  vi-mcp index import /tmp/vi-mcp.json --as vi-mcp-kopie         # on server B: quarantine → reviewer → release, like the network
+  vi-mcp index export vi-mcp-kopie /tmp/back.json                # later on B, with B's measurements
+  vi-mcp index import /tmp/back.json --as vi-mcp                 # on A: no copies, only B's measurements as ratings
+  vi-mcp index compare vi-mcp [--dry-run]                        # per content: allgemein, nur_ursprung, nur_ziel, schwach, …
+  ```
+  The file carries company knowledge unanonymised: hand it only to servers of the same organisation. Without a configured reviewer the
+  imported contents stay in quarantine until `vi_release`.
 - **Hold-back:** `"hold_back": 0.05` is the share of actions whose hints are held back at random to measure their total effect; `0` switches
   it off. The result is in `vi_stats` C and in the daily measurement P.
 

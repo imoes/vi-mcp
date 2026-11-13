@@ -275,7 +275,7 @@ What an AI learns and does in a project directory lands in that project's index 
 index comes first in search and hints, and everything else stays visible. `vi_recall(index="cue-print")` searches one index alone. An
 index with enough experiences trains its own router model, used only if it beats the shared one. `vi-mcp index import-code REPO --index X`
 puts the code of a git repository into the index (functions and classes, only what changed), found by `vi_recall` and named before an AI
-reads or edits a file. Indexes never leave the server. Details: [OPERATIONS](docs/OPERATIONS.md#indexes-and-code-0610).
+reads or edits a file. Indexes never leave the server. Two servers can compare an index: `vi-mcp index export` writes it with this server's measurements into a signed internal file, `vi-mcp index import --as` takes it in (reviewed like the network), and `vi-mcp index compare` shows per content whether it works in both places or only at its origin (0.62.0). Details: [OPERATIONS](docs/OPERATIONS.md#indexes-and-code-0610).
 
 ## Two modes: token and open wiki
 

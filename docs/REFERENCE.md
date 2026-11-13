@@ -911,6 +911,7 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 |---|---|
 | `VI_MCP_CONFIG` | Path of the server configuration (default `~/.config/vi-mcp/config.json`; the package: `/etc/vi-mcp/config.json`). |
 | `VI_MCP_CONFIGURE_STATE` | Which configuration questions were answered (default `/etc/vi-mcp/configure.json`). |
+| `VI_MCP_EXPORT_KEY` | Ed25519 key that signs index files (`vi-mcp index export`, 0.62.0; default `export.key` in the network directory `/var/lib/vi-p2p`, made on the first export). |
 | `VI_MCP_FEEDBACK_NUDGE` | Claude Code hook: `0` switches off the one feedback request at the end of a session (event `Stop`, 0.59.0). |
 | `VI_MCP_FREIGABE_TOKEN_FILE` | Token file of `vi-mcp release` (the release right). |
 | `VI_MCP_KEIN_DIENST` | Tests and containers: `vi-mcp net …` does not start or stop systemd services. |
@@ -978,6 +979,7 @@ First line of each module's docstring.
 | `image_cli` | 0.35.0: `vi-mcp image` — put an image file with its description into memory, or fetch one back. |
 | `images` | 0.35.0: images in memory — an image with its description and its regions in the format of SAM 3 (Meta, Segment Anything with Concepts). |
 | `index` | 0.38.0: the memory index — what a MEMORY.md is for a single assistant, pushed to every session. |
+| `index_transfer` | Index export and import (0.62.0): an index into a signed file and back — to compare how the same content works in two places. |
 | `indexes` | Indexes (0.61.0): every object belongs to exactly one index — `global` or a project / special VI such as `cue-print` or `ansible`. |
 | `intuition` | Intuition — the automatic memory access before and the learning after every action. |
 | `learning` | Learning — the router learns from the hint lift instead of us setting its weights (docs/TRAINING.md 4a/4b). |

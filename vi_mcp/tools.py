@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import __version__
 from . import memory as g
-from . import api_en, bandit, config, images, questions, intuition, archive, learning, metrics, net_score, p2p, reflexes, sleep_cycle, scorer, self_model, session, skills, vector
+from . import api_en, bandit, config, images, indexes, questions, intuition, archive, learning, metrics, net_score, p2p, reflexes, sleep_cycle, scorer, self_model, session, skills, vector
 from .main_loop import progress as loop_progress, LOOP_S
 
 _O = {"type": "object"}
@@ -43,7 +43,7 @@ LEARN (vi_learn: text = one concrete key statement; content = complete, with com
 5. A problem is solved whose solution was not obvious (more than one attempt, troubleshooting): cause, solution, evidence — the working code, script or commands of the solution unabridged in content. Found on the web or in documentation: vi_solved with the URL in the instructions — it becomes a hint for every agent.
 6. The user states a rule, requirement or decision that applies beyond this session — with the hashtag thema:vorgabe: those are listed in the index every session receives.
 7. A reusable fact about a system was looked up or measured (path, port, version, peculiarity, access route without secrets).
-8. Something turns out to be wrong: mark wrong VI knowledge with vi_refute, learn the correction.
+8. Something turns out to be wrong — a hint contradicts what you just measured or read, or the user corrects it: correct it at once, in the same step, not at the end of the session: vi_refute the wrong object (reason with evidence), vi_learn the correction (with source).
 Search before learning: if it is already there, vi_confirm instead of creating it again. After hints: vi_feedback(helped=[ids], wrong=[ids]) — one call, no reason needed; it is how the VI learns which hint to show. vi_confirm / vi_refute when you checked the knowledge itself.
 Code: the code of a solution, a fix, a reusable script or a query belongs in content, complete and runnable. Not a copy of a file that lives in a repository: name repository, path and commit instead — the code of a repository comes into its project index through the code import (vi-mcp index import-code), and vi_recall finds it there.
 Network wiki: what the whole network should maintain (a runbook, the answer to a recurring question) goes on a page with vi_page_write (network, page, text, base_rev = the revision you edited); vi_page_read shows a page with its open conflicts — resolve one by writing with base_rev = one head and also_parents = the others.
@@ -607,9 +607,9 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
     if only:
         f += f" · only index {only}"
     elif first and hits:  # 0.61.0: Vorrang, kein Ausschluss — the project's hits first, in their order, then the rest in theirs
-        own = [h for h in hits if h[1].idx == first]
+        own = [h for h in hits if indexes.first(h[1], first)]
         if own and len(own) < len(hits):
-            hits = own + [h for h in hits if h[1].idx != first]
+            hits = own + [h for h in hits if not indexes.first(h[1], first)]
             f += f" · {len(own)} hit(s) from index {first} first"
     # 0.31.0: a measurement must not change what it measures — a benchmark of 49 questions reinforced 733 objects once each
     # (10.11.2026), making them look more used and more recent than real use justifies. reinforce=false only reads.

@@ -282,7 +282,7 @@ Verzeichnis); im Projekt kommt sein Index bei Suche und Hinweisen zuerst, alles 
 sucht nur in einem Index. Ein Index mit genug Erfahrungen trainiert ein eigenes Router-Modell, das nur gilt, wenn es das gemeinsame
 schlägt. `vi-mcp index import-code REPO --index X` holt den Code eines Git-Repos in den Index (Funktionen und Klassen, nur Geändertes);
 `vi_recall` findet ihn, und bevor eine KI eine Datei liest oder ändert, nennt die VI, was der Index zu ihr hält. Indexe verlassen den
-Server nie. Einzelheiten: [OPERATIONS](docs/OPERATIONS.md#indexes-and-code-0610).
+Server nie. Zwei Server können einen Index vergleichen: `vi-mcp index export` schreibt ihn mit den Messungen dieses Servers in eine signierte interne Datei, `vi-mcp index import --as` nimmt sie auf (geprüft wie im Netz), und `vi-mcp index compare` zeigt je Inhalt, ob er an beiden Orten wirkt oder nur am Ursprung (0.62.0). Einzelheiten: [OPERATIONS](docs/OPERATIONS.md#indexes-and-code-0610).
 
 ## Zwei Modi: Token und Open Wiki
 

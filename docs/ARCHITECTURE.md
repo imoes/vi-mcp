@@ -401,6 +401,29 @@ a hashtag on purpose: no export form, web page or content hash carries it — a 
   Read/Edit/Write the file line names what the index holds of the file; outside its project, code of other indexes is hidden in
   `vi_recall` (counted).
 
+## Index files — the same content measured in two places (0.62.0)
+
+The user: "Der Export oder Import von Projekten kann uns beim Scoring der Inhalte helfen. So können wir vergleichen." `index_transfer.py`
+adds no second mechanism; it reuses the network's: content hash, holders and ratings (`net_score`), the internal export form of a company
+network (`p2p.internal_form`) and the import path fixed rules → quarantine → reviewer → release (`p2p._create`, channel `datei`).
+
+- **Export** (`vi-mcp index export INDEX FILE`): knowledge of one index (kinds of `p2p.EXPORT_KINDS`, shared or internal, active) with this
+  server's own measurement per content (`net_score.own_measurement`: hint bandit, confirmations, refutations). Never private objects,
+  experiences, conversations, code pieces; skipped objects are counted with their reason. Signed with Ed25519 (`export.key` in the
+  network directory, `VI_MCP_EXPORT_KEY` overrides). The file is internal — company knowledge unanonymised, like a company network —
+  but carries no instance, conversation or object id.
+- **Import** (`vi-mcp index import FILE --as INDEX`): signature first, nothing is stored before it holds. The content hash is computed
+  here (never taken from the file). A content this memory has (`net_score.find`, then `find_local`) is no second object: only the
+  exporter's measurement becomes a rating (`p2p_bewertung`, `netz = 'datei'`). A new one goes into quarantine in the target index,
+  internal. A file from this server is refused: a server does not rate itself, and one object stays in one index.
+- **Way back:** the target exports in turn, the origin imports — its own contents get the target's measurement as a foreign rating.
+- **Comparison** (`vi-mcp index compare INDEX`, sleep step `8e_index_vergleich`): per content and exporter, success `yes/(yes+no)` on both
+  sides with its 90 % beta interval, at least 10 observations per side. Classes (exhaustive): `allgemein` (both lower bounds > 0.5),
+  `nur_ursprung`, `nur_ziel`, `schwach` (both upper bounds < 0.5), `unentschieden`, `zu_wenig`. A content good only at its origin loses
+  the project priority at the target (`daten.vorrang_aus`, one rule for hints, prompt hints and `vi_recall`: `indexes.first`) and gets it
+  back when a later comparison no longer says so. Ratings from files count in the network score but never hide an own object: knowledge
+  that fits only here must not vanish here.
+
 ## Total effect of hints — held back at random (0.61.0)
 
 The randomized ε-exploration measures the choice of hints (ranked against random). Whether showing hints at all raises the success of an

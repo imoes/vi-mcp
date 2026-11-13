@@ -317,6 +317,8 @@ def report(days: float = 7) -> str:
     from . import indexes, intuition
     z.append("    indexes (0.61.0): " + " · ".join(f"{e['index']} {e['erfahrungen']} exp./{e['wissen']} knowledge, model {e['modell']}"
                                                   for e in indexes.summary()[:8]))
+    from . import index_transfer
+    z.append("    " + index_transfer.stats_line())
     hb = metrics.holdback_effect(24 * max(days, 30))  # 0.61.0: the total effect needs weeks — always over at least 30 days
     z.append(f"    randomized (hints held back on a random {intuition.HOLD_BACK * 100:g} % of actions, 30 d): {hb['urteil']}")
     from . import learning, weight_writer

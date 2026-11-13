@@ -17,7 +17,8 @@ widerlegt; the latest rating of each rater counts, at most CAP observations per 
 benefit of that rater as a publisher (0.5 while unknown). A holder's rating of its own content does not count (no instance rates itself).
 This memory's own measurement counts as one more rater. 90 % interval from the beta distribution.
 Effect: shown with imported objects (vi_object, vi_recall); with ≥ HIDE_MIN_OBS observations and a score below HIDE_BELOW a content is no
-longer offered as a hint before actions. The router keeps learning from this server's own experiences only.
+longer offered as a hint before actions. 0.62.0: ratings from index files (channel `datei`, index_transfer) count in the score, but never
+hide this memory's own object — they compare two places, and knowledge that fits only here must not vanish here. The router keeps learning from this server's own experiences only.
 """
 from __future__ import annotations
 
@@ -119,10 +120,16 @@ def find(ish: str) -> str | None:
 
 
 def find_local(raw: dict, ish: str) -> str | None:
-    """An own (not imported) object with the same meaning — by exact text first, then the hash decides."""
+    """An own (not imported) object with the same meaning — by exact text (0.62.0: and exact content first), then the hash decides.
+    0.62.0: the content narrows the candidates, and up to 500 with the same text are checked (was 20 by text alone: a generic heading such
+    as "What is missing" shared by many objects hid the matching one — found on the way back of an index file, 40 of 180 contents were
+    stored a second time)."""
+    where = ("FROM objekt WHERE art = ? AND text = ? AND (instanz IS NULL OR instanz NOT LIKE 'p2p-%') "
+             "AND modus NOT IN ('widerlegt', 'quarantaene')")
+    par = (raw.get("art"), str(raw.get("text") or "").strip())
     with g.lock:
-        ids = [r[0] for r in g.db().execute("SELECT id FROM objekt WHERE art = ? AND text = ? AND (instanz IS NULL OR instanz NOT LIKE 'p2p-%') "
-                                            "AND modus NOT IN ('widerlegt', 'quarantaene') LIMIT 20", (raw.get("art"), str(raw.get("text") or "").strip()))]
+        ids = [r[0] for r in g.db().execute(f"SELECT id {where} AND json_extract(daten, '$.inhalt') IS ? LIMIT 20", (*par, raw.get("inhalt")))]
+        ids += [r[0] for r in g.db().execute(f"SELECT id {where} LIMIT 500", par) if r[0] not in ids]
     for oid in ids:
         o = g.load(oid)
         if o and content_hash(local_form(o)) == ish:
@@ -241,32 +248,41 @@ def score(ish: str, local: g.MemoryObject | None = None) -> dict:
     from .logbook import pseudonym
     _tables()
     with g.lock:
-        ratings = g.db().execute("SELECT pub, ja, nein, bestaetigt, widerlegt FROM p2p_bewertung WHERE inhalt_sha = ?", (ish,)).fetchall()
+        ratings = g.db().execute("SELECT pub, ja, nein, bestaetigt, widerlegt, netz FROM p2p_bewertung WHERE inhalt_sha = ?", (ish,)).fetchall()
     held_by = set(holders(ish))
     value = p2p.publisher_value()
     rows, self_rated = [], 0
-    for pub, ja, nein, b, w in ratings:
+    for pub, ja, nein, b, w, net in ratings:
         if pub in held_by:
             self_rated += 1
             continue
         weight = value.get(pseudonym(pub), {}).get("mittel", UNKNOWN_WEIGHT)
-        rows.append((weight, ja + b, nein + w))
-    if local is not None and str(local.instance or "").startswith("p2p-"):  # an import: our measurement is foreign to its holders
+        rows.append((weight, ja + b, nein + w, net == p2p.FILE_NET))
+    imported = local is not None and str(local.instance or "").startswith("p2p-")
+    if imported:  # an import: our measurement is foreign to its holders
         m = own_measurement(local)
-        rows.append((1.0, m["ja"] + m["bestaetigt"], m["nein"] + m["widerlegt"]))
-    yes = no = obs = 0.0
-    raters = 0
-    for weight, y, n in rows:
-        if y + n <= 0:
-            continue
-        raters += 1
-        f = min(1.0, CAP / (y + n))
-        yes, no, obs = yes + weight * y * f, no + weight * n * f, obs + (y + n) * f
+        rows.append((1.0, m["ja"] + m["bestaetigt"], m["nein"] + m["widerlegt"], False))
+
+    def total(rs):
+        yes = no = obs = 0.0
+        raters = 0
+        for weight, y, n, _f in rs:
+            if y + n <= 0:
+                continue
+            raters += 1
+            f = min(1.0, CAP / (y + n))
+            yes, no, obs = yes + weight * y * f, no + weight * n * f, obs + (y + n) * f
+        return yes, no, obs, raters
+    yes, no, obs, raters = total(rows)
     a, b = 1 + yes, 1 + no
     lo, hi = _beta_interval(a, b)
     s = a / (a + b)
+    hide_obs, hide_s = obs, s
+    if local is not None and not imported:  # 0.62.0: index files compare places — knowledge that fits only here must not vanish here
+        hy, hn, hide_obs, _r = total([r for r in rows if not r[3]])
+        hide_s = (1 + hy) / (2 + hy + hn)
     return {"score": round(s, 3), "von": round(lo, 3), "bis": round(hi, 3), "bewerter": raters, "beobachtungen": round(obs, 1), "halter": len(held_by),
-            "selbstbewertungen_ignoriert": self_rated, "ausgeblendet": obs >= HIDE_MIN_OBS and s < HIDE_BELOW}
+            "selbstbewertungen_ignoriert": self_rated, "ausgeblendet": hide_obs >= HIDE_MIN_OBS and hide_s < HIDE_BELOW}
 
 
 def line(o: g.MemoryObject) -> str | None:

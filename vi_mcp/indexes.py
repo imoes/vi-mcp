@@ -75,6 +75,12 @@ def from_project(project: str | None, cfg: dict | None = None) -> str:
         return GLOBAL
 
 
+def first(o, index: str | None) -> bool:
+    """Does object o come first in this project? Its index, unless an index comparison found it good only at its origin (0.62.0,
+    daten.vorrang_aus — it stays visible as general knowledge)."""
+    return index is not None and o.idx == index and not (o.data or {}).get("vorrang_aus")
+
+
 def index_for(explicit: str | None, project: str | None, cfg: dict | None = None) -> str:
     """An explicit index wins; otherwise the project's; otherwise global."""
     return normalize(explicit) or from_project(project, cfg)
@@ -162,6 +168,8 @@ def lines() -> list[str]:
             out.append(f"    {e.get('beschreibung') or ''}" + (f" [tags: {', '.join(e['tags'])}]" if e.get("tags") else ""))
         if e.get("modell_urteil"):
             out.append(f"    {e['modell_urteil']}")
+        from . import index_transfer
+        out += index_transfer.lines(e["index"])  # 0.62.0
     return out or ["  — no objects"]
 
 
@@ -263,6 +271,15 @@ def main(argv: list[str]) -> int:
     u.add_parser("import-code", help="put the code of a git repository into an index (vi-mcp index import-code REPO --index X)", add_help=False)
     tr = u.add_parser("train", help="train the own model of one index now (otherwise sleep step 8d does it)")
     tr.add_argument("index")
+    ex = u.add_parser("export", help="the knowledge of one index into a signed, internal file, with this server's measurements (0.62.0)")
+    ex.add_argument("index")
+    ex.add_argument("file")
+    im = u.add_parser("import", help="import an index file of another server into an index: quarantine and reviewer like the network")
+    im.add_argument("file")
+    im.add_argument("--as", dest="as_index", required=True, metavar="INDEX")
+    cp = u.add_parser("compare", help="per content: this server's measurement against the exporters' (sleep step 8e does it daily)")
+    cp.add_argument("index")
+    cp.add_argument("--dry-run", action="store_true", help="only report, do not switch the project priority")
     o = a.parse_args(argv)
     from . import config
     from . import memory as g
@@ -278,6 +295,9 @@ def main(argv: list[str]) -> int:
             print(describe(o.index, o.text, o.tags.split(",") if o.tags is not None else None, o.kind))
         elif o.cmd == "backfill":
             print(json.dumps(backfill(o.apply), indent=2, ensure_ascii=False))
+        elif o.cmd in ("export", "import", "compare"):
+            from . import index_transfer
+            return index_transfer.main(o.cmd, o)
         else:
             from . import learning
             r = learning.train_index(normalize(o.index) or GLOBAL, "admin")

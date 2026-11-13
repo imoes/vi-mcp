@@ -70,10 +70,10 @@ def networks() -> dict[str, dict]:
     out = {STANDARD: {"kind": "open", "instance": "p2p", "auto_release": False, "local": conf.get("local") or None}}
     for name, d in (conf.get("networks") or {}).items():
         kind = cfg.net_kind(d.get("kind")) if isinstance(d, dict) else None
-        if not isinstance(d, dict) or not NET_NAME.match(str(name)) or name == STANDARD or kind not in NET_KINDS \
+        if not isinstance(d, dict) or not NET_NAME.match(str(name)) or name in (STANDARD, FILE_NET) or kind not in NET_KINDS \
                 or not isinstance(d.get("instance"), str) or d["instance"] in ("p2p",):
             from .log_output import log
-            log(f"p2p: network {name!r} ignored: needs a name a-z0-9-, kind {' or '.join(NET_KINDS)} and its own instance")
+            log(f"p2p: network {name!r} ignored: needs a name a-z0-9- (not standard or {FILE_NET}), kind {' or '.join(NET_KINDS)} and its own instance")
             continue
         out[name] = {"kind": kind, "instance": d["instance"], "auto_release": bool(d.get("auto_release")), "local": d.get("local") or None,
                      "start": d.get("start") if isinstance(d.get("start"), str) else None}
@@ -132,8 +132,12 @@ def network_of(instance: str) -> str | None:
     return next((n for n, d in networks().items() if d["instance"] == instance), None)
 
 
+#: 0.62.0: the channel of index files (vi-mcp index export/import) — internal like a company network, never configured as a network
+FILE_NET = "datei"
+
+
 def is_company(net: str) -> bool:
-    return networks().get(net, {}).get("kind") == "company"
+    return net == FILE_NET or networks().get(net, {}).get("kind") == "company"
 
 
 def _proven(o: g.MemoryObject) -> bool:
@@ -243,6 +247,12 @@ def _export_form(o: g.MemoryObject, token: str, known_set: frozenset[str], net: 
 
 def _company_form(o: g.MemoryObject, token: str, net: str) -> tuple[dict | None, str | None]:
     """Export form for a company network: unchanged text, hashtags without the reserved ones; images and credentials still stay home."""
+    net_id, object_token = _object_token(token, o.id, net)
+    return internal_form(o, {"netz_id": net_id, "loesch_hash": hashlib.sha256(object_token.encode()).hexdigest()})
+
+
+def internal_form(o: g.MemoryObject, ids: dict) -> tuple[dict | None, str | None]:
+    """The internal export form (company network, 0.62.0 also the index file): `ids` are netz_id and loesch_hash of the channel."""
     raw_content = str(o.data.get("inhalt") or "")
     if o.data.get("bild"):
         return None, "has an image (images stay on this server)"
@@ -251,10 +261,8 @@ def _company_form(o: g.MemoryObject, token: str, net: str) -> tuple[dict | None,
     if len(raw_content) > checks.CONTENT_MAX:
         return None, "content too large for the network"
     ts = o.ts[:10]
-    net_id, object_token = _object_token(token, o.id, net)
     outputs = {"art": o.kind, "text": o.text, "hashtags": sorted({t for t in o.hashtags if not t.startswith(checks.FIXED_HASHTAGS)}),
-               "quelle": str(o.data.get("quelle") or f"geteilte Erfahrung vom {ts}")[:500], "wichtigkeit": o.importance, "zeit": ts,
-               "netz_id": net_id, "loesch_hash": hashlib.sha256(object_token.encode()).hexdigest()}
+               "quelle": str(o.data.get("quelle") or f"geteilte Erfahrung vom {ts}")[:500], "wichtigkeit": o.importance, "zeit": ts, **ids}
     if raw_content:
         outputs["inhalt"] = raw_content
     if o.kind == "erkenntnis" and o.data.get("ausgang"):

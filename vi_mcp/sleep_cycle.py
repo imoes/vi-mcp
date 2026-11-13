@@ -146,6 +146,9 @@ def _run(reason: str) -> g.MemoryObject:
         from . import learning, weight_writer
         step("8c_llm_gewichte", lambda: weight_writer.run())  # 0.58.0: the language model may propose a weight layer — measured before it acts
         step("8d_index_modelle", lambda: [{k: r.get(k) for k in ("index", "zustand", "n", "auc_holdout")} for r in learning.train_indexes("sleep")])  # 0.61.0
+        from . import index_transfer
+        step("8e_index_vergleich", lambda: [{k: r[k] for k in ("index", "inhalte", "klassen", "vorrang_aus_neu", "vorrang_wieder_an")}
+                                             for r in index_transfer.compare_all("sleep")])  # 0.62.0: origin against target per content
     from . import evaluation
     step("9_pruefung", lambda: evaluation.nightly())  # 0.55.0: once a day the fixed question set and the router numbers
     duration = int((time.monotonic() - t0) * 1000)

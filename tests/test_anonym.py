@@ -355,3 +355,15 @@ def test_ratings_carry_only_a_hash_and_numbers(publisher):
     for forbidden in ("alice", "srv-alpha", "Graylog", "Eingang"):
         assert forbidden not in raw
     assert out[0]["ziel"] == net_score.content_hash(GOOD)
+
+
+def test_index_file_names_no_instance_conversation_or_index_internals(gd, tmp_path, monkeypatch):
+    """0.62.0: the index file is internal (company knowledge unanonymised, like a company network) — but what identifies this server's
+    users and history stays home: instance, conversation, object id, the exporting index's position in other indexes."""
+    from vi_mcp import index_transfer
+    monkeypatch.setenv("VI_MCP_EXPORT_KEY", str(tmp_path / "k.key"))
+    o = g.new_object("erkenntnis", "deploy: back up the database before the package update", ["thema:deploy"], {"quelle": "test run"},
+                     index="kunde-x", visibility="intern", instance="alice-laptop", conversation="20261113042")
+    index_transfer.export("kunde-x", tmp_path / "x.json")
+    raw = (tmp_path / "x.json").read_text()
+    assert "alice-laptop" not in raw and "20261113042" not in raw and o.id not in raw and "gespraech" not in raw

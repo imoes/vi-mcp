@@ -3,6 +3,46 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.62.0 — not yet released — Index files: the same knowledge measured on two servers
+
+The user (12./13.11.2026): "Der Export oder Import von Projekten kann uns beim Scoring der Inhalte helfen. So können wir vergleichen." and
+"Wenn sich in der Konversation eine Korrektur in der VI ergibt, dann soll das gleich korrigiert werden."
+
+### What is new
+
+- **`vi-mcp index export INDEX FILE`** writes the knowledge of one index into a signed (Ed25519), internal file, with this server's measurement
+  per content (hints shown, helped, not helped, confirmed, refuted). Private objects, experiences, conversations and code pieces stay home;
+  what is skipped is counted with its reason.
+- **`vi-mcp index import FILE --as INDEX`** takes it in on another server like the network does: signature, fixed rules, quarantine,
+  reviewer, release; internal. A content the server already has is not copied — the exporter's measurement becomes a rating of it.
+  That is the way back: the origin learns how its knowledge works elsewhere.
+- **`vi-mcp index compare INDEX`** (and daily, sleep step 8e) compares per content: `allgemein` (good in both places), `nur_ursprung`,
+  `nur_ziel`, `schwach`, `unentschieden`, `zu_wenig` (fewer than 10 observations a side). Content good only at its origin loses the
+  project priority at the target and keeps it at home; `vi_indexes` and `vi_stats` C show the classes.
+- *Verified (13.11.2026, two local test servers through the command line):* 185 knowledge objects from this changelog with measurements;
+  export 180 entries (5 skipped: "mentions credentials"), 218 KB, 0.25 s; import 180 into quarantine in 0.78 s, a second import adds
+  nothing (180 known); way back after release and measuring on B: 0 copies, 180 ratings; both sides classify alike (allgemein 62,
+  nur_ursprung 34, nur_ziel 58, schwach 26); B switched the priority off for its 34 `nur_ursprung` contents. Tests:
+  `tests/test_index_transfer.py` (11), `tests/test_anonym.py` (file names no instance, conversation or object id).
+
+### What has changed
+
+- **Rule 8 for every AI** (`tools.RULES`): a correction to VI knowledge is made at once, in the same step — `vi_refute` with evidence,
+  `vi_learn` with source — not at the end of the session.
+- **Recognising own content from the network or a file** (`net_score.find_local`) compares text and content first and then up to 500
+  objects with the same text (was 20 by text alone). *Found in the real test:* objects sharing a generic text ("What is missing") hid the
+  matching one, and 40 of 180 contents came back as copies; after the fix 0 (test with 25 objects of one text).
+- The network name `datei` is reserved for index files.
+
+### What is missing
+
+- **Same server:** a file is not imported into a second index of its own server (one object, one index; no self-rating).
+- **Imported searches and skills** cannot be exported again (renamed on import, their content hash cannot be rebuilt); counted.
+- **Without a configured reviewer** imported contents wait in quarantine until `vi_release`.
+- **Flaky test order on PostgreSQL:** one full run had `tests/test_hook.py::test_error_hint_and_own_tools` fail after
+  `tests/test_einrichten.py`; repeated three times on 0.61.0 and on this state it passed, the full suite passed (739). Cause not found
+  (hypothesis: order-dependent state).
+
 ## 0.61.0 — 2026-11-13 — Indexes (projects, special VIs, code) and the total effect of hints, measured
 
 The user (12./13.11.2026):
