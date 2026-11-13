@@ -74,10 +74,15 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   someone works. Servers keep the nightly run and sleep under load as before. Tests: `tests/test_sleep_workstation.py` (3).
 - **A student learns the labels, so new knowledge needs no language model** (distillation, as FineWeb-Edu did with 460,000 LLM ratings):
   one logistic regression per label kind on the bge-m3 vectors the memory already has, trained only on labels both prompt variants
-  agreed on (at least 120, a class needs 15). It becomes active only with ≥ 80 % holdout accuracy; then it labels what it is ≥ 80 % sure
-  of (`daten.klasse.zustand: schueler`, version `student@<time>`), the language model labels the rest, and 10 % of the student's sure
-  labels go to the language model as an audit — agreement is counted on the model object `modell:klassen`, so drift becomes visible.
-  Sleep step 8f trains it before labelling. Tests: `tests/test_classify.py` (5).
+  agreed on (at least 120, a class needs 15). It labels only what it is ≥ 80 % sure of (`daten.klasse.zustand: schueler`, version
+  `student@<time>`), the language model labels the rest, and 10 % of the student's sure labels go to the language model as an audit —
+  agreement is counted on the model object `modell:klassen`, so drift becomes visible. Sleep step 8f trains it before labelling.
+  **Its gate is the accuracy of the labels it gives:** C is chosen per label kind by 5-fold cross-validation from 1, 10, 100; active only
+  if its sure labels are ≥ 90 % right on ≥ 10 % of the objects. *Measured on the production sample (13.11.2026, 186 agreed labels, the
+  stored bge-m3 vectors, the real code):* active with C = 10 — question type sure on 21 % of objects at 93.9 % accuracy (overall 74.1 %),
+  memory kind sure on 15 % at 92.6 % (overall 76.0 %); `why`, `where`, `rule` have fewer than 15 examples and stay with the language
+  model. The first version would never have labelled anything: with C = 1 no prediction reached 0.8 (unit-length vectors keep the logits
+  small), and its overall-accuracy gate of 0.8 would never have opened. Tests: `tests/test_classify.py` (5).
 - **Training data to fine-tune an AI** (the goal the user set: "Wenn eine VI aus dem Inkubator kommt, soll man damit dann eine KI
   fine-tunen"): `vi-mcp dataset export DIR [--index X]` writes `qa.jsonl` (SFT: question → knowledge with source; questions from the
   classification or the object's text), `kto.jsonl` (situation → hint, desirable or not, from the measured helped/not-helped counters,
@@ -171,7 +176,7 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   torch for ROCm or CUDA, trl, peft) await the user's decision. `evaluate.py` measures answers, not yet the agentic search (whether
   the fine-tuned model finds the target with the tool more often than the base model). No full task trajectories: user prompts are masked and never stored.
 - **The AI language** between servers carries word weights and `ask` questions inside one memory; asking another server in VIL (an
-  `ask` over the network forum answered with `tell` lines) is a design (README), not code yet. The student has not been trained on real data yet (the sample run is in progress). Whether
+  `ask` over the network forum answered with `tell` lines) is a design (README), not code yet. Whether
   the question-type order raises success is not measured yet; no human gold set exists.
 - **A second order-dependent test:** `tests/test_http.py::test_two_sessions_two_conversations` failed once in a full run on SQLite and
   passed 4 times alone; cause not found.

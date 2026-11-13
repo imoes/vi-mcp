@@ -302,13 +302,20 @@ def main(argv: list[str]) -> int:
 # Research (13.11.2026): classifiers trained on LLM labels do about as well as on human labels (Pangakis & Wolken 2024); FineWeb-Edu let
 # an LLM rate 460,000 pages and trained a small classifier on them (arXiv 2406.17557). Here: logistic regression on the bge-m3 vectors
 # the memory already has; new knowledge is labelled without a language model where the student is sure, the rest goes to the LLM, and a
-# share of the student's labels is checked by the LLM (agreement recorded on the model object — drift becomes visible).
+# share of the student's labels is checked by the LLM (agreement recorded on the model object — drift becomes visible). Active only
+# where its sure labels are ≥ 90 % right on ≥ 10 % of the objects (5-fold cross-validation, C chosen from C_GRID).
 
 STUDENT = "modell:klassen"
 MIN_PER_CLASS = 15
 MIN_TOTAL = 120
-GATE_ACCURACY = 0.8
 SURE = 0.8
+#: the student labels only where it is sure, so the gate is the accuracy OF THOSE labels, with enough of them to matter. Measured on a
+#: production sample (13.11.2026, 160/195 agreed labels, bge-m3 vectors, 5-fold): with C = 1 no prediction ever reached 0.8 (the vectors
+#: are unit length, the logits stay small) — the first version would never have labelled anything; C = 10 was sure on 17–21 % at
+#: 94–97 % accuracy, C = 100 on about 60 % at 83–84 %. Overall accuracy was 0.69–0.76: an overall gate of 0.8 would never have opened.
+GATE_SURE_ACCURACY = 0.9
+GATE_COVERAGE = 0.1
+C_GRID = (1.0, 10.0, 100.0)
 AUDIT_SHARE = 0.1
 
 
@@ -326,7 +333,7 @@ def train_student(who: str = "sleep") -> dict:
     """Fit one logistic regression per head (answers, memory) on the agreed LLM labels; holdout accuracy decides active or test."""
     import numpy as np
     from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import train_test_split
+    from sklearn.model_selection import StratifiedKFold
     from . import vector
     ids, ans, mem = _labelled()
     vecs = {i: v for i in ids if (v := vector.load(i)) is not None}
@@ -344,19 +351,34 @@ def train_student(who: str = "sleep") -> dict:
         if len(classes) < 2:
             heads[head] = {"zustand": "zu_wenig", "grund": f"fewer than 2 classes with {MIN_PER_CLASS} labels ({counts})"}
             continue
-        Xtr, Xte, ytr, yte = train_test_split(Xh, yh, test_size=0.25, random_state=7, stratify=yh)
-        clf = LogisticRegression(max_iter=2000, class_weight="balanced").fit(Xtr, ytr)
-        acc = float((clf.predict(Xte) == np.array(yte)).mean())
-        per = {c: round(float((clf.predict(Xte[np.array(yte) == c]) == c).mean()), 3) for c in classes}
-        clf = LogisticRegression(max_iter=2000, class_weight="balanced").fit(Xh, yh)  # the gate passed or not — the final fit uses all
-        heads[head] = {"zustand": "aktiv" if acc >= GATE_ACCURACY else "test", "genauigkeit_holdout": round(acc, 3), "je_klasse": per,
+        yh = np.array(yh)
+        folds = list(StratifiedKFold(5, shuffle=True, random_state=7).split(Xh, yh))
+        grid = {}
+        for C in C_GRID:  # 5-fold: overall accuracy, and how many it is sure of (≥ SURE) and how right those are
+            ok = sure = sure_ok = 0
+            for tr, te in folds:
+                m = LogisticRegression(C=C, max_iter=3000, class_weight="balanced").fit(Xh[tr], yh[tr])
+                pr = m.predict_proba(Xh[te])
+                pred = m.classes_[pr.argmax(1)]
+                s_ = pr.max(1) >= SURE
+                ok += int((pred == yh[te]).sum())
+                sure += int(s_.sum())
+                sure_ok += int((pred[s_] == yh[te][s_]).sum())
+            grid[C] = {"genauigkeit": round(ok / len(yh), 3), "abdeckung": round(sure / len(yh), 3),
+                       "genauigkeit_sicher": round(sure_ok / sure, 3) if sure else None}
+        passing = [C for C, r in grid.items() if r["genauigkeit_sicher"] is not None and r["genauigkeit_sicher"] >= GATE_SURE_ACCURACY
+                   and r["abdeckung"] >= GATE_COVERAGE]
+        C = max(passing, key=lambda c: grid[c]["abdeckung"]) if passing else max(grid, key=lambda c: grid[c]["genauigkeit"])
+        clf = LogisticRegression(C=C, max_iter=3000, class_weight="balanced").fit(Xh, yh)  # the gate passed or not — the final fit uses all
+        heads[head] = {"zustand": "aktiv" if passing else "test", "C": C, "kreuzvalidierung": {str(k): v for k, v in grid.items()},
+                       "genauigkeit_sicher": grid[C]["genauigkeit_sicher"], "abdeckung": grid[C]["abdeckung"], "genauigkeit": grid[C]["genauigkeit"],
                        "klassen": list(clf.classes_), "nicht_gelernt": {c: n for c, n in counts.items() if c not in classes},
-                       "gewichte": [[round(float(x), 5) for x in row] for row in clf.coef_], "achsenabschnitt": [round(float(x), 5) for x in clf.intercept_],
-                       "n_holdout": len(yte)}
+                       "gewichte": [[round(float(x), 5) for x in row] for row in clf.coef_], "achsenabschnitt": [round(float(x), 5) for x in clf.intercept_]}
     state = "aktiv" if all(h.get("zustand") == "aktiv" for h in heads.values()) else "test"
     report.update(zustand=state, koepfe=heads, dim=int(X.shape[1]))
-    text = (f"Student for the AI-language labels ({state}): {len(keep)} agreed LLM labels, holdout accuracy "
-            + ", ".join(f"{h} {d.get('genauigkeit_holdout', '—')}" for h, d in heads.items()))
+    text = (f"Student for the AI-language labels ({state}): {len(keep)} agreed LLM labels; where sure (≥ {SURE}): "
+            + ", ".join(f"{h} {d.get('genauigkeit_sicher', '—')} right on {d.get('abdeckung', '—')} of objects (C {d.get('C', '—')})"
+                        for h, d in heads.items()))
     m = g.load(STUDENT)
     if m is None:
         g.new_object("modell", text, ["modell:klassen"], report, importance=2, who=who, oid=STUDENT, mode=state, reason="student trained",

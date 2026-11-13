@@ -101,7 +101,7 @@ def test_student_learns_the_labels_labels_new_objects_and_is_audited(gd, llm):
             table[(v, o.text)] = _ans(a, m=m)
     assert classify.run(200, "test")["einig"] == 150
     r = classify.train_student("test")
-    assert r["zustand"] == "aktiv" and r["n"] == 150 and r["koepfe"]["answers"]["genauigkeit_holdout"] >= 0.9
+    assert r["zustand"] == "aktiv" and r["n"] == 150 and r["koepfe"]["answers"]["genauigkeit_sicher"] >= 0.9
     assert r["koepfe"]["answers"]["klassen"] == ["how", "what", "who"] and "gewichte" not in r["koepfe"]["answers"]
     new = _clustered(4, rng)
     calls.clear()

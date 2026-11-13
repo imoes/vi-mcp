@@ -229,9 +229,13 @@ answer is therefore checked again and asked once more, otherwise `unsure`. Laten
 shared server. In a check of 26 objects by the author of this report (not a human gold set), about 24–25 primary labels were plausible.
 
 Because labelling every object with a language model is slow, a **student** learns the labels: one logistic regression per label kind on
-the bge-m3 vectors the memory already has, trained only on agreed labels (≥ 120, ≥ 15 per class), active only at ≥ 80 % holdout
-accuracy, labelling only where ≥ 80 % sure; 10 % of its sure labels are audited by the language model and the agreement is recorded, so
-drift becomes visible. Classifiers trained on LLM labels reach roughly the quality of those trained on human labels [29]; FineWeb-Edu
+the bge-m3 vectors the memory already has, trained only on agreed labels (≥ 120, ≥ 15 per class), labelling only where ≥ 80 % sure; 10 %
+of its sure labels are audited by the language model and the agreement is recorded, so drift becomes visible. Its gate is the accuracy of
+the labels it actually gives: C is chosen by 5-fold cross-validation, and it is active only if its sure labels are ≥ 90 % right on ≥ 10 %
+of the objects. *Measured on the production sample* (186 agreed labels, the stored vectors, the real code): with C = 10 it is sure on 21 %
+of objects for the question type at 93.9 % accuracy and on 15 % for the memory kind at 92.6 % (overall accuracy 74–76 %); rare classes
+(`why`, `where`, `rule`) stay with the language model. The first design — C = 1 and an overall-accuracy gate of 0.8 — would never have
+labelled anything: on unit-length vectors no prediction reached 0.8. Measuring on real data, not only on synthetic clusters, found it. Classifiers trained on LLM labels reach roughly the quality of those trained on human labels [29]; FineWeb-Edu
 used exactly this pattern at scale [30]. Old data migrates where it is used: what a real search returns unlabelled is labelled at once by
 the student or queued, and sleep labels the queue first.
 
