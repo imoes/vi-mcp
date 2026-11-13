@@ -13,7 +13,7 @@ if [ "$1" = "configure" ]; then
     # 0.48.0: the answers of the dialogs (or of VI_MCP_<KEY>, or the defaults) — read all, reset the one-time actions, then leave
     # debconf before anything prints (stdout belongs to debconf while the confmodule is loaded)
     answers=$(mktemp)
-    for key in port bind db open wiki net_name net_kind net_mode net_public net_start web web_base instance instance_family llm_url llm_model reviewer_prompt embed_url local_models; do
+    for key in port bind db open wiki net_name net_kind net_mode net_public net_start web web_base web_internal web_internal_base instance instance_family llm_url llm_model reviewer_prompt embed_url local_models; do
         if db_get "vi-mcp/$key"; then printf '%s %s\n' "$key" "$RET" >> "$answers"; fi
     done
     for key in net_name net_kind net_mode net_public net_start instance instance_family; do db_set "vi-mcp/$key" "" || true; done

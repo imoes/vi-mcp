@@ -53,7 +53,7 @@ def _table() -> None:
 
 
 def _hits(tool_parts: str, text: str) -> tuple[int | None, str | None]:
-    if tool_parts not in ("vi_recall", "vi_drilldown"):
+    if tool_parts not in ("vi_recall", "vi_drilldown", "web_search"):  # 0.62.0: the internal web search counts its hits the same way
         return None, None
     # Parses the vi_recall / vi_drilldown output of this version (English since 0.23.0); the German forms of older versions
     # stay recognised. The kinds "oder"/"volltext" are stored values.

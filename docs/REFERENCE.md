@@ -840,6 +840,8 @@ options:
 | `local` | `{}` | [`lokal`] Local users allowed on the socket: `{user: instance}`. `vi-mcp local USER INSTANCE` sets it. |
 | `web` | `false` | The read-only web page of the free and open networks under `/web` (0.46.0). `vi-mcp web on\|off`. |
 | `web_base` | `/web` | [`web_basis`] Path the browser sees behind the reverse proxy, e.g. `/vi-mcp/web`. |
+| `web_internal` | `false` | Internal knowledge search in the browser under `/intern` (0.62.0): sign-in with a VI token, shared and internal knowledge, never private. |
+| `web_internal_base` | `/intern` | Path of the internal search as the browser sees it, e.g. `/vi-mcp/intern`; it scopes the session cookie. |
 
 ## Network service configuration (`/etc/vi-p2p/<network>.json`)
 
@@ -895,6 +897,8 @@ Asked at the first installation (Debian: debconf; RPM and everywhere: `vi-mcp co
 | `net_start` | `VI_MCP_NET_START` | `` | A further network: start address or join code — Free network: the address of one of its servers. Closed network: the join code (vinetz1.…). Empty with peerhost = found a new network. |
 | `web` | `VI_MCP_WEB` | `false` | Read-only web page of the free and open networks — Search, wiki, forum and knowledge of the free and open networks under /web — never company networks or internal knowledge. |
 | `web_base` | `VI_MCP_WEB_BASE` | `/web` | Path of the web page as the browser sees it — /web, or /vi-mcp/web if it goes through the existing /vi-mcp/ location of the reverse proxy. |
+| `web_internal` | `VI_MCP_WEB_INTERNAL` | `false` | Internal knowledge search with sign-in — Search shared and internal knowledge in the browser under /intern, signed in with a VI token — never private knowledge (0.62.0). |
+| `web_internal_base` | `VI_MCP_WEB_INTERNAL_BASE` | `/intern` | Path of the internal search as the browser sees it — /intern, or /vi-mcp/intern if it goes through the existing /vi-mcp/ location of the reverse proxy. |
 | `instance` | `VI_MCP_INSTANCE` | `` | Create an instance (empty = none) — A name for an AI client or a person, e.g. claude-code or max. The token is written to /root/vi-mcp-token-<name> (only root reads it) and never shown here. |
 | `instance_family` | `VI_MCP_INSTANCE_FAMILY` | `undeclared` | Model family of the new instance — Confirmations by the same model family count as one independent line. |
 | `llm_url` | `VI_MCP_LLM_URL` | `` | URL of the language model (empty = none) — OpenAI-compatible chat endpoint for sleep and the reviewer, e.g. http://127.0.0.1:8080/v1/chat/completions. |
@@ -1012,6 +1016,7 @@ First line of each module's docstring.
 | `usage_stats` | Usage statistics — is the VI used, and does it work as intended? (0.21.0) |
 | `vector` | Vectors — meaning instead of identical words (stage 3, docs/TRAINING.md 4c; Park et al. 2023, section 4.1: relevance |
 | `web` | 0.46.0: the web page of a server — a read-only window onto what the free and open networks carry: search, wiki, forum, knowledge. |
+| `web_internal` | 0.62.0: the internal knowledge search in the browser — "wie bei Wikipedia darin suchen" (the user, 13.11.2026). |
 | `weight_audit` | Weight audit (0.29.0) — fixed rules that read the router weights after training and name what looks wrong. |
 | `weight_writer` | LLM weight layer (0.58.0) — weight-space programming for the router, hybrid with the fitted model. |
 | `wiki` | 0.41.0: the network wiki — pages every member of a network may edit, without a master. |

@@ -3,10 +3,11 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.62.0 — not yet released — Index files: the same knowledge measured on two servers
+## 0.62.0 — not yet released — Index files and an internal knowledge search in the browser
 
-The user (12./13.11.2026): "Der Export oder Import von Projekten kann uns beim Scoring der Inhalte helfen. So können wir vergleichen." and
-"Wenn sich in der Konversation eine Korrektur in der VI ergibt, dann soll das gleich korrigiert werden."
+The user (12./13.11.2026): "Der Export oder Import von Projekten kann uns beim Scoring der Inhalte helfen. So können wir vergleichen.",
+"Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" and "Wenn sich in der Konversation eine Korrektur in
+der VI ergibt, dann soll das gleich korrigiert werden."
 
 ### What is new
 
@@ -25,8 +26,20 @@ The user (12./13.11.2026): "Der Export oder Import von Projekten kann uns beim S
   nur_ursprung 34, nur_ziel 58, schwach 26); B switched the priority off for its 34 `nur_ursprung` contents. Tests:
   `tests/test_index_transfer.py` (11), `tests/test_anonym.py` (file names no instance, conversation or object id).
 
+- **Internal knowledge search in the browser** (`vi-mcp web internal on --base /vi-mcp/intern`, off by default): sign in with the token of
+  a VI instance and search shared and internal knowledge like a wiki — the same search as `vi_recall` (full text, meaning, rank fusion,
+  reranker), article pages with content, source, index, measurements, network score, related objects and history, and a page per index.
+  Private knowledge, quarantine, experiences and conversations never appear; what a search found but the page does not show is counted.
+  Reading reinforces nothing; `vi_stats` counts `web_search` calls without the query. The public `/web` page is unchanged.
+  *Verified (13.11.2026, local test server, Chromium through Playwright):* sign-in, search "index export compare" (12 results), article,
+  light and dark, 400 px wide without horizontal scrolling (`scrollWidth` 400); wrong token 401, foreign or `null` origin 403. Tests:
+  `tests/test_web_internal.py` (7).
+- **`vi-mcp configure` / debconf** ask for it (`web_internal`, `web_internal_base`).
+
 ### What has changed
 
+- **Text on the web pages** (also `/web`): `**bold**` is rendered, and indented continuation lines of a list item stay in that item
+  (they became separate paragraphs).
 - **Rule 8 for every AI** (`tools.RULES`): a correction to VI knowledge is made at once, in the same step — `vi_refute` with evidence,
   `vi_learn` with source — not at the end of the session.
 - **Recognising own content from the network or a file** (`net_score.find_local`) compares text and content first and then up to 500
@@ -39,6 +52,10 @@ The user (12./13.11.2026): "Der Export oder Import von Projekten kann uns beim S
 - **Same server:** a file is not imported into a second index of its own server (one object, one index; no self-rating).
 - **Imported searches and skills** cannot be exported again (renamed on import, their content hash cannot be rebuilt); counted.
 - **Without a configured reviewer** imported contents wait in quarantine until `vi_release`.
+- **The internal search on production** is not switched on yet — after release and deploy, on the user's word.
+- **Sessions of the internal search** live in the server process: a restart signs everybody out.
+- **Found in the browser test and fixed before release:** the sign-in was refused in every browser — the pages had the `no-referrer`
+  policy of `/web`, so Chrome sent `Origin: null`.
 - **Flaky test order on PostgreSQL:** one full run had `tests/test_hook.py::test_error_hint_and_own_tools` fail after
   `tests/test_einrichten.py`; repeated three times on 0.61.0 and on this state it passed, the full suite passed (739). Cause not found
   (hypothesis: order-dependent state).

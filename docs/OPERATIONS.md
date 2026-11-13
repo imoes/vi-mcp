@@ -182,6 +182,22 @@ location /web/ { proxy_pass http://127.0.0.1:8765/web/; proxy_set_header X-Forwa
 The page is read-only and public on purpose. It shows only networks of kind `free` and `open`; `vi-mcp web off` switches it off.
 Check: `curl -s https://<host>/web/ | grep -c "VI network"`.
 
+### Internal knowledge search (0.62.0)
+
+```bash
+sudo vi-mcp web internal on --base /vi-mcp/intern   # path the browser sees; scopes the session cookie
+sudo vi-mcp web internal                            # shows on/off and the base path
+```
+
+- Behind a reverse proxy that already passes `/vi-mcp/` to the server (prefix stripped), nothing changes there: `/vi-mcp/intern/` reaches
+  `/intern/`. Otherwise: `location /intern/ { proxy_pass http://127.0.0.1:8765/intern/; proxy_set_header X-Forwarded-For $remote_addr;
+  proxy_set_header Host $host; }`. The sign-in check compares the form's `Origin` with `Host` (or `X-Forwarded-Host`), or with `origins`
+  of the config.
+- Sign-in with the token of an instance (the same tokens as `/mcp`); a session lasts 8 h and lives in the server process — a restart
+  signs everybody out.
+- Check: `curl -s -o /dev/null -w '%{http_code}' https://<host>/vi-mcp/intern/` → 200 (form); a wrong token → 401;
+  `vi_stats` A lists `web_search` calls (count, duration, hits — never the query).
+
 ### Free network (0.45.0)
 
 ```bash

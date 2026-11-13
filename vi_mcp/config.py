@@ -161,6 +161,10 @@ class Config:
     #: browser sees, e.g. /vi-mcp/web behind the reverse proxy
     web: bool = False
     web_base: str = "/web"
+    #: 0.62.0: the internal knowledge search with sign-in under /intern (config `web_internal`, off by default); `web_internal_base` is the
+    #: path the browser sees, e.g. /vi-mcp/intern behind the reverse proxy (it scopes the session cookie)
+    web_internal: bool = False
+    web_internal_base: str = "/intern"
 
     def instance_for(self, token: str | None) -> Instance | None:
         """Instance for the bearer token, or None. Constant-time comparison across all instances."""
@@ -204,6 +208,8 @@ def load(p: Path | None = None) -> Config:
     k.local = {str(u): str(i) for u, i in (raw.get("local") or {}).items()}
     k.web = bool(raw.get("web", False))
     k.web_base = "/" + str(raw.get("web_base") or "/web").strip("/")
+    k.web_internal = bool(raw.get("web_internal", False))
+    k.web_internal_base = "/" + str(raw.get("web_internal_base") or "/intern").strip("/")
     for n, d in (raw.get("instances") or {}).items():
         k.instances[n] = Instance(n, d["token_sha256"], bool(d.get("reflexes", False)), bool(d.get("release", False)), bool(d.get("human", False)),
                                   (d.get("family") or None))
@@ -330,6 +336,19 @@ def set_web(on: bool, base: str | None = None, p: Path | None = None) -> None:
     raw["web"] = bool(on)
     if base is not None:
         raw["web_base"] = base.rstrip("/") or "/web"
+    _save_raw(raw, p)
+
+
+def set_web_internal(on: bool, base: str | None = None, p: Path | None = None) -> None:
+    """0.62.0: switch the internal knowledge search (sign-in with a VI token) on or off; base = the path the browser sees (default /intern)."""
+    import re
+    if base is not None and not re.fullmatch(r"(/[A-Za-z0-9._-]+)+", base.rstrip("/") or "/x"):
+        raise ValueError("internal web base: a path like /intern or /vi-mcp/intern")
+    p = p or fpath()
+    raw = read_raw(p)
+    raw["web_internal"] = bool(on)
+    if base is not None:
+        raw["web_internal_base"] = base.rstrip("/") or "/intern"
     _save_raw(raw, p)
 
 

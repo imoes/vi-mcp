@@ -535,11 +535,12 @@ RRF_K = 60  # Reciprocal Rank Fusion: damping of the ranks (Cormack, Clarke, Bü
 
 
 
-def _recall(args: dict, instance: str, only: str | None, first: str | None) -> str:
-    """vi_recall (its own function since 0.61.0, so the index restriction can wrap it). `only`: the index searched alone;
-    `first`: the project index whose hits come first (stable, after rank fusion and reranker — before them it would be lost)."""
+def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, str]:
+    """The search core of vi_recall (0.62.0: its own function — the internal web search uses the same path, one way to one result).
+    Returns (hits as (score, object, weights), the filter with the notes on how it was searched, the search kind). Visibility follows
+    memory.current_instance; `only`: the index searched alone (memory.search_index must be set by the caller); `first`: the project index
+    whose hits come first (stable, after rank fusion and reranker — before them it would be lost). Reads only: no log, no reinforcement."""
     f = args.get("filter") or ""
-    as_text = g.as_text_tokens(f)  # 0.26.0: named in the answer instead of emptying the search silently
     hits = g.recall(f, limit=min(int(args.get("limit") or 10), 50), or_fallback=True)
     groups, remove, words = g.parse_filter(f, g.known_kinds())
     # 0.57.0: meaning + full text by default when an embedding service is configured and the filter has free text — measured on a
@@ -611,6 +612,13 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
         if own and len(own) < len(hits):
             hits = own + [h for h in hits if not indexes.first(h[1], first)]
             f += f" · {len(own)} hit(s) from index {first} first"
+    return hits, f, kind_used
+
+
+def _recall(args: dict, instance: str, only: str | None, first: str | None) -> str:
+    """vi_recall (its own function since 0.61.0, so the index restriction can wrap it): search, then log, reinforce and answer."""
+    hits, f, kind_used = search(args, only, first)
+    as_text = g.as_text_tokens(args.get("filter") or "")  # 0.26.0: named in the answer instead of emptying the search silently
     # 0.31.0: a measurement must not change what it measures — a benchmark of 49 questions reinforced 733 objects once each
     # (10.11.2026), making them look more used and more recent than real use justifies. reinforce=false only reads.
     reinforce = args.get("reinforce", True) is not False

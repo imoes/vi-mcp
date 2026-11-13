@@ -484,6 +484,17 @@ JavaScript; Firmennetze, internes oder privates Wissen, Quarantäne und lokale I
 sudo vi-mcp web on --base /web      # der Server antwortet unter /web; im Reverse Proxy eine location dafür anlegen
 ```
 
+### Die interne Wissenssuche (0.62.0)
+
+Das Wissen des eigenen Servers im Browser durchsuchen, wie ein Wiki: Volltext und Bedeutung (dieselbe Suche wie `vi_recall`), je Objekt
+eine Artikelseite mit Inhalt, Quelle, Index, Messwerten, verwandten Objekten und Verlauf, und je Index eine Seite. Anmeldung mit dem
+Token einer VI-Instanz; geteiltes und internes Wissen erscheint, privates Wissen, Quarantäne, Erfahrungen und Gespräche nie. Standardmäßig
+aus; ohne JavaScript; Lesen im Browser verstärkt nichts.
+
+```bash
+sudo vi-mcp web internal on --base /vi-mcp/intern   # der Server antwortet unter /intern; hinter der vorhandenen /vi-mcp/-location keine Proxy-Änderung
+```
+
 ### Regeln, die jeder Server einhält
 
 - **Weiterreichen heißt nicht glauben.** Ein Server reicht signierte Einträge nach Prüfung von Signatur und Regeln weiter; sein

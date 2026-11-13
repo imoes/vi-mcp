@@ -55,10 +55,12 @@ _URL = re.compile(r"https?://[^\s<>\"')\]]+")
 
 def _inline(text: str) -> str:
     out, pos = [], 0
-    for m in re.finditer(r"`([^`]+)`|" + _URL.pattern, text):
+    for m in re.finditer(r"\*\*([^*]+?)\*\*|`([^`]+)`|" + _URL.pattern, text):  # 0.62.0: **bold**
         out.append(e(text[pos:m.start()]))
         if m.group(1) is not None:
-            out.append(f"<code>{e(m.group(1))}</code>")
+            out.append(f"<strong>{_inline(m.group(1))}</strong>")
+        elif m.group(2) is not None:
+            out.append(f"<code>{e(m.group(2))}</code>")
         else:
             url = m.group(0)
             out.append(f'<a href="{e(url)}" rel="nofollow noopener noreferrer">{e(url)}</a>')
@@ -105,8 +107,13 @@ def render_text(text: str) -> str:
         if re.match(r"^\s*[-*]\s+", line):
             items = []
             while i < len(lines) and re.match(r"^\s*[-*]\s+", lines[i]):
-                items.append(f"<li>{_inline(re.sub(r'^\s*[-*]\s+', '', lines[i]))}</li>")
+                item = re.sub(r"^\s*[-*]\s+", "", lines[i])
                 i += 1
+                # 0.62.0: an indented line that is no new item continues this one (wrapped Markdown lists)
+                while i < len(lines) and re.match(r"^\s{2,}\S", lines[i]) and not re.match(r"^\s*[-*]\s+", lines[i]):
+                    item += " " + lines[i].strip()
+                    i += 1
+                items.append(f"<li>{_inline(item)}</li>")
             out.append("<ul>" + "".join(items) + "</ul>")
             continue
         para = []

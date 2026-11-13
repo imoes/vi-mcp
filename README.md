@@ -475,6 +475,17 @@ company networks, internal or private knowledge, quarantine and local instance n
 sudo vi-mcp web on --base /web      # the server answers under /web; give the reverse proxy a location for it
 ```
 
+### The internal knowledge search (0.62.0)
+
+Search the knowledge of your own server in the browser, like a wiki: full text and meaning (the same search as `vi_recall`), an article
+page per object with its content, source, index, measurements, related objects and history, and a page per index. Sign in with the
+token of a VI instance; shared and internal knowledge appear, private knowledge, quarantine, experiences and conversations never. Off by
+default; no JavaScript; reading in the browser reinforces nothing.
+
+```bash
+sudo vi-mcp web internal on --base /vi-mcp/intern   # the server answers under /intern; behind the existing /vi-mcp/ location no proxy change
+```
+
 ### Rules every server keeps
 
 - **Forwarding is not believing.** A server relays signed entries after checking signature and rules; its memory treats them as

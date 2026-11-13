@@ -720,6 +720,22 @@ Requests:
 
 `ensure_identity` makes the identity entry 1 at the first start (refuses on a logbook that already has entries).
 
+## Internal knowledge search (0.62.0)
+
+The user: "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" — decided: internal, with sign-in. The
+public page `/web` stays as it is (never internal knowledge); `web_internal.py` is a second, separate page under `/intern`.
+- **Sign-in:** the token of an instance, checked by `config.instance_for` like `/mcp`; the session is a random id in a cookie
+  (`HttpOnly; Secure; SameSite=Strict; Path=<web_internal_base>`, 8 h), the instance name lives only in the server process. The POST must
+  come from this site (`Origin` equal to `Host`/`X-Forwarded-Host` or in `origins`; `null` is refused). The pages send
+  `Referrer-Policy: same-origin`: with `no-referrer` (as on `/web`) Chrome sends the sign-in with `Origin: null` — found in the browser
+  test, invisible to unit tests that set the header themselves.
+- **One search path:** `tools.search` is the core of `vi_recall` (full text, meaning, rank fusion, reranker), taken out of `_recall` so
+  the page and the MCP tool give the same hits; the page reads only — no reinforcement, no search log with the query. Visibility is that
+  of the signed-in instance; then private objects (also its own), quarantine and non-knowledge kinds are dropped and counted under the
+  hits ("N not shown (private)").
+- **Pages:** home (search, indexes, recently learned), search, article (content, facts with measurements and network score, related,
+  history), index (description, counts, model, index-file comparison). Server-side HTML, no script, CSP of `/web`, `Cache-Control: no-store`.
+
 ## Web page (0.46.0)
 
 `web.py`, served by the memory server under `/web` when the config says `web: true`; links use `web_base` (the path the browser sees).

@@ -226,6 +226,22 @@ def _cli(argv: list[str]) -> int:
     if command == "configure":  # 0.48.0
         from . import configure
         return configure.main(argv[1:])
+    if command == "web" and argv[1:2] == ["internal"] and len(argv) in (2, 3, 5) and argv[2:3] in ([], ["on"], ["off"]) \
+            and (len(argv) < 5 or argv[3] == "--base"):  # 0.62.0: the internal knowledge search with sign-in
+        k = config.load()
+        if len(argv) == 2:
+            print(f"internal knowledge search: {'on' if k.web_internal else 'off'} · path {k.web_internal_base} (the server answers under "
+                  "/intern; sign-in with a VI token; the reverse proxy needs no own location if it passes the vi-mcp prefix through)")
+            return 0
+        try:
+            config.set_web_internal(argv[2] == "on", argv[4] if len(argv) == 5 else None)
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 2
+        print(f"internal knowledge search {argv[2]}; restarting the service")
+        from . import setup
+        setup._restart()
+        return 0
     if command == "web" and len(argv) in (1, 2, 4) and argv[1:2] in ([], ["on"], ["off"]) and (len(argv) < 4 or argv[2] == "--base"):  # 0.46.0
         k = config.load()
         if len(argv) == 1:

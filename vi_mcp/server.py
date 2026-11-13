@@ -273,10 +273,29 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header(hk, hv)
             self.end_headers()
             self.wfile.write(data)
+        elif self.k.web_internal and (self.path == "/intern" or self.path.startswith(("/intern/", "/intern?"))):  # 0.62.0
+            self._internal("GET", b"")
         elif self.path.rstrip("/") == "/mcp":
             self._send(405, "GET is not supported: the server sends nothing on its own", {"Allow": "POST, DELETE"})
         else:
-            self._send(404, "only /mcp, /health" + (" and /web" if self.k.web else ""))
+            self._send(404, "only /mcp, /health" + (" and /web" if self.k.web else "") + (" and /intern" if self.k.web_internal else ""))
+
+    def _internal(self, method: str, body: bytes) -> None:
+        """0.62.0: the internal knowledge search (web_internal.py) — its own sign-in, never the bearer token of /mcp."""
+        from . import web_internal
+        client = self.client_address[0] if not self.headers.get("X-Forwarded-For") else self.headers["X-Forwarded-For"].split(",")[0].strip()
+        try:
+            code, ctype, data, header = web_internal.handle(method, self.path, self.headers, body, client, self.k)
+        except Exception as ex:  # noqa: BLE001 — a page error must not take the server down
+            log(f"intern {self.path.split('?')[0]}: {type(ex).__name__}: {ex}")
+            code, ctype, data, header = 500, "text/plain; charset=utf-8", b"internal error (named in the server log)", {}
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        for hk, hv in header.items():
+            self.send_header(hk, hv)
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_DELETE(self):
         if self.path.rstrip("/") != "/mcp":
@@ -323,6 +342,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path.rstrip("/") == "/signal":
             return self._signal()
+        if self.k.web_internal and self.path in ("/intern/login", "/intern/logout"):  # 0.62.0: sign-in form, at most 4 KB
+            n = int(self.headers.get("Content-Length") or 0)
+            if n > 4096:
+                return self._send(413, "form too large")
+            return self._internal("POST", self.rfile.read(n) if n > 0 else b"")
         if self.path.rstrip("/") != "/mcp":
             return self._send(404, "only /mcp and /signal")
         inst = self._check()

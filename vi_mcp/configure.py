@@ -131,6 +131,11 @@ QUESTIONS = [
       "Search, wiki, forum and knowledge of the free and open networks under /web — never company networks or internal knowledge.", "false", priority="high"),
     Q("web_base", "Web page and instances", "string", "Path of the web page as the browser sees it",
       "/web, or /vi-mcp/web if it goes through the existing /vi-mcp/ location of the reverse proxy.", "/web", check=_base),
+    Q("web_internal", "Web page and instances", "boolean", "Internal knowledge search with sign-in",
+      "Search shared and internal knowledge in the browser under /intern, signed in with a VI token — never private knowledge (0.62.0).",
+      "false"),
+    Q("web_internal_base", "Web page and instances", "string", "Path of the internal search as the browser sees it",
+      "/intern, or /vi-mcp/intern if it goes through the existing /vi-mcp/ location of the reverse proxy.", "/intern", check=_base),
     Q("instance", "Web page and instances", "string", "Create an instance (empty = none)",
       "A name for an AI client or a person, e.g. claude-code or max. The token is written to /root/vi-mcp-token-<name> (only root reads it) "
       "and never shown here.", "", priority="high", check=_name_or_empty, once=True),
@@ -164,6 +169,7 @@ def current() -> dict[str, str]:
     return {"port": str(raw.get("port", 8765)), "bind": ",".join([b] if isinstance(b, str) else b), "open": _b(raw.get("open", False)),
             "db": db if db.startswith(("postgresql://", "postgres://")) else "",
             "wiki": _b(wiki.exists()), "web": _b(raw.get("web", False)), "web_base": raw.get("web_base") or "/web",
+            "web_internal": _b(raw.get("web_internal", False)), "web_internal_base": raw.get("web_internal_base") or "/intern",
             "llm_url": (raw.get("llm") or {}).get("url", ""), "llm_model": (raw.get("llm") or {}).get("model", ""),
             "reviewer_prompt": raw.get("reviewer_prompt") or "", "embed_url": (raw.get("embed") or {}).get("url", ""),
             "local_models": raw.get("local_models") or "auto",
@@ -330,6 +336,10 @@ def apply(answers: dict[str, str], restart: bool = True) -> list[str]:
         setraw("web", answers["web"] == "true", f"web page {'on' if answers['web'] == 'true' else 'off'}")
     if "web_base" in answers and answers["web_base"].rstrip("/") != cur["web_base"]:
         setraw("web_base", answers["web_base"].rstrip("/"), f"web page path → {answers['web_base']}")
+    if "web_internal" in answers and answers["web_internal"] != cur["web_internal"]:
+        setraw("web_internal", answers["web_internal"] == "true", f"internal knowledge search {'on' if answers['web_internal'] == 'true' else 'off'}")
+    if "web_internal_base" in answers and answers["web_internal_base"].rstrip("/") != cur["web_internal_base"]:
+        setraw("web_internal_base", answers["web_internal_base"].rstrip("/"), f"internal search path → {answers['web_internal_base']}")
     for key, section, label in (("llm_url", "llm", "language model"), ("embed_url", "embed", "embedding service")):
         if key in answers and answers[key] != cur[key]:
             if answers[key]:

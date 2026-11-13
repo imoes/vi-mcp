@@ -45,6 +45,8 @@ CONFIG_KEYS = {
     "local": ("`{}`", "[`lokal`] Local users allowed on the socket: `{user: instance}`. `vi-mcp local USER INSTANCE` sets it."),
     "web": ("`false`", "The read-only web page of the free and open networks under `/web` (0.46.0). `vi-mcp web on|off`."),
     "web_base": ("`/web`", "[`web_basis`] Path the browser sees behind the reverse proxy, e.g. `/vi-mcp/web`."),
+    "web_internal": ("`false`", "Internal knowledge search in the browser under `/intern` (0.62.0): sign-in with a VI token, shared and internal knowledge, never private."),
+    "web_internal_base": ("`/intern`", "Path of the internal search as the browser sees it, e.g. `/vi-mcp/intern`; it scopes the session cookie."),
 }
 
 #: /etc/vi-p2p/<network>.json — the network service; in brackets the German keys of files before 0.51.0
