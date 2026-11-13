@@ -194,6 +194,8 @@ def _attribute(a: ast.Attribute, other, op: str = "=") -> str:
     if isinstance(other, ast.Attribute):
         raise LogicError(f"line {a.lineno}: compare a field with a value or a variable, not with another field — bind it first: "
                          f"({var}.{a.attr} == V) & (P.{other.attr} == V)")
+    if isinstance(other, ast.Name) and _VAR.match(other.id):
+        _state().setdefault("values", {}).setdefault(other.id, (a.lineno, var, a.attr))
     val = _term(other)
     if a.attr in OBJ_FIELDS:
         pred = f'vi__obj({var},"{a.attr}",'
@@ -326,6 +328,13 @@ def translate_full(source: str) -> tuple[str, list[dict], list[str]]:
 
 def _check_bound() -> None:
     st = _state()
+    # 0.63.0, found measuring the agent: a variable bound to an object by objects()/linked is an object id, never a hashtag value —
+    # (H in objects("netz:dmz")) & (P.host == H) compares a host name with an object id and silently finds nothing
+    for v, (line, obj, field) in sorted(st.get("values", {}).items()):
+        if v in st["bound"]:
+            raise LogicError(f"line {line}: {v} is an object (bound by objects() or linked), but ({obj}.{field} == {v}) compares it with a "
+                             f"hashtag value — read the value of that object first, e.g. ({v}.{field} == X) & ({obj}.{field} == X)")
+    st["values"] = {}
     loose = sorted(v for v in st["used"] if v not in st["bound"])
     if loose:
         raise LogicError(f"line {st['used'][loose[0]]}: object variable {loose[0]} is not bound — add ({loose[0]} in objects(\"filter\")) "

@@ -28,12 +28,16 @@ Notation:
 - linked(O, B) follows an edge from O to B (B is then an object too).
 - head(X) <= body: a rule; & = and; ~p(X) = not derivable; comparisons go in parentheses because & binds tighter.
 - never(cond): a constraint that is reported when violated.
+- Facts about one host are spread over many objects (a monitoring finding, a Confluence page, an inventory entry): join them through the
+  hashtag VALUE, e.g. (A in objects("netz:dmz")) & (A.host == H) & (B in objects("ort:*")) & (B.host == H) & (B.ort == L).
+  linked(O, B) is only for explicit edges between objects, not for "is about the same host".
+- Only use hashtag kinds and values from the list below; an empty answer is a valid answer when nothing matches.
 - Capitalised names are variables, strings in double quotes.
-Example — DMZ hosts never said to be production:
+Example — hosts at location MUE-0 for which no service is known:
 ```logic
-dmz(H) <= (O in objects("netz:dmz")) & (O.host == H)
-prod(H) <= (B in objects("kritikalitaet:prod")) & (B.host == H)
-ans(H) <= dmz(H) & ~prod(H)
+at(H) <= (O in objects("ort:MUE-0")) & (O.host == H)
+served(H) <= (S in objects("dienst:*")) & (S.host == H)
+ans(H) <= at(H) & ~served(H)
 ```"""
 
 
@@ -91,10 +95,12 @@ def check_locally(prog: str, memory) -> tuple[str, list[str]]:
     return "\n".join(notation.lines(res)), ans
 
 
-def solve(question: str, memory, llm=None, max_rounds: int = MAX_ROUNDS) -> dict:
-    """Write, check, correct. Returns {answer, program, rounds, state, transcript}; state: answered | empty | failed."""
+def solve(question: str, memory, llm=None, max_rounds: int = MAX_ROUNDS, vocabulary: str | None = None) -> dict:
+    """Write, check, correct. Returns {answer, program, rounds, state, transcript}; state: answered | empty | failed.
+    vocabulary: the hashtag kinds and typical values of this memory (e.g. from vi_vocabulary) — the model cannot guess them."""
     llm = llm or openai_chat()
-    messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": question}]
+    system = SYSTEM + (f"\n\nThe hashtag kinds of this memory, with typical values:\n{vocabulary}" if vocabulary else "")
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": question}]
     transcript, last_ok = [], None
     for rnd in range(1, max_rounds + 1):
         reply = llm(messages)

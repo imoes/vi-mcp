@@ -205,3 +205,11 @@ def test_edges_are_loaded_only_for_a_program_that_follows_them(gd):
     assert without["importiert"]["objekte"] == 1 and without["importiert"]["ueber_kanten"] == 0
     with_edges = logic.check('h(B) <= (O in objects("plan:*")) & linked(O, B)')
     assert with_edges["importiert"]["ueber_kanten"] == 1
+
+
+def test_an_object_compared_with_a_hashtag_value_is_named():
+    """0.63.0, found measuring the agent on a production copy: (H in objects("netz:dmz")) & (P.host == H) compares a host name with an
+    object id and finds nothing, silently. The notation names it."""
+    with pytest.raises(logic.LogicError, match="H is an object"):
+        logic.translate('ans(P) <= (P in objects("quelle_art:confluence")) & (H in objects("netz:dmz")) & (P.host == H)')
+    logic.translate('ans(P) <= (P in objects("quelle_art:confluence")) & (D in objects("netz:dmz")) & (D.host == H) & (P.host == H)')

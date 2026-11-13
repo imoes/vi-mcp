@@ -56,6 +56,19 @@ first draft (class blocks inside the server's parser): consistent with the cling
   skill, which searches leave out). At the former limit of 2,000, 3 of 13 answers were incomplete — the cut was reported, but the answer
   was short; hence the new limit. Time per question 0.01–0.6 s, 2.3 s for 13,088 Confluence pages.
 
+- **The clingo-object agent with a real language model** (qwen3.8-flash on the central server, temperature 0, one run each), the same
+  production copy, natural-language questions, answers compared with SQL:
+
+  | step | tuned set (12) | held out (4) | precision | recall | rounds | time |
+  |---|---|---|---|---|---|---|
+  | first prompt | 7/12 exact | — | 0.74 | 0.75 | 2.2 | 10.4 s |
+  | + "join facts about a host through the hashtag value, not linked" | 9/12 | 3/4 | 0.75 | 0.75 | 2.1 | 6.7 s |
+  | + the notation refuses an object used as a hashtag value | 11/12 | 4/4 | 1.00 | 0.99 | 1.7 | 5.2 s |
+
+  The held-out questions were written after the prompt was changed and never used to tune it. The last step is a rule of the language,
+  not of the prompt: the solver's refusal taught the model the right form in round 2 of both questions that had failed. Small sample
+  (16 questions, one run) — a trend, not a proof. Not compared yet: the same questions answered through `vi_recall` alone.
+
 ### What has changed
 
 - The language core moved from `vi_mcp/logic.py` into `clingo_object/notation.py`; the server imports it — one implementation for both.
@@ -64,6 +77,9 @@ first draft (class blocks inside the server's parser): consistent with the cling
 
 ### What was fixed
 
+- **An object compared with a hashtag value found nothing, silently.** `(H in objects("netz:dmz")) & (P.host == H)` compares a host name
+  with an object id; the notation now refuses it and says how to read the value first. Found measuring the agent. Test:
+  `tests/test_logic_objects.py` (1 new).
 - **A check said "follows (200)" when 403 conclusions held.** The result keeps the first 200 and now states the total ("follows (403,
   the first 200 kept in the result)"); found during the measurement above. Test: `tests/test_logic.py` (1 new).
 
@@ -71,7 +87,7 @@ first draft (class blocks inside the server's parser): consistent with the cling
 
 - Learning covers unary conclusions over objects (p("object id")) with up to two conditions; more needs more rated examples first.
   `logic.jsonl` and learning stay small until rule sets are saved and conclusions rated.
-- The agent is not yet measured with a real language model against `vi_recall` chains on the relational task set.
+- The agent is not yet compared with answering the same questions through `vi_recall` chains.
 - The relational task set on a production copy (clingo-object against hand-checked SQL) is not measured yet.
 - Local solving uses the stated priors of soft rules; the measured weights stay on the server (`check_on_server`).
 - Not run against PostgreSQL in this block (the new queries are plain `IN (?, …)`).
