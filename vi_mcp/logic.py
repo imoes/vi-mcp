@@ -61,7 +61,7 @@ from clingo_object.notation import (  # noqa: F401 — the language core, shared
 
 
 #: 0.63.0 clingo-objekt: memory objects as facts — at most this many objects per program (the rest is named "abgeschnitten")
-MAX_OBJECTS = 2000
+MAX_OBJECTS = 20_000  # measured on a production copy (13.11.2026): 13,088 objects in 2.3 s; at 2,000, cutting caused 3 of 13 wrong answers
 #: never imported, even when a filter asks for them (quarantine only via vi_quarantine, archive only via vi_archive)
 NEVER_IMPORTED = ("quarantaene", "archiviert")
 
@@ -214,7 +214,7 @@ def _weighted(program: str, stmts: list[dict]) -> tuple[str, dict[int, float]]:
 # ── solving ─────────────────────────────────────────────────────────────────
 
 
-def object_data(filters: list[str], viewer: str | None) -> dict:
+def object_data(filters: list[str], viewer: str | None, edges: bool = True) -> dict:
     """0.63.0 clingo-objekt, like DLV-DB's #import: the objects of each filter as the asking instance may see them — fields, hashtags, and
     the edges from them — plus the objects one edge away (so linked(O, B) can read B). Never quarantine or archive; what is cut, not
     visible or excluded is counted. The one data form for the server (facts) and the Python package clingo-object (action objects)."""
@@ -262,7 +262,9 @@ def object_data(filters: list[str], viewer: str | None) -> dict:
     excluded = {r[0] for r in rows if r[2] in NEVER_IMPORTED}
     rows = [r for r in rows if r[0] not in excluded]
     ok = {r[0] for r in rows}
-    edges = [e for e in select("SELECT a, b, grund FROM kante WHERE a IN ({ph})", sorted(ok))]
+    # 0.63.0: edges (and the objects one edge away) only for a program that follows them — on production 499,234 edges, and every
+    # object one edge away counts against MAX_OBJECTS
+    edges = [e for e in select("SELECT a, b, grund FROM kante WHERE a IN ({ph})", sorted(ok))] if edges else []
     hop = sorted({b for _a, b, _w in edges if b not in ok})
     room = MAX_OBJECTS - len(ok)
     cut += max(0, len(hop) - room)
@@ -296,10 +298,10 @@ def object_data(filters: list[str], viewer: str | None) -> dict:
             "counts": {"cut": cut, "not_visible": not_visible, "excluded": len(excluded), "via_edge": via_edge}, "limit": MAX_OBJECTS}
 
 
-def _import(filters: list[str], viewer: str | None) -> tuple[str, dict | None]:
+def _import(filters: list[str], viewer: str | None, program_uses_edges: bool = True) -> tuple[str, dict | None]:
     if not filters:
         return "", None
-    data = object_data(filters, viewer)
+    data = object_data(filters, viewer, edges=program_uses_edges)
     fs = facts(data)
     c = data["counts"]
     return "\n".join(fs), {"filter": data["filters"], "je_filter": [len(m) for m in data["members"]], "objekte": len(data["objects"]),
@@ -312,7 +314,7 @@ def _run(source: str, viewer: str | None = None) -> dict:
     the enumeration is complete, otherwise the most probable ones (clingo optimisation) and probabilities marked approximate.
     viewer: the asking instance — objects(…) imports only what it may see (None = the server itself)."""
     program, stmts, filters = translate_full(source)
-    facts, imported = _import(filters, viewer)
+    facts, imported = _import(filters, viewer, "vi__edge(" in program)
     if facts:
         program = facts + "\n" + program
     r = _run_program(program, stmts)

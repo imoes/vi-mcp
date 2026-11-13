@@ -221,3 +221,12 @@ def test_install_into_a_target_outside_the_default_places_checks_that_target(tmp
     finally:
         if str(target) in _sys.path:
             _sys.path.remove(str(target))
+
+
+def test_a_long_list_of_conclusions_says_how_many_there_are():
+    """0.63.0, found measuring on a production copy: the result kept the first 200 conclusions and the text said "follows (200)" — 403
+    were true. The total is now part of the result and the text."""
+    r = logic.check("\n".join(f"p({i})" for i in range(250)))
+    assert r["folgerungen_gesamt"] == 250 and len(r["folgerungen"]) == 200
+    line = next(x for x in logic.lines(r) if x.strip().startswith("follows"))
+    assert line.strip().startswith("follows (250, the first 200 kept in the result)") and "210 more" in line

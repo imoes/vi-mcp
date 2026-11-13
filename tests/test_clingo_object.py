@@ -18,8 +18,8 @@ class ServerData:
     def __init__(self, viewer=None):
         self.viewer = viewer
 
-    def objects(self, filters):
-        return logic.object_data(filters, self.viewer)
+    def objects(self, filters, edges=True):
+        return logic.object_data(filters, self.viewer, edges=edges)
 
 
 class Knowledge(VIObject):

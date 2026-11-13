@@ -197,3 +197,11 @@ def test_the_objects_action_gives_the_same_data_as_json(gd):
     assert ["erkenntnis:plan-gate1", "erkenntnis:gate1", "same host"] in d["edges"]
     with pytest.raises(tools.Rejected, match="needs filters"):
         tools.call_tool("vi_logic", {"action": "objects"}, "a", False)
+
+
+def test_edges_are_loaded_only_for_a_program_that_follows_them(gd):
+    _hosts()
+    without = logic.check('h(O) <= (O in objects("plan:*"))')
+    assert without["importiert"]["objekte"] == 1 and without["importiert"]["ueber_kanten"] == 0
+    with_edges = logic.check('h(B) <= (O in objects("plan:*")) & linked(O, B)')
+    assert with_edges["importiert"]["ueber_kanten"] == 1

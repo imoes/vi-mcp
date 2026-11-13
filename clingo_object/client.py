@@ -115,8 +115,8 @@ class Memory:
         raise ServerError(f"{tool}: session still unknown after logging in again")
 
     # ── what a program needs ────────────────────────────────────────────────
-    def objects(self, filters: list[str]) -> dict:
-        return json.loads(self.call("vi_logic", {"action": "objects", "filters": list(filters)}))
+    def objects(self, filters: list[str], edges: bool = True) -> dict:
+        return json.loads(self.call("vi_logic", {"action": "objects", "filters": list(filters), "edges": bool(edges)}))
 
     def check(self, source: str) -> str:
         return self.call("vi_logic", {"action": "check", "source": source})

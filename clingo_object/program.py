@@ -59,7 +59,11 @@ class Program:
             return "", None
         if memory is None:
             raise ExprError("the program reads memory objects — pass a memory (clingo_object.Memory or anything with objects(filters))")
-        data = memory.objects(fs)
+        text = self.notation()
+        try:
+            data = memory.objects(fs, edges="linked(" in text)  # edges only for a program that follows them
+        except TypeError:  # a memory without the parameter (older or minimal)
+            data = memory.objects(fs)
         c = data["counts"]
         facts = notation.facts(data)
         return "\n".join(facts), {"filter": data["filters"], "je_filter": [len(m) for m in data["members"]], "objekte": len(data["objects"]),

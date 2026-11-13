@@ -14,7 +14,7 @@ first draft (class blocks inside the server's parser): consistent with the cling
 - **Memory objects in the logic.** `(O in objects("art:skill host:web*"))` binds `O` to the objects of a `vi_recall` filter, as the asking
   instance may see them; `(O.host == H)` reads a hashtag, `(O.kind == "skill")` a field, `(O.age > 90)` a number (age, importance,
   confirmed, refuted, accesses); `linked(O, B)` follows an edge (objects one edge away come along). Never quarantine or archive; what is
-  cut (2,000 objects), not visible or excluded is counted and shown. Tests: `tests/test_logic_objects.py` (28).
+  cut (more than 20,000 objects), not visible or excluded is counted and shown; edges are loaded only for a program that follows them. Tests: `tests/test_logic_objects.py` (28).
 - **Rules may propose changes, a person decides.** A head `propose(tag(O, "status", "stale"))` or `propose(link(A, B, "reason"))`;
   `vi_logic action=propose` derives the proposals on the server and holds each in quarantine (kind `vorschlag`) with the rules behind it.
   Its author cannot release it; `vi-mcp release` re-checks and applies it with the proposal's id in the target's change log; discarding
@@ -34,11 +34,25 @@ first draft (class blocks inside the server's parser): consistent with the cling
   examples, wrong ones as KTO negatives in `kto.jsonl`. `finetune` kit: `train.py --stage logic`. Programs run as a viewer that sees
   shared and internal objects, never private ones. Test: `tests/test_logic_propose.py` (1 new).
 
+### What was measured
+
+- **clingo-object answers relational questions exactly as SQL does.** On a copy of production (13.11.2026; 24,449 insights, 499,234
+  edges), 13 questions over memory objects — e.g. "DMZ hosts never said to be production", "locations of DMZ hosts", "log-monitoring
+  findings for hosts at KAS-0", "skills linked to an insight about an error", a `never` check — each compared with a hand-written SQL
+  query: 13 of 13 equal once the object limit was 20,000 (the one difference first seen was an error of the SQL: it counted a refuted
+  skill, which searches leave out). At the former limit of 2,000, 3 of 13 answers were incomplete — the cut was reported, but the answer
+  was short; hence the new limit. Time per question 0.01–0.6 s, 2.3 s for 13,088 Confluence pages.
+
 ### What has changed
 
 - The language core moved from `vi_mcp/logic.py` into `clingo_object/notation.py`; the server imports it — one implementation for both.
 - The server's notation refuses `class`/`def` with a pointer to the package: the server runs no Python from callers.
 - The Debian package recommends `python3-clingo`; `release.sh` refuses when `clingo_object.__version__` differs from vi-mcp's.
+
+### What was fixed
+
+- **A check said "follows (200)" when 403 conclusions held.** The result keeps the first 200 and now states the total ("follows (403,
+  the first 200 kept in the result)"); found during the measurement above. Test: `tests/test_logic.py` (1 new).
 
 ### What is missing
 

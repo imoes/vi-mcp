@@ -55,6 +55,8 @@ TIMEOUT_S = 5.0
 
 
 CLINGO_VERSION = "5.8.3"  # tested with; `vi-mcp logic install` installs exactly this one
+#: at most this many derived atoms are kept in a check result; the total is always given (nothing is cut silently)
+MAX_SHOWN = 200
 #: the one place the minimum clingo is stated — the wheel's Requires-Dist (deploy/clingo-object/build_wheel.py) and the check below
 CLINGO_MIN = "5.8"
 
@@ -496,7 +498,9 @@ def lines(r: dict) -> list[str]:
         out.append(f"  rule #{x['nr']} (line {x['zeile']}) {'soft' if x['soft'] else 'hard'} · p {x['p']} · weight {x['gewicht']} · measured "
                    f"{x['gemessen'][0]:g} right / {x['gemessen'][1]:g} wrong · network {x['netz']}" + (f" · {x['verworfen']} instance(s) dropped in the answer" if x.get("verworfen") else "")
                    + (f" · {x['hinweis']}" if x.get("hinweis") else ""))
-    out.append(f"  follows ({len(r['folgerungen'])}): " + ", ".join(r["folgerungen"][:40]) + (" …" if len(r["folgerungen"]) > 40 else ""))
+    total = r.get("folgerungen_gesamt", len(r["folgerungen"]))
+    out.append(f"  follows ({total}" + (f", the first {len(r['folgerungen'])} kept in the result" if total > len(r["folgerungen"]) else "") + "): "
+               + ", ".join(r["folgerungen"][:40]) + (f" … ({total - 40} more — ask for single atoms with ask)" if total > 40 else ""))
     if not r["vollstaendig"]:
         out.append(f"  not every answer set was seen (limit {MAX_MODELS} or {TIMEOUT_S} s) — what 'follows' holds in the ones seen")
     if r["nur_in_einigen"]:
@@ -576,7 +580,8 @@ def check_result(r: dict, belief=prior_belief) -> dict:
     out = {"zustand": "verletzt" if violated or conflicts else "erfuellt",
            "modelle": len(r["models"]) if r["complete"] else f"≥ {len(r['models'])}", "vollstaendig": bool(r["complete"]),
            "verletzt": [{"nr": n, "zeile": by_nr[n]["zeile"], "never": by_nr[n]["text"]} for n in violated],
-           "normkonflikte": conflicts, "folgerungen": derived[:200], "nur_in_einigen": len({a for m in best for a in m if _visible(a)} - common),
+           "normkonflikte": conflicts, "folgerungen": derived[:MAX_SHOWN], "folgerungen_gesamt": len(derived),
+           "nur_in_einigen": len({a for m in best for a in m if _visible(a)} - common),
            "aussagen": len(stmts), "hinweise": r["notes"], "evidenz": "inferred"}
     if rules:
         out["regeln"] = rules

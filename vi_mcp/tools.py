@@ -260,6 +260,7 @@ TOOLS = [
                                         "description": "default check; objects: the memory objects of filters as JSON (data for clingo-object); "
                                                        "propose: hold what the rules propose (propose(tag(…)) / propose(link(…))) for review"},
                              "filters": {"type": "array", "items": _S, "description": "objects: vi_recall filters, e.g. [\"art:skill\", \"host:web*\"]"},
+                             "edges": {"type": "boolean", "description": "objects: also edges and the objects one edge away (default true)"},
                              "source": {"type": "string", "description": "statements, one per line (added to rule_set if both are given)"},
                              "rule_set": {"type": "string", "description": "name or id of a saved rule set"},
                              "queries": {"type": "array", "items": _S, "description": "ask: atoms, e.g. forbidden(run(\"freeipa\",\"gate1\"))"},
@@ -560,7 +561,7 @@ def _logic(args: dict, instance: str | None) -> str:
         if not fs or len(fs) > logic.MAX_FILTERS:
             raise Rejected(f"objects needs filters: 1–{logic.MAX_FILTERS} vi_recall filters with at least one kind:value each")
         try:
-            return json.dumps(logic.object_data(fs, instance), ensure_ascii=False)
+            return json.dumps(logic.object_data(fs, instance, edges=args.get("edges", True) is not False), ensure_ascii=False)
         except logic.LogicError as e:
             raise Rejected(f"notation: {e}") from e
     src = str(args.get("source") or "")
