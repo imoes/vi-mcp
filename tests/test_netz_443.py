@@ -145,3 +145,30 @@ def test_setup_public_and_proxy_config_commands(tmp_path, monkeypatch, capsys):
     assert "location /vi-p2p/firma/ {" in out and "proxy_pass http://127.0.0.1:8768/;" in out
     monkeypatch.setenv("VI_P2P_CONFIG", str(tmp_path / "config.json"))  # --network set it to firma.json for that call
     assert net_cli.main(["setup", "--mode", "peerhost", "--found", "--kind", "firma", "--public", "https://wiki.example.org"]) == 2  # standard stays open
+
+
+def test_setup_for_a_memory_in_another_container(tmp_path, monkeypatch, capsys):
+    """0.62.6, reported from CentralStation: memory and network service run in separate containers; join wrote the network's instance
+    and live-search token into a memory config the memory never read. --memory-config/--memory-url/--local-bind/--local-host make it
+    explicit, and a split setup without the memory's config is refused instead of writing a stray one."""
+    monkeypatch.setenv("VI_MCP_KEIN_DIENST", "1")
+    monkeypatch.setattr(net_cli, "_bound", lambda port: False)
+    monkeypatch.setenv("VI_P2P_CONFIG", str(tmp_path / "firma.json"))
+    (tmp_path / "firma.json").write_text(json.dumps({"db": str(tmp_path / "firma" / "netz.db"), "seed": str(tmp_path / "firma" / "schluessel"),
+                                                     "mcp_token_file": str(tmp_path / "firma-mcp-token")}))
+    memory = tmp_path / "memory" / "config.json"
+    args = ["--network", "firma", "setup", "--mode", "peer", "--kind", "company", "--founder", "ab" * 32,
+            "--memory-config", str(memory), "--memory-url", "http://vi-mcp:8765/mcp", "--local-bind", "0.0.0.0", "--local-host", "vi-p2p-firma"]
+    assert net_cli.main(args) == 2 and "does not exist here" in capsys.readouterr().err  # not mounted: refused, nothing written
+    assert not memory.exists()
+    memory.parent.mkdir()
+    memory.write_text(json.dumps({"port": 8765, "instances": {}}))
+    assert net_cli.main(args) == 0
+    out = capsys.readouterr().out
+    assert "restart the memory" in out and "http://vi-p2p-firma:" in out and "listener bound to 0.0.0.0" in out
+    raw = json.loads((tmp_path / "firma.json").read_text())
+    assert raw["mcp_url"] == "http://vi-mcp:8765/mcp" and raw["local_bind"] == "0.0.0.0" and raw["local_token_sha256"]
+    m = json.loads(memory.read_text())
+    assert "netz-firma" in m["instances"] and m["p2p"]["networks"]["firma"]["kind"] == "company"
+    assert m["p2p"]["networks"]["firma"]["local"]["url"] == f"http://vi-p2p-firma:{raw['local_port']}"
+    assert (tmp_path / "firma-mcp-token").exists()  # the network's own token file, not standard's

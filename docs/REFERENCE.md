@@ -691,6 +691,9 @@ usage: vi-mcp net setup [-h] --mode {standalone,peer,peerhost}
                         [--start START] [--http-allowed] [--torrent]
                         [--tls-self] [--proxy PROXY] [--no-proxy NO_PROXY]
                         [--public PUBLIC] [--kind {company,open,free}]
+                        [--memory-config MEMORY_CONFIG]
+                        [--memory-url MEMORY_URL] [--local-bind LOCAL_BIND]
+                        [--local-host LOCAL_HOST]
 
 options:
   -h, --help            show this help message and exit
@@ -724,6 +727,21 @@ options:
                         names allowed, knowledge stays internal; open =
                         anonymised, by invitation; free = anyone may join
                         (frei/offen/firma are still accepted)
+  --memory-config MEMORY_CONFIG
+                        the memory's configuration file to register the
+                        network in (default: this machine's); in a container
+                        setup: the memory's config mounted here
+  --memory-url MEMORY_URL
+                        where this service reaches the memory, e.g. http://vi-
+                        mcp:8765/mcp (default: 127.0.0.1 and the memory's
+                        port)
+  --local-bind LOCAL_BIND
+                        address the live-search listener binds to (default
+                        127.0.0.1)
+  --local-host LOCAL_HOST
+                        host name the memory uses to reach that listener
+                        (default 127.0.0.1), e.g. the network container's
+                        service name
 ```
 
 #### `vi-mcp net invite`
@@ -766,7 +784,9 @@ options:
 usage: vi-mcp net join [-h] [--mode {peer,peerhost}] [--address ADDRESS]
                        [--tls-self] [--proxy PROXY] [--no-proxy NO_PROXY]
                        [--http-allowed] [--port PORT] [--public PUBLIC]
-                       [--kind {company,open}]
+                       [--kind {company,open}] [--memory-config MEMORY_CONFIG]
+                       [--memory-url MEMORY_URL] [--local-bind LOCAL_BIND]
+                       [--local-host LOCAL_HOST]
                        code
 
 positional arguments:
@@ -783,6 +803,21 @@ options:
   --port PORT
   --public PUBLIC, --oeffentlich PUBLIC
   --kind {company,open}, --art {company,open}
+  --memory-config MEMORY_CONFIG
+                        the memory's configuration file to register the
+                        network in (default: this machine's); in a container
+                        setup: the memory's config mounted here
+  --memory-url MEMORY_URL
+                        where this service reaches the memory, e.g. http://vi-
+                        mcp:8765/mcp (default: 127.0.0.1 and the memory's
+                        port)
+  --local-bind LOCAL_BIND
+                        address the live-search listener binds to (default
+                        127.0.0.1)
+  --local-host LOCAL_HOST
+                        host name the memory uses to reach that listener
+                        (default 127.0.0.1), e.g. the network container's
+                        service name
 ```
 
 #### `vi-mcp net wiki`
@@ -931,6 +966,7 @@ options:
 | `no_proxy` | `[]` | Hosts reached without the proxy. [`kein_proxy`] |
 | `local_port` | `0` | Port of the local listener (127.0.0.1) for the memory's live searches and nudges. [`lokal_port`] |
 | `local_token_sha256` | `None` | SHA-256 of the local listener's token (the memory holds the token). [`lokal_token_sha256`] |
+| `local_bind` | `'127.0.0.1'` | Address the local listener binds to (0.62.6; default 127.0.0.1). In a container setup the address the memory container reaches; set by `net setup\|join --local-bind`. |
 | `pow_bits` | `26` | Free network: proof-of-work bits of the identity entry. [`arbeit_bits`] |
 | `new_quota` | `100` | Free network: entries per day for publishers without measured benefit. [`quote_neu`] |
 | `blocked` | `[]` | Public keys or addresses this server does not accept, relay or answer. [`sperren`] |

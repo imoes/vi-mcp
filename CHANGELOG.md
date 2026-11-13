@@ -3,9 +3,17 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.62.6 — not yet released — an empty search points to the network; an unknown kind is answered with the kind that exists
+## 0.62.6 — not yet released — networks for containers; an empty search points to the network; an unknown kind is answered with the kind that exists
 
 ### What is new
+
+- **Network setup for a memory in another container.** `vi-mcp net setup|join` take `--memory-config` (the memory's configuration,
+  mounted), `--memory-url` (where the service reaches the memory), `--local-bind` and `--local-host` (where the live-search listener
+  binds and how the memory reaches it). A split setup without the memory's configuration is refused instead of writing one the memory
+  never reads. *Reported from CentralStation (13.11.2026):* there memory and network service are separate containers; `join` writes the
+  network's instance and live-search token into the memory's configuration, which that container did not have — CentralStation joined
+  the company network only by mounting it into a one-off container and sharing the network namespace; the open network `standard` there
+  never had a live-search entry at all. Test: `tests/test_netz_443.py` (1 new).
 
 - **An empty search names the live way to the other servers.** When `vi_recall` finds nothing, the answer now ends with "other servers
   may know it: vi_net_search(network=…, query=…) asks the members of … live", naming every network whose service has reported and that

@@ -254,10 +254,29 @@ def wiki_start(value: str | None) -> str:
     return urllib.parse.urlunsplit(("https", u.netloc.lower(), u.path.rstrip("/") or f"/vi-p2p/{p2p.WIKI_NET}", "", ""))
 
 
+def _memory_config(o) -> Path | None:
+    """0.62.6: the memory configuration setup writes into (instance, network entry, live-search token). One host: the memory's own file.
+    Memory and network service in separate containers: the memory's config mounted into this container, given by --memory-config —
+    reported from CentralStation (13.11.2026), where join wrote into a config the memory never read. None = it does not exist (refused)."""
+    m = Path(getattr(o, "memory_config", None) or config.fpath())
+    split = bool(getattr(o, "memory_config", None) or getattr(o, "memory_url", None))
+    return m if m.exists() or not split else None  # one host: as before (created on first use); split: it must be there
+
+
 def setup(o) -> int:
     p = nd.fpath()
     raw = nd.english_file(json.loads(p.read_text(encoding="utf-8-sig")) if p.exists() else {})  # 0.51.0: written in English
     k_old = nd.from_file(raw)
+    mem = _memory_config(o)
+    if o.mode != "standalone" and mem is None:
+        print(f"The memory configuration {getattr(o, 'memory_config', None) or config.fpath()} does not exist here. When the memory runs "
+              "elsewhere (another container), mount its configuration and give it with --memory-config PATH, its address with "
+              "--memory-url http://HOST:PORT/mcp, and where it reaches this service with --local-bind/--local-host.", file=sys.stderr)
+        return 2
+    if getattr(o, "memory_url", None):
+        raw["mcp_url"] = o.memory_url
+    if getattr(o, "local_bind", None):
+        raw["local_bind"] = o.local_bind
     raw["mode"] = o.mode
     for attr, key in (("address", "address"), ("bind", "bind"), ("port", "port"), ("tls_cert", "tls_cert"), ("tls_key", "tls_key"), ("ca_file", "ca_file")):
         if getattr(o, attr) is not None:
@@ -352,29 +371,34 @@ def setup(o) -> int:
     token_file = Path(raw.get("mcp_token_file") or k_old.mcp_token_file)
     if not token_file.exists():
         if NETWORK:
-            _instance, token = config.set_network(NETWORK, raw["kind"])
-            token = token or config.create_instance(_instance)
+            _instance, token = config.set_network(NETWORK, raw["kind"], p=mem)
+            token = token or config.create_instance(_instance, p=mem)
         else:
-            token = config.create_instance("p2p")
+            token = config.create_instance("p2p", p=mem)
         fd = os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640)
         with os.fdopen(fd, "w") as f:
             f.write(token + "\n")
         if _root():
             shutil.chown(token_file, "root", SERVICE_USER)
-        if reason := _service("restart", "vi-mcp"):
+        if getattr(o, "memory_url", None):
+            print(f"The memory reads instances at start: restart the memory (its container) — its configuration {mem} now holds the instance")
+        elif reason := _service("restart", "vi-mcp"):
             print(f"Hint: vi-mcp not restarted: {reason}")
     if not raw.get("local_token_sha256"):  # 0.42.0: live search — the memory holds the token, the service its hash
         used = {int(c.get("local_port") or 0) for n, c in network_configs(p.parent).items() if n != (NETWORK or "standard")}
         raw["local_port"] = int(raw.get("local_port") or free_port(used, FIRST_SEARCH_PORT))
         local_token = secrets.token_urlsafe(32)
         raw["local_token_sha256"] = hashlib.sha256(local_token.encode()).hexdigest()
+        local_host = getattr(o, "local_host", None) or "127.0.0.1"
         try:
-            config.set_net_local(NETWORK or "standard", f"http://127.0.0.1:{raw['local_port']}", local_token)
+            config.set_net_local(NETWORK or "standard", f"http://{local_host}:{raw['local_port']}", local_token, p=mem)
+            print(f"Live search wired: the memory {mem} asks this service at http://{local_host}:{raw['local_port']} "
+                  f"(listener bound to {raw.get('local_bind') or '127.0.0.1'})")
         except (OSError, ValueError) as ex:
             print(f"Hint: live search not wired into the memory config: {ex}")
     if "mcp_url" not in raw:  # 0.54.0: the memory's own port (an MSI with PORT=, a package with another port), not always 8765
         try:
-            raw["mcp_url"] = f"http://127.0.0.1:{int(config.read_raw(config.fpath()).get('port') or 8765)}/mcp"
+            raw["mcp_url"] = f"http://127.0.0.1:{int(config.read_raw(mem or config.fpath()).get('port') or 8765)}/mcp"
         except (OSError, ValueError, TypeError):
             pass
     _write(p, raw)
@@ -398,6 +422,8 @@ def join(o) -> int:
         print(e, file=sys.stderr)
         return 2
     e = argparse.Namespace(mode=o.mode, address=o.address, bind=None, port=o.port, tls_cert=None, tls_key=None, ca_file=None, found=False, founders=d["g"], start=[d["s"]],
+                           memory_config=getattr(o, "memory_config", None), memory_url=getattr(o, "memory_url", None),
+                           local_bind=getattr(o, "local_bind", None), local_host=getattr(o, "local_host", None),
                            http_allowed=o.http_allowed, torrent=False, tls_self=o.tls_self, proxy=o.proxy, no_proxy=o.no_proxy, quiet=True, kind=o.kind,
                            public=o.public)
     if (code := setup(e)) != 0:
@@ -470,6 +496,14 @@ def _parser() -> argparse.ArgumentParser:
     bt.add_argument("--port", type=int)
     bt.add_argument("--public", "--oeffentlich", dest="public")
     bt.add_argument("--kind", "--art", dest="kind", type=config.net_kind, choices=("company", "open"))
+    for sp in (e, bt):  # 0.62.6: memory and network service in separate containers
+        sp.add_argument("--memory-config", dest="memory_config", help="the memory's configuration file to register the network in "
+                        "(default: this machine's); in a container setup: the memory's config mounted here")
+        sp.add_argument("--memory-url", dest="memory_url", help="where this service reaches the memory, e.g. http://vi-mcp:8765/mcp "
+                        "(default: 127.0.0.1 and the memory's port)")
+        sp.add_argument("--local-bind", dest="local_bind", help="address the live-search listener binds to (default 127.0.0.1)")
+        sp.add_argument("--local-host", dest="local_host", help="host name the memory uses to reach that listener (default 127.0.0.1), "
+                        "e.g. the network container's service name")
     wk = cmd("wiki", help="the public wiki network: on (join: free network, outgoing, start vi-wiki.org or --start) · off (stop the service) · status")
     wk.add_argument("action", choices=("on", "off", "status"), nargs="?", default="status")
     wk.add_argument("--start", default=None, help="the wiki server to start from instead of vi-wiki.org: a host name or https://HOST[:PORT][/PATH] "

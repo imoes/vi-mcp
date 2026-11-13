@@ -156,6 +156,26 @@ nginx -t && systemctl reload nginx  # in a container: docker exec nginx nginx -t
 - Torrent for large backlogs uses its own port and is off unless switched on; for a network on 443 only, leave it off.
 - Check: `curl -s https://<host>/vi-p2p/firma/netz/health` → `{"zustand": "ok", "version": "…"}`.
 
+### Memory and network service in separate containers (0.62.6)
+
+`setup` and `join` register a network in the memory: its instance (`netz-<network>`), the entry `p2p.networks.<network>` with the kind,
+and the live-search address and token. On one host they write the memory's own configuration. When the memory runs in another
+container, mount its configuration into the network container and say where things are:
+
+```bash
+vi-mcp net --network firma join "$(head -1 code-file)" --mode peer --kind company \
+  --memory-config /etc/vi-mcp/config.json --memory-url http://vi-mcp:8765/mcp \
+  --local-bind 0.0.0.0 --local-host vi-p2p-firma
+```
+
+- `--memory-config`: the memory's configuration mounted here; a split setup without it is refused (nothing is written elsewhere).
+- `--memory-url`: where the service reaches the memory (default `127.0.0.1` and the memory's port).
+- `--local-bind` / `--local-host`: where the live-search listener binds and the name the memory calls it by (default `127.0.0.1`);
+  the listener checks its token in every request. Alternative without them: run the network container with `network_mode: service:vi-mcp`
+  (one network namespace, 127.0.0.1 works as on one host — that is how CentralStation joined `firma` on 13.11.2026).
+- Afterwards restart the memory's container (it reads instances at start). Each further network has its own token file
+  `<network>-mcp-token`.
+
 ### Public wiki network vi-wiki.org (0.47.0)
 
 - A new installation runs `nach-installation.sh wiki`, which equals `sudo vi-mcp net wiki on`: free network `wiki`, mode `peer`
