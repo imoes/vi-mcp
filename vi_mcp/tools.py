@@ -225,6 +225,10 @@ TOOLS = [
      "inputSchema": _schema({"prefix": {"type": "string", "description": "optional: the beginning of a word, with or without kind: (e.g. host:web or nginx)"},
                              "kind": {"type": "string", "description": "optional: one kind whose values to list (e.g. host)"},
                              "limit": {"type": "integer", "description": "how many at most (default 30)"}})},
+    {"name": "vi_incubator",
+     "description": "VI: is this VI (or one index) mature enough to fine-tune an AI with it? Every criterion — knowledge, checked share, "
+                    "search quality, hint model, no harm from hints, labels, training data — with threshold, measured value and state.",
+     "inputSchema": _schema({"index": {"type": "string", "description": "optional: one index (a project or special VI)"}})},
     {"name": "vi_code_sync",
      "description": "VI, for `vi-mcp index import-code`: the code of a git repository in an index. action state: which files (blob SHA) the "
                     "index holds of the repository; action sync: pieces of changed files (upserted by index/repo/path/symbol) and removed "
@@ -479,7 +483,7 @@ class Rejected(Exception):
 OPEN_ALLOWED = {"vi_before", "vi_after", "vi_learn", "vi_recall", "vi_drilldown", "vi_why", "vi_object", "vi_status", "vi_experience", "vi_skills", "vi_skill",
                  "vi_model", "vi_scorer", "vi_self", "vi_sleep", "vi_archive", "vi_quarantine", "vi_net_status", "vi_questions", "vi_reflex_list",
                  "vi_page_read", "vi_page_history", "vi_net_search", "vi_prompt_context",
-                 "vi_feedback", "vi_capabilities", "vi_vocabulary"}  # 0.41.0: the open network's pages are readable like the rest; a company network is refused in the tool
+                 "vi_feedback", "vi_capabilities", "vi_vocabulary", "vi_incubator"}  # 0.41.0: the open network's pages are readable like the rest; a company network is refused in the tool
 
 
 def listing(instance: str | None = None) -> list[dict]:
@@ -1085,6 +1089,12 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             except ValueError as e:
                 raise Rejected(str(e)) from e
         return "Indexes (kind · objects · experiences · knowledge · own model):\n" + "\n".join(indexes.lines())
+    if name == "vi_incubator":  # 0.62.0
+        from . import incubator, indexes
+        try:
+            return "\n".join(incubator.lines(incubator.status(indexes.normalize(args.get("index")) if args.get("index") else None)))
+        except ValueError as e:
+            raise Rejected(str(e)) from e
     if name == "vi_vocabulary":  # 0.62.0
         from . import vocabulary
         # the asking instance decides what it sees — never the session context alone (without one, viewer None would see everything)

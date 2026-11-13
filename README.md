@@ -41,6 +41,25 @@ half-typed ones, and a search without hits says whether it asked for an unknown 
 Training data to fine-tune an AI with what a VI learned: `vi-mcp dataset export` (question → answer, which hints helped, with a datasheet). *Next:* the measurement of the question-type order, weights per word, the language between servers
 measured against prose.
 
+### The incubator — when a VI is ready to fine-tune an AI
+
+A VI learns in operation; the goal is that a VI which comes out of the incubator fine-tunes an AI with what it learned. Maturity is
+measured, not declared: `vi-mcp incubator status [--index X]` (or `vi_incubator`) shows every criterion with its threshold, its value and
+its state — met, open, or not measured yet (never counted as met):
+
+| criterion | measured as | default threshold |
+|---|---|---|
+| knowledge | shared or internal knowledge objects | 500 |
+| checked | share rated after being shown or confirmed by an instance — knowledge put to the test, not only stated | 20 % |
+| search | hybrid MRR of the daily fixed question set | 0.6 |
+| router | the hint model is active, holdout AUC | 0.75 |
+| hints_no_harm | the randomized hold-back does not show that hints lower success | no harm beyond 2 SE |
+| labels | share classified for the AI language, and the student active | 50 % |
+| training_data | question → answer examples, with the evaluation held out | 1000 |
+
+When every criterion is met, `vi-mcp incubator hatch DIR` exports the training data (`qa`, `kto`, `dpo`, with a datasheet that records the
+incubator state). Thresholds can be changed in `config.json` under `incubator`. An index (a project or special VI) has its own status.
+
 ## Vision
 
 **An open network of knowledge, in which AI teaches itself.** Every server learns from its own work: which hint helped, which solution held up, what a person corrected.

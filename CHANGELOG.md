@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.62.0 — not yet released — Index files, an internal knowledge search, an AI language, and training data
+## 0.62.0 — not yet released — Index files, an internal knowledge search, an AI language, the incubator and training data
 
 The user (12./13.11.2026): "Der Export oder Import von Projekten kann uns beim Scoring der Inhalte helfen. So können wir vergleichen.",
 "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" and "Wenn sich in der Konversation eine Korrektur in
@@ -76,6 +76,11 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   aggregated counters), quarantine, refuted or archived objects, code pieces. **Contamination guard:** the targets of the fixed question
   set and questions equal to an evaluation question are held out, so a fine-tuned model can still be measured. **Scrubbing audit:** every
   text goes through the credential scrubber again; changes are counted. Files 0600, directory 0700. Tests: `tests/test_dataset.py` (2).
+- **The incubator — maturity for fine-tuning, measured** (the user chose "Reifephase mit Messung"): `vi-mcp incubator status [--index X]`
+  and the tool `vi_incubator` show seven criteria — knowledge, checked share, search MRR, router AUC, no harm from hints, labels, training
+  data — each met, open or not measured (never counted as met); `vi-mcp incubator hatch DIR` exports the training data of a mature VI and
+  records the incubator state in manifest and datasheet (`--force` for an immature one, named). Thresholds in config `incubator`.
+  Tests: `tests/test_incubator.py` (2).
 
 ### What has changed
 

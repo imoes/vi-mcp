@@ -197,6 +197,17 @@ vi-mcp classify --limit 20         # label them now (two prompt variants per obj
 - The student (`modell:klassen`, `vi_model`-like object in memory): trained in sleep from ≥ 120 agreed labels, active from 80 % holdout
   accuracy; it labels where it is ≥ 80 % sure, 10 % of those are audited by the language model (`daten.pruefung`: checked, equal).
 
+### Incubator (0.62.0)
+
+```bash
+vi-mcp incubator status                 # every maturity criterion: threshold, value, state (✓ met · open · ? not measured)
+vi-mcp incubator status --index cue-print --json
+vi-mcp incubator hatch /srv/vi-hatched  # when mature: the training data plus the incubator state in manifest and datasheet
+```
+
+Thresholds in `config.json`: `"incubator": {"min_knowledge": 500, "min_checked": 0.2, "min_mrr": 0.6, "min_auc": 0.75, "min_labelled": 0.5,
+"min_examples": 1000}`.
+
 ### Training data for fine-tuning (0.62.0)
 
 ```bash

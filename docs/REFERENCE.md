@@ -6,7 +6,7 @@ Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server co
 
 ## MCP tools
 
-58 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
+59 tools. German names (before 0.22.0) remain valid as aliases (`vi_mcp/api_en.py`). `OPEN` = usable without a token (open wiki mode).
 
 ### `vi_before`
 
@@ -344,6 +344,14 @@ VI: the words you can search with — before a search when you are unsure which 
 | `kind` | string |  | optional: one kind whose values to list (e.g. host) (German: `art`) |
 | `limit` | integer |  | how many at most (default 30) |
 
+### `vi_incubator`
+
+VI: is this VI (or one index) mature enough to fine-tune an AI with it? Every criterion — knowledge, checked share, search quality, hint model, no harm from hints, labels, training data — with threshold, measured value and state. **OPEN**
+
+| Parameter | Type | Required | Meaning |
+|---|---|---|---|
+| `index` | string |  | optional: one index (a project or special VI) |
+
 ### `vi_code_sync`
 
 VI, for `vi-mcp index import-code`: the code of a git repository in an index. action state: which files (blob SHA) the index holds of the repository; action sync: pieces of changed files (upserted by index/repo/path/symbol) and removed files (archived). Visibility internal. An agent does not need it — vi_recall finds the code.
@@ -582,6 +590,7 @@ python3 -m vi_mcp classify [--limit N] [--dry-run]  label knowledge for the AI l
                                         does it when config classify names a model (0.62.0)
 python3 -m vi_mcp web internal [on|off] [--base PATH]  internal knowledge search with sign-in under /intern (0.62.0)
 python3 -m vi_mcp dataset export DIR [--index X]  training data (qa/kto/dpo .jsonl, DATASHEET.md) to fine-tune a model (0.62.0)
+python3 -m vi_mcp incubator status [--index X] | hatch DIR [--index X] [--force]  maturity of a VI for fine-tuning (0.62.0)
                                         the code of a git repository into an index (only changed files; removed ones archived)
                                         indexes (0.61.0): projects and special VIs — every object belongs to one; a project's
                                         index comes first in search and hints; an index with enough data trains its own model
@@ -1000,6 +1009,7 @@ First line of each module's docstring.
 | `forum` | 0.43.0: AIs talk in the network — questions and answers between servers, what vi_ask/vi_answer already do between the instances of |
 | `image_cli` | 0.35.0: `vi-mcp image` — put an image file with its description into memory, or fetch one back. |
 | `images` | 0.35.0: images in memory — an image with its description and its regions in the format of SAM 3 (Meta, Segment Anything with Concepts). |
+| `incubator` | The incubator (0.62.0): a VI matures in operation until measured criteria say it is ready to fine-tune an AI. |
 | `index` | 0.38.0: the memory index — what a MEMORY.md is for a single assistant, pushed to every session. |
 | `index_transfer` | Index export and import (0.62.0): an index into a signed file and back — to compare how the same content works in two places. |
 | `indexes` | Indexes (0.61.0): every object belongs to exactly one index — `global` or a project / special VI such as `cue-print` or `ansible`. |

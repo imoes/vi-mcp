@@ -743,6 +743,18 @@ weight-only languages work only between identical base models and leak content (
 - `tell_line`: memory (from the kind until labels exist), evidence (measured · documented · hearsay · inferred · unknown — a named
   state), weight = beta mean of helped/not helped with its count, source.
 
+## Incubator and training data (0.62.0)
+
+The goal the user set: "Wenn eine VI aus dem Inkubator kommt, soll man damit dann eine KI fine-tunen." — decided as a maturity phase with
+measurement. `incubator.py` measures seven required criteria (knowledge, checked share, search MRR, router AUC, no harm from hints,
+labels, training data) plus an informative one (refuted knowledge marked, not deleted); each criterion is `erfuellt`, `offen` or
+`nicht_gemessen` — unmeasured never counts as met. `hatch` refuses an immature VI with the open criteria (or exports with `--force`, and
+the datasheet says so). `dataset.py` writes the data: `qa` (SFT), `kto` (binary helped/not helped — Ethayarajh et al. 2024 take exactly
+this signal), `dpo` (pairs under one trigger), from shared and internal knowledge and the aggregated hint counters — never private
+objects, experiences or conversations. The targets of the fixed question set are held out (contamination guard), every text is scrubbed
+again and the changes are counted, and `DATASHEET.md` records composition, exclusions, versions, label quality and gaps (Gebru et al.,
+Datasheets for Datasets). vi-mcp itself still trains no language model; the export is the input of a fine-tuning.
+
 ## Internal knowledge search (0.62.0)
 
 The user: "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" — decided: internal, with sign-in. The

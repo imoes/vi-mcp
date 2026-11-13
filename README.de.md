@@ -42,6 +42,26 @@ Gedächtnisse über Organisationsgrenzen miteinander reden: kurz, ausführbar wi
 ergänzen halb getippte; eine Suche ohne Treffer sagt, ob sie nach einem unbekannten Wort fragte (nichts bekannt) oder nach bekannten
 Wörtern, die nicht zusammenkommen. Trainingsdaten, um eine KI mit dem Gelernten einer VI feinzujustieren: `vi-mcp dataset export` (Frage → Antwort, welche Hinweise halfen, mit Datenblatt). *Als Nächstes:* die Messung der Fragearten-Ordnung, Gewichte je Wort, die Sprache zwischen Servern gemessen gegen Prosa.
 
+### Der Inkubator — wann eine VI reif ist, eine KI feinzujustieren
+
+Eine VI lernt im Betrieb; das Ziel ist, dass eine VI, die aus dem Inkubator kommt, mit dem Gelernten eine KI feinjustiert. Reife wird
+gemessen, nicht erklärt: `vi-mcp incubator status [--index X]` (oder `vi_incubator`) zeigt jedes Kriterium mit Schwelle, Wert und
+Zustand — erfüllt, offen oder noch nicht gemessen (zählt nie als erfüllt):
+
+| Kriterium | gemessen als | Standardschwelle |
+|---|---|---|
+| knowledge | geteilte oder interne Wissensobjekte | 500 |
+| checked | Anteil, der nach dem Zeigen bewertet oder von einer Instanz bestätigt wurde — geprüftes, nicht nur behauptetes Wissen | 20 % |
+| search | hybride MRR des täglichen festen Fragensatzes | 0,6 |
+| router | das Hinweismodell ist aktiv, Holdout-AUC | 0,75 |
+| hints_no_harm | das zufällige Zurückhalten zeigt nicht, dass Hinweise den Erfolg senken | kein Schaden über 2 SE |
+| labels | Anteil, der für die KI-Sprache klassifiziert ist, und der Schüler aktiv | 50 % |
+| training_data | Frage → Antwort-Beispiele, mit zurückgehaltenem Fragensatz | 1000 |
+
+Sind alle Kriterien erfüllt, exportiert `vi-mcp incubator hatch DIR` die Trainingsdaten (`qa`, `kto`, `dpo`, mit Datenblatt, das den
+Inkubator-Stand festhält). Die Schwellen lassen sich in `config.json` unter `incubator` ändern. Ein Index (Projekt oder Spezial-VI) hat
+einen eigenen Stand.
+
 ## Vision
 
 **Ein offenes Netz aus Wissen, in dem sich KI selbst trainiert.** Jeder Server lernt aus seiner eigenen Arbeit: welcher Hinweis geholfen hat, welche Lösung gehalten hat, was ein Mensch korrigiert hat.
