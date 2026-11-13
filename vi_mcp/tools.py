@@ -248,14 +248,16 @@ TOOLS = [
     {"name": "vi_recall",
      "description": "VI: search memory. When: before starting any task, before changing actions on systems, on errors, for questions "
                     "about internal systems (rules 1–4). Syntax: kind:value, !kind:value, (a OR b), prefix kind:value*, free text (full "
-                    "text). Ranked by relevance, recency and importance; every hit is reinforced. semantic=true searches hybrid: meaning "
+                    "text). Or a VIL question: ask.how|why|what|who|where|rule words — @host, #thema, since:30d (vi_vocabulary shows the words). "
+                    "Ranked by relevance, recency and importance; every hit is reinforced. semantic=true searches hybrid: meaning "
                     "(embedding — takes a few seconds, is reported) plus full text, merged by rank fusion. reinforce=false for measurements "
                     "and probes (benchmarks, evaluations): read only, the hits are not reinforced.",
      "inputSchema": _schema({"filter": {"type": "string", "description": "e.g. (thema:oom OR thema:disk-full) !ok:ja"}, "limit": {"type": "integer"},
                              "semantic": {"type": "boolean"},
                              "reinforce": {"type": "boolean", "description": "default true; false = read only (access count and last use stay unchanged)"},
                              "index": {"type": "string", "description": "optional: search only this index (a project or special VI); without it, hits from your project's index come first and everything else stays visible"},
-                             "project": {"type": "string", "description": "set by the hook: the name of your working directory (its index comes first)"}}, ["filter"])},
+                             "project": {"type": "string", "description": "set by the hook: the name of your working directory (its index comes first)"},
+                             "format": {"type": "string", "enum": ["text", "vil"], "description": "vil: the answer as VIL tell lines — memory kind, evidence, measured weight, source per hit"}}, ["filter"])},
     {"name": "vi_object",
      "description": "VI: one object with fields, hashtags, edges and change history; an object with an image returns the image too, with its regions (SAM 3 format).",
      "inputSchema": _schema({"id": _S, "image": {"type": "boolean", "description": "default true; false = only the text, without the image itself"}}, ["id"])},
@@ -546,8 +548,15 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
     """The search core of vi_recall (0.62.0: its own function — the internal web search uses the same path, one way to one result).
     Returns (hits as (score, object, weights), the filter with the notes on how it was searched, the search kind). Visibility follows
     memory.current_instance; `only`: the index searched alone (memory.search_index must be set by the caller); `first`: the project index
-    whose hits come first (stable, after rank fusion and reranker — before them it would be lost). Reads only: no log, no reinforcement."""
-    f = args.get("filter") or ""
+    whose hits come first (stable, after rank fusion and reranker — before them it would be lost). Reads only: no log, no reinforcement.
+    0.62.0: the filter may be a VIL utterance (`ask.how … @host #thema since:30d`, vil.py) — translated here, its question type orders
+    the hits (priority, not exclusion)."""
+    from . import vil
+    u = vil.parse(args.get("filter") or "")
+    if u.act is not None and u.act != "ask":
+        raise Rejected(f"VIL {u.act}: vi_recall answers questions (ask) only — tell is vi_learn, rate is vi_feedback, def is a word in the "
+                       "vocabulary; do is never run from a message, it is a proposal for a human")
+    f = u.filter
     hits = g.recall(f, limit=min(int(args.get("limit") or 10), 50), or_fallback=True)
     groups, remove, words = g.parse_filter(f, g.known_kinds())
     # 0.57.0: meaning + full text by default when an embedding service is configured and the filter has free text — measured on a
@@ -606,6 +615,17 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
     if not semantic or kind_used != "hybrid":
         if g.word_search.get() == "oder":
             f += " · OR search: no or too few objects contain all words, filled up by number of matching words (BM25)"
+    if u.act:  # 0.62.0: VIL — recency, then the kind of knowledge that answers this type of question first
+        if u.since:
+            before = len(hits)
+            hits = [h for h in hits if max(h[1].ts or "", h[1].last_at or "") >= u.since]
+            f += f" · since {u.since[:10]}: {before - len(hits)} older hit(s) left out"
+        if u.qtype and hits:
+            ranked = sorted(hits, key=lambda h: vil.prior_rank(h[1], u.qtype))
+            moved = sum(1 for a, b in zip(hits, ranked) if a is not b)
+            hits = ranked
+            f += f" · VIL ask.{u.qtype}" + (f": hits that answer {u.qtype}-questions first ({moved} moved)" if moved else "")
+        f += "".join(f" · {n}" for n in u.notes)
     code_asked = "art_wissen:code" in f or "datei:" in f
     if not only and not code_asked:  # 0.61.0: imported code of other indexes would swamp a general search — hidden, counted
         foreign_code = [h for h in hits if "art_wissen:code" in h[1].hashtags and h[1].idx != first]
@@ -641,6 +661,10 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
         f += " · read only (reinforce=false): hits not reinforced"
     if as_text:
         f += f" · searched as text, no hashtag kind: {', '.join(as_text[:5])}"
+    if hits and args.get("format") == "vil":  # 0.62.0: the answer in the AI language — act, memory, evidence, weight, source
+        from . import vil
+        return f"{len(hits)} objects for “{f}” (VIL: tell.<memory> <id> \"text\" ev:<evidence> w:<weight>/<ratings> src:<source>):\n" + \
+            "\n".join(vil.tell_line(o) for _, o, _gw in hits)
     if hits:
         return (f"{len(hits)} object{'' if len(hits) == 1 else 's'} for “{f}” (R relevance · A recency · W importance):\n"
                 + "\n".join(_line(o, gw) for _, o, gw in hits))

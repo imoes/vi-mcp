@@ -371,7 +371,7 @@ VI: usage statistics — is the VI used and does it work as intended? Calls per 
 
 ### `vi_recall`
 
-VI: search memory. When: before starting any task, before changing actions on systems, on errors, for questions about internal systems (rules 1–4). Syntax: kind:value, !kind:value, (a OR b), prefix kind:value*, free text (full text). Ranked by relevance, recency and importance; every hit is reinforced. semantic=true searches hybrid: meaning (embedding — takes a few seconds, is reported) plus full text, merged by rank fusion. reinforce=false for measurements and probes (benchmarks, evaluations): read only, the hits are not reinforced. **OPEN** · German alias `vi_erinnere`
+VI: search memory. When: before starting any task, before changing actions on systems, on errors, for questions about internal systems (rules 1–4). Syntax: kind:value, !kind:value, (a OR b), prefix kind:value*, free text (full text). Or a VIL question: ask.how\|why\|what\|who\|where\|rule words — @host, #thema, since:30d (vi_vocabulary shows the words). Ranked by relevance, recency and importance; every hit is reinforced. semantic=true searches hybrid: meaning (embedding — takes a few seconds, is reported) plus full text, merged by rank fusion. reinforce=false for measurements and probes (benchmarks, evaluations): read only, the hits are not reinforced. **OPEN** · German alias `vi_erinnere`
 
 | Parameter | Type | Required | Meaning |
 |---|---|---|---|
@@ -381,6 +381,7 @@ VI: search memory. When: before starting any task, before changing actions on sy
 | `reinforce` | boolean |  | default true; false = read only (access count and last use stay unchanged) |
 | `index` | string |  | optional: search only this index (a project or special VI); without it, hits from your project's index come first and everything else stays visible |
 | `project` | string |  | set by the hook: the name of your working directory (its index comes first) (German: `projekt`) |
+| `format` | string (text, vil) |  | vil: the answer as VIL tell lines — memory kind, evidence, measured weight, source per hit |
 
 ### `vi_object`
 
@@ -1025,6 +1026,7 @@ First line of each module's docstring.
 | `tools` | The MCP tools of the VI. Groups: |
 | `usage_stats` | Usage statistics — is the VI used, and does it work as intended? (0.21.0) |
 | `vector` | Vectors — meaning instead of identical words (stage 3, docs/TRAINING.md 4c; Park et al. 2023, section 4.1: relevance |
+| `vil` | VIL — the language in which an AI asks the memory and the memory answers (0.62.0, first executable part). |
 | `vocabulary` | The vocabulary of the memory (0.62.0) — "what is there, what can I search?" before searching. |
 | `web` | 0.46.0: the web page of a server — a read-only window onto what the free and open networks carry: search, wiki, forum, knowledge. |
 | `web_internal` | 0.62.0: the internal knowledge search in the browser — "wie bei Wikipedia darin suchen" (the user, 13.11.2026). |

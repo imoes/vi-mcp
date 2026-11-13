@@ -43,6 +43,14 @@ der VI ergibt, dann soll das gleich korrigiert werden."
   object carries together. `vi_stats` E splits both. *Measured before (production, 13.11.2026, read only):* all 111 searches without hits in
   one day asked for hosts the memory did not know (57 hosts, none as a hashtag); the single rate of 26 % mixed "nothing known" with
   search problems. Agents' searches had none. Tests: `tests/test_vocabulary.py` (3), `tests/test_web_internal.py` (8).
+- **VIL questions — an AI asks the memory in the AI language:** `vi_recall` (and the internal search) take
+  `ask.how|why|what|who|where|rule` plus words: `kind:value`, `@host` (`@web1` → every host starting with it, `@web1.example` exactly),
+  `#thema`, `since:30d` or `since:2026-10-01`, `!` and `OR` as before. The question type puts the kind of knowledge that usually answers it
+  first — solutions for `how`, errors for `why`, rules for `rule` — priority, not exclusion; a fixed prior until the classification and the
+  measured weights replace it. `format: "vil"` answers in the language: `tell.<memory> <id> "text" ev:<evidence> w:<weight>/<ratings>
+  src:<source>`, evidence measured, documented, hearsay (from another server), inferred (by a language model) or unknown — named, never
+  silently "observed". `tell`, `do`, `rate`, `def` are refused with the tool that does them; a `do` from a message is never run.
+  Tests: `tests/test_vil.py` (9).
 
 ### What has changed
 
@@ -64,8 +72,8 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **Sessions of the internal search** live in the server process: a restart signs everybody out.
 - **Found in the browser test and fixed before release:** the sign-in was refused in every browser — the pages had the `no-referrer`
   policy of `/web`, so Chrome sent `Origin: null`.
-- **The AI language** beyond its vocabulary — the `ask.*` parser, classification of the knowledge by a language model with its
-  measurement, weights per word, the language between servers — is a design (README), not code yet.
+- **The AI language** beyond vocabulary and `ask` questions — classification of the knowledge by a language model with its measurement,
+  weights per word, the language between servers — is a design (README), not code yet. The question-type prior is fixed, not measured.
 - **A second order-dependent test:** `tests/test_http.py::test_two_sessions_two_conversations` failed once in a full run on SQLite and
   passed 4 times alone; cause not found.
 - **Flaky test order on PostgreSQL:** one full run had `tests/test_hook.py::test_error_hint_and_own_tools` fail after

@@ -731,6 +731,18 @@ search already fell back to OR) or `verfehlt` (all words known, not together); t
 takes the visibility from the calling instance, not from the session context alone — without a session that would be the server's view
 of everything (found by the test of a private host name).
 
+## VIL — the AI language, symbol layer (0.62.0)
+
+`vil.py`. Design (README): a readable symbol layer — speech act plus words — over a weight layer — vectors and measured weights per word,
+exchanged as measurements, each server training its own. Research behind it (13.11.2026): speech acts (Searle; FIPA SC00037), evidentials
+(WALS 78, Lojban CLL 13.11), the failure of the 1990s agent languages on agreed meaning (Singh 1998) — here meaning is what is measured;
+weight-only languages work only between identical base models and leak content (vec2text), so the symbol layer stays readable.
+- `parse` (pure, tolerant): `ACT[.TYPE] WORD…`; no known act → an ordinary filter, untouched. Short forms `@`, `#`, `since:`.
+- In `tools.search`: only `ask` runs; the question type re-sorts hits stably by `PRIOR` (a fixed prior), recency drops older hits,
+  counted. The raw utterance stays in `suche_log`, so every question's type is there to learn from.
+- `tell_line`: memory (from the kind until labels exist), evidence (measured · documented · hearsay · inferred · unknown — a named
+  state), weight = beta mean of helped/not helped with its count, source.
+
 ## Internal knowledge search (0.62.0)
 
 The user: "Mache die Prod-Oberfläche aktiv, ich möchte wie bei Wikipedia darin suchen können" — decided: internal, with sign-in. The

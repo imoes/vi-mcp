@@ -40,6 +40,7 @@ STORED_VALUES: dict[str, dict[str, str]] = {
     "action": {"approve": "freigeben", "discard": "verwerfen", "state": "state", "sync": "sync"},
     "visibility": {"shared": "geteilt", "internal": "intern", "private": "privat"},
     "outcome": {"good": "gut", "bad": "schlecht"},
+    "format": {"text": "text", "vil": "vil"},  # 0.62.0: vi_recall answer format — not stored, the same in both languages
     "kind": {"tool": "werkzeug", "before": "vorher", "after": "nachher", "projekt": "projekt", "spezial": "spezial"},
     "mode": {"test": "test", "active": "aktiv", "off": "aus"},
 }
