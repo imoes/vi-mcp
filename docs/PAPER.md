@@ -115,7 +115,8 @@ the effect causal:
 - **ε-exploration.** With probability ε the last hint slot goes to a random candidate from further back; the offer probabilities are
   logged, so per-hint effects can be estimated by self-normalised inverse propensity scoring (Swaminathan & Joachims [2]).
   *Measured:* exploration minus ranked −6.4 ± 3.7 points (12.11.2026) and −6.9 ± 3.4 points (13.11.2026, daily measurement over 7 days):
-  the ranked hint beats a random one.
+  the ranked hint beats a random one. Since 0.62.0 the same probabilities also enter training: a second router is fitted with each observation
+  weighted by 1/p (clipped at 10) and replaces the uncorrected one only if it wins on the holdout by more than two standard errors.
 - **Hold-back** (0.61.0). On a random 5 % of actions that have hints, the hints are held back (the risk warning stays). Comparing held-back
   with shown actions within instance and tool (Mantel–Haenszel) estimates the *total* effect of showing hints. A raw comparison cannot:
   hints appear on hard actions (raw lift −37 points, matched lift −1 point, 13.11.2026). The hold-back is not yet deployed; a difference of
@@ -327,7 +328,8 @@ A system built on "evidence or hypothesis" must report its own errors. In the wo
 - **The total effect of hints is not yet measured** (hold-back not deployed).
 - **Poisoning.** Quarantine and review exist, but no adversarial test: PoisonedRAG succeeds 97 % of the time with five texts per target
   question [42], AgentPoison above 80 % with under 0.1 % poisoned entries [43].
-- **Off-policy training.** Offer probabilities are logged and used for measurement, not yet for training the router.
+- **Off-policy training is gated, not proven.** Every training fits an inverse-propensity-weighted router beside the uncorrected one and
+  keeps it only if it is better on the holdout by more than 2 SE; whether it ever wins on production data is not yet known.
 - **Order-dependent tests.** Two tests fail rarely in a full run and pass alone; the cause is unknown.
 - **The question-type order is a prior,** its benefit not yet measured; whether type matching between question and document raises
   retrieval quality is not established in the literature either.

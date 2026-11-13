@@ -93,8 +93,13 @@ def observations(since: str | None = None) -> list[tuple[dict, int, str]]:
     return [(f, y, o) for f, y, o, _w in weighted_observations(since)]
 
 
-def weighted_observations(since: str | None = None, index: str | None = None) -> list[tuple[dict, int, str, float]]:
-    """0.55.0: as observations(), with the label's weight (scorer.label: source of the label). 0.61.0: index = only that index's experiences."""
+IPS_CLIP = 10.0
+
+
+def weighted_observations(since: str | None = None, index: str | None = None, ips_out: list | None = None) -> list[tuple[dict, int, str, float]]:
+    """0.55.0: as observations(), with the label's weight (scorer.label: source of the label). 0.61.0: index = only that index's experiences.
+    0.62.0: ips_out, if given, receives per observation the inverse of the logged offer probability of its hint (vorher.angebot; 1 where
+    none was logged or the hint was certain), clipped at IPS_CLIP — the off-policy correction train() may use (Swaminathan & Joachims)."""
     outputs = []
     cond, par = "", []
     if since:
@@ -120,11 +125,17 @@ def weighted_observations(since: str | None = None, index: str | None = None) ->
         base = action_features(v.get("reize", []), ts)
         shown = [h for h in v.get("gezeigt", v.get("gefunden", [])) if not h.startswith("antwort:")]
         base[f"hinweis_n:{min(4, len(shown))}"] = 1.0
+        offer = v.get("angebot") or {}
         if not shown:
             outputs.append((base, y, oid, w))
+            if ips_out is not None:
+                ips_out.append(1.0)
         for h in shown:  # 0.20.9: direct feedback on this hint replaces the pair's indirect label (scorer.label)
             yh, wh, _s = scorer.label(d, oid in ok_yes, serial, grades, hint=h)
             outputs.append(({**base, **hint_features(h, v.get("reize", []), ts, born)}, yh, oid, wh))
+            if ips_out is not None:
+                p = offer.get(h)
+                ips_out.append(min(IPS_CLIP, 1.0 / p) if isinstance(p, (int, float)) and 0.0 < p < 1.0 else 1.0)
     return outputs
 
 
@@ -286,7 +297,8 @@ def train(reason: str = "sleep") -> dict:
         from sklearn.metrics import roc_auc_score
     except ImportError as e:
         return {"zustand": "uebersprungen", "grund": f"scikit-learn missing ({e.name}) — install python3-sklearn"}
-    wobs = weighted_observations()
+    ips_raw: list[float] = []
+    wobs = weighted_observations(ips_out=ips_raw)
     obs = [(f, y, o) for f, y, o, _w in wobs]
     if not obs:
         return {"zustand": "zu_wenig_daten", "grund": "no labeled observations", "n": 0}
@@ -312,6 +324,7 @@ def train(reason: str = "sleep") -> dict:
     wts = np.array([w for _f, _y, _o, w in wobs])
     clf, fit_report = fit_calibrated(Xtr, ytr, wts[:-n_test])
     report.update(fit_report)
+    clf, report["off_policy"] = _off_policy(clf, Xtr, ytr, wts[:-n_test], np.array(ips_raw[:-n_test]), Xte, yte)
     auc = float(roc_auc_score(yte, clf.predict_proba(Xte)[:, 1])) if len(set(yte.tolist())) == 2 else None
     weights = {name: round(float(w), 4) for name, w in zip(vec.get_feature_names_out(), clf.coef_[0]) if abs(w) > 1e-6}
     report.update(auc_holdout=None if auc is None else round(auc, 3), holdout=n_test, holdout_fehler=int(len(yte) - yte.sum()),
@@ -356,6 +369,32 @@ C_GRID = (0.3, 1.0, 3.0)
 #: share of the training part (its most recent end) that chooses C; the holdout stays untouched for the verdict
 VALIDATION = 0.2
 VALIDATION_MIN = 50
+
+
+def _off_policy(clf, Xtr, ytr, wtr, ips, Xte, yte):
+    """0.62.0: the router learns from data its own choices produced. Fit a second model with the label weights times the inverse offer
+    probabilities (normalised to mean 1 over the training part) and keep it only if it beats the uncorrected one on the holdout by more
+    than 2 standard errors of the paired per-observation log loss. Returns (model, report)."""
+    import numpy as np
+    if not len(ips) or not (ips != 1.0).any():
+        return clf, {"zustand": "keine_propensities", "grund": "no logged offer probabilities in the training part"}
+    if len(set(yte.tolist())) < 2:
+        return clf, {"zustand": "nicht_bestimmbar", "grund": "holdout has one class only"}
+    factors = ips / ips.mean()
+    alt, _rep = fit_calibrated(Xtr, ytr, wtr * factors)
+    eps = 1e-12
+    p0 = np.clip(clf.predict_proba(Xte)[:, 1], eps, 1 - eps)
+    p1 = np.clip(alt.predict_proba(Xte)[:, 1], eps, 1 - eps)
+    l0 = -(yte * np.log(p0) + (1 - yte) * np.log(1 - p0))
+    l1 = -(yte * np.log(p1) + (1 - yte) * np.log(1 - p1))
+    d = l1 - l0
+    mean, se = float(d.mean()), float(d.std(ddof=1) / np.sqrt(len(d))) if len(d) > 1 else float("inf")
+    better = mean < -2 * se
+    rep = {"zustand": "uebernommen" if better else "verworfen", "log_loss_ohne": round(float(l0.mean()), 4), "log_loss_mit": round(float(l1.mean()), 4),
+           "differenz": round(mean, 5), "standardfehler": round(se, 5), "gewichtet": int((ips != 1.0).sum()),
+           "urteil": (f"off-policy correction {'kept' if better else 'rejected'}: holdout log loss {l1.mean():.4f} with vs {l0.mean():.4f} "
+                      f"without ({mean:+.5f} ± {se:.5f} per observation)")}
+    return (alt if better else clf), rep
 
 
 def fit_calibrated(Xtr, ytr, wtr):

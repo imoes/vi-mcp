@@ -101,6 +101,10 @@ der VI ergibt, dann soll das gleich korrigiert werden."
 - **Calibration of the router, visible:** a reliability table (predicted vs observed success in ten bins) and the expected calibration
   error (ECE) on every training's holdout, ECE in `vi_stats` F. `class_weight='balanced'` shifts probabilities on purpose; Platt
   calibration was measured and rejected on 12.11.2026 — the table makes the shift visible instead of hiding it. Test: `tests/test_lernen.py`.
+- **The router corrects for its own choices** (off-policy, decided by the user on 13.11.2026): it learns from data its own ranking
+  produced. Every training now also fits a model whose observations are weighted by the inverse of the logged offer probability of their
+  hint (clipped at 10, normalised; Swaminathan & Joachims) and keeps it only if it beats the uncorrected model on the holdout by more than
+  2 standard errors of the paired log loss — both numbers in the model report (`off_policy`). Tests: `tests/test_lernen.py` (3 new).
 - **Fine-tuning — the VI knows how, and "I want to fine-tune" is enough** (the user: "die VI muss wissen, wie man fine-tuned, und wenn
   man den vi-mcp-Server benutzt, soll man dem LLM einfach sagen, dass man fine-tunen will"): the tool `vi_finetune` (plan · guide · record)
   and a line in the rules every AI gets; `vi-mcp finetune guide|plan|kit|record`. The kit holds the training data, a test split by

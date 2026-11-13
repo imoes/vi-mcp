@@ -371,3 +371,54 @@ def test_calibration_table_and_ece():
     bad = learning.calibration([0.9] * 10, [1, 0] * 5)
     assert bad["ece_holdout"] == 0.4 and bad["zuverlaessigkeit_holdout"] == [[0.9, 0.9, 0.5, 10]]
     assert learning.calibration([], []) == {}
+
+
+def test_ips_factors_follow_the_logged_offer_probabilities(gd):
+    """0.62.0: one factor per observation, 1/p of the hint's offer probability, clipped; 1 where nothing random was logged."""
+    from vi_mcp import learning
+    h1 = g.new_object("erkenntnis", "hint one", ["tool:Bash"], {"quelle": "t"}).id
+    h2 = g.new_object("erkenntnis", "hint two", ["tool:Bash"], {"quelle": "t"}).id
+    g.new_object("erfahrung", "Bash ok", ["tool:Bash", "ok:ja"], {"vorher": {"reize": ["tool:Bash"], "gezeigt": [h1, h2],
+                                                                            "angebot": {h1: 0.9, h2: 0.02}}})
+    g.new_object("erfahrung", "Bash failed", ["tool:Bash", "ok:nein"], {"vorher": {"reize": ["tool:Bash"], "gezeigt": []}})
+    ips: list = []
+    obs = learning.weighted_observations(ips_out=ips)
+    assert len(ips) == len(obs) == 3
+    assert sorted(round(x, 3) for x in ips) == [1.0, 1.111, learning.IPS_CLIP]  # 1/0.9, 1/0.02 clipped to 10, no hint → 1
+
+
+def test_off_policy_correction_is_kept_only_when_it_wins():
+    import numpy as np
+    from sklearn.linear_model import LogisticRegression
+    from vi_mcp import learning
+    rng = np.random.default_rng(1)
+    X = rng.normal(size=(600, 3))
+    y = (X[:, 0] + 0.3 * rng.normal(size=600) > 0).astype(int)
+    Xtr, Xte, ytr, yte = X[:400], X[400:], y[:400], y[400:]
+    w = np.ones(400)
+    clf = LogisticRegression().fit(Xtr, ytr)
+    same, rep = learning._off_policy(clf, Xtr, ytr, w, np.ones(400), Xte, yte)
+    assert same is clf and rep["zustand"] == "keine_propensities"
+    # propensities unrelated to the outcome: the correction adds only variance and must not be kept
+    noise = rng.uniform(1, 10, 400)
+    kept, rep = learning._off_policy(clf, Xtr, ytr, w, noise, Xte, yte)
+    assert rep["zustand"] == "verworfen" and kept is clf and "rejected" in rep["urteil"] and rep["gewichtet"] == 400
+
+
+def test_off_policy_correction_is_kept_when_it_is_clearly_better(monkeypatch):
+    import numpy as np
+    from vi_mcp import learning
+    yte = np.array([0, 1] * 50)
+    Xte = np.zeros((100, 1))
+
+    class Fixed:
+        def __init__(self, good):
+            self.good = good
+
+        def predict_proba(self, X):
+            p = np.where(yte == 1, 0.95, 0.05) if self.good else np.full(len(X), 0.5)
+            return np.column_stack([1 - p, p])
+    monkeypatch.setattr(learning, "fit_calibrated", lambda X, y, w: (Fixed(True), {}))
+    kept, rep = learning._off_policy(Fixed(False), np.zeros((10, 1)), np.array([0, 1] * 5), np.ones(10), np.array([1.0, 3.0] * 5),
+                                     Xte, yte)
+    assert rep["zustand"] == "uebernommen" and kept.good and rep["log_loss_mit"] < rep["log_loss_ohne"]
