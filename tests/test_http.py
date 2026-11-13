@@ -16,8 +16,11 @@ def srv(tmp_path, monkeypatch):
     tok_a = config.create_instance("laptop", reflexes=True)
     tok_b = config.create_instance("fremd", reflexes=False)
     raw = json.loads(cfg.read_text())
-    raw.update({"port": 0, "db": str(tmp_path / "vi.db")})
+    # 0.63.0: hints are held back on a random 5 % of actions by default (0.61.0) — a test that expects a hint failed about once in 20 runs
+    raw.update({"port": 0, "db": str(tmp_path / "vi.db"), "hold_back": 0})
     cfg.write_text(json.dumps(raw))
+    from vi_mcp import intuition
+    monkeypatch.setattr(intuition, "HOLD_BACK", intuition.HOLD_BACK)  # server.build sets the module value; restored after the test
     (s,) = server.build(config.load())
     th = threading.Thread(target=s.serve_forever, daemon=True)
     th.start()
