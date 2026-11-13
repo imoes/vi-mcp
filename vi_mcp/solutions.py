@@ -116,6 +116,26 @@ def has_content(ev: dict) -> bool:
     return _norm(ev["fehlgeschlagen"]["args"]) != _norm(ev["loesung"]["args"]) or bool(ev["massnahmen"]) or bool(ev["web"])
 
 
+_TRIVIAL = frozenset({"cd", "echo", "true", "false", "printf", "sleep", "export", "set", "test", "exit", "source", "."})
+
+
+def related(ev: dict) -> bool:
+    """0.62.1: for a shell the call that "worked" must use or name a program of the failed one — otherwise it is just the next command of
+    the session. Found on production (13.11.2026): a failed `git push … && git rev-parse --short HEAD origin/main` was followed by an
+    unrelated `grep …; ls tests`, and the language model wrote "the branches had diverged" as the cause — a wrong solution with the
+    look of evidence (refuted). Other tools: a retry of the same tool is related by construction. Pure apart from the tool list."""
+    from . import intuition
+    if ev["tool"] not in intuition.SHELL_TOOLS:
+        return True
+
+    def cmd(args: dict) -> str:
+        return str(args.get("command") or args.get("cmd") or "")
+    failed = {b for b in intuition._commands(cmd(ev["fehlgeschlagen"]["args"])) if b not in _TRIVIAL}
+    fix = cmd(ev["loesung"]["args"])
+    # the fix uses a failed program, or names it (a replacement: sqlite3 missing → python3 -c 'import sqlite3')
+    return bool(failed & (set(intuition._commands(fix)) | set(re.findall(r"[A-Za-z0-9_.+-]+", fix))))
+
+
 def urls(ev: dict) -> list[str]:
     return [w["url"] for w in ev["web"] if w.get("url")]
 
@@ -198,7 +218,7 @@ def from_episodes(since: str) -> dict:
         rows = g.db().execute(
             "SELECT o.id FROM objekt o JOIN tag t ON t.objekt_id = o.id AND t.tag = 'ueberraschung:erholt' "
             "WHERE o.art = 'erfahrung' AND o.zeit > ? AND o.gespraech IS NOT NULL ORDER BY o.zeit", (since,)).fetchall()
-    out = {"episoden": 0, "neu": 0, "weiterentwickelt": 0, "mit_web": 0, "ohne_inhalt": 0, "unspezifisch": 0, "nicht_allgemein": 0,
+    out = {"episoden": 0, "neu": 0, "weiterentwickelt": 0, "mit_web": 0, "ohne_inhalt": 0, "unverwandt": 0, "unspezifisch": 0, "nicht_allgemein": 0,
            "abgelehnt": 0, "fehler": []}
     # several successes after the same first error (a measure in between succeeded too) are one episode: the last success ends it
     episodes: dict[str, list[g.MemoryObject]] = {}
@@ -213,6 +233,9 @@ def from_episodes(since: str) -> dict:
         ev = evidence(ep)
         if not has_content(ev):
             out["ohne_inhalt"] += 1
+            continue
+        if not related(ev):  # 0.62.1: the next shell command is no solution unless it shares a program with the failed one
+            out["unverwandt"] += 1
             continue
         if not ev.get("spezifisch", True):  # 0.58.1: no error signature, program or host — it would match every call of the tool
             out["unspezifisch"] += 1

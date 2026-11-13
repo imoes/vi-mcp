@@ -15,6 +15,14 @@ Linked from [README.md](README.md).
   `vi-mcp release ID "REASON"` releases, `--discard` discards; the refusal the AI gets names these commands, so it can tell the user.
   The rule itself stays: the model that wrote a suspicious entry never vouches for it. Imports waiting for the reviewer (no language
   model on the server) go the same way. Tests: `tests/test_release_cli.py` (4).
+- **A shell "solution" must have something to do with the failure.** Sleep step 4c turned every recovery into a solution: for a shell
+  the next successful command of the session counted as the fix, whatever it was. *Found (13.11.2026):* after a failed
+  `git push … && git rev-parse --short HEAD origin/main` (the push had worked; `--short` takes one name) the next call was an unrelated
+  `grep …; ls tests`, and the language model wrote "the branches had diverged" as the cause — shown to agents as a solution (refuted,
+  correction learned). Now the working call must use or name a program of the failed one (a replacement such as `python3 -c 'import
+  sqlite3'` for a missing `sqlite3` still counts); the others are counted as `unverwandt`. *Measured on production (read only):* of 11
+  episode solutions whose evidence could be parsed, 4 are unrelated by this rule — all 4 already marked disputed there. Tests:
+  `tests/test_solutions.py` (1 new).
 
 - **`vi-mcp release` and `vi-mcp visibility` ended in a traceback when the release token file was missing** — and no installer ever
   wrote it. *Found on Windows (13.11.2026):* `vi-mcp.cmd release erkenntnis:… "…"` → `FileNotFoundError: … C:\ProgramData\vi-mcp\

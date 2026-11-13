@@ -108,3 +108,16 @@ def test_language_model_may_hold_back_a_one_off(gd, monkeypatch):
     web_episode()
     r = sleep_cycle.run("Test").data["schritte"]["4c_skills"]
     assert r["nicht_allgemein"] == 1 and r["neu"] == 0
+
+
+def test_an_unrelated_next_shell_command_is_no_solution():
+    """0.62.1, found on production: after a failed `git … rev-parse --short HEAD origin/main` the next successful call was an unrelated
+    grep/ls, and a wrong cause was written up as a solution. A shell fix must share a program with the failed call."""
+    from vi_mcp import solutions
+    ev = lambda failed, fixed: {"tool": "Bash", "fehlgeschlagen": {"args": {"command": failed}}, "loesung": {"args": {"command": fixed}}}  # noqa: E731
+    assert not solutions.related(ev("git push origin main && git rev-parse --short HEAD origin/main", "grep -rln x tests/ | head; ls tests"))
+    assert solutions.related(ev("git rev-parse --short HEAD origin/main", "git rev-parse --short HEAD"))
+    assert solutions.related(ev("sudo -n systemctl restart vi-mcp", "systemctl --user restart vi-mcp"))
+    assert solutions.related(ev("sqlite3 /tmp/x.db '.tables'", "python3 -c 'import sqlite3'"))  # a replacement names the program
+    assert not solutions.related(ev("cd /x && make build", "cd /x && echo done"))  # cd/echo alone relate nothing
+    assert solutions.related({"tool": "WebFetch", "fehlgeschlagen": {"args": {"url": "a"}}, "loesung": {"args": {"url": "b"}}})
