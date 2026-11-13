@@ -761,13 +761,14 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
             best_ids = sorted(rrf, key=lambda i: -rrf[i])[:pool]
             by = g.load_many(best_ids)
             ranked = [i for i in best_ids if i in by]
-            note = ""
+            note, reranked = "", False
             if vector.rerank_available() and ranked:  # 0.57.0: the cross-encoder judges the best ones against the query alone
                 t1 = time.monotonic()
                 try:
                     sc = vector.rerank_scores(" ".join(words), [f"{by[i].text}\n{by[i].data.get('inhalt') or ''}" for i in ranked])
                     ranked = [i for _s, i in sorted(zip(sc, ranked), key=lambda x: -x[0])]
                     note = f"; reranked {len(sc)} in {int((time.monotonic() - t1) * 1000)} ms"
+                    reranked = True
                 except Exception as ex:  # noqa: BLE001
                     note = f"; reranker unavailable ({type(ex).__name__}), order by rank fusion"
             ranked = ranked[:bound]
@@ -776,8 +777,10 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
             text_only = sum(1 for i in ranked if i not in cos)
             f += (f" · {'semantic' if explicit else 'default'} hybrid (embedding {ms} ms, {with_vector} of {len(cand)} candidates with a vector; "
                   "meaning and full text by rank fusion" + (f"; {text_only} hits via full text only" if text_only else "") + note + ")")
-            kind_used = "hybrid"
-    if not semantic or kind_used != "hybrid":
+            # 0.63.0: whether the reranker ran is part of the search kind — the relevance grades (UMBRELA) of searches before and after
+            # it was switched on were mixed in one number (found on production, 13.11.2026)
+            kind_used = "hybrid+rerank" if reranked else "hybrid"
+    if not semantic or not kind_used.startswith("hybrid"):
         if g.word_search.get() == "oder":
             f += " · OR search: no or too few objects contain all words, filled up by number of matching words (BM25)"
     if u.act:  # 0.62.0: VIL — recency filter; the question type is recorded, the order stays (vil.ORDER)

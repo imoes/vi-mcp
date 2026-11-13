@@ -78,3 +78,22 @@ def test_without_a_model_nothing_runs(gd, monkeypatch):
     monkeypatch.setattr(classify, "_config", lambda: {})
     assert relevance.run(3)["zustand"] == "uebersprungen"
     evaluation._log_table()
+
+
+def test_grades_are_split_by_search_kind_with_and_without_the_reranker(gd):
+    """0.63.0, found on production: grades of searches before and after the reranker was switched on were one number. The search kind
+    now says whether it ran, and the report gives each kind its own numbers."""
+    from vi_mcp import usage_stats
+    assert usage_stats._hits("vi_recall", "3 objects for “x · default hybrid (embedding 9 ms, …; reranked 30 in 1800 ms)”")[1] == "hybrid+rerank"
+    assert usage_stats._hits("vi_recall", "3 objects for “x · default hybrid (embedding 9 ms, …)”")[1] == "hybrid"
+    relevance._table()
+    rows = [("s1", "hybrid", 1, 0), ("s1", "hybrid", 2, 0), ("s2", "hybrid+rerank", 1, 3), ("s2", "hybrid+rerank", 2, 1)]
+    with g.lock:
+        for s, kind, rank, grade in rows:
+            g.db().execute("INSERT INTO relevanz_urteil (suche, zeit, suche_zeit, anfrage, suchart, objekt_id, rang, note, version, grund) "
+                           "VALUES (?,?,?,?,?,?,?,?,?,?)", (s, g.now(), g.now(), "q", kind, f"erkenntnis:{s}{rank}", rank, grade, "v", None))
+        g.db().commit()
+    r = relevance.report(1)
+    assert r["je_art_werte"]["hybrid+rerank"] == {"suchen": 1, "rang1_beantwortet": 1, "nichts_relevant": 0}
+    assert r["je_art_werte"]["hybrid"]["nichts_relevant"] == 1
+    assert "hybrid+rerank: 1, rank 1 100 %, nothing 0 %" in relevance.line(1)

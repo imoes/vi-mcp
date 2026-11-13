@@ -88,6 +88,10 @@ first draft (class blocks inside the server's parser): consistent with the cling
 - **A weakness in the VI's self model says when it happened** ("tool:analyse … (184×, 2026-11-13 15:02–15:58 UTC)"). *Found on
   production (13.11.2026):* the line "(184×)" read like an ongoing failure — counted per hour, all 184 errors had come in one hour that
   was over, and the analysis reported to CentralStation had to be corrected. Test: `tests/test_selbst_schlaf.py` (1 new).
+- **The search kind says whether the reranker ran** (`hybrid+rerank` beside `hybrid`, in the usage statistics and the search log), and
+  the language model's relevance grades (UMBRELA) are reported per kind. *Found on production (13.11.2026):* the line "nothing
+  relevant in the top 10: 35 %" mixed 20 searches graded from before the reranker was switched on with about 12 after — it could not
+  show what the reranker changed. Test: `tests/test_relevance.py` (1 new).
 - The Debian package recommends `python3-clingo`; `release.sh` refuses when `clingo_object.__version__` differs from vi-mcp's.
 
 ### What was fixed

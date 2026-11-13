@@ -184,9 +184,14 @@ def report(days: float = 7) -> dict:
     nd = [x for x in (ndcg(s["noten"]) for s in ok) if x is not None]
     first = sum(1 for s in ok if (s["noten"][0] or 0) >= 2)
     none_rel = sum(1 for s in ok if not any((x or 0) >= 2 for x in s["noten"]))
+    per_kind = {}
+    for k in sorted({s["art"] or "—" for s in ok}):
+        sel = [s for s in ok if (s["art"] or "—") == k]
+        per_kind[k] = {"suchen": len(sel), "rang1_beantwortet": sum(1 for s in sel if (s["noten"][0] or 0) >= 2),
+                       "nichts_relevant": sum(1 for s in sel if not any((x or 0) >= 2 for x in s["noten"]))}
     return {"suchen": len(ok), "fehler": sum(1 for s in by.values() if s["fehler"]), "ndcg10": round(sum(nd) / len(nd), 3) if nd else None,
             "mit_relevantem": len(nd), "rang1_beantwortet": first, "nichts_relevant": none_rel,
-            "je_art": {k: sum(1 for s in ok if s["art"] == k) for k in sorted({s["art"] or "—" for s in ok})}}
+            "je_art": {k: v["suchen"] for k, v in per_kind.items()}, "je_art_werte": per_kind}
 
 
 def line(days: float = 7) -> str:
@@ -196,7 +201,10 @@ def line(days: float = 7) -> str:
     pct = lambda a, b: f"{round(100 * a / b)} %" if b else "—"  # noqa: E731
     return (f"    judged by the language model (UMBRELA grades 0–3, {VERSION}): {r['suchen']} searches · nDCG@10 {r['ndcg10'] if r['ndcg10'] is not None else '—'} "
             f"(over {r['mit_relevantem']} with a relevant hit) · rank 1 answers (grade ≥ 2) {pct(r['rang1_beantwortet'], r['suchen'])} · "
-            f"nothing relevant in the top {MAX_HITS} {pct(r['nichts_relevant'], r['suchen'])}" + (f" · failed {r['fehler']}" if r["fehler"] else ""))
+            f"nothing relevant in the top {MAX_HITS} {pct(r['nichts_relevant'], r['suchen'])}" + (f" · failed {r['fehler']}" if r["fehler"] else "")
+            # 0.63.0: per search kind — with and without the reranker are different searches
+            + ("".join(f" · {k}: {v['suchen']}, rank 1 {pct(v['rang1_beantwortet'], v['suchen'])}, nothing {pct(v['nichts_relevant'], v['suchen'])}"
+                       for k, v in r["je_art_werte"].items()) if len(r["je_art_werte"]) > 1 else ""))
 
 
 def per_sleep() -> int:

@@ -65,7 +65,7 @@ def _hits(tool_parts: str, text: str) -> tuple[int | None, str | None]:
     n = int(m.group(1)) if m else (0 if re.search(r"\b(?:no|0) (?:objects|hits)\b|\bnothing in memory\b|\b(?:keine|0) (?:Objekte|Treffer)", text, re.I) else None)
     # 0.57.1: the default hybrid of 0.57.0 says "default hybrid" — it was counted as full text
     if re.search(r"(?:semantic|default|semantisch) hybrid \(embedding", text):
-        kind = "hybrid"
+        kind = "hybrid+rerank" if "; reranked " in text else "hybrid"  # 0.63.0
     elif "OR search" in text or "ODER-Suche" in text:
         kind = "oder"
     else:
