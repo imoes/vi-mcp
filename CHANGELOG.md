@@ -3,7 +3,18 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.62.5 — not yet released — the quarantine lists held entries; an empty search the query itself caused is named so
+## 0.62.5 — not yet released — the quarantine lists held entries; empty searches named; the LLM weight layer stops when it does nothing
+
+### What has changed
+
+- **The LLM weight layer ends a test that shows nothing, and proposes at most once a week.** Before, an online test that stayed within
+  2 standard errors ran forever, and a rejected layer was followed by a new proposal every day. *Measured:* online +0.0 ± 1.4 points
+  (146 vs 674 actions, production, 13.11.2026); CentralStation's twin layer was offline worse in all 33 runs. *Research the same day:*
+  language models are weak numerical optimizers, especially below 70B parameters and for continuous, high-dimensional calibration with
+  a small evaluation budget (OPRO, https://arxiv.org/abs/2309.03409; Revisiting OPRO, https://arxiv.org/abs/2405.10276). Now a layer is
+  retired with "no effect" after 1,000 actions per arm when the difference is under 1 point and within 2 SE, and a new proposal comes at
+  most every 7 days; the layer stays limited to new hints (cold start) and audit findings, where the fit has nothing to go on. Test:
+  `tests/test_weight_writer.py` (1 new).
 
 ### What was fixed
 

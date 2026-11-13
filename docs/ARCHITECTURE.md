@@ -356,7 +356,8 @@ which context — docs/TRAINING.md 4a/4b.
   may propose a small layer (`weight_writer.py`): deltas |Δ| ≤ 1 or deletions, only for features the audit flagged or for new hints the fit
   has not seen; stored beside the fitted weights (`llm_schicht`), so the daily fit does not overwrite it; acting only after an offline gate
   (paired log loss and ranking utility with/without, on the holdout — the card the model sees holds only numbers from the training part)
-  and a randomized online test (20 % of actions, arm `vorher.arm`); re-checked daily. "Language-model verdicts only tighten" stays for
+  and a randomized online test (20 % of actions, arm `vorher.arm`); re-checked daily; retired with "no effect" after 1,000 actions per
+  arm within ±1 point and 2 SE, and a new proposal at most once a week (0.62.5 — language models are weak numerical optimizers). "Language-model verdicts only tighten" stays for
   releases and reviews; for weights the rule is "acts only after measurement". Before 0.58.0: writing weights from outside would not have
   survived the next training and would have replaced measurement with opinion — the layer answers both. Weights are read: `vi_why` lays open one
   decision (contributions weight × value; they plus the intercept are the logit), and after training the sleep step `8b_gewichte_pruefen`

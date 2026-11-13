@@ -33,6 +33,14 @@ MAX_DELTA = 1.0
 AB_SHARE = 0.2
 #: actions per arm before the online comparison decides
 AB_MIN = 300
+#: 0.62.5: actions per arm after which a layer with no effect is retired (|difference| < NO_EFFECT and within 2 SE) — before, an
+#: inconclusive test ran forever. Research (13.11.2026): language models are weak numerical optimizers (OPRO, arXiv 2309.03409;
+#: Revisiting OPRO, arXiv 2405.10276); measured here: online +0.0 ± 1.4 points (146 vs 674 actions), in CentralStation's twin layer
+#: offline worse in all 33 runs.
+AB_STOP = 1000
+NO_EFFECT = 0.01
+#: 0.62.5: days between two new proposals (was: one a day)
+PROPOSAL_DAYS = 7
 #: how many of the strongest fitted weights the model card lists besides the flagged ones
 CARD_TOP = 40
 COLD_MAX = 20
@@ -266,11 +274,13 @@ def run() -> dict:
                 lay.update(zustand="verworfen", grund=f"online worse: {on['urteil']}")
             elif on["differenz"] > 2 * on["standardfehler"] and lay["zustand"] == "ab_test":
                 lay.update(zustand="aktiv", grund=f"online better: {on['urteil']}")
+            elif lay["zustand"] == "ab_test" and on["llm"] >= AB_STOP and on["basis"] >= AB_STOP and abs(on["differenz"]) < NO_EFFECT:
+                lay.update(zustand="verworfen", grund=f"online no effect after {on['llm']} actions with the layer: {on['urteil']}")
         _save(m, lay)
         return {"zustand": lay["zustand"], "offline": off.get("urteil"), "online": on.get("urteil")}
-    # 2. at most one new proposal a day
-    if lay.get("zeit") and datetime.fromisoformat(g.now()) - datetime.fromisoformat(lay["zeit"]) < timedelta(hours=20):
-        return {"zustand": "heute_schon", "grund": f"last proposal {lay['zeit'][:16]}"}
+    # 2. at most one new proposal a week (0.62.5; was a day — proposals that keep losing cost the shared model and measure nothing new)
+    if lay.get("zeit") and datetime.fromisoformat(g.now()) - datetime.fromisoformat(lay["zeit"]) < timedelta(days=PROPOSAL_DAYS):
+        return {"zustand": "heute_schon", "grund": f"last proposal {lay['zeit'][:16]}, next after {PROPOSAL_DAYS} days"}
     if not (reflection.config or {}).get("url") and reflection.ask_fn is None:
         return {"zustand": "uebersprungen", "grund": "no language model configured (config: llm)"}
     c = card(m)

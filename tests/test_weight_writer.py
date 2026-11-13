@@ -106,3 +106,19 @@ def test_a_flagged_weight_can_be_deleted_not_an_unflagged_one():
     assert any("deletion only" in r for r in rejected)
     assert weight_writer.apply({"host:noisy": -2.9, "tool:Bash": 1.0}, ok) == {"tool:Bash": 1.0}  # beyond |delta| ≤ 1: removed
     assert "host:noisy deleted" in weight_writer.line(type("M", (), {"data": {"llm_schicht": {"zustand": "ab_test", "deltas": ok}}})())
+
+
+def test_a_layer_without_effect_is_retired_and_new_proposals_come_weekly(gd, monkeypatch):
+    """0.62.5: an inconclusive online test ran forever, and a rejected layer was replaced by a new proposal every day. Language models
+    are weak numerical optimizers (research 13.11.2026); measured online +0.0 ± 1.4 points."""
+    _model({"tool:rsync": 0.4}, layer={"zustand": "ab_test", "zeit": g.now(), "ab_seit": g.now(), "deltas": {}})
+    monkeypatch.setattr(weight_writer, "offline", lambda m, d: {"zustand": "besser_oder_gleich", "urteil": "not worse"})
+    online = {"zustand": "gemessen", "llm": 500, "basis": 2000, "differenz": 0.004, "standardfehler": 0.012, "urteil": "+0.4 ± 1.2"}
+    monkeypatch.setattr(weight_writer, "online", lambda m: online)
+    assert weight_writer.run()["zustand"] == "ab_test"  # not enough actions with the layer yet
+    online["llm"] = weight_writer.AB_STOP
+    r = weight_writer.run()
+    assert r["zustand"] == "verworfen" and "no effect" in weight_writer.layer()["grund"]
+    asked = []
+    monkeypatch.setattr(reflection, "ask_fn", lambda system, user: asked.append(1) or json.dumps({"aenderungen": []}))
+    assert weight_writer.run()["zustand"] == "heute_schon" and asked == []  # the last proposal is not a week old
