@@ -457,12 +457,12 @@ class Logbook:
         with self.lock:
             return {r[0] for r in self.db.execute("SELECT sha FROM eintrag WHERE pub = ? AND typ = ?", (self.pub, type_))}
 
-    def own_ratings(self) -> dict[str, tuple[str, str]]:
-        """content hash → (sha of the last own rating, its date)."""
+    def own_ratings(self) -> dict[str, tuple[str, str, dict]]:
+        """content hash → (sha of the last own rating, its date, its data)."""
         with self.lock:
             lines = self.db.execute("SELECT e.sha, e.zeit, i.daten FROM eintrag e JOIN inhalt i ON i.sha = e.sha WHERE e.pub = ? AND e.typ = 'bewertung' ORDER BY e.seq",
                                     (self.pub,)).fetchall()
-        return {json.loads(d)["ziel"]: (sha, z) for sha, z, d in lines}
+        return {(d := json.loads(raw))["ziel"]: (sha, z, d) for sha, z, raw in lines}
 
     def count_own(self, type_: str, day: str | None = None) -> int:
         with self.lock:

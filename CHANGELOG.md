@@ -3,7 +3,14 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.63.1 — not yet released — clingo-object finds the server like the hook on Linux
+## 0.63.1 — not yet released — clingo-object finds the server like the hook on Linux; fewer empty rating entries
+
+### What has changed
+
+- **A rating already on the network is published again only when it says something new**: its success estimate moved by at least
+  0.02, its observations grew by at least 20 %, or it was confirmed or refuted. *Measured on production (14.11.2026, open network):*
+  51 of 87 daily repeats changed neither — entries every peer stores for good (the logbook is append-only). Before: every changed
+  value once a day, up to 1,000 a day. Test: `tests/test_net_score.py` (1 new).
 
 ### What was fixed
 

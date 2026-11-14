@@ -183,3 +183,23 @@ def test_stats_line(two):
     from vi_mcp import usage_stats
     w = "\n".join(usage_stats.network_lines())
     assert "contents by hash: 1 known on the network, 2 holder lines, 1 arrivals deduplicated" in w and "2: 1" in w
+
+
+def test_a_repeated_rating_is_published_only_when_it_says_something_new(net):
+    """0.63.1, measured on production (14.11.2026): 51 of 87 daily repeats changed the success estimate by less than 0.02 with less
+    than 20 % more observations — entries every peer keeps, carrying nothing."""
+    (sa, a_pub), _ = net.key_(), net.key_()
+    a = net.build(sa, [a_pub])
+    ish = "e" * 64
+    assert a._ratings([_rating(ish, ja=40, nein=10)]) == 1
+
+    def yesterday():
+        with a.log.lock:
+            a.log.db.execute("UPDATE eintrag SET zeit = '2000-01-01' WHERE typ = 'bewertung'")
+            a.log.db.commit()
+    yesterday()
+    assert a._ratings([_rating(ish, ja=41, nein=10)]) == 0  # 2 % more observations, estimate moved < 0.02: nothing new
+    assert a._ratings([_rating(ish, ja=40, nein=25)]) == 1  # estimate moved by far more than 0.02
+    yesterday()
+    assert a._ratings([_rating(ish, ja=40, nein=25, bestaetigt=1)]) == 1  # a confirmation is always news
+    assert a.log.count_own("bewertung") == 3

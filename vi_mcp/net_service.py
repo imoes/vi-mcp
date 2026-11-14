@@ -63,6 +63,19 @@ JOINS_PER_MIN = 10
 CODE_PREFIX = "vinetz1."
 PER_FETCH = 500
 RATINGS_PER_DAY = 1000
+#: 0.63.1: a rating already published is published again only when it says something new — its success estimate moved by at least
+#: RATING_MIN_DELTA or its observations grew by at least RATING_MIN_GROWTH. Measured on production (14.11.2026, open network): 51 of 87
+#: daily repeats moved less than both — entries every peer stores for good, carrying nothing.
+RATING_MIN_DELTA = 0.02
+RATING_MIN_GROWTH = 0.2
+
+
+def _rating_news(prev: dict, new: dict) -> bool:
+    def p(d):
+        return (float(d.get("ja", 0)) + 1) / (float(d.get("gezeigt", 0)) + 2)
+    n0, n1 = float(prev.get("gezeigt", 0)), float(new.get("gezeigt", 0))
+    confirm_changed = (prev.get("bestaetigt"), prev.get("widerlegt")) != (new.get("bestaetigt"), new.get("widerlegt"))
+    return abs(p(new) - p(prev)) >= RATING_MIN_DELTA or (n1 - n0) >= RATING_MIN_GROWTH * max(1.0, n0) or confirm_changed
 POSTS_PER_DAY = 200
 #: 0.42.0: live search — answers per minute and key, members asked at most, seconds per member, hits per member
 SEARCHES_PER_MIN = 30
@@ -813,7 +826,8 @@ class NetService:
         for r in ratings:
             if n >= RATINGS_PER_DAY:
                 break
-            if not lb.valid_rating(r) or (prev := last.get(r["ziel"])) and (prev[0] == lb.sha256(r) or prev[1] == today):
+            if not lb.valid_rating(r) or (prev := last.get(r["ziel"])) and (prev[0] == lb.sha256(r) or prev[1] == today
+                                                                              or not _rating_news(prev[2], r)):
                 continue
             self.log.attach("bewertung", r)
             n, new = n + 1, new + 1
