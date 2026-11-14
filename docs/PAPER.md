@@ -1,6 +1,6 @@
 # Learning What to Put in Front of the Model: Measured Memory, Incubation and a Weighted Language for AI Agents
 
-*vi-mcp technical report · version 0.62.0 (unreleased) · 13 November 2026*
+*vi-mcp technical report · version 0.63.1 · 14 November 2026*
 
 **Abstract.** vi-mcp is a shared memory for many AI agents, served over the Model Context Protocol (MCP). It never trains the language
 model it serves. Instead it learns, from the measured outcome of every action of every connected agent, *which context to put in front
@@ -12,8 +12,10 @@ measured weights per word; memories exchange these weights, not prose and not mo
 explicit epistemic rule set (identity, non-contradiction, exhaustive cases with named unknowns, sufficient reason) and in measurements
 taken on a production instance; where a claim is not measured we call it a hypothesis. We report what works (search MRR 0.73 hybrid vs
 0.36–0.43 full text; ranked hints beat random ones by 6.9 ± 3.4 points of success; LLM labels agree across prompt variants with
-Cohen's κ 0.80), what does not yet (no human gold set, no fine-tuning run, the total effect of hints still being measured) and what we
-found wrong in our own work along the way.
+Cohen's κ 0.80; with **clingo-object** — answer set programming over the memory's own objects, written as an object-oriented language
+in real Python — a language model answered 15 of 16 relational questions exactly, against 2 of 16 with searches alone), what does not yet
+(no human gold set, no fine-tuning run, the total effect of hints still being measured) and what we found wrong in our own work along
+the way.
 
 ---
 
@@ -297,9 +299,69 @@ reality (`vi_logic rate`) booked on exactly the rules that derive it (`fired` ma
 rating channel of the word weights, target `sha256("vil-rule-v1|rule")`, open networks only for rules without constants. In the test, six
 "wrong" ratings move `soft(flies(X) <= bird(X), 0.9)` from p = 0.90 to 0.225 and the conclusion to *not derived*; twelve "right" ones
 bring it back. Two deliberate limits: a hard rule stays hard whatever is measured (its measurement is shown with the advice to soften it —
-the author's assertion and the measured world kept apart), and only weights are learned, never rules — learning rules from examples
-(ILASP [49]) and neural atoms (NeurASP [48]) are the next steps, not this one. The counting is a simplification of LPMLN's
-maximum-likelihood learning: exact when one rule alone decides a conclusion.
+the author's assertion and the measured world kept apart), and weights are learned automatically while new rules are only *proposed*
+(5.6) — neural atoms (NeurASP [48]) are not part of this. The counting is a simplification of LPMLN's maximum-likelihood learning: exact
+when one rule alone decides a conclusion.
+
+### 5.6 clingo-object: the memory's objects in the logic, as an object-oriented language
+
+The logic layer reasoned over facts someone typed. The owner's next request was to reason over the memory itself — "the data lie as
+objects in SQL, so we program with these objects in clingo" — and to make of SQL and clingo "a dialect, the way Delphi grew out of Pascal";
+later, plainly: "clingo is the language for LLMs".
+
+**Objects as facts.** In the notation, `(O in objects("art:skill host:web*"))` binds `O` to the objects of a `vi_recall` filter;
+`(O.host == H)` reads a hashtag, `(O.kind == "skill")` a field, `(O.age > 90)` a number; `linked(O, B)` follows an edge. Before solving,
+the server loads the objects of every filter by SQL — as the *asking* instance may see them, never quarantine or archive, the objects one
+edge away only when the program follows edges — and turns them into facts, as DLV-DB's `#import` does for relational tables [55]. What is
+cut at the limit (20,000 objects), not visible or excluded is counted and shown. Searching stays SQL; inference is clingo.
+
+**Proposals, not writes.** A head `propose(tag(O, "status", "stale"))` or `propose(link(A, B, "reason"))` is derived on the server and held
+in quarantine as an object of its own, with the rules that derive it; its author cannot release it, a person can (`vi-mcp release`),
+and releasing applies it with its origin in the target's change log. The epistemic rule "nothing changes without a reason chain and a
+decision" holds for rules too.
+
+**One language, two places.** A first draft put Python-like class blocks into the server's parser — a second language that looks like
+Python and is not. The owner objected: the clingo Python package exists, develop in Python. The server must not run callers' Python (every
+token would mean code execution), so the full language is a real Python package, `clingo-object`: classes (`class Skill(Knowledge): kind =
+"skill"`), methods returning conditions built by operator overloading, inheritance and overriding by Python's method resolution order.
+Each method compiles to one flat rule of the safe notation whose membership filter holds exactly the kinds that resolve to that
+definition, so overriding needs no negation. The language core — notation, translation, solving — lives in the package and the server
+imports it: one implementation. A program solved locally with the clingo API and the same text solved on the server gave the same answers
+in every test.
+
+**Measured against SQL.** On a production copy (24,449 insights, 499,234 edges), 13 relational questions — "DMZ hosts never described as
+production", "locations of DMZ hosts", "log-monitoring findings for hosts at KAS-0" — agreed with hand-written SQL in 13 of 13 once the
+object limit was 20,000; at 2,000, three answers were short (the cut was reported, the answer still incomplete). The single first
+disagreement was an error in our SQL, which counted a refuted skill the memory's own searches leave out. Time: 0.01–0.6 s per question,
+2.3 s for 13,088 objects. The measurement also found a silent cut in our own output (a check kept 200 of 403 conclusions and said "200").
+
+**An agent that writes clingo-object.** A language model gets the notation, the memory's vocabulary (kinds with their most used values)
+and a question; it writes a program answering `ans(…)`; the solver's refusal, an empty answer or a violated constraint goes back in the
+solver's words, up to four rounds — the construct-and-check loop of ALM–ASP [54] and of ASP-Bench, where an agent with clingo feedback
+saturated the benchmark and general Python beat specialised declarative interfaces [53]; that LLMs write answer set programs from few
+examples was shown before [56]. With a 27B-class open model at temperature 0 on the same production copy and 16 natural-language
+questions (4 written after all tuning):
+
+| | exact | precision | recall | rounds | time |
+|---|---|---|---|---|---|
+| first prompt | 7/12 | 0.74 | 0.75 | 2.2 | 10.4 s |
+| + "join facts about a host through the hashtag value, not by edges" | 9/12, held out 3/4 | 0.75 | 0.75 | 2.1 | 6.7 s |
+| + the notation refuses an object used as a hashtag value | 11/12, held out 4/4 | 1.00 | 0.99 | 1.7 | 5.2 s |
+| the same model with `vi_recall` searches only (≤ 4, ≤ 50 hits each) | 2/16 | 0.50 | 0.30 | 3.8 calls | 20.1 s |
+
+The last improvement was a rule of the *language*, not of the prompt: `(H in objects("netz:dmz")) & (P.host == H)` compares a host name
+with an object id and silently finds nothing; refusing it with a reason taught the model the right form in the next round. Where an
+answer has hundreds of rows, a search that shows fifty hits cannot be complete; a program over all objects of a filter is. On the server
+the agent is a tool action (`vi_logic action=answer`) driven by the server's own model, so any client can ask — only the notation is run.
+
+**Training with it.** Three channels: rule weights from conclusions checked against reality (5.5); fine-tuning data (`logic.jsonl`: the
+task of a saved rule set → the program → the solver's answer, and every rated conclusion, wrong ones as negatives); and rules learned
+from rated conclusions with clingo itself as the optimiser — candidate rules from the conditions the right examples share, `{use(R)}`
+choices, weak constraints against uncovered right and covered wrong examples — held as soft proposals for a person to release (ILASP [49]
+was not used: free for non-commercial use only). In a test, a rule set that derived "review" for every test object, rated right only in
+the DMZ, learned `(O.zone == "dmz")`, covering 1 of 1 held-out right and 0 of 1 held-out wrong conclusions. On production the questions
+above were saved as 16 rule sets; 127 of their conclusions, rated against read-only SQL, were all right. No model has been trained on this
+yet — the agent's numbers come from an untrained model reading the language's description.
 
 ## 6 Incubation and fine-tuning
 
@@ -388,8 +450,10 @@ A system built on "evidence or hypothesis" must report its own errors. In the wo
 - **Off-policy training is gated, not proven.** Every training fits an inverse-propensity-weighted router beside the uncorrected one and
   keeps it only if it is better on the holdout by more than 2 SE; whether it ever wins on production data is not yet known.
 - **Order-dependent tests.** Two tests fail rarely in a full run and pass alone; the cause is unknown.
-- **The logic layer learns weights, not rules,** and its counting is an approximation of LPMLN weight learning where several rules derive
-  the same conclusion. Whether agents use `vi_logic` instead of reasoning in prose is not measured yet.
+- **The logic layer's weight counting** approximates LPMLN weight learning where several rules derive the same conclusion. Rule learning
+  covers unary conclusions with up to two conditions and has no production data yet (127 conclusions, all right — no negatives).
+- **clingo-object's agent is measured on 16 questions, one run each** — a trend, not a proof; whether agents in daily use choose
+  `vi_logic answer` over prose and searches is not measured yet.
 - **The language does not yet rank better.** Every reordering by question type, label or word weight lowered MRR on the production
   copy (5.4); a relevance weight learned from what is used after a search is the open step.
 
@@ -399,8 +463,9 @@ vi-mcp shows that a memory for AI agents can learn — measurably and causally �
 The incubator turns "is this memory good enough?" into criteria with values, and the export turns a mature memory into training data that
 another AI can learn from, including how to search the memory itself. VIL keeps the symbols readable for people and checkable for
 parsers, and puts meaning where the system already has it: in measured weights, exchanged between memories as measurements rather than
-commands. The rule set behind it — evidence or hypothesis, named unknowns, nothing silent, no self-rating — is what made the errors in our
-own work visible.
+commands. clingo-object adds inference over the memory's own objects in one language for people, agents and the server — and the
+measurement suggests that for questions over many objects, a model writing a logic program beats a model reading search results. The rule
+set behind it — evidence or hypothesis, named unknowns, nothing silent, no self-rating — is what made the errors in our own work visible.
 
 ---
 
@@ -462,6 +527,10 @@ reference 1 (Guo et al.) were not re-checked in that session — the identifiers
 50. Potassco. clingo (Python package `clingo`). https://pypi.org/project/clingo/
 51. Upadhyay et al. UMBRELA: UMbrela is the (Open-Source Reproduction of the) Bing RELevance Assessor. https://arxiv.org/abs/2406.06519
 52. Wang et al. Position Bias Estimation for Unbiased Learning to Rank in Personal Search (WSDM 2018). https://research.google/pubs/position-bias-estimation-for-unbiased-learning-to-rank-in-personal-search/
+53. Szeider. ASP-Bench: natural-language problems for answer set programming, with an agentic study (2026). https://arxiv.org/abs/2602.01171
+54. ALM–ASP: language agents for answer set programming modelling (KR 2026). https://proceedings.kr.org/2026/103/
+55. DLV-DB user manual (#import / #export between relational tables and predicates). https://www.dlvsystem.it/dlvsite/dlvdb-user-manual/
+56. Ishay, Yang, Lee. Leveraging Large Language Models to Generate Answer Set Programs (KR 2023). https://arxiv.org/abs/2307.07699
 
 Further sources used in the design notes of the same session: Gilardi et al., ChatGPT outperforms crowd workers (https://arxiv.org/abs/2303.15056);
 Ziems et al., LLMs for computational social science (https://arxiv.org/abs/2305.03514); Agora protocol (https://arxiv.org/html/2410.11905v1);
@@ -483,6 +552,10 @@ A2A specification (https://a2a-protocol.org/latest/specification/); MCP specific
 | student (C = 10, sure ≥ 0.8) | type 94.4 % right on 15.5 %; memory 95.0 % on 24.6 % | 252 agreed labels, 5-fold CV |
 | index file round trip | 185 objects; export 180 in 0.25 s (218 KB); import 0.78 s; way back 0 copies (40 before the fix) | two local test servers, 13.11.2026 |
 | LLM weight layer, offline | log loss −0.00006 ± 0.00011 / observation, 3,645 holdout | production, 13.11.2026 |
+| clingo-object vs SQL | 13/13 equal at 20,000 objects (3/13 short at 2,000); 0.01–0.6 s, 2.3 s for 13,088 objects | production copy, 13.11.2026 |
+| clingo-object agent | 15/16 exact, held out 4/4, P 1.00, R 0.99, 5.2 s; `vi_recall` alone 2/16, P 0.50, R 0.30, 20.1 s | production copy, 16 questions, one run, 13.11.2026 |
+| agent on production | "DMZ hosts never described as production": 2 hosts, 1 round, 5.3 s | `vi_logic action=answer`, 0.63.0, 14.11.2026 |
+| seeded training data | 16 rule sets equal to SQL on live data; 127 conclusions rated, all right; 14 rule weights | production, 14.11.2026 |
 
 ## Appendix B — Glossary (stored names are German)
 

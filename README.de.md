@@ -215,6 +215,62 @@ wahr ist:
   Testmodus, und die Heuristik entscheidet; ein kleiner Teil der Hinweise ist Erkundung, damit das Modell auch über das lernt, was es selbst
   nicht gezeigt hätte.
 
+## clingo-object: Logik über die Objekte des Gedächtnisses (0.63.0)
+
+Das Gedächtnis speichert sein Wissen als Objekte in SQL (ein Objekt mit Art, Hashtags `art:wert`, Feldern und Kanten). **clingo-object**
+lässt dich — und jede KI — über diese Objekte mit Antwortmengen-Programmierung schließen (Löser [clingo](https://pypi.org/project/clingo/)):
+Gesucht wird in SQL, geschlossen in clingo. „clingo ist die Sprache für LLMs“ war die Sicht des Betreibers; die Messung unten stützt sie
+für Fragen über viele Objekte.
+
+**In Alltagssprache fragen** — das Sprachmodell des Servers schreibt das Programm, der Server löst es mit dem, was du sehen darfst:
+
+```text
+vi_logic(action="answer", question="Which DMZ hosts are never described as production?")
+→ state: answered · 2 answer(s) · 1 round(s) · evidence: inferred
+  ans("…")  ans("…")
+program:
+dmz(H) <= (O in objects("netz:dmz")) & (O.host == H)
+prod(H) <= (O in objects("kritikalitaet:prod")) & (O.host == H)
+ans(H) <= dmz(H) & ~prod(H)
+```
+
+**Regeln selbst schreiben** in der Notation (Python-Syntax, gelesen, nie ausgeführt): `(O in objects("filter"))` bindet `O` an die Objekte
+eines Suchfilters, `(O.host == H)` liest einen Hashtag, `(O.age > 90)` eine Zahl, `linked(O, B)` folgt einer Kante, `never(…)` meldet einen
+Verstoß, `soft(…)` ist eine Regel mit gelerntem Gewicht. `propose(tag(O, "status", "stale"))` als Kopf schlägt eine Änderung vor: Sie wartet
+in der Quarantäne, bis ein Mensch sie freigibt (`vi-mcp release`). `vi_logic action=save` speichert einen Regelsatz, `rate` bucht einen an
+der Wirklichkeit geprüften Schluss (die Gewichte der Regeln lernen), `learn` findet aus bewerteten Schlüssen neue Regeln (als Vorschläge).
+
+**Oder in echtem Python** mit dem Paket `clingo-object` (`import clingo_object`, im Release als Wheel und in den Paketen enthalten) — eine
+objektorientierte Sprache auf dem clingo-Python-API; sie wird in dieselbe Notation übersetzt, die der Server ausführt, die Antwort ist
+hier und dort dieselbe:
+
+```python
+from clingo_object import Memory, Obj, Program, VIObject, rel
+
+class Knowledge(VIObject):                       # abstrakt: keine eigene Art
+    def stale(self):
+        return (self.mode == "test") & (self.age > 90)
+
+class Skill(Knowledge):
+    kind = "skill"                               # steht für Gedächtnisobjekte der Art "skill"
+    def stale(self):                             # überschreibt Knowledge.stale (Pythons MRO entscheidet)
+        return (self.mode == "test") & (self.age > 30)
+
+O = Obj("O")
+prog = Program(Knowledge, Skill, rel.review(O) <= O.where("art:skill") & O.stale())
+mem = Memory()                                   # Server und Token wie beim Hook gefunden
+print(prog.check(mem)["folgerungen"])            # hier gelöst mit dem clingo-API
+print(prog.check_on_server(mem))                 # derselbe Text auf dem Server
+```
+
+Ein Agent schreibt die Programme für dich: `python3 -m clingo_object.agent "Which hosts at location KAS-0 are in the DMZ?"` (ein
+Sprachmodell über `VI_LLM_URL`, jeder OpenAI-kompatible Endpunkt).
+
+*Gemessen* (Kopie der Produktion, 13.11.2026): 13 Beziehungsfragen stimmen in 13 von 13 Fällen mit von Hand geschriebenem SQL überein; der
+Agent beantwortete 15 von 16 Fragen in Alltagssprache exakt (4 von 4 zurückgehaltene, Precision 1,00, Recall 0,99, 5,2 s), dasselbe Modell
+nur mit Suchen 2 von 16 (Precision 0,50, Recall 0,30, 20,1 s). Einzelheiten: [docs/PAPER.md](docs/PAPER.md) Abschnitt 5.6,
+[CHANGELOG.md](CHANGELOG.md) 0.63.0.
+
 ## Installieren
 
 ### Aus dem Paket-Repository — Updates kommen mit `apt upgrade` / `dnf upgrade` (0.54.0)

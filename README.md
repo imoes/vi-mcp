@@ -208,6 +208,61 @@ vi-mcp never trains the language model. The only weights it learns decide **whic
 - **It switches itself off when it does not help.** With too little data or a weak result on held-back data the model stays in test mode
   and the heuristic decides; a small share of the hints is exploration, so the model also learns about what it would not have shown.
 
+## clingo-object: logic over the memory's objects (0.63.0)
+
+The memory stores its knowledge as objects in SQL (an object with a kind, hashtags `kind:value`, fields and edges). **clingo-object**
+lets you — and any AI — reason over these objects with answer set programming (the solver [clingo](https://pypi.org/project/clingo/)):
+searching stays SQL, inference is clingo. "clingo is the language for LLMs" was the owner's view; the measurement below supports it for
+questions over many objects.
+
+**Ask in plain language** — the server's language model writes the program, the server solves it with what you may see:
+
+```text
+vi_logic(action="answer", question="Which DMZ hosts are never described as production?")
+→ state: answered · 2 answer(s) · 1 round(s) · evidence: inferred
+  ans("…")  ans("…")
+program:
+dmz(H) <= (O in objects("netz:dmz")) & (O.host == H)
+prod(H) <= (O in objects("kritikalitaet:prod")) & (O.host == H)
+ans(H) <= dmz(H) & ~prod(H)
+```
+
+**Write the rules yourself** in the notation (Python syntax, read but never executed): `(O in objects("filter"))` binds `O` to the objects
+of a search filter, `(O.host == H)` reads a hashtag, `(O.age > 90)` a number, `linked(O, B)` follows an edge, `never(…)` reports a
+violation, `soft(…)` is a rule with a learned weight. `propose(tag(O, "status", "stale"))` as a head proposes a change: it waits in
+quarantine until a person releases it (`vi-mcp release`). `vi_logic action=save` keeps a rule set, `rate` books a conclusion checked
+against reality (the rules' weights learn), `learn` finds new rules from rated conclusions (as proposals).
+
+**Or in real Python** with the package `clingo-object` (`import clingo_object`, in the release as a wheel and shipped with the packages)
+— an object-oriented language on the clingo Python API; it compiles to the same notation the server runs, so the answer is the same here
+and there:
+
+```python
+from clingo_object import Memory, Obj, Program, VIObject, rel
+
+class Knowledge(VIObject):                       # abstract: no kind of its own
+    def stale(self):
+        return (self.mode == "test") & (self.age > 90)
+
+class Skill(Knowledge):
+    kind = "skill"                               # stands for memory objects of kind "skill"
+    def stale(self):                             # overrides Knowledge.stale (Python's MRO decides)
+        return (self.mode == "test") & (self.age > 30)
+
+O = Obj("O")
+prog = Program(Knowledge, Skill, rel.review(O) <= O.where("art:skill") & O.stale())
+mem = Memory()                                   # server and token found like the hook
+print(prog.check(mem)["folgerungen"])            # solved here with the clingo API
+print(prog.check_on_server(mem))                 # the same text on the server
+```
+
+An agent does the writing for you: `python3 -m clingo_object.agent "Which hosts at location KAS-0 are in the DMZ?"` (a language model via
+`VI_LLM_URL`, any OpenAI-compatible endpoint).
+
+*Measured* (production copy, 13.11.2026): 13 relational questions agree with hand-written SQL in 13 of 13; the agent answered 15 of 16
+natural-language questions exactly (4 of 4 held out, precision 1.00, recall 0.99, 5.2 s), the same model with searches alone 2 of 16
+(precision 0.50, recall 0.30, 20.1 s). Details: [docs/PAPER.md](docs/PAPER.md) section 5.6, [CHANGELOG.md](CHANGELOG.md) 0.63.0.
+
 ## Install
 
 ### From the package repository — updates come with `apt upgrade` / `dnf upgrade` (0.54.0)

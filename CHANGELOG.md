@@ -3,7 +3,14 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.63.1 — not yet released — clingo-object finds the server like the hook on Linux; fewer empty rating entries
+## 0.63.1 — 2026-11-14 — clingo-object finds the server like the hook on Linux; fewer empty rating entries; documented
+
+### What is new
+
+- **clingo-object is documented**: a section in README.md and README.de.md (asking in plain language, writing rules, the Python
+  classes, the agent, the measurements — the Python example was run against a throw-away memory and gives the documented result), and
+  section 5.6 of docs/PAPER.md (objects as facts, proposals, one language in two places, measured against SQL, the agent against searches
+  alone, training), with its limits, sources and measurements.
 
 ### What has changed
 
