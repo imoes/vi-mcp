@@ -3,7 +3,9 @@
 Where the server is and which token to use is found the way the vi-mcp hook finds it (hook/vi_hook.py):
   1. VI_MCP_URL and VI_MCP_TOKEN_FILE in the environment,
   2. otherwise ~/.config/vi-mcp/hook.json (url, token_file), written by `vi-mcp setup`,
-  3. otherwise http://127.0.0.1:8765/mcp and ~/.config/vi-mcp/token-claude if it exists.
+  3. otherwise the hook command `vi-mcp setup` wrote into ~/.claude/settings.json on Linux and macOS
+     ("VI_MCP_URL=… VI_MCP_TOKEN_FILE=… python3 -I …/vi_hook.py"),
+  4. otherwise http://127.0.0.1:8765/mcp and ~/.config/vi-mcp/token-claude if it exists.
 A token is read from its file and never printed. Requests go direct first, then through the proxy of the environment (as setup does).
 """
 from __future__ import annotations
@@ -22,6 +24,27 @@ class ServerError(RuntimeError):
     """The server could not be reached, refused, or answered with an error — the message says which."""
 
 
+def _from_claude_settings() -> dict:
+    """URL and token file from the vi-mcp hook command in Claude Code's settings (0.63.1: found on the first live test — on Linux
+    `vi-mcp setup` puts them into the hook command, not into hook.json)."""
+    import re
+    import shlex
+    try:
+        text = (Path.home() / ".claude" / "settings.json").read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    for cmd in re.findall(r'"command"\s*:\s*"((?:[^"\\]|\\.)*vi_hook\.py[^"]*)"', text):
+        try:
+            words = shlex.split(json.loads(f'"{cmd}"'))
+        except ValueError:
+            continue
+        env = dict(w.split("=", 1) for w in words if re.match(r"^VI_MCP_[A-Z_]+=", w))
+        if env.get("VI_MCP_URL"):
+            home = str(Path.home())
+            return {"url": env["VI_MCP_URL"], "token_file": (env.get("VI_MCP_TOKEN_FILE") or "").replace("$HOME", home).replace("${HOME}", home)}
+    return {}
+
+
 def _config() -> tuple[str, Path | None]:
     url = os.environ.get("VI_MCP_URL")
     token_file = os.environ.get("VI_MCP_TOKEN_FILE")
@@ -30,8 +53,10 @@ def _config() -> tuple[str, Path | None]:
             c = json.loads((Path.home() / ".config" / "vi-mcp" / "hook.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             c = {}
+        if not c.get("url"):
+            c = _from_claude_settings()
         url = c.get("url") or "http://127.0.0.1:8765/mcp"
-        token_file = token_file or c.get("token_file")
+        token_file = token_file or c.get("token_file") or None
     if not token_file:
         default = Path.home() / ".config" / "vi-mcp" / "token-claude"
         token_file = str(default) if default.exists() else None

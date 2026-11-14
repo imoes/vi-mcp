@@ -15,6 +15,6 @@ from .model import VIObject, compile_class
 from .notation import CLINGO_VERSION, LogicError
 from .program import Program
 
-__version__ = "0.63.0"
+__version__ = "0.63.1"
 __all__ = ["CLINGO_VERSION", "ExprError", "LogicError", "Memory", "Obj", "Program", "ServerError", "VIObject", "Var", "compile_class",
            "linked", "never", "propose_link", "propose_tag", "rel", "soft"]

@@ -3,6 +3,16 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.63.1 — not yet released — clingo-object finds the server like the hook on Linux
+
+### What was fixed
+
+- **`clingo_object.Memory` and `python3 -m clingo_object.agent` did not find the VI on Linux.** *Found on the first live test against
+  production (14.11.2026):* `vi-mcp setup` writes URL and token file into the hook command in `~/.claude/settings.json` there, not into
+  `hook.json` (that is the Windows way), so the client fell back to 127.0.0.1 and was refused. It now reads that hook command too
+  (after the environment and `hook.json`). Verified on the workstation: the server and the token file are found without any variable.
+  Test: `tests/test_clingo_object.py` (1 new).
+
 ## 0.63.0 — 2026-11-14 — clingo-object: the memory's objects in the logic, as an object-oriented language
 
 The user (13.11.2026): "Derzeit legen wir Daten per SQL in Objekten ab. Also müssen wir mit diesen Objekten in clingo programmieren" — "wir

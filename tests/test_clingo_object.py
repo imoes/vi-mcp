@@ -278,3 +278,19 @@ def test_the_agent_end_to_end_over_a_real_server(srv, tmp_path):
         return '```logic\nans(H) <= (O in objects("netz:dmz")) & (O.host == H)\n```'
     r = agent.solve("Which hosts are in the DMZ?", mem, llm, vocabulary=voc)
     assert r["state"] == "answered" and r["answer"] == ['ans("gate1")'] and "- netz: dmz" in seen[0]
+
+
+def test_memory_reads_the_hook_command_of_claude_code(tmp_path, monkeypatch):
+    """0.63.1, found on the first live test against production: on Linux `vi-mcp setup` writes URL and token file into the hook
+    command in ~/.claude/settings.json — there is no hook.json, and the client fell back to 127.0.0.1."""
+    import json as _json
+    from clingo_object import client
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("VI_MCP_URL", raising=False)
+    monkeypatch.delenv("VI_MCP_TOKEN_FILE", raising=False)
+    (tmp_path / ".claude").mkdir()
+    cmd = "VI_MCP_URL=https://vi.example/vi-mcp/mcp VI_MCP_TOKEN_FILE=$HOME/.config/vi-mcp/token-claude python3 -I /usr/share/vi-mcp/hook/vi_hook.py"
+    (tmp_path / ".claude" / "settings.json").write_text(_json.dumps({"hooks": {"PreToolUse": [{"matcher": "*", "hooks": [
+        {"type": "command", "command": cmd, "timeout": 5}]}]}}))
+    url, tf = client._config()
+    assert url == "https://vi.example/vi-mcp/mcp" and tf == tmp_path / ".config" / "vi-mcp" / "token-claude"
