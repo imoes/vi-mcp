@@ -677,7 +677,7 @@ def _restart() -> str | None:
     if WINDOWS:  # the MSI runs the server as scheduled task "vi-mcp"
         for command in (["schtasks", "/End", "/TN", "vi-mcp"], ["schtasks", "/Run", "/TN", "vi-mcp"]):
             try:
-                r = subprocess.run(command, capture_output=True, text=True, timeout=45)
+                r = subprocess.run(command, capture_output=True, text=True, **config.CONSOLE_TEXT, timeout=45)
             except (OSError, subprocess.TimeoutExpired) as e:
                 return f"{' '.join(command)}: {e}"
             if r.returncode != 0 and command[1] == "/Run":
@@ -685,7 +685,7 @@ def _restart() -> str | None:
         return None
     command = ["systemctl", "restart", "vi-mcp"] if os.geteuid() == 0 else ["systemctl", "--user", "restart", "vi-mcp"]
     try:
-        r = subprocess.run(command, capture_output=True, text=True, timeout=45)
+        r = subprocess.run(command, capture_output=True, text=True, **config.CONSOLE_TEXT, timeout=45)
     except (OSError, subprocess.TimeoutExpired) as e:
         return f"{' '.join(command)}: {e}"
     return None if r.returncode == 0 else f"{' '.join(command)}: {r.stderr.strip()[:200]}"

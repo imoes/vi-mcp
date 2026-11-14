@@ -574,6 +574,9 @@ def _logic(args: dict, instance: str | None) -> str:
                "objects as you may see them)"]
         out += [f"  {a}" for a in rows[:100]] + ([f"  … {len(rows) - 100} more" ] if len(rows) > 100 else [])
         out.append("program:\n" + r["program"])
+        if rows:  # 0.63.2: a checked conclusion makes this question and program training data (right ones teach, wrong ones warn)
+            out.append(f'checked one of these against reality? vi_logic(action="rate", source=<the program above>, conclusion={rows[0]!r}, '
+                       "correct=true|false)")
         if r["state"] != "answered":
             last = next((t for t in reversed(r["transcript"]) if t.get("error")), None)
             out.append(("last refusal: " + last["error"][:300]) if last else "the program derived no answer — the memory may not know it")

@@ -3,6 +3,24 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.63.2 — not yet released — answered questions become training data; Windows console output
+
+### What is new
+
+- **Questions answered in plain language are kept with their program** (`vi_logic action=answer`, table `logik_frage`), and the answer
+  says how to rate one of its conclusions. Once rated, the question and program become training data: rated right an example in
+  `logic.jsonl`, rated wrong a negative in `kto.jsonl` (the model's own mistake). The user (14.11.2026): no fine-tuning run yet — first
+  collect more training data from real use; later the qwen27b model learns, so before and after compare directly. Test:
+  `tests/test_logic_propose.py` (1 new).
+
+### What was fixed
+
+- **`vi-mcp release` on Windows printed a UnicodeDecodeError traceback** while restarting the service (reported from a Windows
+  installation, 14.11.2026; the release itself went through). `schtasks` writes in the console's OEM code page (0x81 = "ü" in cp850),
+  Python ran with `-X utf8`. Output of console programs is now read with the OEM code page on Windows and never fails on a byte
+  (`config.CONSOLE_TEXT`; setup, embedding service, network service CLI; git output as UTF-8 with replacement). Test:
+  `tests/test_release_cli.py` (1 new).
+
 ## 0.63.1 — 2026-11-14 — clingo-object finds the server like the hook on Linux; fewer empty rating entries; documented
 
 ### What is new

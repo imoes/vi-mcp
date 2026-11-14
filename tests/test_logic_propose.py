@@ -159,3 +159,29 @@ def test_a_question_in_natural_language_is_answered_on_the_server(gd, monkeypatc
     monkeypatch.setattr(logic, "llm_available", lambda: False)
     with pytest.raises(tools.Rejected, match="no language model"):
         tools.call_tool("vi_logic", {"action": "answer", "question": "x"}, "a", False)
+
+
+def test_answered_questions_become_training_data_once_rated(gd, monkeypatch, tmp_path):
+    """0.63.2 — the user (14.11.2026): collect more training data from real use before fine-tuning. An answered question keeps its
+    program; rated right it becomes an example, rated wrong a negative (the model's mistake, in its own words)."""
+    import json
+    from vi_mcp import dataset, logic
+    _world()
+    good = '```logic\nans(H) <= (O in objects("zone:dmz")) & (O.host == H)\n```'
+    bad = '```logic\nans(H) <= (O in objects("host:*")) & (O.host == H)\n```'
+    for reply, question in ((good, "Which hosts are in the DMZ?"), (bad, "Which hosts are in the DMZ, really?")):
+        monkeypatch.setattr(logic, "agent_llm", lambda m, reply=reply: reply)
+        out = tools.call_tool("vi_logic", {"action": "answer", "question": question}, "a", False)
+        assert 'vi_logic(action="rate"' in out
+    asked = logic.asked_questions()
+    assert len(asked) == 2 and {q["frage"] for q in asked} == {"Which hosts are in the DMZ?", "Which hosts are in the DMZ, really?"}
+    good_prog = next(q["programm"] for q in asked if q["frage"] == "Which hosts are in the DMZ?")
+    bad_prog = next(q["programm"] for q in asked if q["frage"] != "Which hosts are in the DMZ?")
+    tools.call_tool("vi_logic", {"action": "rate", "source": good_prog, "conclusion": 'ans("gate1")', "correct": True}, "a", False)
+    tools.call_tool("vi_logic", {"action": "rate", "source": bad_prog, "conclusion": 'ans("gate1")', "correct": False}, "a", False)
+    dataset.export(tmp_path / "out")
+    logic_rows = [json.loads(x) for x in (tmp_path / "out" / "logic.jsonl").read_text().splitlines()]
+    kto = [json.loads(x) for x in (tmp_path / "out" / "kto.jsonl").read_text().splitlines()]
+    assert any(r["meta"].get("kind") == "asked" and r["messages"][0]["content"] == "Which hosts are in the DMZ?" for r in logic_rows)
+    neg = [k for k in kto if k["meta"].get("source") == "logic.answer"]
+    assert len(neg) == 1 and neg[0]["label"] is False and 'objects("host:*")' in neg[0]["completion"]

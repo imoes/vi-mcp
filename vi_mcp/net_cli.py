@@ -192,7 +192,7 @@ def _task(*command: str) -> tuple[str | None, str]:
     if verb == "enable" and not cmd.exists():
         return f"{cmd} missing (installed by the MSI)", ""
     ps = _TASK_PS[verb].format(t=t, cmd=str(cmd).replace("'", "''"), net=net)
-    r = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps], capture_output=True, text=True)
+    r = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps], capture_output=True, text=True, **config.CONSOLE_TEXT)
     return (None if r.returncode == 0 and not r.stderr.strip() else (r.stderr.strip() or f"exit {r.returncode}")[:200]), r.stdout.strip()
 
 
@@ -204,7 +204,7 @@ def service_state(unit: str) -> str:
         return _task("is-active", unit)[1] or "unknown"
     if not shutil.which("systemctl"):
         return "not checked"
-    return subprocess.run(["systemctl", "is-active", unit], capture_output=True, text=True).stdout.strip() or "unknown"
+    return subprocess.run(["systemctl", "is-active", unit], capture_output=True, text=True, **config.CONSOLE_TEXT).stdout.strip() or "unknown"
 
 
 def _service(*command: str) -> str | None:
@@ -216,7 +216,7 @@ def _service(*command: str) -> str | None:
         return _task(*command)[0]
     if not shutil.which("systemctl"):
         return "systemctl missing"
-    r = subprocess.run(["systemctl", *command], capture_output=True, text=True)
+    r = subprocess.run(["systemctl", *command], capture_output=True, text=True, **config.CONSOLE_TEXT)
     return None if r.returncode == 0 else r.stderr.strip()[:200]
 
 

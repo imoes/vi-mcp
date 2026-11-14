@@ -115,3 +115,17 @@ def test_the_quarantine_lists_an_entry_held_from_vi_learn(gd):
     oid = out.split()[1]
     q = tools.call_tool("vi_quarantine", {"limit": 10}, "release-cli", False, True)
     assert oid in q and "instance solo (held by the fixed rules" in q and "rule finding" in q
+
+
+def test_console_output_in_the_oem_code_page_never_breaks_the_restart(monkeypatch):
+    """0.63.2, reported from a Windows installation (14.11.2026): `vi-mcp release` restarted the service and printed a UnicodeDecodeError
+    traceback — schtasks writes in the OEM code page (0x81 = "ü" in cp850), Python ran with -X utf8. Console output is read with the
+    console's code page and never fails on a byte."""
+    import subprocess
+    seen = []
+    monkeypatch.setattr(setup, "WINDOWS", True)
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: seen.append(kw) or subprocess.CompletedProcess(cmd, 0, "", ""))
+    assert setup._restart() is None
+    assert all(kw.get("errors") == "replace" and kw.get("text") for kw in seen)
+    assert config.CONSOLE_TEXT["errors"] == "replace"
+    assert b"Vorgang erfolgreich: \x81".decode("utf-8", **{k: v for k, v in config.CONSOLE_TEXT.items() if k == "errors"})  # no exception

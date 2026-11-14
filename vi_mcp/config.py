@@ -28,6 +28,11 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+#: 0.63.2: how to read the output of a console program. On Windows it comes in the OEM code page (cp850, cp437 …) while Python runs
+#: with -X utf8 — reading it as UTF-8 ended `vi-mcp release` in a UnicodeDecodeError traceback (0x81 = "ü" of schtasks, reported
+#: from a Windows installation 14.11.2026). Never fail on a byte: replace it.
+CONSOLE_TEXT = {"encoding": "oem", "errors": "replace"} if os.name == "nt" else {"errors": "replace"}
+
 DEFAULT_PATH = Path("~/.config/vi-mcp/config.json").expanduser()
 
 

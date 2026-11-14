@@ -178,6 +178,8 @@ def _tables() -> bool:
             # 0.63.0: every rated conclusion itself (the weights above are only counters) — training data for clingo-object (dataset.py)
             g.db().execute("CREATE TABLE IF NOT EXISTS logik_bewertung (zeit TEXT NOT NULL, programm_hash TEXT NOT NULL, schluss TEXT NOT NULL, "
                            "richtig INTEGER NOT NULL, instanz TEXT)")
+            g.db().execute("CREATE TABLE IF NOT EXISTS logik_frage (zeit TEXT NOT NULL, instanz TEXT, frage TEXT NOT NULL, programm TEXT NOT NULL, "
+                           "programm_hash TEXT NOT NULL, zustand TEXT, antworten INTEGER, runden INTEGER)")
             g.db().commit()
         return True
     except Exception:  # no memory open (pure use of the module): every rule is unmeasured
@@ -635,4 +637,32 @@ def answer_question(question: str, instance: str, rounds: int | None = None) -> 
         def call(self, tool, args):
             return tools.call_tool(tool, args, instance, False)
     mem = _Mem()
-    return agent.solve(question, mem, _server_llm, max_rounds=rounds or agent.MAX_ROUNDS, vocabulary=agent.vocabulary(mem))
+    r = agent.solve(question, mem, _server_llm, max_rounds=rounds or agent.MAX_ROUNDS, vocabulary=agent.vocabulary(mem))
+    _record_question(question, r, instance)
+    return r
+
+
+def _record_question(question: str, r: dict, instance: str) -> None:
+    """0.63.2: every answered question with the program that answered it — training data once someone rates a conclusion of that
+    program (the user, 14.11.2026: collect more training data from real use before fine-tuning). Never fails the answer."""
+    from . import memory as g
+    if not _tables() or not r.get("program"):
+        return
+    try:
+        with g.lock:
+            g.db().execute("INSERT INTO logik_frage (zeit, instanz, frage, programm, programm_hash, zustand, antworten, runden) "
+                           "VALUES (?,?,?,?,?,?,?,?)", (g.now(), instance, question[:2000], r["program"][:MAX_SOURCE],
+                                                        program_hash(r["program"]), r["state"], len(r.get("answer") or []), r["rounds"]))
+            g.db().commit()
+    except Exception:  # noqa: BLE001 — bookkeeping must not cost the answer
+        pass
+
+
+def asked_questions() -> list[dict]:
+    """The questions answered by vi_logic answer, newest first, with their program."""
+    from . import memory as g
+    if not _tables():
+        return []
+    with g.lock:
+        rows = g.db().execute("SELECT zeit, instanz, frage, programm, programm_hash, zustand FROM logik_frage ORDER BY zeit DESC").fetchall()
+    return [{"zeit": z, "instanz": i, "frage": f, "programm": p, "programm_hash": h, "zustand": st} for z, i, f, p, h, st in rows]

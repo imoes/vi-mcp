@@ -149,7 +149,7 @@ def is_gpu(g: dict) -> bool:
 
 
 def _run_text(cmd: list[str], timeout: int = 20) -> str:
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    r = subprocess.run(cmd, capture_output=True, text=True, **config.CONSOLE_TEXT, timeout=timeout)
     if r.returncode != 0:
         raise RuntimeError(f"{cmd[0]} exit {r.returncode}: {(r.stderr or r.stdout).strip()[:160]}")
     return r.stdout
@@ -340,7 +340,7 @@ FIRST_START_S = 600
 
 def _devices(exe: Path) -> list[dict]:
     env = {**os.environ, "LD_LIBRARY_PATH": str(exe.parent)} if system() == "linux" else None
-    r = subprocess.run([str(exe), "--list-devices"], capture_output=True, text=True, timeout=FIRST_START_S, env=env)
+    r = subprocess.run([str(exe), "--list-devices"], capture_output=True, text=True, **config.CONSOLE_TEXT, timeout=FIRST_START_S, env=env)
     return parse_devices((r.stdout or "") + "\n" + (r.stderr or ""))
 
 
@@ -377,7 +377,7 @@ def _ensure_vc_runtime() -> str:
     _fetch(VC_REDIST_URL, exe, timeout=120)
     sig = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
                           f"$s = Get-AuthenticodeSignature -FilePath '{exe}'; \"$($s.Status)|$($s.SignerCertificate.Subject)\""],
-                         capture_output=True, text=True, timeout=60).stdout.strip()
+                         capture_output=True, text=True, **config.CONSOLE_TEXT, timeout=60).stdout.strip()
     status, _, subject = sig.partition("|")
     if status != "Valid" or "O=Microsoft Corporation" not in subject:
         exe.unlink(missing_ok=True)
@@ -397,7 +397,7 @@ def _starts(exe: Path) -> tuple[bool, str]:
     prints nothing."""
     env = {**os.environ, "LD_LIBRARY_PATH": str(exe.parent)} if system() == "linux" else None
     try:
-        r = subprocess.run([str(exe), "--version"], capture_output=True, text=True, timeout=60, env=env)
+        r = subprocess.run([str(exe), "--version"], capture_output=True, text=True, **config.CONSOLE_TEXT, timeout=60, env=env)
     except (OSError, subprocess.TimeoutExpired) as e:
         return False, str(e)
     if r.returncode == 0:
@@ -654,9 +654,9 @@ def compare(port: int = DEFAULT_PORT, sample: int = 30) -> dict:
 
 def _service_state(name: str) -> str:
     if system() == "linux":
-        r = subprocess.run(["systemctl", "is-active", name], capture_output=True, text=True)
+        r = subprocess.run(["systemctl", "is-active", name], capture_output=True, text=True, **config.CONSOLE_TEXT)
         return r.stdout.strip() or r.stderr.strip()
-    r = subprocess.run(["schtasks", "/Query", "/TN", name], capture_output=True, text=True)
+    r = subprocess.run(["schtasks", "/Query", "/TN", name], capture_output=True, text=True, **config.CONSOLE_TEXT)
     return "registered" if r.returncode == 0 else "not registered"
 
 

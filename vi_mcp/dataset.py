@@ -188,6 +188,30 @@ def logic_examples(index: str | None, audit: Counter) -> tuple[list[dict], list[
             else:
                 kto.append({"prompt": _clean(q, audit, "question"), "completion": f"{concl} holds (derived by the rule set {name})",
                             "label": False, "meta": {"id": o.id, "rule_set": name, "source": "logic.rate"}})
+    # 0.63.2: questions asked in plain language (vi_logic answer) whose program someone rated — the question, the program, the solver
+    seen_q = set()
+    for q in logic.asked_questions():
+        if q["instanz"] == LOGIC_VIEWER or (q["frage"], q["programm_hash"]) in seen_q:
+            continue
+        rated = logic.rated_conclusions(q["programm_hash"])
+        if not rated:
+            continue
+        seen_q.add((q["frage"], q["programm_hash"]))
+        if all(right for _c, right in rated):
+            try:
+                r = logic.check(q["programm"], viewer=LOGIC_VIEWER)
+            except Exception as e:  # noqa: BLE001
+                skipped[f"logic: asked program does not solve ({type(e).__name__})"] += 1
+                continue
+            sft.append({"messages": [{"role": "user", "content": _clean(q["frage"], audit, "question")},
+                                     {"role": "assistant", "content": "", "tool_calls": [{"type": "function", "function": {
+                                         "name": "vi_logic", "arguments": {"action": "check", "source": _clean(q["programm"], audit, "program")}}}]},
+                                     {"role": "tool", "name": "vi_logic", "content": _clean("\n".join(logic.lines(r)), audit, "tool")},
+                                     {"role": "assistant", "content": f"{len(rated)} conclusion(s) of this program were checked against reality: right."}],
+                        "tools": [tool], "meta": {"kind": "asked", "rated": len(rated)}})
+        else:
+            kto.append({"prompt": _clean(q["frage"], audit, "question"), "completion": _clean(q["programm"], audit, "program"), "label": False,
+                        "meta": {"source": "logic.answer", "wrong": sum(1 for _c, right in rated if not right), "rated": len(rated)}})
     return sft, kto, skipped
 
 

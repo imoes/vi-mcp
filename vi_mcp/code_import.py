@@ -104,7 +104,7 @@ def chunks(path: str, src: str) -> list[dict]:
 # ── the repository ────────────────────────────────────────────────────────
 
 def _git(repo: Path, *args: str) -> str:
-    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, check=True, timeout=120).stdout
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True, timeout=120).stdout
 
 
 def collect(repo: Path) -> tuple[str, dict[str, tuple[str, str]], dict[str, str]]:
