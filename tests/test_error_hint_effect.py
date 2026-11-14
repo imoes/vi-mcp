@@ -1,4 +1,4 @@
-"""0.62.6: what vi_after shows after a failed action is recorded and held back at random, so its effect on recovery can be measured."""
+"""0.63.0: what vi_after shows after a failed action is recorded and held back at random, so its effect on recovery can be measured."""
 import random
 
 from vi_mcp import intuition, metrics, session

@@ -156,7 +156,7 @@ nginx -t && systemctl reload nginx  # in a container: docker exec nginx nginx -t
 - Torrent for large backlogs uses its own port and is off unless switched on; for a network on 443 only, leave it off.
 - Check: `curl -s https://<host>/vi-p2p/firma/netz/health` → `{"zustand": "ok", "version": "…"}`.
 
-### Memory and network service in separate containers (0.62.6)
+### Memory and network service in separate containers (0.63.0)
 
 `setup` and `join` register a network in the memory: its instance (`netz-<network>`), the entry `p2p.networks.<network>` with the kind,
 and the live-search address and token. On one host they write the memory's own configuration. When the memory runs in another

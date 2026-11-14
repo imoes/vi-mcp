@@ -323,12 +323,12 @@ def arm_effect(since: str | None = None, viewer: str | None = None) -> dict:
             "urteil": f"with LLM layer − without {d * 100:+.1f} ± {se * 100:.1f} points ({n_l} vs {n_b} actions)"}
 
 
-#: 0.62.6: an error is recovered when the next action with the same tool in the same conversation succeeds, within this many actions
+#: 0.63.0: an error is recovered when the next action with the same tool in the same conversation succeeds, within this many actions
 RECOVER_WINDOW = 3
 
 
 def error_hint_effect(hours: float = 24 * 30, viewer: str | None = None) -> dict:
-    """0.62.6: the effect of what vi_after shows after a failed action (intuition.error_hints). Over failures that had error hints to show,
+    """0.63.0: the effect of what vi_after shows after a failed action (intuition.error_hints). Over failures that had error hints to show,
     those whose hints were held back by the coin flip (fehler_zurueckgehalten) against those that showed them; the outcome is recovery —
     the next action with the same tool in the same conversation, within RECOVER_WINDOW actions, succeeds. A failure without such a retry
     is counted as "no retry", not as either. Mantel-Haenszel within (instance, tool). Causal, because holding back is random."""

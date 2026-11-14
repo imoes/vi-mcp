@@ -148,7 +148,7 @@ def test_setup_public_and_proxy_config_commands(tmp_path, monkeypatch, capsys):
 
 
 def test_setup_for_a_memory_in_another_container(tmp_path, monkeypatch, capsys):
-    """0.62.6, reported from CentralStation: memory and network service run in separate containers; join wrote the network's instance
+    """0.63.0, reported from CentralStation: memory and network service run in separate containers; join wrote the network's instance
     and live-search token into a memory config the memory never read. --memory-config/--memory-url/--local-bind/--local-host make it
     explicit, and a split setup without the memory's config is refused instead of writing a stray one."""
     monkeypatch.setenv("VI_MCP_KEIN_DIENST", "1")
@@ -175,7 +175,7 @@ def test_setup_for_a_memory_in_another_container(tmp_path, monkeypatch, capsys):
 
 
 def test_setup_again_wires_a_live_search_the_memory_never_got(tmp_path, monkeypatch, capsys):
-    """0.62.6: the service had a token hash, the memory no entry (a first setup in another container) — setup again wires it."""
+    """0.63.0: the service had a token hash, the memory no entry (a first setup in another container) — setup again wires it."""
     monkeypatch.setenv("VI_MCP_KEIN_DIENST", "1")
     monkeypatch.setattr(net_cli, "_bound", lambda port: False)
     monkeypatch.setenv("VI_P2P_CONFIG", str(tmp_path / "config.json"))

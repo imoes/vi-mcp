@@ -255,7 +255,7 @@ def wiki_start(value: str | None) -> str:
 
 
 def _memory_config(o) -> Path | None:
-    """0.62.6: the memory configuration setup writes into (instance, network entry, live-search token). One host: the memory's own file.
+    """0.63.0: the memory configuration setup writes into (instance, network entry, live-search token). One host: the memory's own file.
     Memory and network service in separate containers: the memory's config mounted into this container, given by --memory-config —
     reported from CentralStation (13.11.2026), where join wrote into a config the memory never read. None = it does not exist (refused)."""
     m = Path(getattr(o, "memory_config", None) or config.fpath())
@@ -393,7 +393,7 @@ def setup(o) -> int:
             print(f"The memory reads instances at start: restart the memory (its container) — its configuration {mem} now holds the instance")
         elif reason := _service("restart", "vi-mcp"):
             print(f"Hint: vi-mcp not restarted: {reason}")
-    # 0.62.6: also when the memory lacks the entry although the service has a hash — a setup whose memory config was elsewhere (a
+    # 0.63.0: also when the memory lacks the entry although the service has a hash — a setup whose memory config was elsewhere (a
     # container) left the live search unwired for good (CentralStation, network standard); a new token replaces the orphaned hash
     if not raw.get("local_token_sha256") or (mem is not None and not _memory_has_local(mem, NETWORK or "standard")):  # 0.42.0: live search — the memory holds the token, the service its hash
         used = {int(c.get("local_port") or 0) for n, c in network_configs(p.parent).items() if n != (NETWORK or "standard")}
@@ -507,7 +507,7 @@ def _parser() -> argparse.ArgumentParser:
     bt.add_argument("--port", type=int)
     bt.add_argument("--public", "--oeffentlich", dest="public")
     bt.add_argument("--kind", "--art", dest="kind", type=config.net_kind, choices=("company", "open"))
-    for sp in (e, bt):  # 0.62.6: memory and network service in separate containers
+    for sp in (e, bt):  # 0.63.0: memory and network service in separate containers
         sp.add_argument("--memory-config", dest="memory_config", help="the memory's configuration file to register the network in "
                         "(default: this machine's); in a container setup: the memory's config mounted here")
         sp.add_argument("--memory-url", dest="memory_url", help="where this service reaches the memory, e.g. http://vi-mcp:8765/mcp "

@@ -575,7 +575,7 @@ def after(tool: str, args: dict, ok: bool, duration_ms: int, error: str | None, 
     hints = reflexes.after(tool, dict(args or {}), result or "") if ok else []
     if ok is False and error:  # 0.53.0: rule 3 by itself — what the memory knows about this error
         found_eh = error_hints(tool, args or {}, error, instance)
-        if found_eh:  # 0.62.6: recorded and, like the hints before an action, held back at random — so their effect can be measured
+        if found_eh:  # 0.63.0: recorded and, like the hints before an action, held back at random — so their effect can be measured
             import random as _random
             held = HOLD_BACK > 0 and _random.random() < HOLD_BACK
             ids = [m.group(1) for m in (re.search(r"\[([^\]]+)\]", h) for h in found_eh) if m]

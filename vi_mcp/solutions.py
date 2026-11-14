@@ -156,7 +156,7 @@ def write_up(ev: dict) -> dict:
             w = reflection._json_from(reflection.question(WRITE_UP_SYSTEM, prompt, response_format={
                 "type": "json_schema", "json_schema": {"name": "loesung", "schema": WRITE_UP_SCHEMA}}))
             if all(str(w.get(k) or "").strip() for k in ("problem", "loesung")):
-                # 0.62.6: a cause the model itself calls unproven is stored as a hypothesis, never as the cause. Found on production
+                # 0.63.0: a cause the model itself calls unproven is stored as a hypothesis, never as the cause. Found on production
                 # (13.11.2026): "the branches had diverged" was written up for an error that came from another command altogether.
                 # Research the same day: agents follow retrieved experience closely, so an error in it is reproduced (arXiv 2505.16067);
                 # distilled strategies beat raw trajectories (ReasoningBank, arXiv 2509.25140).

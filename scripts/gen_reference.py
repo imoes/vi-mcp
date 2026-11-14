@@ -75,7 +75,7 @@ NET_FIELDS = {
     "proxy": "HTTPS proxy for outgoing connections (CONNECT).",
     "no_proxy": "Hosts reached without the proxy. [`kein_proxy`]",
     "local_port": "Port of the local listener (127.0.0.1) for the memory's live searches and nudges. [`lokal_port`]",
-    "local_bind": "Address the local listener binds to (0.62.6; default 127.0.0.1). In a container setup the address the memory container reaches; set by `net setup|join --local-bind`.",
+    "local_bind": "Address the local listener binds to (0.63.0; default 127.0.0.1). In a container setup the address the memory container reaches; set by `net setup|join --local-bind`.",
     "local_token_sha256": "SHA-256 of the local listener's token (the memory holds the token). [`lokal_token_sha256`]",
     "pow_bits": "Free network: proof-of-work bits of the identity entry. [`arbeit_bits`]",
     "new_quota": "Free network: entries per day for publishers without measured benefit. [`quote_neu`]",

@@ -570,7 +570,7 @@ def warning(triggers: list[str], ts: str | None = None) -> str | None:
 
     def rate(k):
         return q[k][1] / max(1, q[k][0])
-    # 0.62.6: the tool's own failure rate is no reason — it says "this tool fails often" before every one of its actions. Measured on
+    # 0.63.0: the tool's own failure rate is no reason — it says "this tool fails often" before every one of its actions. Measured on
     # production (13.11.2026): 826 of 848 warnings in 24 h came before one tool that fails 61 % of the time, and 245 of 300 recomputed
     # ones named only tool:/skill: of that tool. A reason must fail more often than the tool itself does.
     own = [k for k in base if k.startswith(("tool:", "skill:")) and k in q]

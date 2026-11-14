@@ -854,7 +854,7 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
 
 
 def _net_hint() -> str:
-    """0.62.6: an empty local search names the live way to the other servers (rule 4). Found on production (13.11.2026): an agent of a
+    """0.63.0: an empty local search names the live way to the other servers (rule 4). Found on production (13.11.2026): an agent of a
     local VI found no Confluence pages, read vi_net_status instead of asking, and concluded they existed nowhere — they were internal
     knowledge on another server, which an open network never carries. Networks whose service has reported (netz_stand) and that are on."""
     from . import p2p

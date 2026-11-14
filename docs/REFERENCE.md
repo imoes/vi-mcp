@@ -1,6 +1,6 @@
 # vi-mcp reference
 
-Generated from the code of vi-mcp 0.62.5 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
+Generated from the code of vi-mcp 0.63.0 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
 
 Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server configuration](#server-configuration-configjson) · [Network service configuration](#network-service-configuration-etcvi-p2pnetworkjson) · [Configuration catalogue](#configuration-catalogue-debconf-vi-mcp-configure-vi_mcp_key) · [Environment variables](#environment-variables) · [HTTP endpoints](#http-endpoints) · [Modules](#modules-vi_mcp)
 
@@ -969,7 +969,7 @@ options:
 | `no_proxy` | `[]` | Hosts reached without the proxy. [`kein_proxy`] |
 | `local_port` | `0` | Port of the local listener (127.0.0.1) for the memory's live searches and nudges. [`lokal_port`] |
 | `local_token_sha256` | `None` | SHA-256 of the local listener's token (the memory holds the token). [`lokal_token_sha256`] |
-| `local_bind` | `'127.0.0.1'` | Address the local listener binds to (0.62.6; default 127.0.0.1). In a container setup the address the memory container reaches; set by `net setup\|join --local-bind`. |
+| `local_bind` | `'127.0.0.1'` | Address the local listener binds to (0.63.0; default 127.0.0.1). In a container setup the address the memory container reaches; set by `net setup\|join --local-bind`. |
 | `pow_bits` | `26` | Free network: proof-of-work bits of the identity entry. [`arbeit_bits`] |
 | `new_quota` | `100` | Free network: entries per day for publishers without measured benefit. [`quote_neu`] |
 | `blocked` | `[]` | Public keys or addresses this server does not accept, relay or answer. [`sperren`] |

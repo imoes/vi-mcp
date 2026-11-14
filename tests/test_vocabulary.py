@@ -75,7 +75,7 @@ def test_an_unknown_kind_gets_the_same_value_under_the_kind_that_exists(gd):
 
 
 def test_an_empty_search_names_the_live_network_search(gd, monkeypatch):
-    """0.62.6, found on production: an agent of a local VI read vi_net_status instead of asking the other server live."""
+    """0.63.0, found on production: an agent of a local VI read vi_net_status instead of asking the other server live."""
     from vi_mcp import p2p
     out = tools.call_tool("vi_recall", {"filter": "zzqqxx", "semantic": False}, "a", False)
     assert "vi_net_search" not in out  # no network service has reported: nothing to suggest

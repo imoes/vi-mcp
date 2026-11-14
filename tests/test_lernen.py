@@ -190,7 +190,7 @@ def test_warning_before_risky_actions(gd):
 
 @pytest.mark.skipif(not HAS_SKLEARN, reason="scikit-learn fehlt")
 def test_a_tool_that_fails_often_is_no_reason_to_warn(gd):
-    """0.62.6, production 13.11.2026: 826 of 848 warnings came before one automated tool failing 61 % of the time, and named only that
+    """0.63.0, production 13.11.2026: 826 of 848 warnings came before one automated tool failing 61 % of the time, and named only that
     tool — "check arguments, paths and reachability" before every one of its actions. Only what fails more often than the tool warns."""
     rnd = random.Random(11)
     for _ in range(500):

@@ -124,7 +124,7 @@ def test_an_unrelated_next_shell_command_is_no_solution():
 
 
 def test_an_unproven_cause_is_a_hypothesis_and_the_lesson_leads(gd, monkeypatch):
-    """0.62.6: auto solutions from episodes had 9 % success after showing (n=29 ratings, production 13.11.2026); experience-following
+    """0.63.0: auto solutions from episodes had 9 % success after showing (n=29 ratings, production 13.11.2026); experience-following
     copies errors (arXiv 2505.16067), distilled strategies transfer better than raw trajectories (ReasoningBank, arXiv 2509.25140).
     A cause the evidence does not show is marked as the language model's hypothesis, and the transferable lesson comes right after the
     problem, inside the key statement that hints show."""

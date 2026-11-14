@@ -109,7 +109,7 @@ class NetConfig:
     #: 0.42.0: local listener for the memory's live searches (127.0.0.1 only); the memory holds the token, this file only its SHA-256
     local_port: int = 0
     local_token_sha256: str | None = None
-    #: 0.62.6: where the local listener binds — 127.0.0.1 on one host; in a container setup the address the memory container reaches
+    #: 0.63.0: where the local listener binds — 127.0.0.1 on one host; in a container setup the address the memory container reaches
     #: (the listener checks the token in every request either way)
     local_bind: str = "127.0.0.1"
     #: 0.45.0 free network (art frei): no invitation — identity proof of pow_bits, quota for unknown publishers per day, local blocks

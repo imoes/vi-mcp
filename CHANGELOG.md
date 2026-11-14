@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.63.0 — not yet released — clingo-object: the memory's objects in the logic, as an object-oriented language
+## 0.63.0 — 2026-11-14 — clingo-object: the memory's objects in the logic, as an object-oriented language
 
 The user (13.11.2026): "Derzeit legen wir Daten per SQL in Objekten ab. Also müssen wir mit diesen Objekten in clingo programmieren" — "wir
 machen aus clingo eine objektorientierte Programmiersprache", like Delphi grew out of Pascal; and "clingo ist die Sprache für LLMs". On the
@@ -109,9 +109,9 @@ first draft (class blocks inside the server's parser): consistent with the cling
 - The relational task set on a production copy (clingo-object against hand-checked SQL) is not measured yet.
 - Local solving uses the stated priors of soft rules; the measured weights stay on the server (`check_on_server`).
 
-## 0.62.6 — not yet released — networks for containers; an empty search points to the network; an unknown kind is answered with the kind that exists
+### Also in this release (prepared as 0.62.6, never released on its own): networks for containers; an empty search points to the network; an unknown kind is answered with the kind that exists
 
-### What is new
+#### What is new
 
 - **Network setup for a memory in another container.** `vi-mcp net setup|join` take `--memory-config` (the memory's configuration,
   mounted), `--memory-url` (where the service reaches the memory), `--local-bind` and `--local-host` (where the live-search listener
@@ -129,7 +129,7 @@ first draft (class blocks inside the server's parser): consistent with the cling
   they existed nowhere; they were internal knowledge on the central server, which the open network `standard` never carries
   (`p2p.answer_search` answers open networks with shared knowledge only). Test: `tests/test_vocabulary.py` (1 new).
 
-### What has changed
+#### What has changed
 
 - **Solutions from episodes carry a lesson, and a cause the evidence does not show is called a hypothesis.** *Measured on production
   (13.11.2026):* solutions written up automatically from episodes had 9 % success after being shown (n = 29 ratings), and one stated a
@@ -154,7 +154,7 @@ first draft (class blocks inside the server's parser): consistent with the cling
   94 of 100 shell commands and 25 of 28 other tool calls of Claude Code would get error hints today — the measurement has the data, but
   at 5 % it needs weeks for 30 held-back failures. Tests: `tests/test_error_hint_effect.py` (2 new).
 
-### What was measured
+#### What was measured
 
 - **The cross-encoder reranker ranks the fixed question set clearly better.** bge-reranker-v2-m3 (llama.cpp `/v1/rerank`) over the best
   30 fused hits, on a copy of production (13.11.2026, 150 targets × 2 styles, paired): MRR 0.734 → 0.846 (+0.112 ± 0.021; 75 queries
@@ -167,7 +167,7 @@ first draft (class blocks inside the server's parser): consistent with the cling
   0.973; questions 0.824 → 0.569). The vector stays the key statement's. *Hypothesis, not tested:* the content's start dilutes what
   tells one object from its neighbours (many parts of the same page share it); a separate content vector fused by rank would keep both.
 
-### What was fixed
+#### What was fixed
 
 - **A search for a tag kind that does not exist got no suggestion.** *Found on production (13.11.2026):* an agent searched
   `quelle:confluence`, got "quelle:confluence is not in memory" and concluded the VI held no Confluence pages — 12,994 objects carry
