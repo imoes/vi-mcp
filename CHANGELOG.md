@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.63.2 — not yet released — answered questions become training data; Windows console output
+## 0.63.2 — 2026-11-14 — answered questions become training data; Windows console output
 
 ### What is new
 
