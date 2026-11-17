@@ -3,6 +3,21 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.69.9 — unreleased
+
+### What is new: a signed pacman repository for Arch Linux and CachyOS (issue #3, point 3)
+
+- Until now the Arch package existed only as a release asset, so `pacman -Syu` never updated vi-mcp. The package repository
+  https://imoes.github.io/vi-mcp-packages/ now has `arch/` next to `apt/` and `rpm/`: every package with a detached signature and the
+  database `vi-mcp` signed by `repo-add` with the same repository key (`SigLevel = Required`). `setup.sh` adds it on pacman systems
+  (key added and locally signed with `pacman-key`, the `[vi-mcp]` section appended to `/etc/pacman.conf` once); by hand with
+  `vi-mcp.pacman.conf`, see README. The release publishes the Arch package there as well. Old versions stay in the pool.
+- Verified in an `archlinux:base-devel` container with a throw-away key (17.11.2026): repository built from 0.69.7, then 0.69.8 added
+  incrementally; `setup.sh` run twice (one section), `pacman -S vi-mcp` installed 0.69.8-1 from the repository; a copy with one bit of
+  the 0.69.8 package flipped was refused ("Errors occurred, no packages were upgraded", nothing installed). GitHub Pages serves no
+  symlinks, so the database links `repo-add` creates are written as real files (checked: no symlink, no `.old` backup published).
+  Evidence also in `tests/test_package_repo.py`.
+
 ## 0.69.8 — 2026-11-17
 
 ### What has changed: the public wiki network only with consent (issue #3)

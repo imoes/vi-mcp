@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Builds the signed package repositories for apt (Debian/Ubuntu) and dnf (Fedora/RHEL) from release packages, so servers get vi-mcp
-# with `apt upgrade` / `dnf upgrade` (0.54.0). Published on GitHub Pages: https://imoes.github.io/vi-mcp-packages/
-#   deploy/publish-repo.sh <directory with vi-mcp_*.deb and vi-mcp-*.rpm> <checkout of the packages repository>
+# Builds the signed package repositories for apt (Debian/Ubuntu), dnf (Fedora/RHEL) and pacman (Arch/CachyOS, 0.69.9) from release
+# packages, so servers get vi-mcp with `apt upgrade` / `dnf upgrade` / `pacman -Syu` (0.54.0). Published on GitHub Pages:
+# https://imoes.github.io/vi-mcp-packages/
+#   deploy/publish-repo.sh <directory with vi-mcp_*.deb, vi-mcp-*.rpm, vi-mcp-*.pkg.tar.zst> <checkout of the packages repository>
 # Every version stays in the pool (an apt/dnf client may pin or downgrade). Signing key: an OpenPGP key only for the repository,
 # GNUPGHOME $VI_MCP_REPO_GNUPG (default ~/.config/vi-mcp/repo-gnupg), never in a repository; its public part is published next to it.
 set -euo pipefail
@@ -14,7 +15,8 @@ fpr=$(gpg --list-secret-keys --with-colons 2>/dev/null | awk -F: '/^fpr/{print $
 shopt -s nullglob
 debs=("$src"/vi-mcp_*_all.deb)
 rpms=("$src"/vi-mcp-*.noarch.rpm)
-[ ${#debs[@]} -gt 0 ] || [ ${#rpms[@]} -gt 0 ] || { echo "no packages in $src" >&2; exit 2; }
+pkgs=("$src"/vi-mcp-*-any.pkg.tar.zst)
+[ ${#debs[@]} -gt 0 ] || [ ${#rpms[@]} -gt 0 ] || [ ${#pkgs[@]} -gt 0 ] || { echo "no packages in $src" >&2; exit 2; }
 
 # ---- public key (armored and binary: apt's Signed-By takes the binary form without needing gpg on the server)
 gpg --armor --export "$fpr" > "$out/vi-mcp-repo.asc"
@@ -64,6 +66,36 @@ if [ ${#rpms[@]} -gt 0 ]; then
     trap - EXIT
 fi
 
+# ---- pacman (Arch Linux, CachyOS; issue #3): every package with a detached signature, the repository database "vi-mcp" signed by
+# repo-add in an archlinux container. GitHub Pages does not serve symlinks, so the db/files links repo-add makes become real copies.
+if [ ${#pkgs[@]} -gt 0 ]; then
+    p="$out/arch"
+    mkdir -p "$p"
+    new=()
+    for f in "${pkgs[@]}"; do
+        b=$(basename "$f")
+        [ -e "$p/$b" ] && continue
+        cp "$f" "$p/" && new+=("$b")
+        gpg --batch --yes --local-user "$fpr" --detach-sign --no-armor -o "$p/$b.sig" "$p/$b"
+    done
+    if [ ${#new[@]} -gt 0 ] || [ ! -e "$p/vi-mcp.db.tar.gz" ]; then
+        [ -e "$p/vi-mcp.db.tar.gz" ] || new=($(cd "$p" && ls vi-mcp-*-any.pkg.tar.zst | sort -V))  # first build: every version in order
+        keydir=$(mktemp -d)
+        chmod 700 "$keydir"
+        trap 'rm -rf "$keydir"' EXIT
+        gpg --batch --pinentry-mode loopback --passphrase '' --armor --export-secret-keys "$fpr" > "$keydir/secret.asc"
+        rm -f "$p/vi-mcp.db" "$p/vi-mcp.db.sig" "$p/vi-mcp.files" "$p/vi-mcp.files.sig"
+        docker run --rm --network host -v "$keydir:/key:ro" -v "$p:/repo" -e FPR="$fpr" -e NEW="${new[*]}" archlinux:base-devel \
+            bash -c 'set -e; export GNUPGHOME=/tmp/g; mkdir -m 700 $GNUPGHOME; gpg --batch --import /key/secret.asc 2>/dev/null
+                     cd /repo; repo-add -q --sign --key "$FPR" vi-mcp.db.tar.gz $NEW
+                     for x in db db.sig files files.sig; do if [ -L vi-mcp.$x ]; then cp --remove-destination "$(readlink vi-mcp.$x)" vi-mcp.$x; fi; done
+                     rm -f vi-mcp.db.tar.gz.old* vi-mcp.files.tar.gz.old*  # repo-add backups: the pool keeps every package anyway
+                     chown -R --reference=/repo /repo'
+        rm -rf "$keydir"
+        trap - EXIT
+    fi
+fi
+
 # ---- the .repo file and a page that says how to use it
 cat > "$out/vi-mcp.repo" <<'EOF'
 [vi-mcp]
@@ -80,6 +112,11 @@ URIs: https://imoes.github.io/vi-mcp-packages/apt
 Suites: stable
 Components: main
 Signed-By: /usr/share/keyrings/vi-mcp.gpg
+EOF
+cat > "$out/vi-mcp.pacman.conf" <<'EOF'
+[vi-mcp]
+SigLevel = Required
+Server = https://imoes.github.io/vi-mcp-packages/arch
 EOF
 cp "$here/repo-setup.sh" "$out/setup.sh"  # the one-liner: curl -fsSL …/setup.sh | sudo sh
 touch "$out/.nojekyll"

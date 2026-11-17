@@ -1,7 +1,8 @@
 #!/bin/sh
-# Adds the signed vi-mcp package repository (apt or dnf) — published as https://imoes.github.io/vi-mcp-packages/setup.sh (0.54.0):
+# Adds the signed vi-mcp package repository (apt, dnf or pacman) — published as https://imoes.github.io/vi-mcp-packages/setup.sh (0.54.0):
 #   curl -fsSL https://imoes.github.io/vi-mcp-packages/setup.sh | sudo sh
-# Only adds the repository (key + source); it installs nothing else. Then: apt install vi-mcp / dnf install vi-mcp, later the normal updates.
+# Only adds the repository (key + source); it installs nothing else. Then: apt install vi-mcp / dnf install vi-mcp / pacman -Syu vi-mcp,
+# later the normal updates.
 set -eu
 BASE=https://imoes.github.io/vi-mcp-packages
 FPR=4598315414EBF86CABD322D9730B75BFAC3036B7
@@ -22,7 +23,19 @@ elif command -v dnf >/dev/null 2>&1; then
     fetch "$BASE/vi-mcp.repo" /etc/yum.repos.d/vi-mcp.repo
     echo "vi-mcp repository added. Install: sudo dnf install vi-mcp (dnf asks once to import the key — its fingerprint must be $FPR);"
     echo "updates then come with sudo dnf upgrade. AlmaLinux/RHEL 10 need EPEL first: sudo dnf install epel-release"
+elif command -v pacman-key >/dev/null 2>&1; then  # Arch Linux, CachyOS (issue #3)
+    key=$(mktemp)
+    fetch "$BASE/vi-mcp-repo.asc" "$key"
+    if ! { pacman-key --add "$key" && pacman-key --lsign-key "$FPR"; } >/dev/null 2>&1; then
+        rm -f "$key"; echo "pacman-key could not add or sign the key $FPR (run pacman-key --init first?)" >&2; exit 1
+    fi
+    rm -f "$key"
+    if ! grep -q '^\[vi-mcp\]' /etc/pacman.conf; then
+        printf '\n[vi-mcp]\nSigLevel = Required\nServer = %s/arch\n' "$BASE" >> /etc/pacman.conf
+    fi
+    echo "vi-mcp repository added to /etc/pacman.conf (key $FPR, locally signed). Install: sudo pacman -Syu vi-mcp,"
+    echo "then: sudo systemctl enable --now vi-mcp.service — updates then come with sudo pacman -Syu."
 else
-    echo "neither apt nor dnf found — download a package from https://github.com/imoes/vi-mcp/releases" >&2
+    echo "neither apt, dnf nor pacman found — download a package from https://github.com/imoes/vi-mcp/releases" >&2
     exit 1
 fi

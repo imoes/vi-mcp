@@ -53,11 +53,11 @@ PY
     # 0.54.0: the signed apt/dnf repository on GitHub Pages — servers that added it get this version with apt/dnf upgrade
     repo_dir=$(mktemp -d); pkg_dir=$(mktemp -d)
     gh repo clone imoes/vi-mcp-packages "$repo_dir" -- -q
-    cp "$deb" "$rpm" "$pkg_dir/"
+    cp "$deb" "$rpm" "$pkg" "$pkg_dir/"
     deploy/publish-repo.sh "$pkg_dir" "$repo_dir"
     (cd "$repo_dir" && git add -A && git -c user.name=imoes -c user.email=imoes@users.noreply.github.com commit -q -m "vi-mcp $version" && git push -q)
     rm -rf "$repo_dir" "$pkg_dir"
-    echo "published to https://imoes.github.io/vi-mcp-packages/ (apt and dnf)"
+    echo "published to https://imoes.github.io/vi-mcp-packages/ (apt, dnf and pacman)"
     # 0.68.1: the Homebrew tap (brew tap imoes/vi-mcp) gets the formula of this release; its archive is the asset uploaded above
     tap_dir=$(mktemp -d)
     gh repo clone imoes/homebrew-vi-mcp "$tap_dir" -- -q

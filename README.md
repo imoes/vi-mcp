@@ -260,7 +260,7 @@ Step by step: [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) (also the initial skill `
 Every release carries all of them, plus the `clingo-object` wheel and the source archive, listed in a signed `SHA256SUMS`
 ([check a release](#check-a-release)).
 
-### From the package repository — updates with `apt upgrade` / `dnf upgrade`
+### From the package repository — updates with `apt upgrade` / `dnf upgrade` / `pacman -Syu`
 
 The signed repository is served by GitHub Pages: **https://imoes.github.io/vi-mcp-packages/**. Its signing key (OpenPGP, Ed25519)
 has the fingerprint `4598 3154 14EB F86C ABD3  22D9 730B 75BF AC30 36B7` — compare it with
@@ -268,7 +268,7 @@ has the fingerprint `4598 3154 14EB F86C ABD3  22D9 730B 75BF AC30 36B7` — com
 
 ```bash
 curl -fsSL https://imoes.github.io/vi-mcp-packages/setup.sh | sudo sh      # adds key and source only — read it first: deploy/repo-setup.sh
-sudo apt install vi-mcp     # or: sudo dnf install vi-mcp
+sudo apt install vi-mcp     # or: sudo dnf install vi-mcp · Arch/CachyOS: sudo pacman -Syu vi-mcp
 ```
 
 By hand:
@@ -282,10 +282,16 @@ sudo apt update && sudo apt install vi-mcp
 # Fedora 43; AlmaLinux/RHEL 10 first: sudo dnf install epel-release
 sudo curl -fsSLo /etc/yum.repos.d/vi-mcp.repo https://imoes.github.io/vi-mcp-packages/vi-mcp.repo
 sudo dnf install vi-mcp                               # dnf asks once to import the key: compare the fingerprint
+
+# Arch Linux, CachyOS (packages and database signed, SigLevel = Required)
+curl -fsSLo /tmp/vi-mcp-repo.asc https://imoes.github.io/vi-mcp-packages/vi-mcp-repo.asc && sudo pacman-key --add /tmp/vi-mcp-repo.asc
+sudo pacman-key --lsign-key 4598315414EBF86CABD322D9730B75BFAC3036B7
+curl -fsSL https://imoes.github.io/vi-mcp-packages/vi-mcp.pacman.conf | sudo tee -a /etc/pacman.conf
+sudo pacman -Syu vi-mcp && sudo systemctl enable --now vi-mcp.service
 ```
 
 Remove the repository again: `sudo rm /etc/apt/sources.list.d/vi-mcp.sources /usr/share/keyrings/vi-mcp.gpg` or
-`sudo rm /etc/yum.repos.d/vi-mcp.repo`.
+`sudo rm /etc/yum.repos.d/vi-mcp.repo`, on Arch the `[vi-mcp]` section from `/etc/pacman.conf` and `sudo pacman-key --delete 4598315414EBF86CABD322D9730B75BFAC3036B7`.
 
 ### From a downloaded package (Linux)
 
