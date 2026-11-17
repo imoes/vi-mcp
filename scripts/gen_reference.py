@@ -163,18 +163,44 @@ def _tools() -> list[str]:
     return out
 
 
+class _StableHelp(argparse.HelpFormatter):
+    """The option column as Python ≤ 3.12 writes it ("--network NETWORK, --netz NETWORK"): 3.13 writes the metavar once
+    ("--network, --netz NETWORK"), so the generated reference differed by Python version and --check failed on 3.13/3.14 (issue #3)."""
+
+    def _format_action_invocation(self, action):
+        if not action.option_strings or action.nargs == 0:
+            return super()._format_action_invocation(action)
+        args = self._format_args(action, self._get_default_metavar_for_optional(action))
+        return ", ".join(f"{o} {args}" for o in action.option_strings)
+
+
+def _stable(parser):
+    parser.formatter_class = _StableHelp
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for sub in action.choices.values():
+                _stable(sub)
+    return parser
+
+
+def _help(parser) -> str:
+    """print_help as text; a usage line whose sub-command list wraps keeps its "..." on the same line (Python ≥ 3.13 does, 3.12
+    moved it to a line of its own)."""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        parser.print_help()
+    return re.sub(r"\}\n[ ]+\.\.\.\n", "} ...\n", buf.getvalue()).rstrip()
+
+
 def _cli() -> list[str]:
     import ast  # not imported: vi_mcp/__main__.py runs the command line when it is imported
     usage = (ast.get_docstring(ast.parse((ROOT / "vi_mcp" / "__main__.py").read_text(encoding="utf-8"))) or "").strip()
     out = ["## Command line", "", "`vi-mcp` (package) or `python3 -m vi_mcp`. German command names stay valid as aliases.", "", "```text", usage, "```", ""]
     out += ["### `vi-mcp net`", "", "Network service commands; `--network NAME` addresses a further network (`/etc/vi-p2p/NAME.json`, service `vi-p2p@NAME`).", ""]
-    parser = net_cli._parser() if hasattr(net_cli, "_parser") else None
+    parser = _stable(net_cli._parser()) if hasattr(net_cli, "_parser") else None
     if parser is None:
         return out
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf):
-        parser.print_help()
-    out += ["```text", buf.getvalue().rstrip(), "```", ""]
+    out += ["```text", _help(parser), "```", ""]
     for action in parser._subparsers._group_actions if parser._subparsers else []:
         if not isinstance(action, argparse._SubParsersAction):
             continue
@@ -183,10 +209,7 @@ def _cli() -> list[str]:
             if id(sub) in seen:
                 continue
             seen.add(id(sub))
-            b = io.StringIO()
-            with contextlib.redirect_stdout(b):
-                sub.print_help()
-            out += [f"#### `vi-mcp net {name}`", "", "```text", b.getvalue().rstrip(), "```", ""]
+            out += [f"#### `vi-mcp net {name}`", "", "```text", _help(sub), "```", ""]
     return out
 
 

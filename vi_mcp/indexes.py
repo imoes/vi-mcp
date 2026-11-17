@@ -75,10 +75,49 @@ def from_project(project: str | None, cfg: dict | None = None) -> str:
         return GLOBAL
 
 
+#: 0.69.9 (issue #3): an index named <project>-history (or -archive, -done) belongs to <project> — for priority it is the project
+HISTORY_SUFFIXES = ("-history", "-historie", "-archive", "-archiv", "-done")
+
+
+def project_of(idx: str | None) -> str | None:
+    """The project an index belongs to: itself, or <project> for <project>-history and the like. Pure."""
+    if not idx:
+        return idx
+    for suf in HISTORY_SUFFIXES:
+        if idx.endswith(suf) and len(idx) > len(suf):
+            return idx[: -len(suf)]
+    return idx
+
+
+def is_history(idx: str | None) -> bool:
+    return bool(idx) and project_of(idx) != idx
+
+
 def first(o, index: str | None) -> bool:
-    """Does object o come first in this project? Its index, unless an index comparison found it good only at its origin (0.62.0,
-    daten.vorrang_aus — it stays visible as general knowledge)."""
-    return index is not None and o.idx == index and not (o.data or {}).get("priority_off")
+    """Does object o come first in this project? Its index (or the project's history index, 0.69.9), unless an index comparison found
+    it good only at its origin (0.62.0, daten.vorrang_aus — it stays visible as general knowledge)."""
+    return index is not None and project_of(o.idx) == project_of(index) and not (o.data or {}).get("priority_off")
+
+
+def foreign_project(o, index: str | None, kinds: dict | None = None) -> bool:
+    """0.69.9 (issue #3, prompt hints from unrelated projects): is o the knowledge of ANOTHER project than the one the session works in?
+    Global knowledge and special VIs (kind special, e.g. ansible) are never foreign — they are meant for every project. Without a known
+    project nothing is foreign. kinds: registry() kinds, passed in by a caller that checks many objects."""
+    if not index or index == GLOBAL or not o.idx or o.idx == GLOBAL or project_of(o.idx) == project_of(index):
+        return False
+    if kinds is None:
+        kinds = {k: v["art"] for k, v in registry().items()}
+    return kinds.get(o.idx, kinds.get(project_of(o.idx))) != "special"
+
+
+def has_objects(index: str | None) -> bool:
+    """Does the index hold any object? A working directory that is the parent of all projects maps to an index without knowledge —
+    then it is no project to prefer or to tell foreign knowledge from (issue #3)."""
+    if not index or index == GLOBAL:
+        return False
+    from . import memory as g
+    with g.lock:
+        return g.db().execute("SELECT 1 FROM object WHERE idx = ? LIMIT 1", (index,)).fetchone() is not None
 
 
 def index_for(explicit: str | None, project: str | None, cfg: dict | None = None) -> str:

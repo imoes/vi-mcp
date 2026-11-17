@@ -221,6 +221,9 @@ def error_hints(tool: str, args: dict, error: str, instance: str | None) -> list
     sig = "error:" + error_signature(error)[:60].replace(" ", "_").replace("(", "_").replace(")", "_")
     generic = {f"tool:{tool}", f"skill:{tool.split('_')[0]}"} if tool in SHELL_TOOLS else set()  # a shell says nothing specific
     found: dict[str, tuple[float, g.MemoryObject]] = {}
+    pidx = g.current_index.get()  # 0.69.9 (issue #3): error hints from unrelated projects showed the pattern of the prompt hints
+    pidx = pidx if pidx and pidx != "global" and indexes.has_objects(indexes.project_of(pidx)) else None
+    kinds = {k: v["art"] for k, v in indexes.registry().items()} if pidx else {}
     text_query = " ".join(programs[:3] + words[:6] + codes[:2])
     queries = ([sig] if g.TAG.match(sig) else []) + ([text_query] if text_query else [])
     for q in queries:
@@ -235,6 +238,8 @@ def error_hints(tool: str, args: dict, error: str, instance: str | None) -> list
             shared_words = sum(1 for w in words if w in body) + sum(1 for c in codes if re.search(rf"\b{c}\b", body))
             shared_tags = len((trig - generic) & set(o.hashtags)) + sum(1 for b in programs if re.search(rf"(?<![\w-]){re.escape(b)}(?![\w-])", body))
             tagged = sig in o.hashtags
+            if pidx and not (tagged or shared_tags) and indexes.foreign_project(o, pidx, kinds):
+                continue  # another project's knowledge sharing only words with the error: not this error
             if tagged or (shared_words >= 2 and (shared_tags or shared_words >= 3)) or (shared_tags and shared_words >= 1):
                 weight = shared_words + 2 * shared_tags + (3 if tagged else 0) - (4 if o.instance == g.SERVER_INSTANCE and o.kind == "rule" else 0)
                 weight += 2 if "origin:episode" in o.hashtags else 0  # 0.56.0: a solution with cause, command and source
@@ -828,6 +833,10 @@ def experience(tool: str, args: dict, ok: bool | None, duration_ms: int, error: 
 # outcome, duration and hit count only); hits are not reinforced (an automatic look is no use).
 PROMPT_HINTS = 4
 PROMPT_KINDS = ("insight", "rule", "skill", "search", "image", "page")
+#: 0.69.9 (issue #3): shared ordinary words a prompt hint needs when no identifier or hashtag value is among them
+PROMPT_PLAIN_NEED = 3
+#: 0.69.9 (issue #3): knowledge marked as done or history is not offered before a prompt (a search still finds it)
+PROMPT_DONE_TAGS = frozenset({"state:done", "state:closed", "topic:history", "topic:historie", "topic:done", "status:done"})
 _STOP = set("""der die das den dem des ein eine einen einem einer und oder aber nicht noch auch nur wie was wer wo wann warum wieso
 weshalb ist sind war waren wird werden wurde hat haben hatte kann können konnte muss müssen soll sollen mit ohne für von vom zum zur
 bei beim auf aus nach über unter vor hinter neben zwischen durch gegen ich du er sie es wir ihr mich mir dich dir uns euch sich mein
@@ -872,20 +881,35 @@ def prompt_hints(text: str, instance: str | None, shown: list[str] | None = None
             and not ("origin:sleep-llm" in o.hashtags and not o.foreign_confirmations())]
     cand = p2p.without_blocked(cand)
     lw = [w.lower() for w in words]
+    pidx = g.current_index.get()  # 0.61.0: with equal shared words, the project's index first, then the full-text rank
+    # 0.69.9 (issue #3): a working directory above all projects maps to an index without knowledge — that is no project
+    pidx = pidx if pidx and pidx != "global" and indexes.has_objects(indexes.project_of(pidx)) else None
+    kinds = {k: v["art"] for k, v in indexes.registry().items()} if pidx else {}
     scored = []
     for rank, o in enumerate(cand):
+        # 0.69.9 (issue #3, reported on CachyOS: 4 of 5 prompt hints came from other projects' "open points" and history): what a
+        # project keeps as history is found by a search, not offered unasked before every prompt
+        if indexes.is_history(o.idx) or PROMPT_DONE_TAGS & set(o.hashtags):
+            continue
         hay = (o.text + " " + " ".join(o.hashtags)).lower()
         values = {t.split(":", 1)[1].lower() for t in o.hashtags if ":" in t}
-        score = sum((2 if (_specific(w) or w in values) else 1) for w in lw if w in hay)
-        if score >= (1 if len(words) == 1 else need):
+        shared = [w for w in lw if w in hay]
+        score = sum((2 if (_specific(w) or w in values) else 1) for w in shared)
+        if len(words) == 1:
+            threshold = 1
+        else:
+            # only ordinary words in common ("open points", "update", "install"): three of them, not two; another project's knowledge
+            # needs one more — learning across projects stays possible, a host name or an error code still carries it
+            threshold = need if any(_specific(w) or w in values for w in shared) else min(PROMPT_PLAIN_NEED, len(words))
+            if pidx and not any(_specific(w) for w in shared) and indexes.foreign_project(o, pidx, kinds):
+                threshold += 1  # an identifier (host, file, error code) still carries knowledge from any project
+        if score >= threshold:
             scored.append((-score, rank, o))
     # 0.44.1: most shared words first (measured on production: a note sharing only the host name came before the one that answered
     # "warum stirbt das große Modell auf <host> mit Exit 137"); the full-text rank breaks ties. A host name alone is enough only if
     # nothing shares more.
     best = -min((s for s, _r, _o in scored), default=0)
     out = []
-    pidx = g.current_index.get()  # 0.61.0: with equal shared words, the project's index first, then the full-text rank
-    pidx = pidx if pidx and pidx != "global" else None
     scored = [x for x in scored if "knowledge_kind:code" not in x[2].hashtags]  # 0.61.0: code is searched, not offered as a hint
     for s, _rank, o in sorted(scored, key=lambda x: (x[0], not indexes.first(x[2], pidx), x[1])):
         if -s < best and -s <= 2:

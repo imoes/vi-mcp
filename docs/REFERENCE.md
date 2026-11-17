@@ -786,8 +786,7 @@ Network service commands; `--network NAME` addresses a further network (`/etc/vi
 
 ```text
 usage: vi-mcp net [-h] [--network NETWORK]
-                  {setup,einrichten,invite,einladen,exclude,ausschliessen,invitation,einladung,join,beitreten,wiki,peers,block,sperren,unblock,entsperren,proxy-config,id,status,run,lauf}
-                  ...
+                  {setup,einrichten,invite,einladen,exclude,ausschliessen,invitation,einladung,join,beitreten,wiki,peers,block,sperren,unblock,entsperren,proxy-config,id,status,run,lauf} ...
 
 positional arguments:
   {setup,einrichten,invite,einladen,exclude,ausschliessen,invitation,einladung,join,beitreten,wiki,peers,block,sperren,unblock,entsperren,proxy-config,id,status,run,lauf}

@@ -18,6 +18,38 @@ Linked from [README.md](README.md).
   symlinks, so the database links `repo-add` creates are written as real files (checked: no symlink, no `.old` backup published).
   Evidence also in `tests/test_package_repo.py`.
 
+### What has changed: fewer prompt and error hints from unrelated projects (issue #3, point 5)
+
+- Reported on CachyOS: in a session of project A, 4 of 5 prompt hints came from four other projects' "open points" sections and
+  history — two ordinary shared words ("open points", "update", "install") were enough and the project index only broke ties. Now:
+  a prompt hint that shares only ordinary words needs three of them (an identifier — host, file, error code — or a hashtag value still
+  counts as before); knowledge of another project needs one more, unless an identifier is shared (learning across projects stays
+  possible; global knowledge and special VIs are never foreign); an index `<project>-history` (or `-archive`, `-done`) counts as the
+  project for priority, and knowledge in such an index or tagged `state:done`/`topic:history` is no longer offered before a prompt —
+  a search still finds it; a working directory whose index holds no knowledge (the parent of all projects) is no project. Error hints:
+  another project's knowledge that shares only words with the error (no error tag, host or program) is dropped.
+- Measured on a production copy (16.11.2026, 52,326 objects) with the 150 fixed questions of the evaluation set as prompts: 515 → 497
+  hints shown, the question's target among the hints 89/150 before and after (none lost). Evidence: `tests/test_prompt_hints_projects.py`
+  (8 tests).
+- Not done: deriving the project from a subdirectory when the working directory is the parent of all projects — the hook only knows
+  the working directory, so the server cannot tell which project is meant; such a directory now simply counts as no project.
+
+### What is missing: before-action hints for file tools and for imported documentation (issue #3, point 4 — examined, not changed)
+
+- Reported: 0 of 273 actions had a candidate before the action. Measured on a production copy (actions 09.–16.11.2026): Claude Code
+  Edit 0 of 327 and Write 0 of 274 actions had any candidate, Read 47 of 446, WebFetch 21 of 504, Bash 2,250 of 9,044. The cause is
+  structural: a file tool's only triggers are `tool:`/`skill:` (the path is no trigger), and before a shell command a hint must share
+  a host or a non-everyday program (0.49.0). Imported documentation matches only through its `host:`/`topic:` triggers: of 19,639
+  imported pages 98 were ever shown before an action, 426 of 17,848 shown hints. Documentation reaches a session through the prompt
+  hints and searches instead. A trigger from the file path would be a design change that needs its own measurement first.
+
+### What was fixed: the reference check on Python 3.13/3.14 (issue #3, point 6)
+
+- `tests/test_reference.py::test_reference_is_complete_and_current` failed on Python 3.14: argparse ≥ 3.13 writes option aliases as
+  `--network, --netz NETWORK` and keeps the `...` of a wrapped usage line on the same line. `scripts/gen_reference.py` now writes the
+  option column in one fixed form and the usage line normalized. Verified: `gen_reference.py --check` passes on Python 3.12.3 and
+  3.14.10 (python:3.14-slim container), it failed on 3.14 before.
+
 ## 0.69.8 — 2026-11-17
 
 ### What has changed: the public wiki network only with consent (issue #3)
