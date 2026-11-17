@@ -91,3 +91,10 @@ def test_importance_zero_is_kept(gd):
     assert g.load(oid).importance == 0
     oid = _learn("cs", "Default note: no importance given stays at the default").split()[1]
     assert g.load(oid).importance == 1
+
+
+def test_now_is_strictly_increasing_within_the_process():
+    """0.69.9 (issue #3): two objects created in the same millisecond got the same ts, and 'the newest' (ORDER BY ts, id) was decided
+    by the random id — on Python 3.14 this test file failed depending on the order of the run."""
+    ts = [g.now() for _ in range(2000)]
+    assert all(a < b for a, b in zip(ts, ts[1:])) and all(len(t) == len(ts[0]) for t in ts)

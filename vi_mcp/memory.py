@@ -24,7 +24,7 @@ import sqlite3
 from typing import Any
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from clingo_object.filters import parse_filter as _parse_filter
@@ -90,10 +90,23 @@ current_conversation: contextvars.ContextVar[str | None] = contextvars.ContextVa
 current_instance: contextvars.ContextVar[str | None] = contextvars.ContextVar("aktuelle_instanz", default=None)
 
 
+_now_last = [""]
+_now_lock = threading.Lock()
+
+
 def now() -> str:
     """ISO-8601 UTC with milliseconds: otherwise comparisons `zeit > since` (sleep, loop) do not separate what arose in the same
-    second. Older entries (seconds, 0.1–0.3) sort correctly before them as text ('+' < '.')."""
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    second. Older entries (seconds, 0.1–0.3) sort correctly before them as text ('+' < '.').
+    0.69.9: strictly increasing within the process — two calls in the same millisecond (a bulk import, a fast interpreter) got the
+    same value, and "the newest" (ORDER BY ts, id) was decided by the random id. Measured on Python 3.14 (17.11.2026): test_dedup and
+    test_hints failed depending on the order of the run (issue #3). A tie moves the later call 1 ms on; the clock going back (NTP)
+    keeps the order instead of jumping back."""
+    t = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    with _now_lock:
+        if t <= _now_last[0]:
+            t = (datetime.fromisoformat(_now_last[0]) + timedelta(milliseconds=1)).isoformat(timespec="milliseconds")
+        _now_last[0] = t
+    return t
 
 
 def hash_value(*parts: str) -> str:

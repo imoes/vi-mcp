@@ -49,6 +49,13 @@ Linked from [README.md](README.md).
   `--network, --netz NETWORK` and keeps the `...` of a wrapped usage line on the same line. `scripts/gen_reference.py` now writes the
   option column in one fixed form and the usage line normalized. Verified: `gen_reference.py --check` passes on Python 3.12.3 and
   3.14.10 (python:3.14-slim container), it failed on 3.14 before.
+- "The newest" of several objects was decided by chance when they were stored in the same millisecond: `memory.now()` gave equal
+  timestamps (on Python 3.12 1,997 of 1,999 consecutive calls), and `ORDER BY ts, id` then fell back to the random id — a merge by key
+  could keep an older text, a usage count could include an action from before the calls were recorded. This is the cause of the
+  order-dependent `test_hints` failure the issue reports (and of `test_dedup`, `test_label` on Python 3.14). `now()` is now strictly
+  increasing within a process (same format; a tie moves the later call 1 ms on). Verified: full suite on Python 3.12.3 1302 passed,
+  on Python 3.14.10 twice 1301 passed (before: 2 and 1 failures in the same setup). Evidence:
+  `tests/test_dedup.py::test_now_is_strictly_increasing_within_the_process`.
 
 ## 0.69.8 — 2026-11-17
 
