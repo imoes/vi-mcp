@@ -315,12 +315,13 @@ def read_pages(path: Path) -> list[dict]:
 
 
 def run(pages: list[dict], source: str, call, index: str | None = None, knowledge_kind: str = "company-docs", label: str | None = None,
-        prune: bool = False, dry_run: bool = False, pause: float = 0.0, old_source_kind: str | None = None) -> dict:
+        prune: bool = False, dry_run: bool = False, pause: float = 0.0, old_source_kind: str | None = None,
+        keep: set[str] | None = None) -> dict:
     """The client: state, then changed pages in batches, then (with prune) the pages the source no longer has."""
     held = call("vi_doc_sync", {"action": "state", "source": source})
     have = held.get("pages") or {}
     todo = [p for p in pages if have.get(str(p["page_id"])) != content_sha(str(p["markdown"]).strip())]
-    gone = sorted(set(have) - {str(p["page_id"]) for p in pages}) if prune else []
+    gone = sorted(set(have) - {str(p["page_id"]) for p in pages} - set(keep or ())) if prune else []
     report = {"pages": len(pages), "held_before": len(have), "to_send": len(todo), "to_remove": len(gone), "batches": 0, "totals": {}}
     if dry_run:
         return report
@@ -352,19 +353,25 @@ def run(pages: list[dict], source: str, call, index: str | None = None, knowledg
 
 
 def main(argv: list[str]) -> int:
-    """vi-mcp docs import FILE.jsonl --source NAME [--index X] [--kind company-docs|external-docs|manual] [--label TEXT] [--prune]
+    """vi-mcp docs import PATH… --source NAME [--index X] [--kind company-docs|external-docs|manual] [--label TEXT] [--prune]
                          [--old-source-kind KIND] [--url URL --token-file F] [--pause S] [--dry-run]
+    vi-mcp docs convert PATH… [--out pages.jsonl]      (local, no server: what the import would send, and what it refuses)
+    vi-mcp docs formats                                (every supported format and what it needs here: pypdf, LibreOffice)
     vi-mcp docs state --source NAME [--url URL --token-file F]
-    One page per JSON line: {"page_id", "title", "markdown", "url", "version", "space", "area", "labels", "service", "links", "tags"}.
+    PATH: a FILE.jsonl (one page per line: {"page_id", "title", "markdown", "url", "version", "space", "area", "labels", "service",
+    "links", "tags"}) or documents and directories (0.70.0: PDF, DOCX, ODT, XLSX, ODS, PPTX, ODP, HTML, EPUB, EML, CSV, text; DOC, XLS,
+    PPT, RTF with LibreOffice — doc_formats.py); page_id = the path relative to the directory.
     The token must belong to an instance created with `vi-mcp instance NAME --import`. Guide: docs/IMPORT.md."""
     import argparse
     import os
     import sys
     from . import code_import
     a = argparse.ArgumentParser(prog="vi-mcp docs", description="import documentation pages (docs/IMPORT.md)")
-    a.add_argument("action", choices=["import", "state"])
-    a.add_argument("file", nargs="?")
-    a.add_argument("--source", required=True)
+    a.add_argument("action", choices=["import", "state", "convert", "formats"])
+    a.add_argument("paths", nargs="*", help="FILE.jsonl, or documents and directories (vi-mcp docs formats)")
+    a.add_argument("--source")
+    a.add_argument("--out", help="convert: write the pages as JSON Lines here (default: a summary only)")
+    a.add_argument("--no-recursive", action="store_true", help="directories: only their own files, not subdirectories")
     a.add_argument("--index")
     a.add_argument("--kind", default="company-docs", choices=KNOWLEDGE_KINDS)
     a.add_argument("--label")
@@ -375,6 +382,20 @@ def main(argv: list[str]) -> int:
     a.add_argument("--url", default=os.environ.get("VI_MCP_URL"), help="MCP URL of the server (default: VI_MCP_URL, else the local server)")
     a.add_argument("--token-file", default=os.environ.get("VI_MCP_TOKEN_FILE"), help="token of an instance with the import right")
     o = a.parse_args(argv)
+    if o.action == "formats":
+        from . import doc_formats
+        print(doc_formats.formats_table())
+        return 0
+    if o.action in ("import", "convert") and not o.paths:
+        a.error(f"{o.action} needs FILE.jsonl or documents/directories")
+    if o.action == "convert":
+        pages, refused = load(o.paths, not o.no_recursive)
+        if o.out:
+            Path(o.out).write_text("".join(json.dumps(p, ensure_ascii=False) + "\n" for p in pages), encoding="utf-8")
+        print(json.dumps(summary(pages, refused) | ({"written": o.out} if o.out else {}), ensure_ascii=False, indent=1))
+        return 0 if pages or not refused else 1
+    if not o.source:
+        a.error(f"{o.action} needs --source")
     url = o.url
     if not url:
         from . import config
@@ -397,8 +418,47 @@ def main(argv: list[str]) -> int:
         s = call("vi_doc_sync", {"action": "state", "source": o.source})
         print(json.dumps({k: (len(v) if k == "pages" else v) for k, v in s.items()}, ensure_ascii=False))
         return 0
-    if not o.file:
-        a.error("import needs FILE.jsonl")
-    r = run(read_pages(Path(o.file)), o.source, call, o.index, o.kind, o.label, o.prune, o.dry_run, o.pause, o.old_source_kind)
-    print(json.dumps(r, ensure_ascii=False))
+    pages, refused = load(o.paths, not o.no_recursive)
+    if refused:
+        print(f"vi-mcp docs: {len(refused)} file(s) not imported:", file=sys.stderr)
+        for x in refused:
+            print(f"  {x['kind']}: {x['file']} — {x['reason']}", file=sys.stderr)
+    if o.prune and refused:
+        # a refused file is not "removed at the source": its page must not be archived by --prune (nothing disappears silently)
+        print("vi-mcp docs: --prune keeps the pages of refused files", file=sys.stderr)
+    r = run(pages, o.source, call, o.index, o.kind, o.label, o.prune, o.dry_run, o.pause, o.old_source_kind,
+            keep={_page_id_of(x["file"], o.paths) for x in refused})
+    print(json.dumps(r | summary(pages, refused), ensure_ascii=False))
     return 0
+
+
+def load(paths: list[str], recursive: bool = True) -> tuple[list[dict], list[dict]]:
+    """FILE.jsonl as before; documents and directories through doc_formats (0.70.0)."""
+    if len(paths) == 1 and paths[0].endswith(".jsonl"):
+        return read_pages(Path(paths[0])), []
+    from . import doc_formats
+    return doc_formats.pages_from_paths([Path(p) for p in paths], recursive)
+
+
+def _page_id_of(file: str, roots: list[str]) -> str:
+    for r in roots:
+        rp = Path(r)
+        try:
+            return Path(file).relative_to(rp).as_posix() if rp.is_dir() else Path(file).name
+        except ValueError:
+            continue
+    return Path(file).name
+
+
+def summary(pages: list[dict], refused: list[dict]) -> dict:
+    """What a conversion produced: pages by format, refused files by class (with the reasons in "refused")."""
+    by_fmt: dict[str, int] = {}
+    for p in pages:
+        for lab in p.get("labels") or []:
+            if str(lab).startswith("format-"):
+                by_fmt[lab[7:]] = by_fmt.get(lab[7:], 0) + 1
+    by_kind: dict[str, int] = {}
+    for x in refused:
+        by_kind[x["kind"]] = by_kind.get(x["kind"], 0) + 1
+    return {"converted": len(pages), "by_format": by_fmt, "refused": len(refused), "refused_by_class": by_kind,
+            "refused_files": refused}

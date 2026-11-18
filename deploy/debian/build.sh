@@ -33,9 +33,9 @@ Package: vi-mcp
 Version: ${version}-${rev}
 Architecture: all
 Maintainer: ${maintainer}
-Depends: python3 (>= 3.11), python3-sklearn, python3-cryptography, python3-numpy, python3-yaml, adduser, systemd, debconf (>= 0.5) | debconf-2.0
+Depends: python3 (>= 3.11), python3-sklearn, python3-cryptography, python3-numpy, python3-yaml, python3-pypdf, adduser, systemd, debconf (>= 0.5) | debconf-2.0
 Recommends: python3-libtorrent, python3-clingo
-Suggests: python3-psycopg, python3-pip
+Suggests: python3-psycopg, python3-pip, libreoffice-core-nogui
 Section: net
 Priority: optional
 Installed-Size: ${groesse}

@@ -465,8 +465,10 @@ bestehendes Gedächtnis zieht mit `vi-mcp db migrate --to URL` um, [Details](doc
 Seite mit `vi_learn`. Ein Administrator legt eine Import-Instanz an (`sudo vi-mcp instance NAME --import`); eine JSON-Lines-Datei hält
 die Seiten; dann `vi-mcp docs import seiten.jsonl --source confluence-it [--index X] [--prune] --token-file F`. Jede Seite wird ein
 Objekt mit ihren Hashtags und ihren `host:`/`topic:`-Auslösern sofort (damit sie vor passenden Handlungen als Hinweis erscheinen kann),
-Links werden Kanten, und die ältere Form derselben Seiten sowie Seiten, die die Quelle nicht mehr hat, wandern ins Archiv. Schritt für
-Schritt für Menschen und KIs: [docs/IMPORT.md](docs/IMPORT.md).
+Links werden Kanten, und die ältere Form derselben Seiten sowie Seiten, die die Quelle nicht mehr hat, wandern ins Archiv. Seit 0.70.0
+nimmt der Import auch Dokumente und Verzeichnisse direkt — PDF, DOCX, XLSX, PPTX, ODT, ODS, ODP, HTML, EPUB, EML, CSV, Text; DOC, XLS,
+PPT, RTF mit LibreOffice (`vi-mcp docs formats`, `vi-mcp docs convert VERZ` zum Vorab-Ansehen); eine Datei, die er nicht lesen kann,
+steht mit Grund in der Liste, nie still übergangen. Schritt für Schritt für Menschen und KIs: [docs/IMPORT.md](docs/IMPORT.md).
 
 **Indizes** halten Projekte auseinander — siehe [Projekte und Spezial-VIs](#projekte-und-spezial-vis-indizes).
 

@@ -43,3 +43,15 @@ def test_vi_logic_objects_take_a_project_as_a_set(gd):
     out = tools.call_tool("vi_logic", {"action": "ask", "source": 'in_alpha(O) <= (O in objects("index:alpha"))',
                                        "queries": [f'in_alpha("{a.id}")', f'in_alpha("{b.id}")']}, "x", False)
     assert f'in_alpha("{a.id}"): true' in out and f'in_alpha("{b.id}"): not_derived' in out
+
+
+def test_the_answer_names_the_index_as_a_filter_never_as_an_unknown_word(gd):
+    """0.70.0, reported by CentralStation (18.11.2026): "index:ansible docker" found the right objects, but the answer said "searched
+    as text, no hashtag kind: index:ansible", and an empty answer "unknown words: index:ansible is not in memory"."""
+    a, b, c = _two_projects()
+    out = tools.call_tool("vi_recall", {"filter": "index:alpha backup", "semantic": False}, "x", False)
+    assert "only index alpha (AND)" in out and "no hashtag kind: index:alpha" not in out
+    empty = tools.call_tool("vi_recall", {"filter": "index:alpha relay", "semantic": False}, "x", False)
+    assert "index:alpha is not in memory" not in empty and "only index alpha" in empty
+    none = tools.call_tool("vi_recall", {"filter": "index:gamma", "semantic": False}, "x", False)
+    assert "the index gamma holds no object you can see" in none

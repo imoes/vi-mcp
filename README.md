@@ -450,8 +450,10 @@ with `vi-mcp db migrate --to URL`, [details](docs/OPERATIONS.md#postgresql-optio
 `vi_learn`. An administrator creates an import instance (`sudo vi-mcp instance NAME --import`); a JSON-Lines file holds the pages; then
 `vi-mcp docs import pages.jsonl --source confluence-it [--index X] [--prune] --token-file F`. Each page becomes one object with its
 hashtags and its `host:`/`topic:` triggers at once (so it can appear as a hint before matching actions), links become edges, and the
-older shape of the same pages and pages the source dropped go to the archive. Step by step for people and AIs:
-[docs/IMPORT.md](docs/IMPORT.md).
+older shape of the same pages and pages the source dropped go to the archive. Since 0.70.0 the import also takes documents and
+directories directly — PDF, DOCX, XLSX, PPTX, ODT, ODS, ODP, HTML, EPUB, EML, CSV, text; DOC, XLS, PPT, RTF with LibreOffice
+(`vi-mcp docs formats`, `vi-mcp docs convert DIR` to look first); a file it cannot read is listed with its reason, never skipped
+silently. Step by step for people and AIs: [docs/IMPORT.md](docs/IMPORT.md).
 
 **Indexes** keep projects apart — see [Projects and special VIs](#projects-and-special-vis-indexes).
 

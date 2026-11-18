@@ -40,7 +40,7 @@ def step() -> int:
             data = {"hits": n, "instances": sorted((instances or "").split(",")),
                      "source": "loop: experiences of the last 24 h" + (f" at {n_inst} instances" if collective else "")}
             if o is None:
-                g.new_object("rule", f"{tool_tag[5:]} failed {n}× in 24 h the same way ({error_tag.split(":", 1)[-1]})"
+                g.new_object("rule", f"{tool_tag[5:]} failed {n}× in 24 h the same way ({error_tag.split(':', 1)[-1]})"
                                         + (f", at {n_inst} instances" if collective else "")
                                         + " — check arguments or reachability before the next call",
                                [tool_tag, f"skill:{tool_tag[5:].split('_')[0]}", error_tag, "rule_kind:repeated-error", "mode:test",

@@ -18,6 +18,11 @@ def versions(files, pattern):
     return ", ".join(html.escape(x) for x in sorted(set(v), key=lambda s: [int(p) if p.isdigit() else p for p in re.split(r"[.-]", s)])) or "—"
 
 
+# outside the f-string: a regex with a backslash inside a replacement field needs Python 3.12 (the packages promise 3.11)
+apt_versions = versions(debs, r"vi-mcp_([^_]+)_all")
+dnf_versions = versions(rpms, r"vi-mcp-(.+)\.noarch")
+pacman_versions = versions(pkgs, r"vi-mcp-(.+)-any\.pkg")
+
 page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>vi-mcp packages</title><style>body{{font:15px/1.5 system-ui,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;color:#1d2330}}
 pre{{background:#f3f4f7;padding:.8rem;overflow-x:auto;border-radius:6px}}code{{font-size:.92em}}h2{{margin-top:2rem}}.fp{{font-family:monospace}}</style></head><body>
@@ -46,7 +51,7 @@ sudo pacman -Syu vi-mcp                              # later: sudo pacman -Syu
 sudo systemctl enable --now vi-mcp.service</pre>
 <p>Packages and the database are signed (<code>SigLevel = Required</code>); the key is trusted only for what you sign locally.</p>
 <h2>Versions</h2>
-<p>apt: {versions(debs, r"vi-mcp_([^_]+)_all")}<br>dnf: {versions(rpms, r"vi-mcp-(.+)\.noarch")}<br>pacman: {versions(pkgs, r"vi-mcp-(.+)-any\.pkg")}</p>
+<p>apt: {apt_versions}<br>dnf: {dnf_versions}<br>pacman: {pacman_versions}</p>
 </body></html>
 """
 (out / "index.html").write_text(page, encoding="utf-8")

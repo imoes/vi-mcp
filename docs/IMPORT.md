@@ -62,6 +62,29 @@ One page per line (JSON Lines, UTF-8). Required: `page_id` and `markdown`. Every
 
 Check: `python3 -c "import json; [json.loads(l) for l in open('pages.jsonl', encoding='utf-8')]"` raises nothing.
 
+### Or: documents directly (0.70.0)
+
+Instead of a pages file, give the import documents and directories; `vi-mcp docs` converts them to the same pages
+(`vi_mcp/doc_formats.py`). `page_id` is the path relative to the directory, `area` its subdirectory, `labels` `format-<ext>`.
+
+| Formats | Needs |
+|---|---|
+| PDF | `pypdf` (a package dependency since 0.70.0) — text per page; a scanned PDF without a text layer is refused ("needs OCR") |
+| DOCX, XLSX, PPTX (Office) · ODT, ODS, ODP (OpenDocument) | nothing — read with the standard library: headings, lists, tables, links; one table per sheet, one section per slide with its notes |
+| HTML, EPUB, EML (e-mail; attachments named, not imported), CSV/TSV, TXT, MD, RST | nothing |
+| DOC, XLS, PPT, RTF, WPD, Pages/Numbers/Keynote | LibreOffice (`libreoffice-core-nogui` / `libreoffice-core` / `libreoffice-fresh`), converted first |
+
+```bash
+vi-mcp docs formats                                   # what is available here (pypdf? LibreOffice?)
+vi-mcp docs convert ~/handbooks --out pages.jsonl     # local, no server: what would be sent, and every refused file with its reason
+vi-mcp docs import ~/handbooks --source handbooks --label "Handbooks" --kind manual --token-file TOKENFILE --dry-run
+```
+
+Every file ends in one of two places: a page, or the list of refused files with a class and a reason — unknown format, needs pypdf,
+needs LibreOffice, encrypted, no text, too large (over 100 MiB, or an archive that unpacks to more than 300 MiB), unreadable. The
+import prints the refused files and counts them by class; `--prune` never archives the page of a file that was refused this time.
+A table longer than 5,000 rows is cut and the page says so. Images are not text: `vi-mcp image FILE` stores them with a description.
+
 ## Step 3 — a dry run
 
 ```bash

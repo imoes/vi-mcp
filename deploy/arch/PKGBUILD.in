@@ -7,11 +7,12 @@ pkgdesc="VI memory as an MCP server for many AI sessions (Streamable HTTP, one p
 arch=('any')
 url="https://github.com/imoes/vi-mcp"
 license=('AGPL-3.0-or-later')
-depends=('python>=3.11' 'python-numpy' 'python-scikit-learn' 'python-cryptography' 'python-yaml' 'systemd')
+depends=('python>=3.11' 'python-numpy' 'python-scikit-learn' 'python-cryptography' 'python-yaml' 'python-pypdf' 'systemd')
 optdepends=('clingo: the logic layer vi_logic and philosophy packages (AUR; without it: sudo vi-mcp logic install, needs python-pip)'
             'python-pip: sudo vi-mcp logic install fetches clingo into /var/lib/vi-mcp when no clingo package is installed'
             'python-psycopg: PostgreSQL instead of SQLite'
-            'libtorrent-rasterbar: large network transfers by torrent')
+            'libtorrent-rasterbar: large network transfers by torrent'
+            'libreoffice-fresh: documentation import of legacy formats (doc, xls, ppt, rtf)')
 backup=()
 install=vi-mcp.install
 source=("vi-mcp-$pkgver.tar.gz")

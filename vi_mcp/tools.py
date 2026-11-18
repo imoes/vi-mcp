@@ -983,7 +983,11 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
 def _recall(args: dict, instance: str, only: str | None, first: str | None) -> str:
     """vi_recall (its own function since 0.61.0, so the index restriction can wrap it): search, then log, reinforce and answer."""
     hits, f, kind_used = search(args, only, first)
-    as_text = g.as_text_tokens(args.get("filter") or "")  # 0.26.0: named in the answer instead of emptying the search silently
+    # 0.70.0: index:<name> is a filter (0.69.8), not a word — the notes below read the filter without it. Reported by CentralStation
+    # (18.11.2026): "index:ansible docker" found the right 6 objects, but the answer said "searched as text, no hashtag kind:
+    # index:ansible", and an empty answer added "unknown words: index:ansible is not in memory".
+    rest, in_index = g.split_index(args.get("filter") or "")
+    as_text = g.as_text_tokens(rest)  # 0.26.0: named in the answer instead of emptying the search silently
     if args.get("reinforce", True) is not False:  # 0.62.0: what a real search returns unlabelled migrates first (classify.on_search)
         from . import qualify  # 0.69.2: and documentation it returns gets its missing host:/topic: triggers now (qualify.on_access)
         qualify.on_access([o for _s, o, _w in hits], f"vi@{instance}", "search")
@@ -1002,6 +1006,8 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
         f += " · read only (reinforce=false): hits not reinforced"
     if as_text:
         f += f" · searched as text, no hashtag kind: {', '.join(as_text[:5])}"
+    if in_index:
+        f += f" · only index {', '.join(in_index)} (AND)"
     if hits and args.get("format") == "vil":  # 0.62.0: the answer in the AI language — act, memory, evidence, weight, source
         from . import vil
         return f"{len(hits)} objects for “{f}” (VIL: tell.<memory> <id> \"text\" ev:<evidence> w:<weight>/<ratings> src:<source>):\n" + \
@@ -1023,7 +1029,9 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
         return f"no single hit for “{f}”, but the entity is known:{collected}"
     # 0.62.0: why nothing — a word the memory does not know ("nothing known" is the answer) or known words that do not meet
     from . import vocabulary
-    reason, unknown = vocabulary.empty_reason(args.get("filter") or "", instance)  # suggestions only from what this instance may see
+    if in_index and not rest.strip():
+        return f"nothing in memory for “{f}” · the index {', '.join(in_index)} holds no object you can see (vi_indexes lists them)"
+    reason, unknown = vocabulary.empty_reason(rest, instance)  # suggestions only from what this instance may see
     if reason == "unknown" and unknown:
         hint = "; ".join(f"{t} is not in memory" + (f" (did you mean {', '.join(sug)}?)" if sug else "") for t, sug in unknown[:5])
         return f"nothing in memory for “{f}” · unknown words: {hint} · vi_vocabulary shows the words that exist" + _net_hint()

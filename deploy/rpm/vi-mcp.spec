@@ -14,10 +14,12 @@ Requires:       python3-numpy
 Requires:       python3-scikit-learn
 Requires:       python3-cryptography
 Requires:       python3-pyyaml
+Requires:       python3-pypdf
 Requires:       systemd
 Recommends:     rb_libtorrent-python3
 Recommends:     python3-clingo
 Suggests:       python3dist(psycopg)
+Suggests:       libreoffice-core
 Requires(pre):  shadow-utils
 
 %description

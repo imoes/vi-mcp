@@ -1,6 +1,6 @@
 # vi-mcp reference
 
-Generated from the code of vi-mcp 0.69.9 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
+Generated from the code of vi-mcp 0.70.0 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
 
 Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server configuration](#server-configuration-configjson) · [Network service configuration](#network-service-configuration-etcvi-p2pnetworkjson) · [Configuration catalogue](#configuration-catalogue-debconf-vi-mcp-configure-vi_mcp_key) · [Environment variables](#environment-variables) · [HTTP endpoints](#http-endpoints) · [Modules](#modules-vi_mcp)
 
@@ -1213,6 +1213,7 @@ First line of each module's docstring.
 | `dataset` | Training data from the memory (0.62.0) — the goal: a VI that comes out of the incubator fine-tunes an AI. |
 | `db` | Database access: SQLite (default, standard library) or PostgreSQL (optional, psycopg 3). |
 | `db_migrate` | Move a SQLite database to PostgreSQL (0.50.0): `vi-mcp db migrate`, `vi-mcp db status`. |
+| `doc_formats` | Document formats for the documentation import (0.70.0): files → Markdown pages for `vi-mcp docs import`. |
 | `doc_import` | Documentation import (0.69.0): pages of an outside source (Confluence, a vendor manual, a knowledge base) into the memory — the |
 | `doc_triggers` | Triggers for documentation (0.26.0): imported documentation gets host: and topic: hashtags so it can appear before matching actions. |
 | `embed_service` | Own embedding service (0.28.0) and reranker (0.60.0): `vi-mcp embed setup\|auto\|compare\|status\|remove` — vectors without a foreign stack. |

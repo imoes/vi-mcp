@@ -3,6 +3,51 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.70.0 — unreleased
+
+### What is new: the documentation import reads documents directly — PDF, Office, OpenDocument and more
+
+- The user (18.11.2026): "Jetzt wird es Zeit, dass wir alle gängigen Datenformate unterstützen: PDF, doc, docx, ods, odt, etc." Until
+  now `vi-mcp docs import` took only JSON-Lines pages that already were Markdown. Now it also takes documents and directories:
+  PDF (pypdf, text per page), DOCX/XLSX/PPTX and ODT/ODS/ODP (standard library: headings, lists, tables, links; one table per sheet;
+  one section per slide with its notes), HTML, EPUB, EML (attachments named), CSV/TSV, TXT/MD/RST, and DOC/XLS/PPT/RTF/WPD and
+  Pages/Numbers/Keynote through LibreOffice when it is installed. `page_id` is the path relative to the directory, `area` its
+  subdirectory, `labels` `format-<ext>`; the server side (chunking, triggers, archive of the old shape) is unchanged.
+- Every file ends converted or refused with a class and a reason — unknown format, needs pypdf, needs LibreOffice, encrypted, no text
+  (a scanned PDF: "needs OCR"), too large (100 MiB; archives over 300 MiB unpacked or 20,000 members), unreadable. The import lists
+  them and counts them by class; `--prune` keeps the page of a file that was refused this time. A table over 5,000 rows is cut and the
+  page says so. New: `vi-mcp docs convert PATH… [--out pages.jsonl]` (local, no server) and `vi-mcp docs formats`.
+- Packages: pypdf is a dependency (Debian/Ubuntu python3-pypdf, Fedora python3-pypdf, Arch python-pypdf, Homebrew/Windows from PyPI);
+  LibreOffice is suggested (libreoffice-core-nogui / libreoffice-core / libreoffice-fresh).
+- Verified: one reference document written by LibreOffice 24.2 as DOCX, ODT, RTF, DOC, PDF, EPUB, XLSX, ODS, XLS, PPTX, PPT, ODP plus
+  HTML and CSV — every one of the 14 files converted with every expected text, umlaut and table cell present (headings, lists, tables
+  and the link in DOCX, ODT, DOC, RTF, HTML). Evidence: `tests/test_doc_formats.py` (9 tests, one of them the LibreOffice round trip,
+  skipped without LibreOffice), `tests/test_doc_import.py::test_documents_of_a_directory_are_imported_and_prune_keeps_refused_files`.
+- Not done: OCR of scanned PDFs and images (refused with the reason); dates in XLSX/ODS cells come as stored (XLSX: a serial number);
+  text in DOCX text boxes and shapes is not read.
+
+### What was fixed: a project filter was reported as an unknown word
+
+- Reported by the CentralStation session (18.11.2026, after installing 0.69.8): `vi_recall "index:ansible docker"` found the right 6
+  objects, but the answer said "searched as text, no hashtag kind: index:ansible", and an empty answer added "unknown words:
+  index:ansible is not in memory" — misleading, since `index:` is a filter (0.69.8), not a word. The notes now read the filter without
+  it; the answer says "only index ansible (AND)", and an index without visible objects says so. Evidence:
+  `tests/test_index_and_filter.py::test_the_answer_names_the_index_as_a_filter_never_as_an_unknown_word` (fails with the 0.69.9 code:
+  "searched as text, no hashtag kind: index:alpha").
+
+### What was fixed: vi-mcp did not start on Python 3.11 (Debian 12) since 0.67.0
+
+- The packages promise Python ≥ 3.11, but `vi_mcp/main_loop.py` used an f-string with the same quote inside a replacement field
+  (`f"…{error_tag.split(":", 1)[-1]}"`, since 6ddbc26, 15.11.2026), which only Python 3.12 accepts (PEP 701): on Debian 12 every
+  command failed at once with `SyntaxError: f-string: unmatched '('`. Found by installing the 0.70.0 package in a debian:12 container.
+  Every test had run on Python 3.12 and 3.14, and `ast.parse(feature_version=(3, 11))` does not catch this form. Installations on
+  Ubuntu 24.04 and newer, Fedora, Arch, macOS and Windows (Python ≥ 3.12) were not affected. Fixed, also the release tool
+  `deploy/publish-repo-page.py` (a backslash in an f-string expression).
+- New guard: `tests/test_python_floor.py` reads the token stream of every Python file and refuses both 3.12-only forms (same quote,
+  backslash in an expression part); checked against the two real cases, and a single quote inside a triple-quoted f-string stays
+  allowed. Verified: all files compile with Python 3.11.18; the 0.70.0 package installs and runs on debian:12 (Python 3.11.2, pypdf
+  3.4.1): `vi-mcp docs convert` converted 10 of the LibreOffice reference files, the 4 legacy ones refused with "needs LibreOffice".
+
 ## 0.69.9 — 2026-11-18
 
 ### What is new: a signed pacman repository for Arch Linux and CachyOS (issue #3, point 3)

@@ -11,7 +11,7 @@ class ViMcp < Formula
   depends_on "python@3.13"
 
   # The same PyPI packages as the Windows installer (deploy/windows/install.ps1); binary wheels exist for macOS arm64 and x86_64.
-  PYPI = ["numpy>=1.26", "scikit-learn>=1.4", "cryptography>=41", "pyyaml>=6", "clingo==5.8.3"].freeze
+  PYPI = ["numpy>=1.26", "scikit-learn>=1.4", "cryptography>=41", "pyyaml>=6", "pypdf>=3.4", "clingo==5.8.3"].freeze
 
   def install
     python = Formula["python@3.13"].opt_bin/"python3.13"

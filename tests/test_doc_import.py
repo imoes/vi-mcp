@@ -161,3 +161,30 @@ def test_sleep_takes_filler_topics_it_derived_earlier_off_again(gd):
     r = doc_triggers.run()
     tags = g.load(o.id).hashtags
     assert "topic:for" not in tags and "topic:dns" in tags and r.get("entfernt") == 1
+
+
+def test_documents_of_a_directory_are_imported_and_prune_keeps_refused_files(gd, tmp_path):
+    """0.70.0: `vi-mcp docs import DIR` — documents become pages (doc_formats); a file that cannot be read this time is refused with its
+    reason, and --prune must not archive its page as if it had been removed at the source (nothing disappears silently)."""
+    from test_doc_formats import _docx
+    tmp_path = tmp_path / "docs"  # the test memory (vi.db) lives in tmp_path itself
+    tmp_path.mkdir()
+    (tmp_path / "ops").mkdir()
+    (tmp_path / "ops" / "runbook.docx").write_bytes(_docx())
+    (tmp_path / "notes.md").write_text("# Notes\n\nweb1.example.org restarts at night", encoding="utf-8")
+    pages, refused = doc_import.load([str(tmp_path)])
+    call = lambda n, a_: _call(n, a_)  # noqa: E731
+    r = doc_import.run(pages, "files", call)
+    assert r["to_send"] == 2 and not refused
+    o = g.load(doc_import.object_id("files", "ops/runbook.docx", 1))
+    assert "label:format-docx" in o.hashtags and "area:ops" in o.hashtags and "| mail01 | 120 GB |" in o.data["content"]
+    (tmp_path / "ops" / "runbook.docx").write_bytes(b"broken now")   # unreadable this time
+    (tmp_path / "notes.md").unlink()                                  # really removed at the source
+    pages, refused = doc_import.load([str(tmp_path)])
+    assert [x["kind"] for x in refused] == ["unreadable"]
+    r = doc_import.run(pages, "files", call, prune=True, keep={doc_import._page_id_of(x["file"], [str(tmp_path)]) for x in refused})
+    assert r["to_remove"] == 1  # notes.md only
+    assert g.load(doc_import.object_id("files", "ops/runbook.docx", 1)).mode == "active"
+    assert g.load(doc_import.object_id("files", "notes.md", 1)).mode == "archived"
+    s = doc_import.summary(*doc_import.load([str(tmp_path)]))
+    assert s["refused_by_class"] == {"unreadable": 1} and s["refused_files"][0]["reason"]
