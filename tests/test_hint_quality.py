@@ -1,8 +1,9 @@
 """0.49.0: fewer, better hints and better feedback — measured on production (7 days to 11.11.2026): three hints were shown before nearly
 every shell command, feedback came for 2 of 10,673 hints, and the raw lift (−20 points) mixed instances with different base rates."""
+import json
 import time
 
-from vi_mcp import intuition, metrics, session, tools, usage_stats
+from vi_mcp import intuition, learning, metrics, session, tools, usage_stats
 from vi_mcp import memory as g
 
 
@@ -54,6 +55,8 @@ def test_feedback_in_one_call_and_the_nudge(gd, monkeypatch):
     assert d["regeln"]["rueckmeldungen"] == 1
     e = [o for _s, o, _g in g.recall("kind:experience", viewer=None)][0]
     assert e.data["feedback"] == {k.id: 1}
+    # 0.70.2 (d6cf286): the router report counts the same booked feedback (it searched the pre-0.67 key and reported 0)
+    assert sum(len(json.loads(r[0]).get("feedback") or {}) for r in learning._feedbacks()) == 1
 
 
 def test_opening_a_shown_hint_counts_as_use(gd):

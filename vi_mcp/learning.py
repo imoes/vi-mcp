@@ -335,7 +335,7 @@ def train(reason: str = "sleep") -> dict:
     auc = float(roc_auc_score(yte, clf.predict_proba(Xte)[:, 1])) if len(set(yte.tolist())) == 2 else None
     weights = {name: round(float(w), 4) for name, w in zip(vec.get_feature_names_out(), clf.coef_[0]) if abs(w) > 1e-6}
     report.update(auc_holdout=None if auc is None else round(auc, 3), holdout=n_test, holdout_fehler=int(len(yte) - yte.sum()),
-                   rueckmeldungen=sum(len((json.loads(r[0]) or {}).get("rueckmeldung") or {}) for r in _feedbacks()))
+                   rueckmeldungen=sum(len((json.loads(r[0]) or {}).get("feedback") or {}) for r in _feedbacks()))
     u = utility(weights, float(clf.intercept_[0]), obs[-n_test:], obs[:-n_test])
     report["nutzen_holdout"] = u
     report["untrennbar"] = inseparable(obs)
@@ -535,7 +535,7 @@ def _holdout_size(y: list[int], groups: list[str] | None = None) -> int:
 
 def _feedbacks() -> list:
     with g.lock:
-        return g.db().execute("SELECT data FROM object WHERE kind = 'experience' AND data LIKE '%\"rueckmeldung\"%'").fetchall()
+        return g.db().execute("SELECT data FROM object WHERE kind = 'experience' AND data LIKE '%\"feedback\"%'").fetchall()  # 0.70.2: the data key is English since 0.67 (d6cf286)
 
 
 def _base(m: dict) -> dict:
