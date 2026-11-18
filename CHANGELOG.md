@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.70.2 — 18.11.2026
+## 0.70.2 — 2026-11-18
 
 ### Correction: 0.70.1's account of the weight audit was wrong twice over
 
