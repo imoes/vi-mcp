@@ -18,6 +18,19 @@ Linked from [README.md](README.md).
   symlinks, so the database links `repo-add` creates are written as real files (checked: no symlink, no `.old` backup published).
   Evidence also in `tests/test_package_repo.py`.
 
+### What was fixed: fp32 fine-tuning of grouped-query models no longer falls back to quadratic attention
+
+- In fp32 on a GPU, transformers 5.x calls PyTorch's attention with `enable_gqa=True` for grouped-query models (Qwen3, Llama 3, …).
+  fp32 has no flash kernel and the memory-efficient kernel takes no `enable_gqa`, so PyTorch silently used the quadratic math kernel.
+  Measured 18.11.2026 on an RTX 3070 (torch 2.7.1, transformers 5.23, Qwen3-0.6B shape, forward+backward of one attention): +1,104 MiB
+  at 2,048 tokens and +4,144 MiB at 4,096, against +48 / +97 MiB with the key/value heads repeated first. A kit's LoRA step on rows of
+  ~5,500 tokens ran out of memory on 8 GB; with the efficient kernel it peaks at 5.3 GB and takes ~1 s instead of ~6 s per step (the
+  AMD gfx1151 host needed 6.1 s per step for the same data). The kit's `training_runtime.py` now repeats the key/value heads in fp32
+  (`efficient_gqa_attention`, recorded in the report as `sdpa_gqa`); bf16/fp16 keep the library's choice. Same attention: outputs
+  differ by at most 7·10⁻⁷, gradients by 1.6·10⁻⁶ (relative, L = 512); on the same 20 rows the loss after 10 steps was 0.6325 vs
+  0.6324. Evidence: `tests/test_training_runtime.py::test_fp32_attention_uses_the_efficient_kernel_for_grouped_query_models`; the
+  measurements in the VI (`insight:9e823287…`).
+
 ### What has changed: fewer prompt and error hints from unrelated projects (issue #3, point 5)
 
 - Reported on CachyOS: in a session of project A, 4 of 5 prompt hints came from four other projects' "open points" sections and

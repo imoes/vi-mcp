@@ -83,3 +83,31 @@ def test_preference_prompts_are_rendered_in_the_chat_template_like_sft():
         chat_template = None
     rows, audit = prepare([{"prompt": "Which port?", "completion": "a", "label": True}], Plain(), "kto", 200)
     assert audit["valid"] and audit["preference_format"] == "plain (tokenizer has no chat template)" and rows[0]["prompt"] == "Which port?"
+
+
+def test_fp32_attention_uses_the_efficient_kernel_for_grouped_query_models(monkeypatch):
+    """0.69.9 (measured 18.11.2026): transformers calls SDPA with enable_gqa=True, which in fp32 falls back to the quadratic math kernel
+    (+4.1 GB at 4,096 tokens; out of memory on 8 GB). In fp32 the kit repeats the kv heads instead — same attention, efficient kernel."""
+    import sys
+    import types
+    from vi_mcp import training_runtime as tr
+    fake_pkg = types.ModuleType("transformers")
+    fake_int = types.ModuleType("transformers.integrations")
+    fake = types.ModuleType("transformers.integrations.sdpa_attention")
+    fake.use_gqa_in_sdpa = lambda attention_mask, key, value: attention_mask is None
+    fake_int.sdpa_attention = fake
+    fake_pkg.integrations = fake_int
+    monkeypatch.setitem(sys.modules, "transformers", fake_pkg)
+    monkeypatch.setitem(sys.modules, "transformers.integrations", fake_int)
+    monkeypatch.setitem(sys.modules, "transformers.integrations.sdpa_attention", fake)
+    assert tr.efficient_gqa_attention(fp32=False).startswith("library default")
+    assert fake.use_gqa_in_sdpa(None, None, None) is True  # bf16/fp16 keep the library's choice (flash supports GQA there)
+    assert tr.efficient_gqa_attention(fp32=True).startswith("kv heads repeated")
+    assert fake.use_gqa_in_sdpa(None, None, None) is False
+    del fake.use_gqa_in_sdpa
+    assert tr.efficient_gqa_attention(fp32=True) == "library default (no use_gqa_in_sdpa)"
+    src = (tr.__file__ and open(tr.__file__).read())
+    # set before the trainer of every stage is built, GRPO too (its branch follows right after)
+    assert ('report["sdpa_gqa"] = efficient_gqa_attention(fp32=bool(o.fp32) and not o.cpu)\n'
+            '        from trl import SFTConfig, SFTTrainer, KTOConfig, KTOTrainer, DPOConfig, DPOTrainer\n'
+            '        if o.stage == "grpo":') in src

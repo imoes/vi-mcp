@@ -223,6 +223,27 @@ def make_reward(pkg, tokenizer, record):
     return philosophy_reward
 
 
+def efficient_gqa_attention(fp32: bool) -> str:
+    """0.69.9: in fp32 on a GPU, let attention run the memory-efficient SDPA kernel for grouped-query models (Qwen3, Llama 3 …).
+
+    transformers (5.x) calls scaled_dot_product_attention(..., enable_gqa=True) whenever there is no mask; that avoids the math kernel
+    only where a flash kernel exists (fp16/bf16). fp32 has none, and the efficient kernel takes no enable_gqa, so PyTorch falls back to
+    the quadratic MATH kernel. Measured 18.11.2026 on an RTX 3070 (torch 2.7.1, transformers 5.23, Qwen3-0.6B shape): +1,104 MiB at
+    2,048 tokens, +4,144 MiB at 4,096 (vs +48 / +97 MiB with the kv heads repeated first); a LoRA step on rows of ~5,500 tokens went
+    from out-of-memory on 8 GB to a 5.3 GB peak, ~1 s per step. Repeating the kv heads computes the same attention (outputs 7e-7,
+    gradients 1.6e-6 relative). Returns what was chosen, for the report."""
+    if not fp32:
+        return "library default (not fp32)"
+    try:
+        from transformers.integrations import sdpa_attention
+    except Exception:  # noqa: BLE001 — an older transformers without the switch: nothing to change
+        return "library default (no use_gqa_in_sdpa)"
+    if not hasattr(sdpa_attention, "use_gqa_in_sdpa"):
+        return "library default (no use_gqa_in_sdpa)"
+    sdpa_attention.use_gqa_in_sdpa = lambda *args, **kwargs: False
+    return "kv heads repeated (efficient SDPA kernel; enable_gqa falls back to the math kernel in fp32)"
+
+
 def verify_prepared(trainer, rows, tokenizer, stage, limit):
     """No silent library truncation, column loss or changed targets. KL mismatches must fit the model too."""
     data = trainer.train_dataset
@@ -388,6 +409,7 @@ def main(argv=None):
                                                          dtype=torch.float32 if (o.cpu or o.fp32) else "auto", trust_remote_code=False)
             peft = lora
             report["parent_adapter"] = "base" if o.stage in ROOT_STAGES or o.from_base else "missing: fresh untrained probe only"
+        report["sdpa_gqa"] = efficient_gqa_attention(fp32=bool(o.fp32) and not o.cpu)
         from trl import SFTConfig, SFTTrainer, KTOConfig, KTOTrainer, DPOConfig, DPOTrainer
         if o.stage == "grpo":
             return grpo(o, run, report, report_path, model, peft, tok, data, audit, pkg, base, parent)

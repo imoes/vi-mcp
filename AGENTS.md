@@ -171,6 +171,9 @@ once end to end on 14.11.2026 (Qwen/Qwen3-0.6B, AMD Strix Halo gfx1151, ROCm). T
 **4. Precision.** Use `--fp32` on GPUs with known bf16 problems; ROCm/TheRock issue 9198 lists bf16 bugs on gfx1151.
 - The report's `precision` must say `float32`.
 - A kNN-LM core also needs float32: in bfloat16 the same position's logits drift up to 0.625 between sequence lengths.
+- fp32 and grouped-query models (0.69.9): transformers asks PyTorch's attention for `enable_gqa`, which in fp32 only the quadratic
+  math kernel serves (+4.1 GB at 4,096 tokens). The kit repeats the key/value heads instead (`efficient_gqa_attention`, report field
+  `sdpa_gqa`) — same attention, efficient kernel. Check the report says "kv heads repeated" before blaming the data for an OOM.
 
 **5. Order of commands** (in the kit directory, inside the container):
 1. `python train.py --stage sft --tokenizer-only --fp32`: no weights, a token audit of every row. Expect `rejected: {}`,
