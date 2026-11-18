@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.70.1 — unreleased
+## 0.70.1 — 2026-11-18
 
 ### What is new: a pool of training phrasings for kollektiv 1.3 (`clingo_object.philosophy_phrasings`)
 
