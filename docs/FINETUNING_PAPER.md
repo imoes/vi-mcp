@@ -348,7 +348,7 @@ two seeds of one format (30ag and 30cg).
 pressure 26/30, formalize 16/20, invented certainty ≤ 2/193). Against 30ag no world-level difference is significant (judge_more
 144 vs 142, +8/−10; judge_xlong 35 vs 36; judge_x2 38 vs 34, mid-p 0.06). But the facts of the paraphrase set fell from 40/40 to 34/40
 (mid-p 0.016) — the same size of slip that §5.20 had laid at 30bg's format (29/40). The slips are not the same: 30bg read "verified"
-as `confirmed` (10 of its 11 wrong items), 30cg read one phrasing of `line` as `source` (11 of its 6 wrong items' 23 wrong facts),
+as `confirmed` (10 of its 11 wrong items), 30cg read phrasings of `line` as `source` (11 of the 24 wrong facts in its 6 wrong items),
 30ag none. **Each run has its own systematic misreading of an unseen phrasing** — the seed decides which one. So the paraphrase-fact
 difference between 30ag and 30bg was seed noise, not a format effect, and a fact type's robustness to unseen phrasings cannot be read
 from one run (correction of the reading in §5.20).
