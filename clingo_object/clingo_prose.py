@@ -136,8 +136,10 @@ def _rule(rnd: random.Random, unary: list[str], binary: list[str]) -> tuple[str,
         return (f"{h}(X) <= {cb1} & ~{cb2}",
                 f"X is {h.replace('_', ' ')} when {pb1} and it cannot be derived that X is {b.replace('_', ' ')} (absence of evidence, not proof of the opposite).")
     if form == "rel":
-        (cr, pr), (cu, pu) = _b(r, "X", "Y"), _u(a, "Y")
-        return f"{h}(X) <= {cr} & {cu}", f"X is {h.replace('_', ' ')} when {pr} some Y and {pu}."
+        (cr, _pr), (cu, pu) = _b(r, "X", "Y"), _u(a, "Y")
+        # 0.69.9: the prose said "X reports Y some Y" (the relation's own object, then "some Y" again) — a model trained on it
+        # reproduced the doubled object in its own explanations (run 27 diagnostic set, 18.11.2026)
+        return f"{h}(X) <= {cr} & {cu}", f"X is {h.replace('_', ' ')} when X {BINARY[r]} some Y and {pu}."
     if form == "two":
         return (f"{h}(X) <= {r}(X, Y) & {r}(X, Z) & (Y != Z)",
                 f"X is {h.replace('_', ' ')} when X {BINARY[r]} at least two different things.")

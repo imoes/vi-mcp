@@ -480,3 +480,17 @@ def test_the_language_stage_covers_a_seeds_forms_and_crossed_vocabulary_never_le
     only = {"line": 4, "author": 2, "counts": 3}
     refused = cp.vocab_program(random.Random(1), only, [], [], {cp.normal_rule(seed_rules[0])} | forbidden, rules=(1, 1), tries=200)
     assert refused is None or all(cp.normal_rule(x) != cp.normal_rule(seed_rules[0]) for x in refused[0].splitlines())
+
+
+def test_generated_prose_never_doubles_an_object():
+    """0.69.9: the "rel" form wrote "X reports Y some Y"; models trained on it repeated the doubled object (run 27, 18.11.2026)."""
+    import random
+    import re
+    from clingo_object import clingo_prose as cp
+    rnd = random.Random(5)
+    seen_rel = 0
+    for _ in range(400):
+        code, prose = cp.program(rnd, rules=(3, 6), extended=0.3)
+        assert not re.search(r"\b([A-Z]) some \1\b", prose), prose
+        seen_rel += bool(re.search(r"when X (?:" + "|".join(cp.BINARY.values()) + r") some Y and Y is ", prose))
+    assert seen_rel > 10  # the fixed form is still generated

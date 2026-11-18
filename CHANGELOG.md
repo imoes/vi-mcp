@@ -31,6 +31,15 @@ Linked from [README.md](README.md).
   0.6324. Evidence: `tests/test_training_runtime.py::test_fp32_attention_uses_the_efficient_kernel_for_grouped_query_models`; the
   measurements in the VI (`insight:9e823287…`).
 
+### What was fixed: generated rule prose doubled an object ("X reports Y some Y")
+
+- One of the generator's rule forms (`clingo_prose`, "rel") wrote "X is trusted when X reports Y some Y and Y is running" — the
+  relation's own object and then "some Y" again. Every translation kit since run 7 carried it in its gold texts, and a model trained on
+  them repeated it in its own explanations (run 27, diagnostic set, 18.11.2026). Now: "X is trusted when X reports some Y and Y is
+  running". Kits built before keep the old text; a new kit gets the fixed one. Evidence:
+  `tests/test_philosophy.py::test_generated_prose_never_doubles_an_object` (400 generated programs, no doubled object; the fixed form
+  still occurs).
+
 ### What has changed: fewer prompt and error hints from unrelated projects (issue #3, point 5)
 
 - Reported on CachyOS: in a session of project A, 4 of 5 prompt hints came from four other projects' "open points" sections and
