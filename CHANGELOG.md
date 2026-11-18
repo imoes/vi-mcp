@@ -5,6 +5,18 @@ Linked from [README.md](README.md).
 
 ## 0.70.1 — unreleased
 
+### What is new: a pool of training phrasings for kollektiv 1.3 (`clingo_object.philosophy_phrasings`)
+
+- Reading sentences in phrasings never seen in training was the bottleneck of the runs (paper §5.9–5.11): with 2–3 phrasings per fact
+  type, held-out phrasings were read right in 3–7 of 40 worlds; with 150–330 filtered phrasings per type, 37–40 of 40. The kit's
+  training rows now draw from the package's own phrasings plus a pool: 192–330 per type for the eight types of 1.2 (the filtered sets
+  of runs 10–19), 24–25 per type so far for the eight new types of 1.3 (197 of 200 Claude templates kept). Every template was read
+  back by a model of another family (two random fillings → exactly the fact, among all 16 types); the loader checks again that the
+  placeholders fit and that no template is close to a held-out phrasing.
+- Kept out of the package (its hash, every binding and its held-out phrasings stay its own) and shipped as a Python module
+  (`philosophy_kollektiv_phrasings.py`): package builds and kits bundle `clingo_object/*.py` only, so a data file would have been left
+  out silently. Held-out rows never use the pool (tested). Open: more phrasings for the eight new types (a second generator family).
+
 ### What is new: a philosophy's training kit over MCP (`vi_philosophy` action `kit`, `vi-mcp philosophy kit`)
 
 - The kit for the seed path alone — language, philosophy and GRPO stages, evaluation, scorer — built from the package and a seed.

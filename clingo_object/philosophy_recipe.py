@@ -21,6 +21,7 @@ import random
 import re
 
 from . import philosophy as ph
+from . import philosophy_phrasings as pp
 from . import philosophy_train as pt
 from . import philosophy_trace as tr
 
@@ -67,6 +68,12 @@ def _examples(pkg: dict) -> dict[str, tuple]:
     return out
 
 
+def _view(pkg: dict, test: bool) -> dict:
+    """The package as the sentences are rendered from: training rows from its own phrasings plus the filtered pool (philosophy_phrasings),
+    held-out rows from render_test only. Solving, hashing and tracing always use the package itself."""
+    return pkg if test else {**pkg, "render": pp.training_table(pkg)}
+
+
 def system(pkg: dict, rnd: random.Random, examples: dict) -> str:
     if rnd.random() < DROPOUT:
         return pt._system(pkg) + "\n\n" + READING
@@ -91,7 +98,8 @@ def cases_of(trace: str) -> set[str]:
 
 def _items(pkg: dict, facts: list[tuple], rnd: random.Random, test: bool) -> list[tuple[str, str]]:
     """(sentence, its line in the Facts block) per fact, plus filler sentences as "unknown", shuffled."""
-    items = [(pt.render(pkg, [f], rnd, test), pt.facts_text([f]).strip()) for f in facts]
+    view = _view(pkg, test)
+    items = [(pt.render(view, [f], rnd, test), pt.facts_text([f]).strip()) for f in facts]
     subjects = sorted({f[1] for f in facts if re.fullmatch(r"s\d+", f[1])}) or ["s1"]
     if rnd.random() < FILLER_SHARE:
         for _ in range(rnd.randint(1, 3)):
