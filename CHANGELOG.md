@@ -5,6 +5,21 @@ Linked from [README.md](README.md).
 
 ## 0.70.0 — unreleased
 
+### What was fixed: host triggers in a lab addressed by IP — `ssh root@<IP>` gave host:root, `wc -l CLAUDE.md` gave host:claude.md
+
+- `intuition.command_triggers` takes the target of `ssh` as a `host:` trigger. A host had to start with a letter, so for
+  `ssh root@192.0.2.20 …` the regex fell back to the user name: **host:root**. And the `-l/--limit` rule meant for ansible applied to
+  every command: `wc -l CLAUDE.md` gave **host:claude.md**, `ls -l /etc/x.json` a path. On a real install addressed by IP, 44 of 56
+  experiences with a host: trigger carried host:root and the IPs almost never appeared — no hint could ever match an action, sleep made an
+  insight "root with Bash: 38 actions" from it, and the documentation import derived host:claude.md as the only "known" host.
+- Now an IPv4 target is a host, the user of user@host never is, the target must be followed by a blank, a quote, a shell separator or
+  the end (an unexpanded `$VAR` gives no host instead of an option value like `BatchMode`), and `-l/--limit` counts only for ansible.
+- Evidence: `tests/test_kern.py::test_commands_become_triggers` — 7 new cases, 5 of them fail on 0.69.8, all 59 pass now; the related
+  test files (20) show no new failure. Running live on 0.69.8: `ssh -o BatchMode=yes root@<IP> …` is recorded with host:<IP>.
+  **Migration:** none for the code. Experiences recorded before keep their old host: tags (re-derive them from data.args with the
+  fixed `triggers()` and correct them with `vi_tag` — done so on that install, 54 experiences).
+  (PR #7, issue #6, contributed by einanderson.)
+
 ### What was fixed: a hashtag given again under the same key stayed German and no filter found it
 
 - `vi_learn` with an existing `key` (`memory.repeat`) stored the new hashtags as given, while `new_object` stores them in the English

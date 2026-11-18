@@ -98,7 +98,10 @@ SHELL_TOOLS = ("Bash", "bash", "shell", "terminal", "exec", "run_command", "wind
 _CMD_SPLIT = re.compile(r"[;&|()`\n]|\$\(|['\"]")
 _PREFIX_COMMANDS = frozenset(("sudo", "exec", "nohup", "time", "env", "timeout", "setsid", "nice", "ionice", "stdbuf", "chronic"))  # since 0.20.2: also timeout, setsid, nice …
 _SUDO_WITH_VALUE = {"-u", "-g", "-C", "-D", "-h", "-p", "-R", "-r", "-T"}
-_SSH_TARGET = re.compile(r"\bssh\s+(?:-\S+(?:\s+\S+)?\s+)*(?:[\w.-]+@)?([a-z][\w.-]*[a-z0-9])", re.I)
+# 17.11.2026: an IPv4 target is a host too, and the user of user@host never is — before, `ssh root@192.0.2.20` gave host:root
+# (a host had to start with a letter, so the regex fell back to the user name). The target must be followed by a blank, a quote,
+# a shell separator or the end — not by "@" (a user) nor "=" (an option value like -o BatchMode=yes when the target is $VAR).
+_SSH_TARGET = re.compile(r"\bssh\s+(?:-\S+(?:\s+\S+)?\s+)*(?:[\w.-]+@)?(\d{1,3}(?:\.\d{1,3}){3}|[a-z][\w.-]*[a-z0-9])(?=[\s'\x22;|&)]|$)", re.I)
 
 
 _EXECUTES = re.compile(r"(?:\bssh\s+(?:-\S+(?:\s+\S+)?\s+)*\S+|\b(?:ba|z)?sh\s+-\w*c|\bsu\s+(?:-\s+)?(?:\S+\s+)?-c)\s*$")
@@ -165,7 +168,9 @@ def command_triggers(cli_command: str) -> list[str]:
         elif b not in SHELL_EVERYDAY and re.fullmatch(r"[a-z][a-z0-9._+-]{1,40}", b):
             outputs.append(f"topic:{b}")
     outputs += [f"host:{h.lower()}" for h in _SSH_TARGET.findall(cli_command or "")]
-    for target in _ANSIBLE_LIMIT.findall(cli_command or ""):
+    # 17.11.2026: -l/--limit names hosts only for ansible — before, `wc -l CLAUDE.md` gave host:claude.md and `ls -l /etc/x.json` a path
+    limit_targets = _ANSIBLE_LIMIT.findall(cli_command or "") if any(b.startswith("ansible") for b in _commands(cli_command or "")) else []
+    for target in limit_targets:
         outputs += [f"host:{h.lower()}" for h in re.split(r"[:,]", target.strip("'\"")) if "." in h and not h.startswith(("!", "&", "~"))]
     return outputs
 

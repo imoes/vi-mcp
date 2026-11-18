@@ -243,6 +243,14 @@ def test_skill_instructions_stay_complete(gd):
     ("docker compose up -d", {"skill:docker", "topic:docker"}),
     ("echo qm ist kein Befehl hier | grep x", {"topic:grep"}),
     ("ls -la /var/log/qm", set()),
+    # 17.11.2026: IPv4 targets are hosts; the user of user@host and an unexpanded variable never are; -l is a host list only for ansible
+    ("ssh -o BatchMode=yes root@192.0.2.20 'pct list'", {"topic:ssh", "skill:proxmox", "topic:pct", "host:192.0.2.20"}),
+    ("ssh -p 22 deploy@10.1.2.3 true", {"topic:ssh", "host:10.1.2.3"}),
+    ("ssh root@$HOST true", {"topic:ssh"}),
+    ("ssh -o BatchMode=yes -o ConnectTimeout=5 root@$h true", {"topic:ssh"}),
+    ("ssh -o BatchMode=yes dns1 'pihole -v'", {"topic:ssh", "topic:pihole", "host:dns1"}),
+    ("wc -l CLAUDE.md notes.md", set()),
+    ("ls -l /etc/app/config.json", set()),
 ])
 def test_commands_become_triggers(cli_command, expected):
     assert set(intuition.command_triggers(cli_command)) == expected
