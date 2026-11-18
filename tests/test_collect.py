@@ -145,3 +145,19 @@ def test_a_list_question_gets_the_entities_that_occur_with_it_and_a_broad_entity
     assert b["objects"] == 12 and b["kept_by_question"] + b["filled_by_recency"] == 4
     line = collect.note(counts)
     assert "with it — host: web0.example.org (4)" in line and "a broad entity (12 objects)" in line
+
+
+def test_collect_mode_obeys_the_index_filter_and_never_reads_index_as_a_word(gd, monkeypatch):
+    """0.70.1, seen live on 0.70.0 (18.11.2026): "index:ansible docker" made the word "index" an entity (host:index.html), and the
+    collected chunks came from every index — the AND of index:<name> leaked into the collect mode."""
+    _page(gd)
+    g.new_object("insight", "Runbook index.html deploy", ["host:index.html"], {"source": "t", "content": "x"}, reason="T", visibility="shared")
+    g.new_object("insight", "Project alpha: host7.example.org runs the build agent", ["host:host7.example.org"],
+                 {"source": "https://wiki.example.org/pages/400/alpha", "content": "## Agent\n\nThe build agent of alpha.\n"},
+                 reason="T", visibility="shared", index="alpha")
+    monkeypatch.setattr(vector, "rerank_fn", lambda q, docs: [1.0 for _ in docs])
+    out = tools._recall({"filter": "index:alpha host7", "reinforce": False}, "a", None, None)
+    assert "host:index.html" not in out  # "index" of index:alpha is no word of the question
+    assert "build agent of alpha" in out and "| RAM | 128 GB |" not in out and "two NVMe" not in out  # only the alpha object
+    everywhere = tools._recall({"filter": "host7", "reinforce": False}, "a", None, None)
+    assert "| RAM | 128 GB |" in everywhere  # without the index the global pages are collected as before

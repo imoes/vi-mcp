@@ -883,7 +883,10 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
     f = u.filter
     groups, remove, words = g.parse_filter(f, g.known_kinds())
     from . import lexicon
-    entities = lexicon.link(" ".join(words)) if words else []  # 0.67.0: the VIL domain lexicon names what the question is about
+    # 0.67.0: the VIL domain lexicon names what the question is about; 0.70.1: without index:<name> (a filter, not a word — live on
+    # 0.70.0 "index:ansible docker" named the entity host:index.html)
+    plain_words = g.split_index(" ".join(words))[0] if words else ""
+    entities = lexicon.link(plain_words) if plain_words else []
     # 0.57.0: meaning + full text by default when an embedding service is configured and the filter has free text — measured on a
     # production copy (150 known targets × 2 queries): full text MRR 0.42, hybrid 0.75. semantic=false forces full text only.
     explicit = args.get("semantic")
@@ -1015,10 +1018,12 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
     collected = ""
     if args.get("collect") is not False:  # 0.67.0: questions about everything of one entity get its chunks under a token budget
         from . import collect
-        decision = collect.detect(args.get("filter") or "")
+        # 0.70.1: the filter without index:<name> (live on 0.70.0: "index:ansible docker" made "index" an entity host:index.html), and
+        # the entity's objects only from that index (they came from every index — the AND leaked into the collected chunks)
+        decision = collect.detect(rest)
         if decision:
-            words = " ".join(g.parse_filter(args.get("filter") or "", g.known_kinds())[2]) or (args.get("filter") or "")
-            context, counts = collect.collect(words, hits, decision)
+            words = " ".join(g.parse_filter(rest, g.known_kinds())[2]) or rest
+            context, counts = collect.collect(words, hits, decision, only_indexes=in_index)
             if context:
                 collected = f"\n\n{collect.note(counts)}\n\n{context}"
                 f += " · collect mode"

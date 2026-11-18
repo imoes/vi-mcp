@@ -76,12 +76,14 @@ def _title(o) -> str:
 
 
 def collect(query_words: str, hits: list, decision: dict[str, Any], *, min_tokens: int = MIN_TOKENS, max_tokens: int = MAX_TOKENS,
-            per_page: int = PAGE_CORE) -> tuple[str, dict[str, Any]]:
-    """The collected context for the question and its counts. `hits`: the search's (score, object, weights)."""
+            per_page: int = PAGE_CORE, only_indexes: list[str] | None = None) -> tuple[str, dict[str, Any]]:
+    """The collected context for the question and its counts. `hits`: the search's (score, object, weights). only_indexes (0.70.1): the
+    index:<name> conditions of the question — the entity's objects come only from there, as the search's hits do."""
     counts: dict[str, Any] = {"entities": decision["entities"], "reason": decision["reason"]}
+    within = " ".join(f"index:{i}" for i in only_indexes or [])
     entity_ids: list[str] = []
     for tag in decision["entities"]:
-        entity_ids += [i for i in g.ids_for_filter(tag) if i not in entity_ids]
+        entity_ids += [i for i in g.ids_for_filter(f"{within} {tag}".strip()) if i not in entity_ids]
     counts["objects_with_entity_tag"] = len(entity_ids)
     counts["related"] = related(entity_ids, decision["entities"])
     if len(entity_ids) > BROAD:
@@ -90,11 +92,11 @@ def collect(query_words: str, hits: list, decision: dict[str, Any], *, min_token
         words = " ".join(w for w in re.findall(r"[\wäöüß-]+", query_words) if w.lower() not in STOP)
         inside: list[str] = []
         for tag in decision["entities"]:
-            inside += [o.id for _s, o, _w in g.recall(f"{tag} {words}".strip(), limit=BROAD_TOP, or_fallback=True) if o.id not in inside]
+            inside += [o.id for _s, o, _w in g.recall(f"{within} {tag} {words}".strip(), limit=BROAD_TOP, or_fallback=True) if o.id not in inside]
         by_question = len(inside)
         if len(inside) < BROAD_TOP:  # no or few words of the question inside the entity: its most recent and important objects fill up
             for tag in decision["entities"]:
-                inside += [o.id for _s, o, _w in g.recall(tag, limit=BROAD_TOP) if o.id not in inside][:BROAD_TOP - len(inside)]
+                inside += [o.id for _s, o, _w in g.recall(f"{within} {tag}".strip(), limit=BROAD_TOP) if o.id not in inside][:BROAD_TOP - len(inside)]
         counts["broad_entity"] = {"objects": len(entity_ids), "kept_by_question": by_question, "filled_by_recency": len(inside) - by_question}
         entity_ids = inside
     order = [o.id for _s, o, _w in hits] + [i for i in entity_ids if i not in {o.id for _s, o, _w in hits}]

@@ -5,6 +5,15 @@ Linked from [README.md](README.md).
 
 ## 0.70.1 — unreleased
 
+### What was fixed: the collect mode ignored the project filter and read `index` as a word
+
+- Seen live on 0.70.0 (18.11.2026, `vi_recall "index:ansible docker"` on a production memory): the answer named the entity
+  `host:index.html` — the word `index` of `index:ansible` went into the domain lexicon — and the collect mode (questions about everything
+  of one entity) added chunks from objects outside the index: an experience and a vendor documentation page. `index:<name>` is an AND
+  condition (0.69.8); the collect mode got the raw filter and searched the entity's objects in every index. Now the lexicon and the
+  collect mode read the filter without `index:`, and the entity's objects come only from the named index. Evidence:
+  `tests/test_collect.py::test_collect_mode_obeys_the_index_filter_and_never_reads_index_as_a_word` (fails with the 0.70.0 code).
+
 ### What was fixed: an empty search with a project filter blamed the words
 
 - Reported by the CentralStation session (18.11.2026, on 0.70.0): `index:gibtsnicht docker` answered "unknown words: none of the words
