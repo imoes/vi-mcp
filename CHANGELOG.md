@@ -3,6 +3,17 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.70.1 — unreleased
+
+### What was fixed: an empty search with a project filter blamed the words
+
+- Reported by the CentralStation session (18.11.2026, on 0.70.0): `index:gibtsnicht docker` answered "unknown words: none of the words
+  occurs in memory", though `docker` alone found 10 objects — the word check of an empty answer did not know that the index had
+  restricted the search; the same for an existing index whose objects lack the words. Now an empty answer with `index:` says
+  "there is no index X (vi_indexes lists them: …)" or "the words occur in memory, but not in index X — N hit(s) without the index
+  filter"; truly unknown words keep the old answer. Evidence:
+  `tests/test_index_and_filter.py::test_an_empty_answer_with_an_index_names_the_real_reason`.
+
 ## 0.70.0 — 2026-11-18
 
 ### What was fixed: host triggers in a lab addressed by IP — `ssh root@<IP>` gave host:root, `wc -l CLAUDE.md` gave host:claude.md

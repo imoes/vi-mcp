@@ -1031,6 +1031,17 @@ def _recall(args: dict, instance: str, only: str | None, first: str | None) -> s
     from . import vocabulary
     if in_index and not rest.strip():
         return f"nothing in memory for “{f}” · the index {', '.join(in_index)} holds no object you can see (vi_indexes lists them)"
+    if in_index:
+        # 0.70.1, reported by CentralStation (18.11.2026): "index:gibtsnicht docker" answered "none of the words occurs in memory",
+        # though "docker" alone finds objects — the word check below does not know the index restricted the search
+        known = set(indexes.registry())
+        missing = [i for i in in_index if i not in known]
+        if missing:
+            return f"nothing in memory for “{f}” · there is no index {', '.join(missing)} (vi_indexes lists them: {', '.join(sorted(known)) or '—'})"
+        outside = g.recall(rest, limit=50, viewer=instance, or_fallback=True)
+        if outside:
+            return (f"nothing in memory for “{f}” · the words occur in memory, but not in index {', '.join(in_index)} — "
+                    f"{len(outside)}{'+' if len(outside) == 50 else ''} hit(s) without the index filter")
     reason, unknown = vocabulary.empty_reason(rest, instance)  # suggestions only from what this instance may see
     if reason == "unknown" and unknown:
         hint = "; ".join(f"{t} is not in memory" + (f" (did you mean {', '.join(sug)}?)" if sug else "") for t, sug in unknown[:5])

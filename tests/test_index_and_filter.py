@@ -55,3 +55,15 @@ def test_the_answer_names_the_index_as_a_filter_never_as_an_unknown_word(gd):
     assert "index:alpha is not in memory" not in empty and "only index alpha" in empty
     none = tools.call_tool("vi_recall", {"filter": "index:gamma", "semantic": False}, "x", False)
     assert "the index gamma holds no object you can see" in none
+
+
+def test_an_empty_answer_with_an_index_names_the_real_reason(gd):
+    """0.70.1, reported by CentralStation (18.11.2026): "index:gibtsnicht docker" answered "none of the words occurs in memory", though
+    "docker" alone found objects — the word check did not know the index restricted the search."""
+    a, b, c = _two_projects()
+    missing = tools.call_tool("vi_recall", {"filter": "index:gibtsnicht backup", "semantic": False}, "x", False)
+    assert "there is no index gibtsnicht" in missing and "alpha" in missing and "none of the words" not in missing
+    outside = tools.call_tool("vi_recall", {"filter": "index:alpha relay", "semantic": False}, "x", False)
+    assert "the words occur in memory, but not in index alpha" in outside and "none of the words" not in outside
+    nowhere = tools.call_tool("vi_recall", {"filter": "index:alpha zebrafish", "semantic": False}, "x", False)
+    assert "none of the words occurs in memory" in nowhere  # truly unknown words keep the old answer
