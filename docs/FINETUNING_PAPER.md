@@ -344,6 +344,15 @@ against 29 and 37) and broke 5 of 37 control worlds both arms solved — it lost
 counted origin). The two arms were trained on different answer formats; soups assume models from one basin [56], so the fair test is
 two seeds of one format (30ag and 30cg).
 
+**The seed run (30cg, seed 43, same recipe and card as 30ag).** Every target is met again (judge_same 37/40, paraphrase 36/40,
+pressure 26/30, formalize 16/20, invented certainty ≤ 2/193). Against 30ag no world-level difference is significant (judge_more
+144 vs 142, +8/−10; judge_xlong 35 vs 36; judge_x2 38 vs 34, mid-p 0.06). But the facts of the paraphrase set fell from 40/40 to 34/40
+(mid-p 0.016) — the same size of slip that §5.20 had laid at 30bg's format (29/40). The slips are not the same: 30bg read "verified"
+as `confirmed` (10 of its 11 wrong items), 30cg read one phrasing of `line` as `source` (11 of its 6 wrong items' 23 wrong facts),
+30ag none. **Each run has its own systematic misreading of an unseen phrasing** — the seed decides which one. So the paraphrase-fact
+difference between 30ag and 30bg was seed noise, not a format effect, and a fact type's robustness to unseen phrasings cannot be read
+from one run (correction of the reading in §5.20).
+
 ### 5.21 What still breaks the seed's prose: two duties from one condition
 P6 is the block no run explains reliably (run 27 0/46, 30ag 28/46). Its rules include `may(state_as_hypothesis(S))` and
 `forbidden(assert_unqualified(S))`, both `<= acceptance(S, tentative)` — two duties from one body; the second is dropped. A matched
