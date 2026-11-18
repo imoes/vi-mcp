@@ -5,19 +5,57 @@ Linked from [README.md](README.md).
 
 ## 0.70.2 — unreleased
 
-### Correction: the reason given for 0.70.1's weight-audit change was wrong
+### Correction: 0.70.1's account of the weight audit was wrong twice over
 
-- 0.70.1 said the audit had reported contradictions the router did not have, with the example "router view −0.49, in line with −8
-  points measured". That view came from one early showing of the hint, while it was still new (`age:new` −1.20). Averaged over the
-  hint's 37 showings — what the audit computes since 0.70.1 — the router's view is +1.51 against −8 points: a real contradiction. Live
-  after the deploy the audit reports 9 contradictions (0.70.0: 8), among them one the old audit could not see: own weight −0.90, the
-  router's whole view +0.92, measured −34 points over 54 showings — the router ranks a hint up that its measurement says hurts. The
-  change itself stands (it compares what the router computes); the claim that most findings had been false alarms does not. The
-  measured lifts are recomputed with the instance's own rate (`vorteil-v2`) in the next sleep, so their numbers may still move.
-- The read-back filter for training phrasings was too lenient: forced to write one fact, the reader mapped "has not been tested yet"
-  to untestable and "checked by an AI" to machine-made — 6 of 17 deliberately wrong templates passed. With the answer "none" allowed,
-  0 of 17 pass. The 197 templates for the new kollektiv 1.3 types shipped in 0.70.1 were filtered the lenient way and are filtered
-  again; training kits are the only place they are used.
+- 0.70.1 said most "contradicts" findings were false alarms because the audit had compared a hint's own weight alone with its
+  measurement, with the example "router view −0.49, in line with −8 points". That view came from ONE early showing while the hint was
+  new; averaged over its 37 showings the router's view was +1.51. Right after the deploy the findings were then read as real
+  contradictions ("the router ranks up a hint its measurement says hurts"). Neither holds: matched on the host (below), the measured
+  lifts were confounded by failing hosts, and the router had put those failures on the host. What 0.70.1 changed — comparing what the
+  router computes for a hint, averaged over its showings — stays; the matched measurement is what was missing.
+
+### What was corrected: the weight audit no longer calls a hint harmful because its host was failing
+
+- **The finding:** "the router ranks up a hint that its measurement says hurts" (live 18.11.2026, `vi_model` → weight audit: 11 times
+  "contradicts", e.g. router view +0.92 against −34 points over 54 showings). The router was not wrong there; the measurement was. The
+  measured lift (bandit, `vorteil-v2`) compares a hint's showings with the instance's success rate for the tool. CentralStation's
+  "Bekannter Fehler … Filter: host:X" hints are shown exactly while host X fails, so their lift measured the host, not the hint.
+- **Evidence** (production copy of 16.11.2026, read-only; the five hints the live audit named): against the instance's rate for the
+  tool −28, −41, −9, −6 and 0 points; against actions of the same instance and tool on the same host within ±24 h without the hint −4,
+  −2, +5, +16 and −3 points. None is measurably harmful. `vi_why` with the hint's host shows where the router puts the failures: on the
+  host (the two hosts −1.85 and −2.12), not on the hint. Where the router's view is positive, the meaning group
+  `content:30` (+0.95) and `hint_kind:insight` (+0.32) carry it; the hint's own weight (−0.9) pulls it down.
+- **What changed:** `weight_audit` names a contradiction only when the matched lift (`matched_lift`: same instance, same tool, a shared
+  host, ±24 h, the hint not shown, at least 3 controls per showing) points against the router's view, over at least 20 matched
+  showings and by at least 2 standard errors. Every candidate it holds back is counted with its reason — `situation`,
+  `too_few_matched`, `not_significant` — in the report (`held_back`) and the `vi_model` line; nothing is dropped silently. The LLM
+  weight layer may edit only flagged features, so a confounded finding no longer invites it to edit a hint's weight.
+- Measured on the copy: `matched_lift` takes 0.2–0.3 s per candidate hint (15,485 labelled actions). Tests:
+  `tests/test_weight_audit.py` — four new cases (confirmed, explained by the host, within its error, no stored showing) fail against the
+  0.70.1 audit and pass now.
+
+### What is missing
+
+- **The bandit's measured lift is still unmatched.** The "measured −34 points" line on every hint, `DAILY_MAX` and the lift by age
+  still compare with the instance's rate for the tool. Matching them on the host too would change what every agent sees; it needs
+  its own A/B measurement first.
+- **The group contradiction (`content:<n>`) still pools unmatched lifts.**
+- **A confirmed contradiction is only reported.** Proposal, not built: after a matched, significant contradiction in two sleeps in
+  a row, the router caps that hint's view at 0 (a fixed rule that only tightens) and asks the hint's author instance to review it.
+
+### What was fixed: `vi_model` reported "direct feedback on hints 0"
+
+- The router report counted direct feedback under the data key used before 0.67 (`rueckmeldung`); since 0.67 the key is `feedback`,
+  so the line said 0 although feedback was booked (the labels themselves read the right key). Found on 16.11.2026 on a branch that was
+  never released (d6cf286), seen live on 0.70.1, ported. Evidence: `tests/test_hint_quality.py::test_feedback_in_one_call_and_the_nudge`
+  now also checks the report counter (fails with 0.70.1).
+
+### What was corrected: the read-back filter for training phrasings was too lenient
+
+- Forced to write one fact, the reader mapped "has not been tested yet" to untestable and "checked by an AI" to machine-made — 6 of 17
+  deliberately wrong templates passed. With the answer "none" allowed, 0 of 17 pass. The 197 templates for the new kollektiv 1.3 types
+  shipped in 0.70.1 were filtered the lenient way and are being filtered again; training kits are the only place they are used.
+
 
 ## 0.70.1 — 2026-11-18
 
