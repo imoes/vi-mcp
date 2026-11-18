@@ -136,7 +136,7 @@ def code_run() -> dict:
             if s["note"] < GOOD_FROM:
                 bad += 1
                 if "ok:yes" in o.hashtags and not old:  # the counter assumed "succeeded"; the scorer knows better now
-                    rebooked += bandit.rebook((o.data.get("before") or {}).get("shown", []), next((t[5:] for t in o.hashtags if t.startswith("tool:")), None))
+                    rebooked += bandit.rebook((o.data.get("before") or {}).get("shown", []), next((t[5:] for t in o.hashtags if t.startswith("tool:")), None), o.instance)
         if changes:
             with g.lock:
                 for score_json, oid in changes:

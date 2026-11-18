@@ -549,7 +549,8 @@ def explain(hint: g.MemoryObject, instance: str, triggers: list[str] | None = No
     if m is not None and m.data.get("gewichte"):
         w = learning.why(m, hint.id, triggers, ts)
         z.append(f"  Router model ({m.mode}, trained {str(m.data.get('trainiert', '—'))[:16]}; today's weights, the decision may have used an older version): "
-                 f"P(ok) without hint {w['p_without'] * 100:.0f} %, with {w['p_with'] * 100:.0f} % → lift {w['lift'] * 100:+.1f} points")
+                 f"score without hint {w['p_without'] * 100:.0f}, with {w['p_with'] * 100:.0f} → difference {w['lift'] * 100:+.1f} "
+                 f"(class-balanced scores: they order hints, they are not success probabilities — the measured line above is)")
         z.append(f"    what sets this hint apart from the other candidates (decides the order): {w['distinguishing_sum']:+.3f}")
         z += [f"      {k:44} {c:+.3f}" for k, c in w["distinguishing"][:8]] or ["      — none of its features is in the model"]
         z.append(f"    same for every candidate (moves all lifts alike, never the order): hint_n:1 − hint_n:0 = {w['same_for_all']:+.3f}")
@@ -660,7 +661,7 @@ def after(tool: str, args: dict, ok: bool, duration_ms: int, error: str | None, 
     o = experience(tool, args or {}, ok, duration_ms, error, result, access, instance, is_read_only)
     declared = declare_used(o, used, ok) if used is not None else None
     from . import bandit
-    rated = bandit.book_entry(access.get("shown", []), ok, tool)  # counter pair per shown hint (stage 2)
+    rated = bandit.book_entry(access.get("shown", []), ok, tool, o.instance)  # counter pair per shown hint (stage 2)
     reinforced = 0
     if ok:  # hints after which the action succeeded are reinforced (consolidation) — not already when shown
         for oid in access.get("found", []):

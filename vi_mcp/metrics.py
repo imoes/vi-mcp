@@ -158,7 +158,7 @@ def lift_by_age(hours: float = 24 * 7, viewer: str | None = None, new_days: floa
             continue
         tool = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
         ok = _ok(o)  # 0.55.0: scorer.label — the same label as router and bandit
-        p = bandit.base_rate(tool)
+        p = bandit.base_rate(tool, o.instance)  # 0.70.1: the same expected rate the bandit books with
         for h in shown:
             if h not in born:
                 hint = g.load(h)

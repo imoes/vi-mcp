@@ -5,6 +5,37 @@ Linked from [README.md](README.md).
 
 ## 0.70.1 — unreleased
 
+### What was fixed: the weight audit called hints contradictory that the router did not weigh against their measurement
+
+- Seen live on 0.70.0 (18.11.2026, `vi_model`): "contradicts 8 — weight +1.94, but measured −8 points over 36 showings". The audit
+  compared a hint's own weight `hint:<id>` alone with its measurement. The router weighs a hint by all of its features: for that hint
+  its own weight +1.41 offset its meaning group (−0.98) and `age:new` (−1.20); the router's view was −0.49 — in line with the
+  measurement. Now the audit takes the router's own arithmetic (`learning.why`: logit with vs without the hint, every hint feature and
+  `hint_n`), averaged over the hint's newest stored showings (at most 200; without one: its features now, named in the finding), and
+  names both numbers. Evidence: `tests/test_weight_audit.py::test_contradiction_uses_the_models_whole_view_of_the_hint` (fails with the
+  0.70.0 audit, which reproduces the live finding "weight +1.41, but measured −8 points"). A real contradiction stays one: a
+  hint about a model server (router view +0.88 against −6 points measured) is still named.
+
+### What was fixed: the measured usefulness of a hint compared it with the tool pooled over every instance
+
+- The Thompson counters and the marker "measured ±N pts" credit a hint with the success after showing minus an expected rate. That
+  rate was the tool's over all instances, so a hint shown where actions often fail read "harmful" although it changed nothing:
+  in a test with an ineffective hint, an easy instance (98 %) and a hard one (60 %), 0.70.0 booked it at −24.6 points.
+  Now the expected rate is the instance's own rate for the tool (at least 10 actions without a hint), else the tool's, else all — the
+  strata `metrics.hint_lift_matched` already used, so there is one definition of "expected". Counters carry `method: vorteil-v2`; the
+  next sleep recomputes them from the stored experiences, live booking (`vi_after`) and the scorer's re-booking use the same rate.
+- Measured on a production copy (16.11.2026, 15,506 rated actions; older 70 % fit, newer 30 % scored): instance + tool predicts newer
+  actions without a hint better than the pooled tool rate (log loss 0.0967 vs 0.1017 on 3,962 actions); no hint shown at least 20 times
+  changed the sign of its lift. Rejected on the same copy: tool + host strata (0.0975, too thin) and the router's own P(ok | no hint)
+  (0.1245 vs 0.1006). Evidence: `tests/test_lernen.py::test_hint_is_measured_against_its_own_instances_rate`.
+
+### What was changed: `vi_why` no longer calls the router's scores probabilities
+
+- The router fits a class-balanced logistic regression: its outputs order hints (holdout AUC 0.71 on the copy) but are not success
+  probabilities — as an expected rate they lost to the plain tool rate (log loss 0.1245 vs 0.1006, above). `vi_why` showed them as
+  "P(ok) without hint 80 %, with 90 % → lift +10.8 points"; it now says "score without hint 80, with 90 → difference +10.8
+  (class-balanced scores: they order hints, they are not success probabilities — the measured line above is)".
+
 ### What was fixed: the collect mode ignored the project filter and read `index` as a word
 
 - Seen live on 0.70.0 (18.11.2026, `vi_recall "index:ansible docker"` on a production memory): the answer named the entity

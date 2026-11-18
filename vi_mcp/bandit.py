@@ -26,8 +26,13 @@ HINT_KINDS = names.id_prefixes("insight", "rule", "search", "skill", "image", "p
 
 BASE_DAYS = 90
 BASE_MIN = 10
-METHOD_ID = "vorteil-v1"
-_reason: dict = {"zeit": 0.0, "je": {}, "alle": 0.5}
+#: v2 (0.70.1): the expected rate is the instance's own rate for the tool (≥ BASE_MIN actions without a hint), else the tool's, else
+#: all — the strata metrics.hint_lift_matched uses (one definition of "expected"). Measured on a production copy (16.11.2026, 15,506
+#: rated actions): it predicts newer actions without a hint better than the pooled tool rate (log loss 0.0967 vs 0.1017 on 3,962); no
+#: hint shown ≥ 20× changed the sign of its lift. Rejected on the same copy: tool+host strata (0.0975, too thin) and the router's own
+#: P(ok | no hint) (0.1245 vs 0.1006 — class-balanced scores are not calibrated probabilities).
+METHOD_ID = "vorteil-v2"
+_reason: dict = {"zeit": 0.0, "je": {}, "je_instanz": {}, "alle": 0.5}
 
 
 def counter(o: g.MemoryObject) -> tuple[float, float]:
@@ -40,14 +45,20 @@ def shown(o: g.MemoryObject) -> int:
 
 
 def _observations(since: str | None = None):
-    """(tool, ok, shown, per-hint labels) per rated action — the label is scorer.label (0.55.0: the same as the router's: direct feedback,
+    """(tool, ok, shown, per-hint labels) per rated action — _observations_of without the instance."""
+    for _inst, tool, ok, shown, per in _observations_of(since):
+        yield tool, ok, shown, per
+
+
+def _observations_of(since: str | None = None):
+    """(instance, tool, ok, shown, per-hint labels) per rated action — the label is scorer.label (0.55.0: the same as the router's: direct feedback,
     conversation grade, code stage, ok tag); actions answered from memory do not count. per-hint: {hint: (y, weight)}."""
     from . import scorer
     grades = scorer.grade_details()
     with g.lock:
-        lines = g.db().execute("SELECT o.data, o.conversation, (SELECT group_concat(tag, ' ') FROM tag t WHERE t.object_id = o.id AND (t.tag LIKE 'tool:%' OR t.tag LIKE 'ok:%')) "
+        lines = g.db().execute("SELECT o.data, o.conversation, o.instance, (SELECT group_concat(tag, ' ') FROM tag t WHERE t.object_id = o.id AND (t.tag LIKE 'tool:%' OR t.tag LIKE 'ok:%')) "
                                 "FROM object o WHERE o.kind = 'experience' AND o.mode = 'active'" + (" AND o.ts >= ?" if since else ""), (since,) if since else ()).fetchall()
-    for data, serial, tags in lines:
+    for data, serial, inst, tags in lines:
         tags = (tags or "").split()
         d = json.loads(data)
         v = d.get("before") or {}
@@ -63,37 +74,52 @@ def _observations(since: str | None = None):
         fb = d.get("feedback") or {}
         shown += [h for h in (d.get("prompt_shown") or []) + (d.get("error_hints") or []) if h in fb and h not in shown and h.startswith(HINT_KINDS)]
         per = {h: scorer.label(d, ok_tag, serial, grades, hint=h)[:2] for h in shown}
-        yield tool, bool(lab[0]), shown, per
+        yield inst or "?", tool, bool(lab[0]), shown, per
 
 
-def _base_rates() -> tuple[dict[str, float], float]:
-    """Success rate per tool from actions without a shown hint; too few → all actions of the tool; none → over everything. Laplace-smoothed."""
+def _base_rates() -> tuple[dict[str, float], float, dict[tuple[str, str], float]]:
+    """Success rate per tool from actions without a shown hint; too few → all actions of the tool; none → over everything. Laplace-smoothed.
+    v2: also per (instance, tool) from actions without a hint, only with ≥ BASE_MIN of them (thinner strata fall back to the tool)."""
     since = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - BASE_DAYS * 86400))
     without, all_ = defaultdict(lambda: [0, 0]), defaultdict(lambda: [0, 0])
-    for tool, ok, shown_flag, _per in _observations(since):
+    without_inst: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0])
+    for inst, tool, ok, shown_flag, _per in _observations_of(since):
         for d in ((all_,) if shown_flag else (all_, without)):
             d[tool][0] += ok
             d[tool][1] += 1
+        if not shown_flag:
+            without_inst[(inst, tool)][0] += ok
+            without_inst[(inst, tool)][1] += 1
     per_tool_rate = {t: (z[0] + 1) / (z[1] + 2) for t, z in all_.items()}
     per_tool_rate.update({t: (z[0] + 1) / (z[1] + 2) for t, z in without.items() if z[1] >= BASE_MIN})
+    per_inst = {k: (z[0] + 1) / (z[1] + 2) for k, z in without_inst.items() if z[1] >= BASE_MIN}
     total = [sum(z[0] for z in all_.values()), sum(z[1] for z in all_.values())]
-    return per_tool_rate, (total[0] + 1) / (total[1] + 2)
+    return per_tool_rate, (total[0] + 1) / (total[1] + 2), per_inst
 
 
-def base_rate(tool: str) -> float:
+def _rate(per_tool_rate: dict, all_: float, per_inst: dict, tool: str | None, instance: str | None) -> float:
+    """The expected rate of one action: its instance's own rate for the tool, else the tool's, else all (v2)."""
+    if tool is None:
+        return all_
+    if instance is not None and (instance, tool) in per_inst:
+        return per_inst[(instance, tool)]
+    return per_tool_rate.get(tool, all_)
+
+
+def base_rate(tool: str | None, instance: str | None = None) -> float:
     if time.time() - _reason["zeit"] > 300:
-        per_tool_rate, all_ = _base_rates()
-        _reason.update(zeit=time.time(), je=per_tool_rate, alle=all_)
-    return _reason["je"].get(tool, _reason["alle"])
+        per_tool_rate, all_, per_inst = _base_rates()
+        _reason.update(zeit=time.time(), je=per_tool_rate, alle=all_, je_instanz=per_inst)
+    return _rate(_reason["je"], _reason["alle"], _reason["je_instanz"], tool, instance)
 
 
 def recompute() -> dict:
     """Sleep: all hint counters from the experiences. Hints without a rated action lose old counters."""
-    per_tool_rate, all_ = _base_rates()
-    _reason.update(zeit=time.time(), je=per_tool_rate, alle=all_)
+    per_tool_rate, all_, per_inst = _base_rates()
+    _reason.update(zeit=time.time(), je=per_tool_rate, alle=all_, je_instanz=per_inst)
     sum_total: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0, 0, 0.0])  # yes, no, shown, succeeded, expected
-    for tool, _ok, shown_flag, per in _observations():
-        p = per_tool_rate.get(tool, all_)
+    for inst, tool, _ok, shown_flag, per in _observations_of():
+        p = _rate(per_tool_rate, all_, per_inst, tool, inst)
         for h in shown_flag:
             z = sum_total[h]
             y, w = per[h]  # 0.55.0: the hint's own label and its weight (direct feedback counts twice)
@@ -112,7 +138,8 @@ def recompute() -> dict:
         for h, (a, b, n, k, e) in sum_total.items():
             g.update_data(h, lambda d, v={"yes": round(a, 4), "no": round(b, 4), "n": n, "ok": k, "expected": round(e, 4), "method": METHOD_ID}: d.__setitem__("useful", v))
         g.db().commit()
-    return {"hinweise": len(sum_total), "zurueckgesetzt": len([i for i in old if i not in sum_total]), "grundraten": {t: round(p, 3) for t, p in sorted(per_tool_rate.items(), key=lambda x: -x[1])[:8]}}
+    return {"hinweise": len(sum_total), "zurueckgesetzt": len([i for i in old if i not in sum_total]), "grundraten": {t: round(p, 3) for t, p in sorted(per_tool_rate.items(), key=lambda x: -x[1])[:8]},
+            "methode": METHOD_ID, "grundraten_instanz": len(per_inst)}
 
 
 def random_sample(o: g.MemoryObject, rnd: random.Random | None = None) -> float:
@@ -135,11 +162,11 @@ def arrange(candidates: list[g.MemoryObject], rnd: random.Random | None = None) 
     return sorted(candidates, key=lambda o: -samples[o.id])
 
 
-def book_entry(shown: list[str], ok: bool | None, tool: str | None = None) -> int:
+def book_entry(shown: list[str], ok: bool | None, tool: str | None = None, instance: str | None = None) -> int:
     """After the action: advantage over the base rate per shown hint. ok None (no result reported) does not count. Atomic in the DB."""
     if ok is None:
         return 0
-    p = base_rate(tool) if tool else _reason["alle"]
+    p = base_rate(tool, instance)
     field_name, value = ("yes", 1 - p) if ok else ("no", p)
     n = 0
     plus_ok = 1 if ok else 0
@@ -163,9 +190,9 @@ def book_entry(shown: list[str], ok: bool | None, tool: str | None = None) -> in
     return n
 
 
-def rebook(shown: list[str], tool: str | None = None) -> int:
+def rebook(shown: list[str], tool: str | None = None, instance: str | None = None) -> int:
     """The scorer finds afterwards that an action counted as successful failed: the credit (1 − p) is reverted, p is added as no."""
-    p = base_rate(tool) if tool else _reason["alle"]
+    p = base_rate(tool, instance)
     n = 0
     with g.lock:
         for oid in shown:

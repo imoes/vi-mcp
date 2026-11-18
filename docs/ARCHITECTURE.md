@@ -469,7 +469,7 @@ within instance and tool, verdict only beyond 2 SE). A difference of a few point
 | Model | every sleep, ended conversations from 5 turns | object `bewertung`: grade on a fixed scale, justification, turn numbers as evidence, confidence | only once calibrated: at least 20 conversations with a human grade, 70 % of them within 0.25 |
 | Human | immediately via the hook | object `bewertung` | always |
 
-Router, Thompson counters and hint lift use the grade instead of `ok` where it is available. Since 0.19.0 the Thompson counters measure the advantage over the tool's base rate (`bandit.py`). If the scorer finds that an action counted as successful
+Router, Thompson counters and hint lift use the grade instead of `ok` where it is available. Since 0.19.0 the Thompson counters measure the advantage over the tool's base rate (`bandit.py`); since 0.70.1 over the instance's own rate for the tool when it has at least 10 actions without a hint (`vorteil-v2`, the strata of `metrics.hint_lift_matched`), else the tool's. If the scorer finds that an action counted as successful
 actually failed, it rebooks the yes of the hint shown into a no. A conversation grade below 0.4 turns all actions of the conversation
 into failures for learning. Ratings are private. The log for the model contains only tool, outcome, shortened arguments and errors.
 `tests/evals/router.json` is a fixed set of test cases for hint selection that runs with every version.

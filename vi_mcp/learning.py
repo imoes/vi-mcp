@@ -419,7 +419,10 @@ def fit_calibrated(Xtr, ytr, wtr, groups=None):
     training part (models fitted on the older 80 % with the label weights), then refit on the whole training part with that C — the
     newest observations carry the newest hints. Without both classes in enough validation data: C = 1.
     Checked and rejected: Platt calibration (sigmoid on the logit, folded into the weights). Found on the validation part it did not
-    carry over in time — holdout log loss 0.427 → 0.473 and ranking gap +42.4 → +36.9 points (production copy, 12.11.2026)."""
+    carry over in time — holdout log loss 0.427 → 0.473 and ranking gap +42.4 → +36.9 points (production copy, 12.11.2026).
+    So the outputs are class-balanced SCORES, not success probabilities (0.70.1, production copy 16.11.2026: used as the expected
+    success of 3,667 newer actions without a hint they scored log loss 0.1245 against 0.1006 for the tool's base rate). They order
+    hints; anything that needs an expected rate (bandit, vi_why's measured line) takes the counted rates, never prediction()."""
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import log_loss
     n = Xtr.shape[0]

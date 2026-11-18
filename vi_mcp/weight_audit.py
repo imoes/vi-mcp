@@ -8,12 +8,19 @@ verdicts only tighten).
 
 Classes (exhaustive; "ok" when none applies):
   dominant      one feature carries the model: |w| ≥ DOMINANT_FACTOR × the DOMINANT_RANK-th largest |w| and ≥ DOMINANT_MIN
-  contradicts   a hint weight and the hint's measured usefulness (bandit, ≥ CONTRA_MIN_N shown) point in opposite directions;
-                since 0.30.0 also a meaning-group weight (content:<c>) against the pooled measured usefulness of the group's hints
+  contradicts   the model's view of a hint and the hint's measured usefulness (bandit, ≥ CONTRA_MIN_N shown) point in opposite
+                directions; since 0.30.0 also a meaning-group weight (content:<c>) against the pooled measured usefulness of the group's
+                hints. 0.70.1: the model's view of a hint is NOT its own weight hint:<id> alone but what the router computes for it —
+                the logit difference with vs without the hint (learning.why: hint:<id> + content group + kind + age + rules +
+                hint_n), averaged over the showings the measurement counts. Seen live 18.11.2026: "weight +1.94, but measured −8
+                points" — the hint's own weight +1.41 offset its group (−0.98) and age:new (−1.20); the model's view was −0.49, in
+                line with the measurement. Comparing one summand with the whole is an invalid derivation.
   network       a hint from the network (origin:p2p) with a strong positive weight and no confirmation by another instance
   hour          an hour feature (hour:HH) is among the strongest weights — time of day as a cause is post hoc
 """
 from __future__ import annotations
+
+import json
 
 from . import memory as g
 
@@ -24,7 +31,29 @@ STRONG = 0.5
 CONTRA_MIN_N = 20
 CONTRA_MIN_LIFT = 0.05
 HOUR_TOP = 3
+#: the newest showings of a hint that the model's view is averaged over (each costs one learning.why)
+SHOWINGS_MAX = 200
 CLASSES = ("dominant", "contradicts", "network", "hour")
+
+
+def model_view(m, hid: str) -> tuple[float, int]:
+    """(mean logit difference with vs without the hint, showings it is averaged over) — the router's own arithmetic (learning.why)
+    for each stored showing (experience data.before: triggers, time). Without a stored showing: the hint's features now, no situation
+    (0 showings named)."""
+    from . import learning
+    with g.lock:
+        rows = g.db().execute("SELECT ts, data FROM object WHERE kind = 'experience' AND mode = 'active' AND data LIKE ? "
+                              "ORDER BY ts DESC LIMIT ?", (f'%"{hid}"%', SHOWINGS_MAX)).fetchall()
+    vals = []
+    for ts, data in rows:
+        v = (json.loads(data) or {}).get("before") or {}
+        if hid in (v.get("shown") or []):
+            w = learning.why(m, hid, v.get("triggers") or [], ts)
+            vals.append(w["distinguishing_sum"] + w["same_for_all"])
+    if vals:
+        return sum(vals) / len(vals), len(vals)
+    w = learning.why(m, hid, [], None)
+    return w["distinguishing_sum"] + w["same_for_all"], 0
 
 
 def audit(m: g.MemoryObject | None = None) -> dict:
@@ -48,9 +77,13 @@ def audit(m: g.MemoryObject | None = None) -> dict:
         if hint is None:
             continue
         lift = bandit.lift(hint)
-        if lift is not None and bandit.shown(hint) >= CONTRA_MIN_N and abs(lift) >= CONTRA_MIN_LIFT and (lift > 0) != (v > 0):
-            findings.append({"klasse": "contradicts", "merkmal": k,
-                             "grund": f"weight {v:+.2f}, but measured {lift * 100:+.0f} points over {bandit.shown(hint)} showings"})
+        if lift is not None and bandit.shown(hint) >= CONTRA_MIN_N and abs(lift) >= CONTRA_MIN_LIFT:
+            view, n_view = model_view(m, hint.id)
+            if abs(view) >= STRONG and (lift > 0) != (view > 0):
+                where = f"over its {n_view} newest showings" if n_view else "now, no stored showing"
+                findings.append({"klasse": "contradicts", "merkmal": k,
+                                 "grund": f"model view {view:+.2f} (logit with vs without, {where}; own weight {v:+.2f}), but measured "
+                                          f"{lift * 100:+.0f} points over {bandit.shown(hint)} showings"})
         if v > 0 and "origin:p2p" in hint.hashtags and not hint.foreign_confirmations():
             publisher = next((t.split(":", 1)[1] for t in hint.hashtags if t.startswith("publisher:")), "?")
             findings.append({"klasse": "network", "merkmal": k,

@@ -116,7 +116,7 @@ def test_router_learns_which_hint_helps(gd):
     assert v["zugriff"]["router"] == "modell" and v["zugriff"]["shown"][0] == r.id
     assert "Router model (aktiv)" in tools.call_tool("vi_modell", {}, "a", True)
     why = tools.call_tool("vi_why", {"id": r.id}, "a", False)  # 0.29.0: the decision just made (open, no vi_after yet), laid open
-    assert "open action, not reported yet" in why and "router modell" in why and f"hint:{r.id}" in why and "lift +" in why
+    assert "open action, not reported yet" in why and "router modell" in why and f"hint:{r.id}" in why and "difference +" in why and "not success probabilities" in why
     assert sleep_cycle.run("Test").data["schritte"]["8_lernen"]["zustand"] == "aktiv"
 
 
@@ -167,6 +167,30 @@ def test_ineffective_hint_stays_at_half(gd):
     old = g.new_object("rule", "Altlast mit falschen Zählern", ["tool:x"], {"source": "x", "useful": {"yes": 226, "no": 1}}, reason="T")
     bandit.recompute()
     assert "useful" not in g.load(old.id).data  # no counters without a rated action
+
+
+def test_hint_is_measured_against_its_own_instances_rate(gd):
+    """0.70.1 (bandit v2): a hint shown only where actions often fail is measured against THAT instance's rate for the tool, not against
+    the tool pooled over all instances — otherwise an ineffective hint for a hard place reads "harmful" (Simpson). Live and in sleep."""
+    from vi_mcp import bandit
+    rng = random.Random(9)
+    hint = g.new_object("insight", "hard host needs sudo", ["tool:Bash"], {"source": "x"}, reason="T")
+    for i in range(300):  # instance "easy": Bash 98 % without a hint
+        g.new_object("experience", "Bash", ["tool:Bash", "ok:yes" if rng.random() < 0.98 else "ok:no"], {"before": {"shown": []}, "args": {"e": i}},
+                     reason="T", instance="easy")
+    for i in range(200):  # instance "hard": 60 % without and 60 % with the (ineffective) hint
+        g.new_object("experience", "Bash", ["tool:Bash", "ok:yes" if rng.random() < 0.6 else "ok:no"], {"before": {"shown": []}, "args": {"h": i}},
+                     reason="T", instance="hard")
+        g.new_object("experience", "Bash", ["tool:Bash", "ok:yes" if rng.random() < 0.6 else "ok:no"], {"before": {"shown": [hint.id]}, "args": {"w": i}},
+                     reason="T", instance="hard")
+    r = bandit.recompute()
+    assert r["methode"] == "vorteil-v2" and r["grundraten_instanz"] == 2
+    assert abs(bandit.lift(g.load(hint.id))) < 0.08, bandit.lift(g.load(hint.id))  # pooled Bash (~0.82) would say about −22 points
+    assert abs(bandit.base_rate("Bash", "hard") - 0.6) < 0.08 and bandit.base_rate("Bash", "easy") > 0.93
+    assert bandit.base_rate("Bash", "unknown-instance") == bandit.base_rate("Bash")  # too few → the tool's rate
+    before = g.load(hint.id).data["useful"]["expected"]
+    bandit.book_entry([hint.id], True, "Bash", "hard")  # live: the same expected rate as in sleep
+    assert abs(g.load(hint.id).data["useful"]["expected"] - before - bandit.base_rate("Bash", "hard")) < 1e-6
 
 
 @pytest.mark.skipif(not HAS_SKLEARN, reason="scikit-learn fehlt")
@@ -260,7 +284,7 @@ def test_lift_by_age_splits_new_and_old_hints(gd, monkeypatch):
     """0.29.0: cold-start observation point — advantage over the tool's base rate, by the hint's age when shown."""
     from datetime import datetime, timedelta, timezone
     from vi_mcp import bandit, metrics
-    monkeypatch.setattr(bandit, "base_rate", lambda tool: 0.5)
+    monkeypatch.setattr(bandit, "base_rate", lambda tool, instance=None: 0.5)
     old = g.new_object("insight", "web1 braucht Proxy", ["host:web1"], {"source": "x"}, reason="T", instance="b")
     new = g.new_object("insight", "web1 hat neues Zertifikat", ["host:web1"], {"source": "y"}, reason="T", instance="b")
     gone = g.new_object("insight", "web1 alt", ["host:web1"], {"source": "z"}, reason="T", instance="b")
@@ -337,7 +361,7 @@ def test_gate_must_hold_in_every_reference_class(monkeypatch):
     """0.32.0 (generality problem): hint A is only shown on an easy host, hint B only on a hard one. Against the tool's base rate the
     order looks useful; against tool+host it is not — the "usefulness" was the host. The gate must not pass."""
     from vi_mcp import bandit
-    monkeypatch.setattr(bandit, "base_rate", lambda tool: 0.55)
+    monkeypatch.setattr(bandit, "base_rate", lambda tool, instance=None: 0.55)
     train = [({"tool:t": 1.0, "host:easy": 1.0, "hint_n:0": 1.0}, int(i % 10 != 0), f"e{i}") for i in range(50)]
     train += [({"tool:t": 1.0, "host:hard": 1.0, "hint_n:0": 1.0}, int(i % 10 < 2), f"h{i}") for i in range(50)]
     holdout = [({"tool:t": 1.0, "host:easy": 1.0, "hint_n:1": 1.0, "hint:A": 1.0}, int(i % 10 != 0), f"a{i}") for i in range(100)]

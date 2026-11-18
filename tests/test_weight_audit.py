@@ -50,3 +50,29 @@ def test_group_weight_against_measured_hints(gd, monkeypatch):
     r = weight_audit.audit()
     f = [x for x in r["befunde"] if x["merkmal"] == "content:21"]
     assert len(f) == 1 and f[0]["klasse"] == "contradicts" and "2 rated hints measured +23 points over 30 showings" in f[0]["grund"]
+
+
+def test_contradiction_uses_the_models_whole_view_of_the_hint(gd, monkeypatch):
+    """0.70.1 (seen live 18.11.2026): the audit compared the hint's own weight alone (+1.41) with its measurement (−8 points) and called
+    it a contradiction, although the router's view of the hint — own weight + its meaning group + age + hint_n — was negative. The
+    finding must come from what the router computes for the hint, averaged over the showings that were measured."""
+    from vi_mcp import content
+    h = g.new_object("insight", "web7 needs rpm -qa", ["host:web7"], {"source": "x", "useful": {"yes": 5, "no": 20, "n": 36, "ok": 20, "expected": 23}},
+                     reason="T", instance="b")  # measured −8 points
+    monkeypatch.setattr(content, "group", lambda hid: 19 if hid == h.id else None)
+    for i in range(3):  # three stored showings, as data.before of experiences
+        g.new_object("experience", f"Bash {i}", ["tool:Bash", "host:web7", "ok:no"],
+                     {"before": {"shown": [h.id], "triggers": ["tool:Bash", "host:web7"], "router": "modell"}}, reason="T", instance="b")
+    _model({f"hint:{h.id}": 1.41, "content:19": -0.98, "hint_n:1": -0.134, "tool:a": 0.3, "tool:b": 0.2, "tool:c": 0.2})
+    r = weight_audit.audit()
+    assert not [f for f in r["befunde"] if f["klasse"] == "contradicts"], r
+    view, n = weight_audit.model_view(g.load(learning.model_id(None)), h.id)
+    assert n == 3 and abs(view - (1.41 - 0.98 - 0.134)) < 1e-9  # the router's own arithmetic, over the three showings
+
+
+def test_contradiction_names_the_view_and_the_own_weight(gd):
+    h = g.new_object("insight", "web1 braucht Proxy", ["host:web1"], {"source": "x", "useful": {"yes": 2, "no": 20, "n": 30, "ok": 6, "expected": 15}},
+                     reason="T", instance="b")
+    _model({f"hint:{h.id}": 1.2, "tool:a": 0.3, "tool:b": 0.2, "tool:c": 0.2, "tool:d": 0.1})
+    f = [x for x in weight_audit.audit()["befunde"] if x["klasse"] == "contradicts"]
+    assert len(f) == 1 and "model view +1.20" in f[0]["grund"] and "now, no stored showing" in f[0]["grund"] and "own weight +1.20" in f[0]["grund"]
