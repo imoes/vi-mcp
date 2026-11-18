@@ -1,0 +1,177 @@
+# Exaptation in an agent memory — can a VI find a mechanism learned for one purpose that helps another?
+
+Working paper, vi-mcp, 2026-11-18. Every number names how it was obtained. Evidence levels: **A** own measurement, reproducible
+(script, command, fixed data); **B** primary source read in full; **C** abstract, press or excerpt only (named as such). A claim without
+evidence is marked **hypothesis**. All experiments below were pre-registered (hash and commit before any outcome) unless marked
+exploratory.
+
+## 0 Summary
+
+Exaptation is a feature that helps in a role it was not built for (Gould & Vrba 1982). The unified-shader GPU — built so that vertex
+and pixel work share one kind of processor — became the general parallel computer on which deep learning was first trained; the
+historical record is in §2. We asked whether a VI — a shared memory of AI agents that shows hints before actions and measures their
+effect — finds such transfers in its own experience, and whether representing them in embedding space helps.
+
+So far it does not. On a production copy (8–16 Nov 2026, ~15,500 labelled actions):
+- hints shown **outside** the context they were learned in show no measurable effect (matched lift −0.7 ± 0.8 points over 10,572
+  showings), and agents marked them misleading 75 times against 20 times helpful (§5.4);
+- problem → fix relations as **embedding offsets** do not beat the plain nearest neighbour (ΔMRR −0.001 ± 0.046; §5.5), and in new
+  contexts they hurt (n = 12, exploratory);
+- the "mechanism" clusters the offsets form are mostly format artefacts (4 of the 5 largest).
+
+The literature explains why (§3): retrieval is driven by surface similarity, soundness by relational structure (Gentner); offset
+"analogies" are largely nearest-neighbour effects (Linzen); successful analogy systems separate purpose from mechanism and gate on a
+near purpose (Hope et al.). What that literature has not done — outcome-measured transfer in a real, growing memory of problem → fix
+episodes — is what a VI can add (§6). The first piece is built: every knowledge object now records what it was built for (§6.1).
+
+## 1 Definitions
+
+- **Adaptation** — a feature built for its current role. **Exaptation** — a feature that enhances fitness but was "not built by natural
+  selection for its current role", either a prior adaptation or a nonaptation later co-opted; "adaptations have functions; exaptations
+  have effects". **Secondary adaptation** — later shaping for the new role. **Preaptation** — a potential exaptation, not yet realised
+  [1] (B).
+- **In a VI:** an object (insight, rule, skill) has a **built-for** context — the hosts, tools, topics and errors it was learned in. A
+  **co-opted use** is a use whose context lies outside built-for. It counts as an exaptation only if the use **helped**, measured as a
+  matched lift (same instance, tool and host, ±24 h, ≥ 2 SE), never as a raw success rate (raw rates are confounded by failing hosts —
+  the reason the VI's weight audit was corrected in 0.70.2).
+- **Genius criteria** used throughout (project protocol): a candidate is **true** (its prediction, stated before the outcome, came true
+  in a matched comparison), **novel to the collective** (not derivable from older objects and not found by any baseline or other
+  generator), and **impactful** (a measured effect). Classes: known, talent (true but also found elsewhere), genius (true, novel,
+  impactful), promising (true and novel, impact unmeasured), refuted, disputed, open.
+
+## 2 The worked case: unified shaders → general GPU computing → deep learning (B)
+
+- **Built for graphics.** NVIDIA's Tesla architecture (GeForce 8800, November 2006) unified vertex and pixel processing — 128 streaming
+  processors in 16 multiprocessors, 768 threads per multiprocessor, 32-thread warps — motivated by graphics: unbalanced vertex/pixel
+  load and the DirectX 10 geometry shader. The authors: "the generality required of a unified processor opened the door to a completely
+  new GPU parallel-computing capability" [2] (B). The Xbox 360 GPU had "48 parallel unified shaders" in 2005 [3] (B); NVIDIA's own paper
+  says "The XBox 360 introduced an early unified GPU in 2005" — G80 was the first unified **DirectX 10** GPU, not the first unified GPU.
+  CUDA was already in G80's launch brief, so the step to computing was partly designed in: an adaptation plus the earlier exaptation.
+- **The pure exaptation came first.** Before CUDA, general-purpose computing on GPUs recast problems "into graphics terms": arrays as
+  textures, a screen-aligned quad, one fragment program per element, gather but no scatter, no integers, often dozens of passes; a
+  Radeon X1900 XTX measured 240 GFLOPS against a 25.6 GFLOPS peak for a contemporary CPU [4] (B). A high translation cost — the
+  functional shift needed a re-description of the problem.
+- **The effect.** AlexNet: "between five and six days to train on two GTX 580 3GB GPUs", 60 M parameters, size "limited mainly by the
+  amount of memory available on current GPUs", ILSVRC-2012 top-5 error 15.3 % against 26.2 % [5] (B). The chain graphics → GPGPU → CUDA →
+  deep learning is our synthesis; [5] does not mention graphics.
+
+## 3 Prior art: who connected exaptation, analogy and vectors before
+
+| Source | What it did | Numbers (as printed) | What it means here |
+|---|---|---|---|
+| He, Lee & Lee 2024 [6] (B) | exaptation of a patent = content similarity (sentence-embedding cosine of abstracts) × field distance (1 − Jaccard of CPC codes) to each cited ancestor; 3,420,673 US patents 1980–2010 | E_min → CD5 0.0739 (+1 SD → +18.3 % disruption); many scattered sources predict LESS disruption | "exaptation in vectors", measured backward at creation; no outcome beyond citations |
+| Mastrogiorgio & Gilsing 2016 [7] (B) | forward measure: share of later citing patents whose class lies outside the focal patent's classes and the uses envisioned at grant (non-anticipation); 19,076 patents | directions only (coefficients as images): inverted U in complexity, analogical ability + | the built-for record makes non-anticipation checkable |
+| Hope, Chan, Kittur & Shahaf 2017 [8] (B) | separate **purpose** and **mechanism** vectors from 8,500 product descriptions (crowd-annotated, BiGRU) | precision@top 1 %: mechanism 0.739, TF-IDF 0.63; ideation: P(good idea) 0.71 [0.48, 0.87] vs 0.28 with near purpose + far mechanism | the effect came with a **purpose gate**; retrieval gain alone was small |
+| SOLVENT 2018 [9] (B) | background/purpose/mechanism/findings annotations of 50 papers | purpose+mechanism vs all words: 0.92 vs 0.67 @K1 %; crowd labels "almost entirely" erase the mechanism advantage | domain words must be stripped before embedding |
+| Gentner 1983; Gentner, Rattermann & Forbus 1993; Forbus, Gentner & Law (MAC/FAC) [10] (B) | analogy maps relations, not attributes; two-stage retrieval: cheap vector match (MAC), structure mapping (FAC) | soundness of analogies 4.16 vs surface 2.70, but recall 0.12 vs 0.53 | an embedding nearest neighbour is MAC without FAC |
+| Mikolov et al. 2013; Linzen 2016 [11] (B) | analogy by vector offset; its critique | offset 65.6 %; but the nearest neighbour of b alone gives most of it (ONLY-B 0.70 on plurals; ADD tracks ONLY-B, r = 0.72) | our G5 is Linzen's effect on problem → fix pairs |
+| Aamodt & Plaza 1994 [12] (B) | case-based reasoning: retrieve, reuse, revise, retain; CBR as "intra-domain analogy" | review, no data | a VI hint is copy-reuse; CBR predicts cross-context copy fails without adaptation |
+| Webb, Holyoak & Lu 2023 [13] (B) | analogical reasoning in a large LLM | matrices OR 1.88 vs humans; story analogies humans better (OR 0.37); with distractor stories the model ignores the analog until told | LLMs map analogies in context but cannot retrieve episodes — the VI's job |
+| Kang et al. 2022 [14] (B) | aspect-based analogy search for researchers | creative adaptation 53 vs 3, mediated by a PARTIAL purpose match | gate on the problem, vary the mechanism |
+| Procedural-memory retrieval, arXiv 2511.21730 [15] (B, preprint) | LLM-written object-free summaries of agent trajectories | MAP 0.754 → 0.671 in distribution; judge = the same LLM, κ 0.178 with humans | abstraction costs in-distribution precision |
+
+Absence found (three searches plus reference lists — a search result, not a proof): no study embeds LLM-extracted purpose and mechanism
+of real problem → fix episodes and measures transfer by the **outcome** of the task it was transferred to.
+
+## 4 Method
+
+- Data: a production copy of a VI (16 Nov 2026), read-only. Cutoff **T = 2026-11-13**: methods see objects before T, are judged after.
+- Controls in every experiment: random, popularity (preferential attachment), the plain nearest neighbour where embeddings are used,
+  shuffled pairs; multiple tests with Holm.
+- Pre-registration: the plan is written, hashed and committed before any outcome is computed; deviations are reported as such.
+- Privacy: private and internal VI content stays on site; external models only see public material.
+
+## 5 Experiments and results (level A)
+
+### 5.1 Context: which structure predicts truth and impact? (G1, external data)
+Impact4Cast concept graph (dated concept pairs, later citations), slices ≤2016 → 2017–19 and ≤2019 → 2020–22, 2 M never-connected pairs
+each. A pair becoming connected (TRUE): AUC bridge × distance 0.889 / 0.891, popularity 0.853 / 0.857, pure distance **0.102** (anti-
+predictive). Which new connection becomes top-5 % cited (IMPACT): all scores 0.46–0.53. Structure predicts truth, not impact.
+
+### 5.2 Judged novelty vs executed success (G2, external data)
+Ideas of a published human study reviewed before and after execution (n = 43 executed): judged novelty → executed effectiveness
+Spearman ρ −0.142 [−0.475, 0.208]; → soundness −0.032. The study's own tables were reproduced exactly. Judged novelty does not predict
+success.
+
+### 5.3 Exploring more widely (G3)
+Sampling candidates from softmax(score/T) on G1's pool: greedy gives 24× more true connections but no novel true ones; novel true and
+"genius" (true ∧ distant ∧ top-5 % impact) rise with T up to uniform sampling, where the genius yield equals the base rate (21 / 2 M ×
+10 k ≈ 0.105). Volume works; selection by these scores adds nothing. Formally undecided (power guard: 18 genius pairs in one slice).
+
+### 5.4 Do hints help outside their origin context? (G4)
+15,485 labelled actions, 17,468 hint showings. Matched lift: same context −1.0 ± 1.6 points (5,914 showings), cross context −0.7 ± 0.8
+(10,572), cross tool +0.8 ± 0.3 (982 — mostly one remote-access fact shown before shell commands, a naming artefact). Direct agent
+feedback: helped : misleading = 278 : 93 for same-context hints, **20 : 75** for cross-context hints. The pre-registered "worth building
+mechanism edges" rule passed only on construct-invalid candidates (generic reflex templates with negative lift) and was set aside.
+Limit: origin tags included tags added later — fixed by §6.1.
+
+### 5.5 Problem → fix relations as embedding offsets (G5)
+153 train / 96 test pairs (failed action → the next successful one in the same conversation; solution skills; documents with cause and
+fix sections), embedded with the VI's embedding model. Retrieval of the true fix:
+
+| method | MRR | R@10 |
+|---|---|---|
+| nearest neighbour of the problem (no offset) | 0.394 | 0.510 |
+| mechanism offset (cluster of train offsets) | 0.393 | 0.562 |
+| one global offset | 0.427 | 0.521 |
+| midpoint | 0.366 | 0.500 |
+| random | 0.020 | 0.052 |
+
+ΔMRR (mechanism − nearest neighbour) −0.001, CI ±0.046, Holm 0.95. On test pairs from a context no train pair of the mechanism had
+(n = 12): ΔMRR −0.167. Cross-context offset consistency was above shuffled pairs (0.032 vs 0.014, p 0.001), but four of the five
+largest clusters were artefacts (call/result formatting, shell → shell, document section labels, dictionary-shaped skill fields); one
+was a plausible mechanism (a browser tool fails → fall back to the shell, in 6 contexts).
+
+### 5.6 Running
+- **G5b** — the same pairs, first abstracted by a local LLM into context-free problem and fix mechanisms (each text alone, no leakage),
+  then embedded and tested like G5. A second local teacher arm was stopped before scoring (user decision: the goal is to train the
+  vector space, not to compare teachers).
+- **G6** — a *trained* relation map (ridge regression p → s − p, i.e. a learned TransE-style relation) on raw texts and on the
+  abstractions, with a learning curve (25–153 pairs), Linzen's direction-reversal control and 200 shuffled refits.
+
+## 6 What the VI changes
+
+1. **built_for (implemented, branch built-for).** Every knowledge object records on its first save the context tags it was learned in,
+   its instance, index and time; no later save or update changes it; objects stored before get the named state "unknown origin". It
+   makes the forward measure of [7] possible: a later successful use outside built_for.
+2. **Two-stage retrieval (proposal).** Embeddings as MAC (cheap candidates), a structural check as FAC — in clingo-object, over facts
+   `mechanism(M)`, `instance_of(X, M)`, `near(A, B)` derived from the vector space — and the outcome as the judge. Hypothesis.
+3. **What to deliver (proposal from [8, 12, 13, 14]).** Gate on a near problem/purpose first, then prefer a different mechanism; frame
+   the hint explicitly as an analogy ("map X → Y"); deliver the solution path including failed attempts (derivational reuse), not only
+   the result.
+
+## 7 Next data
+
+- Stack Exchange operations sites (Server Fault, Unix & Linux, Ask Ubuntu, Super User; dump of 2026-06-30, CC BY-SA, attribution kept
+  per record): question + accepted answer as problem → fix pairs; questions closed as **duplicates** are human-confirmed "same problem,
+  other words" pairs — across tags, gold analogies for exaptation. Being fetched on a separate machine.
+- The training goal: the trained relation map (G6) and later an embedding fine-tune, then the facts it yields as part of the training
+  language of a small language model trained from scratch.
+
+## 8 Threats to validity
+
+One production copy of about ten days, dominated by two sources; sparse direct feedback; G5 pairs are few (96 test pairs) and partly
+format-laden; the embedding model is fixed; the teachers available locally are of one model family; external-data results (G1–G3)
+are about scientific concepts and ideas, not operations. Prior-art numbers are as printed in the sources, several without tests of
+significance.
+
+## References
+
+1. Gould, S. J. & Vrba, E. S. Exaptation — a missing term in the science of form. Paleobiology 8(1), 4–15 (1982).
+2. Lindholm, E., Nickolls, J., Oberman, S. & Montrym, J. NVIDIA Tesla: A Unified Graphics and Computing Architecture. IEEE Micro 28(2) (2008); NVIDIA GeForce 8800 GPU Architecture Overview, TB-02787-001 (2006).
+3. Xbox 360 system architecture, Hot Chips 17 (2005).
+4. Owens, J. D. et al. A Survey of General-Purpose Computation on Graphics Hardware. Computer Graphics Forum 26(1) (2007).
+5. Krizhevsky, A., Sutskever, I. & Hinton, G. E. ImageNet Classification with Deep Convolutional Neural Networks. NeurIPS (2012).
+6. He, Lee & Lee. Innovation beyond intention: harnessing exaptation for technological breakthroughs. arXiv:2412.19662 (2024).
+7. Mastrogiorgio, M. & Gilsing, V. Innovation through exaptation and its determinants. Research Policy 45(7) (2016).
+8. Hope, T., Chan, J., Kittur, A. & Shahaf, D. Accelerating Innovation Through Analogy Mining. KDD (2017). arXiv:1706.05585.
+9. Chan, J., Chang, J. C., Hope, T., Shahaf, D. & Kittur, A. SOLVENT: A Mixed Initiative System for Finding Analogies between Research Papers. CSCW (2018). doi:10.1145/3274300.
+10. Gentner, D. Structure-mapping. Cognitive Science 7 (1983); Gentner, D., Rattermann, M. J. & Forbus, K. D. The roles of similarity in transfer. Cognitive Psychology 25 (1993); Forbus, K. D., Gentner, D. & Law, K. MAC/FAC: A model of similarity-based retrieval. Cognitive Science 19 (1995).
+11. Mikolov, T. et al. Efficient Estimation of Word Representations in Vector Space. arXiv:1301.3781 (2013); Linzen, T. Issues in evaluating semantic spaces using word analogies. RepEval (2016). arXiv:1606.07736.
+12. Aamodt, A. & Plaza, E. Case-Based Reasoning: Foundational Issues, Methodological Variations, and System Approaches. AI Communications 7 (1994).
+13. Webb, T., Holyoak, K. J. & Lu, H. Emergent analogical reasoning in large language models. Nature Human Behaviour (2023).
+14. Kang, H. B. et al. Augmenting Scientific Creativity with an Analogical Search Engine. ACM TOCHI (2022). arXiv:2205.15476.
+15. Procedural memory retrieval benchmark for agents. arXiv:2511.21730 (2025, preprint).
+16. Bordes, A. et al. Translating Embeddings for Modeling Multi-relational Data. NIPS (2013) *(abstract level)*.
+17. Gu, X. & Krenn, M. Forecasting high-impact research topics via machine learning on evolving knowledge graphs. arXiv:2402.08640 *(dataset; G1)*.
+18. Si, C., Yang, D. & Hashimoto, T. Can LLMs Generate Novel Research Ideas? arXiv:2409.04109; Si, Hashimoto & Yang, The Ideation–Execution Gap, arXiv:2506.20803 *(dataset; G2)*.

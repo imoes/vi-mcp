@@ -395,7 +395,36 @@ converges faster but overfits the rare group at high temperature; upsampling fir
 fixed step ("Cooldown") kept the speed and reduced the overfitting [60] (machine translation and language modeling, a rare share of
 0.5 %; our floor is 4 %). A floor that is high in the first epoch and natural in the second is the cheap translation — **hypothesis**.
 First pilots there (1 seed) memorized the 3,000 training worlds (training loss ≈ 0.001) and are not evidence; the
-seeded grid on 60,000 worlds is running.
+seeded grid on 60,000 worlds is running. Interim (6 of 10 seeds, provisional): on the tiny model the dominant error on a rare
+conditional line is not omission but **misbinding** — the line written under the wrong statement of the same world, 7.9 % → 27.2 % of
+conditional statements from share 1.0 to 1/10, against pure skips 0.2 % → 13.6 %; an attention probe finds the fact (head mass 0.94 when
+the line is written, still 0.71 when it is skipped). The reading "retrieval works, binding the fact to the right statement fails" is a
+**hypothesis** until the 10-seed grid; variable binding is known to be learned in phases, a shallow "early assignment" heuristic first
+[62].
+
+### 5.24 Averaging the weights of two seeds is a magnitude problem, not only interference
+
+Two runs of the same recipe (30ag seed 42, 30cg seed 43) misread different unseen phrasings (§5.20). Averaging their LoRA deltas —
+0.5·(ΔA + ΔC), checked module by module to a relative 6·10⁻⁷ — was measured on the 54 items either run failed and 40 control items both
+solved (CPU, greedy):
+
+| | 30ag | 30cg | soup 0.5·(ΔA+ΔC) | 30ag at half strength 0.5·ΔA |
+|---|---|---|---|---|
+| facts exact, failed items | 50/54 | 41/54 | **53/54** | — |
+| facts exact, controls | 40/40 | 40/40 | 40/40 | 39/40 |
+| worlds exact, controls | 37/37 | 37/37 | 16/37 | **0/37** |
+
+Reading facts survives half the delta; the multi-step verdict computation does not survive it at all. The soup keeps more worlds than
+either half alone, so the two halves add up partly — but the average of two seeds is far weaker than either seed, i.e. the two deltas
+point in largely different directions. That matches the low alignment of LoRA weights across fine-tunings that motivates aligning them
+by SVD before merging [61]. Consequences: weight averaging across seeds is no remedy as it stands; the cheap test that follows from the
+magnitude reading — the SUM ΔA + ΔC (task-arithmetic scale) on the same 94 items — is running; aligned merging (KnOTS, TIES) is the
+next step only if the sum keeps the verdicts.
+
+**Operations note (18.11.2026).** Training on the AMD host next to its llama.cpp (Vulkan) inference servers coincided with amdgpu
+compute-ring timeouts that crashed an inference server (15 timeouts that day, two during run 13); run 13 was stopped there and runs on
+the RTX 3060 instead. Large Vulkan submits on this APU near the lockup timeout are a reported issue; whether training alone causes it is
+a hypothesis (counter-check: no timeout in the hours after the stop).
 
 ## 6 Open points
 
@@ -515,6 +544,8 @@ them are the abstracts' own. Reference 54's title and authors are not verified h
 59. Jia et al. Which Tokens Should SFT Actually Learn? A Token-Trimming Perspective on Mathematical Reasoning (Findings of EMNLP 2026). https://arxiv.org/abs/2609.09707
 
 60. Li, Xu, Tan, Murray, Khashabi. Upsample or Upweight? Balanced Training on Heavily Imbalanced Datasets (NAACL 2025). https://arxiv.org/abs/2410.04579
+61. Stoica et al. Model merging with SVD to tie the KnOTS (ICLR 2025). https://arxiv.org/abs/2410.19735 *(abstract level)*
+62. Wu, Geiger, Millière. How Do Transformers Learn Variable Binding in Symbolic Programs? (2025). https://arxiv.org/abs/2505.20896 *(abstract level)*
 
 *References 57–60 were read in their HTML full text on 18.11.2026 up to about half of each; numbers from appendices were not read
 verbatim and are not quoted.*
