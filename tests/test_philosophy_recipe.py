@@ -32,7 +32,7 @@ def test_every_target_reads_back_as_the_gold(built):
 
 def test_worlds_cover_one_to_ten_statements_and_rare_cases(built):
     _rows, rep = built
-    assert set(k for k, n in rep["statements"].items() if n) >= {1, 2, 3, 7, 10}
+    assert set(k for k, n in rep["statements"].items() if n) >= {"1", "2", "3", "7", "10"}
     floor = pr.CASE_FLOOR * rep["judged"]
     assert sum(1 for n in rep["cases_in_judged_rows"].values() if n >= floor) >= len(pr.CASES) - 3  # a few rows can lag the floor
 

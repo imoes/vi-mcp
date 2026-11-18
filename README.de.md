@@ -257,8 +257,9 @@ Stütze und Widerspruch getrennt, ein Grund für jeden Wert), `messung` (nur ein
 4. **Welche wann passt, wird gelernt** — danach bewertet die KI: `vi_philosophy(action="rate", name=X, tags=[…], helped=true|false,
    reason=…)`. `vi_philosophy(action="suggest", situation=…)` ordnet die Philosophien für eine Lage nach dem, was deklariert ist (ein
    Vorsprung), und dem, was bewertet wurde (die Entscheidung), mit den Zählungen.
-5. **Binden** an eine Instanz oder einen Index (`use`); ein Modell darauf **trainieren** (Trainingskapitel oben, `vi-mcp finetune kit …
-   --philosophy NAME`). Eine Philosophie ändert nie Sichtbarkeit, Prüfung oder Werkzeugrechte.
+5. **Binden** an eine Instanz oder einen Index (`use`); ein Modell darauf **trainieren**: `vi_philosophy(action="kit", name=X, base_model=…)`
+   (oder `vi-mcp philosophy kit X DIR --base …`) schreibt das Kit nur für den Samen-Pfad — nichts aus dem Gedächtnis darin; der Server
+   wählt das Verzeichnis und nennt es, das Training startet ein Mensch auf einem GPU-Rechner ([docs/FINETUNING.md](docs/FINETUNING.md) Abschnitt 4b). Eine Philosophie ändert nie Sichtbarkeit, Prüfung oder Werkzeugrechte.
 
 Schritt für Schritt: [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) (auch der erste Skill `philosophy`).
 

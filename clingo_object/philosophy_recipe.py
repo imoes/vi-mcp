@@ -181,7 +181,7 @@ def rows(pkg: dict, n: int, seed: int, test: bool = False, sizes: dict | None = 
                 case_n[c] += 1
         out.append(r)
     report = {"rows": len(out), "tasks": {t: sum(r["meta"]["task"] == t for r in out) for t in TASK_WEIGHTS},
-              "statements": {k: sum(r["meta"]["statements"] == k for r in out) for k in sizes},
+              "statements": {str(k): sum(r["meta"]["statements"] == k for r in out) for k in sizes},  # str keys: the report goes to JSON
               "cases_in_judged_rows": case_n, "judged": judged, "refused_by_trace_check": refused, "skipped_as_avoided": skipped,
               "format": FORMAT, "case_floor": CASE_FLOOR}
     return out, report
@@ -202,3 +202,58 @@ def facts_of(text: str) -> set[str]:
             continue
         out |= {x.replace(" ", "").rstrip(".") for x in line.split(";") if x.strip()}
     return out
+
+
+def n_statements(facts: list[tuple]) -> int:
+    return len({a for f in facts for a in f[1:] if re.fullmatch(r"s\d+", a)})
+
+
+def supports(pkg: dict) -> bool:
+    """The traces are written for kollektiv 1.3.x (philosophy_trace); other packages keep the earlier rows (philosophy_train.sft_rows)."""
+    return pkg.get("name") == "kollektiv" and str(pkg.get("version", "")).startswith("1.3.")
+
+
+#: the evaluation sets in the trace format: (set, held-out phrasings and pressure, task, statements, items)
+EVAL_SETS = (("judge_same", False, "judge", (1, 2, 3), 40), ("judge_paraphrase", True, "judge", (1, 2, 3), 40),
+             ("pressure_heldout", True, "pressure", (1, 2, 3), 30), ("formalize_heldout", True, "formalize", (1, 2, 3), 20),
+             ("judge_long", False, "judge", (4, 5, 6), 40), ("judge_xlong", False, "judge", (7, 8, 9, 10), 40))
+
+
+def eval_items(pkg: dict, train_facts: set[str], language_test: list[dict] | None = None, seed: int = 101) -> dict:
+    """The held-out evaluation in the trace format: {items, dropped}. Every judge-type set and the package's worlds as recipe rows
+    (prompt without the answer; the answer is gold_text, the verdict meta.gold); explain, recite and language items as before
+    (philosophy_train.eval_items). No world of training, none twice."""
+    examples = _examples(pkg)
+    items, dropped, seen = [], {}, set(train_facts)
+    for k, (name, test, task, sizes, n) in enumerate(EVAL_SETS):
+        rnd = random.Random(seed + k)
+        made = 0
+        while made < n:
+            facts = draw(pkg, rnd, rnd.choice(sizes))
+            ft = pt.facts_text(facts)
+            if ft in seen:
+                dropped[name] = dropped.get(name, 0) + 1
+                continue
+            seen.add(ft)
+            try:
+                r = row(pkg, task, rnd, n_statements(facts), examples, test, facts)
+            except tr.TraceError:
+                dropped[name] = dropped.get(name, 0) + 1
+                continue
+            items.append({"id": f"{name}:{made}", "set": name, "messages": r["messages"][:2], "gold_text": r["messages"][2]["content"],
+                          "meta": r["meta"]})
+            made += 1
+    rnd = random.Random(seed + 50)
+    for w in pkg.get("worlds", []):
+        facts = pt._parse_facts(w["facts"])
+        try:
+            r = row(pkg, "judge", rnd, n_statements(facts), examples, False, facts)
+        except tr.TraceError:
+            dropped["package_worlds"] = dropped.get("package_worlds", 0) + 1
+            continue
+        items.append({"id": f"package_worlds:{w['name']}", "set": "package_worlds", "messages": r["messages"][:2],
+                      "gold_text": r["messages"][2]["content"], "meta": r["meta"]})
+    mine = {s[0] for s in EVAL_SETS} | {"package_worlds"}
+    rest = pt.eval_items(pkg, train_facts, language_test, seed=seed)
+    items += [i for i in rest["items"] if i["set"] not in mine]
+    return {"items": items, "dropped": dropped}

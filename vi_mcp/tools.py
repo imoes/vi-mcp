@@ -282,11 +282,17 @@ TOOLS = [
                     "{manifest: the content of philosophy.json, seed: the content of seed.co, worlds: the test worlds}); export: the whole "
                     "package of a built-in or installed philosophy, as install takes it; suggest: which philosophies fit a situation (declared by the "
                     "package, measured from rated use — a suggestion, not a decision); rate: you applied one in a situation, did it help "
-                    "(the VI learns from it which philosophy fits when; a fitting one is also suggested in the prompt context); use: bind an installed philosophy (its hash) to "
+                    "(the VI learns from it which philosophy fits when; a fitting one is also suggested in the prompt context); kit (0.70.1): write the "
+                    "fine-tuning kit for the seed path only — numbered reading, solver-checked reasoning traces, evaluation and scorer; the server "
+                    "chooses the directory, nothing of the memory goes into it, the same package/seed/rows/base give the same kit back; a person "
+                    "runs the training on a GPU host; use: bind an installed philosophy (its hash) to "
                     "yourself or an index (off: end it); bound: which philosophies and hashes apply to you. A philosophy never changes "
                     "visibility, review or tool rights.",
-     "inputSchema": _schema({"action": {"type": "string", "enum": ["guide", "list", "show", "check", "evaluate", "install", "use", "bound", "explain", "export", "suggest", "rate"],
-                                        "description": "guide (default), list, show, check, evaluate, install, use, bound, explain, export, suggest or rate"},
+     "inputSchema": _schema({"action": {"type": "string", "enum": ["guide", "list", "show", "check", "evaluate", "install", "use", "bound", "explain", "export", "suggest", "rate", "kit"],
+                                        "description": "guide (default), list, show, check, evaluate, install, use, bound, explain, export, suggest, rate or kit"},
+                             "base_model": {"type": "string", "description": "kit: the model to fine-tune (Hugging Face id); default: the server's finetune.base_model"},
+                             "seed": {"type": "integer", "description": "kit: the seed the rows are drawn with (default 11; the same seed gives the same kit)"},
+                             "rows": {"type": "integer", "description": "kit: seed-stage rows (default 1700, at most 20000)"},
                              "situation": {"type": "string", "description": "suggest: the situation in words (the task, the question)"},
                              "tags": {"type": "array", "items": {"type": "string"}, "description": "suggest/rate: the situation as kind:value hashtags, e.g. topic:incident"},
                              "helped": {"type": "boolean", "description": "rate: did applying the philosophy help in this situation?"},

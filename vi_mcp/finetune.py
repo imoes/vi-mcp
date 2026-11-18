@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import random
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -794,7 +795,9 @@ PHIL_ANSWERS_PY = r'''"""Answers of the base model and of base + adapter to eval
 Scored afterwards by the seed's verdict (phil_score.py), not by a judge. Greedy, thinking off, the same messages for both. The new-token
 budget is a resource bound of local generation against endless loops of a small model, not an API cap: an answer that reaches it is
 marked "budget" and never counts as right.
-    python phil_answers.py [--adapter out/philosophy] [--budget 768] [--fp32]
+    python phil_answers.py [--adapter out/philosophy] [--budget 8192] [--fp32]
+(0.70.1: 8192 — twice the longest gold answer with reasoning traces, about 3,450 tokens for a world of 10 statements (estimated as
+characters / 3); 768 cut most traced answers. Greedy answers stop at the end token, so the budget costs time only for loops.)
 """
 import argparse, json, time
 import torch
@@ -803,7 +806,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 a = argparse.ArgumentParser()
 a.add_argument("--adapter", default="out/philosophy")
-a.add_argument("--budget", type=int, default=768)
+a.add_argument("--budget", type=int, default=8192)
 a.add_argument("--fp32", action="store_true")
 o = a.parse_args()
 base = json.load(open("run.json", encoding="utf-8"))["base_model"]
@@ -850,7 +853,7 @@ explain_seed, recite and language are prose: not scored here — phil_roundtrip.
     python phil_score.py   -> eval/philosophy_score.json
 """
 import collections, json
-from clingo_object import philosophy as ph, philosophy_train as pt
+from clingo_object import philosophy as ph, philosophy_recipe as pr, philosophy_train as pt
 
 pkg = ph.load("philosophy")
 run = json.load(open("run.json", encoding="utf-8"))
@@ -871,12 +874,15 @@ for a in answers:
             continue
         if a[f"{who}_finish"] != "stop":
             continue  # a cut answer never counts as right
+        traced = it["meta"].get("format") == pr.FORMAT  # 0.70.1: numbered Facts blocks; the verdict is read without the trace
         if task == "formalize":
             gold = {l.replace(" ", "") for l in it["meta"]["facts"].splitlines() if l.strip()}
-            c["facts_exact"] += gold == {l.replace(" ", "") for l in a[who].splitlines() if l.strip()}
+            c["facts_exact"] += gold == (pr.facts_of(a[who]) if traced else {l.replace(" ", "") for l in a[who].splitlines() if l.strip()})
             continue
         gold = it["meta"]["gold"]
-        said = pt.parse_verdict(pkg, a[who])
+        said = pt.parse_verdict(pkg, pr.verdict_part(a[who]) if traced else a[who])
+        if traced:
+            c["facts_exact"] += pr.facts_of(a[who]) == {l.replace(" ", "") for l in it["meta"]["facts"].splitlines() if l.strip()}
         sc = pt.score(pkg, gold, said)
         for pred, x in sc["answers"].items():
             c[f"{pred}_right"] += x["right"]
@@ -1142,10 +1148,18 @@ def philosophy_stage(d: Path, name: str, prompts: int = PHILOSOPHY_PROMPTS, seed
     lang_train = cp.examples(language_rows, seed, exclude=vocab, system=system)
     seen = {x["messages"][-2]["content"] for x in lang_train}
     lang_test = [x for x in cp.examples(heldout * 3, seed + 1, exclude=vocab, system=system) if x["messages"][-2]["content"] not in seen][:heldout]
-    phil_train = pt.sft_rows(pkg, philosophy_rows, seed)
-    train_facts = {x["meta"]["facts"] for x in phil_train}
-    phil_test = [x for x in pt.sft_rows(pkg, heldout * 2, seed + 1, test=True) if x["meta"]["facts"] not in train_facts][:heldout]
-    ev = pt.eval_items(pkg, train_facts, lang_test, seed=seed + 100)
+    from clingo_object import philosophy_recipe as pr
+    recipe = None
+    if pr.supports(pkg):  # 0.70.1: the measured recipe — numbered reading, statement line, solver-checked traces (FINETUNING_PAPER)
+        phil_train, recipe = pr.rows(pkg, philosophy_rows, seed)
+        train_facts = {x["meta"]["facts"] for x in phil_train}
+        phil_test, _ = pr.rows(pkg, heldout, seed + 1, test=True, avoid=train_facts)
+        ev = pr.eval_items(pkg, train_facts, lang_test, seed=seed + 100)
+    else:
+        phil_train = pt.sft_rows(pkg, philosophy_rows, seed)
+        train_facts = {x["meta"]["facts"] for x in phil_train}
+        phil_test = [x for x in pt.sft_rows(pkg, heldout * 2, seed + 1, test=True) if x["meta"]["facts"] not in train_facts][:heldout]
+        ev = pt.eval_items(pkg, train_facts, lang_test, seed=seed + 100)
     # 0.67.0: no world of the evaluation in training — eval_items drops judge items seen in training, but the package's fixed worlds
     # can be drawn at random too (2 of 16 in a kollektiv kit; runs 5–7 had 73 and 12 such rows). Those training rows go, counted.
     eval_facts = {i["meta"]["facts"] for i in ev["items"] if (i.get("meta") or {}).get("facts")}
@@ -1158,7 +1172,8 @@ def philosophy_stage(d: Path, name: str, prompts: int = PHILOSOPHY_PROMPTS, seed
                         "train_sha256": _rows(split / "language.train.jsonl", lang_train), "test_sha256": _rows(split / "language.test.jsonl", lang_test)},
            "philosophy": {"train": len(phil_train), "test": len(phil_test), "dropped_as_evaluation_worlds": dropped_for_eval,
                           "tasks": dict(sorted(Counter(x["meta"]["task"] for x in phil_train).items())),
-                          "seed_shown": sum(x["meta"]["seed_shown"] for x in phil_train),
+                          "seed_shown": sum(bool(x["meta"].get("seed_shown")) for x in phil_train),
+                          "format": pr.FORMAT if recipe else "verdict-v1", "recipe": recipe,
                           "train_sha256": _rows(split / "philosophy.train.jsonl", phil_train),
                           "test_sha256": _rows(split / "philosophy.test.jsonl", phil_test)},
            "eval": {"items": dict(sorted(Counter(i["set"] for i in ev["items"]).items())), "dropped": ev["dropped"],
@@ -1170,6 +1185,83 @@ def philosophy_stage(d: Path, name: str, prompts: int = PHILOSOPHY_PROMPTS, seed
     _write(d / "phil_score.py", PHIL_SCORE_PY, 0o700)
     _write(d / "phil_roundtrip.py", PHIL_ROUNDTRIP_PY, 0o700)
     return out
+
+
+def _training_files(d: Path) -> Path:
+    """What every kit needs to train: train.py, the training runtime, pinned requirements and the bundled clingo-object (the seed's
+    language and solver code for the reward and the scorers). One definition for the knowledge kit and the philosophy kit."""
+    _write(d / "train.py", TRAIN_PY, 0o700)
+    _write(d / "training_runtime.py", Path(__file__).with_name("training_runtime.py").read_text(encoding="utf-8"))
+    _write(d / "requirements-train.txt", "transformers==5.23.0\ntrl==1.18.0\npeft==0.21.3\ndatasets==5.2.0\naccelerate==1.15.0\n")
+    import clingo_object
+    from clingo_object import notation
+    core = d / "clingo_object"
+    core.mkdir(mode=0o700, exist_ok=True)
+    for source in sorted(Path(clingo_object.__file__).resolve().parent.glob("*.py")):
+        _write(core / source.name, source.read_text(encoding="utf-8"))
+    _write(d / "SOURCE-NOTICE.txt", f"Bundled clingo-object {clingo_object.__version__}; source: https://github.com/imoes/vi-mcp\n"
+           "SPDX-License-Identifier: AGPL-3.0-or-later\nLicense: https://github.com/imoes/vi-mcp/blob/main/LICENSE\n")
+    with (d / "requirements-train.txt").open("a", encoding="utf-8") as f:
+        f.write(f"clingo>={notation.CLINGO_MIN}\n")
+    return core
+
+
+#: 0.70.1: philosophy kits built over MCP live on the server under <data directory>/kits; at most this many, then refused with the reason
+PHILOSOPHY_KITS_MAX = 10
+#: the most seed-stage rows one philosophy kit may ask for (a kit of 3,000 rows is about 40 MB)
+PHILOSOPHY_ROWS_MAX = 20000
+
+
+def kits_dir() -> Path:
+    fp = g.fpath_active
+    return (Path(fp).parent if fp and not str(fp).startswith("postgres") else Path("/var/lib/vi-mcp")) / "kits"
+
+
+def philosophy_kit(directory: str, name: str, base_model: str | None = None, seed: int = 11,
+                   philosophy_rows: int = PHILOSOPHY_ROWS, language_rows: int = LANGUAGE_ROWS, prompts: int = PHILOSOPHY_PROMPTS) -> dict:
+    """0.70.1: a kit for the seed path ONLY — language, philosophy and GRPO stages with their evaluation, built from the package and a
+    seed. Nothing of the memory is exported (no incubator, no dataset), so it may be built over MCP; the knowledge kit stays a person's
+    command (vi-mcp finetune kit). Runs nothing: a person runs train.py on a GPU host."""
+    base = base_model or _cfg().get("base_model")
+    if not base:
+        raise ValueError("no base model — give base_model (a Hugging Face id or directory of the model to fine-tune) or config finetune.base_model")
+    if not 1 <= int(philosophy_rows) <= PHILOSOPHY_ROWS_MAX:
+        raise ValueError(f"rows: 1 to {PHILOSOPHY_ROWS_MAX}")
+    d = Path(directory)
+    d.mkdir(parents=True, exist_ok=True)
+    os.chmod(d, 0o700)
+    core = _training_files(d)
+    (d / "split").mkdir(mode=0o700, exist_ok=True)
+    _write(d / "README-FINETUNE.md", GUIDE)
+    phil = philosophy_stage(d, name, prompts, seed=seed, language_rows=language_rows, philosophy_rows=philosophy_rows)
+    run = {"base_model": base, "kit": g.now(), "vi_mcp": __version__, "handbook": GUIDE_VERSION, "kind": "philosophy-only",
+           "memory_exported": False, "philosophy": phil,
+           "kit_code_sha256": {str(p.relative_to(d)): hashlib.sha256(p.read_bytes()).hexdigest()
+                               for p in [d / "train.py", d / "training_runtime.py", d / "phil_answers.py", d / "phil_score.py",
+                                         d / "phil_roundtrip.py", *sorted(core.glob("*.py"))]}}
+    _write(d / "run.json", json.dumps(run, indent=2, ensure_ascii=False))
+    return {"directory": str(d), **run}
+
+
+def philosophy_kit_on_server(name: str, base_model: str | None, seed: int = 11, rows: int = PHILOSOPHY_ROWS) -> tuple[dict, bool]:
+    """(report, built now) — the MCP path: the server chooses the directory (a caller never names a path on the server); the same
+    package hash, seed, rows and base model give the same kit back instead of building it again; at most PHILOSOPHY_KITS_MAX kits."""
+    from clingo_object import philosophy as ph
+    from . import philosophy as vph
+    pkg = vph.resolve(name)
+    base = base_model or _cfg().get("base_model")
+    if not base:
+        raise ValueError("no base model — give base_model (a Hugging Face id) or config finetune.base_model")
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", base).strip("-")[-60:]
+    target = kits_dir() / f"{pkg['name']}-{pkg['version']}-{ph.package_hash(pkg)[:12]}-s{int(seed)}-r{int(rows)}-{slug}"
+    if (target / "run.json").exists():
+        return {"directory": str(target), **json.loads((target / "run.json").read_text(encoding="utf-8"))}, False
+    existing = [p for p in kits_dir().glob("*") if (p / "run.json").exists()] if kits_dir().exists() else []
+    if len(existing) >= PHILOSOPHY_KITS_MAX:
+        raise ValueError(f"{len(existing)} kits on the server (at most {PHILOSOPHY_KITS_MAX}) — an administrator removes old ones in "
+                         f"{kits_dir()} before a new one is built")
+    kits_dir().mkdir(parents=True, exist_ok=True)
+    return philosophy_kit(str(target), name, base, seed, rows), True
 
 
 def kit(directory: str, index: str | None = None, base_model: str | None = None, force: bool = False,
@@ -1188,19 +1280,7 @@ def kit(directory: str, index: str | None = None, base_model: str | None = None,
     qp = evaluation.eval_dir() / "recall.json"
     questions = [{"frage": q["frage"], "stichworte": q["stichworte"]} for q in evaluation.load_questions(qp)] if qp.exists() else []
     _write(d / "eval_questions.json", json.dumps(questions, ensure_ascii=False, indent=1))
-    _write(d / "train.py", TRAIN_PY, 0o700)
-    _write(d / "training_runtime.py", Path(__file__).with_name("training_runtime.py").read_text(encoding="utf-8"))
-    _write(d / "requirements-train.txt", "transformers==5.23.0\ntrl==1.18.0\npeft==0.21.3\ndatasets==5.2.0\naccelerate==1.15.0\n")
-    import clingo_object
-    from clingo_object import notation
-    core = d / "clingo_object"
-    core.mkdir(mode=0o700, exist_ok=True)
-    for source in sorted(Path(clingo_object.__file__).resolve().parent.glob("*.py")):
-        _write(core / source.name, source.read_text(encoding="utf-8"))
-    _write(d / "SOURCE-NOTICE.txt", f"Bundled clingo-object {clingo_object.__version__}; source: https://github.com/imoes/vi-mcp\n"
-           "SPDX-License-Identifier: AGPL-3.0-or-later\nLicense: https://github.com/imoes/vi-mcp/blob/main/LICENSE\n")
-    with (d / "requirements-train.txt").open("a", encoding="utf-8") as f:
-        f.write(f"clingo>={notation.CLINGO_MIN}\n")
+    core = _training_files(d)
     _write(d / "evaluate.py", EVALUATE_PY, 0o700)
     _write(d / "evaluation_core.py", Path(__file__).with_name("training_eval.py").read_text(encoding="utf-8"))
     cases, seen = [], set()

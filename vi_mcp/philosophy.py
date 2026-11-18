@@ -252,11 +252,11 @@ def binding_lines(rows: list[dict]) -> list[str]:
 
 
 def tool(args: dict, instance: str) -> str:
-    """vi_philosophy: guide (default) · list · show · check · evaluate · install · use · bound · explain."""
+    """vi_philosophy: guide (default) · list · show · check · evaluate · install · use · bound · explain · kit."""
     action = args.get("action") or "guide"
     if action == "guide":
         return ph.GUIDE
-    if action in ("check", "evaluate", "install", "explain"):  # 0.69.7: these run the seed — clingo may live in the logic layer's own
+    if action in ("check", "evaluate", "install", "explain", "kit"):  # 0.69.7: these run the seed — clingo may live in the logic layer's own
         from . import logic                                    # directory, which only logic.available() puts on sys.path
         if not logic.available():
             raise ValueError(f"the logic layer is off on this server ({logic.unavailable_reason()}) — an administrator runs: "
@@ -307,6 +307,11 @@ def tool(args: dict, instance: str) -> str:
         return "\n".join(check_lines(ph.check(pkg)))
     if action == "evaluate":
         return json.dumps(ph.evaluate(pkg, str(args.get("facts") or "")), ensure_ascii=False, indent=1)
+    if action == "kit":  # 0.70.1: the training kit for the seed path — nothing of the memory in it, so it may be built over MCP
+        from . import finetune
+        r, built = finetune.philosophy_kit_on_server(ref, args.get("base_model"), int(args.get("seed") or 11),
+                                                      int(args.get("rows") or finetune.PHILOSOPHY_ROWS))
+        return "\n".join(kit_lines(r, built))
     if action == "install":
         o = install(ref, instance, None, args.get("visibility") or "internal")
         return f"installed {o.id} — philosophy {pkg['name']} {pkg['version']}, hash {o.data['philosophy']['hash'][:16]}…"
@@ -317,6 +322,22 @@ def tool(args: dict, instance: str) -> str:
         idx = args.get("index")
         return bind(pkg["name"], instance, None if idx else instance, idx, bool(args.get("off")))
     raise ValueError(f"unknown action {action}")
+
+
+def kit_lines(r: dict, built: bool = True) -> list[str]:
+    p = r.get("philosophy") or {}
+    ph_ = p.get("philosophy") or {}
+    rec = ph_.get("recipe") or {}
+    return [f"{'Built' if built else 'Already built (same package, seed, rows and base model)'}: {r['directory']}",
+            f"  philosophy {p.get('name')} {p.get('version')} (hash {str(p.get('hash'))[:16]}…), base model {r.get('base_model')}, "
+            f"memory exported: {'no' if r.get('memory_exported') is False else 'yes'}",
+            f"  language rows {(p.get('language') or {}).get('train')}, seed-stage rows {ph_.get('train')} ({ph_.get('format')}), "
+            f"held-out rows {ph_.get('test')}, GRPO prompts {p.get('prompts')}",
+            f"  evaluation items {sum(((p.get('eval') or {}).get('items') or {}).values())}: "
+            + ", ".join(f"{k} {v}" for k, v in ((p.get("eval") or {}).get("items") or {}).items()),
+            *([f"  worlds by statements {rec.get('statements')}, rare cases {rec.get('cases_in_judged_rows')}"] if rec else []),
+            "  Next (a person, on a GPU host — copy the directory there): python train.py --stage language --fp32, then --stage "
+            "philosophy, optionally --stage grpo; python phil_answers.py; python phil_score.py; vi-mcp finetune record DIR."]
 
 
 def main(argv: list[str]) -> int:
@@ -359,6 +380,12 @@ def main(argv: list[str]) -> int:
     sh.add_argument("--limit", type=int)
     sh.add_argument("--db", help="a database file (use a COPY: opening it may migrate its schema); default: the configured one")
     sh.add_argument("--json", help="write the full report to this file")
+    kt = u.add_parser("kit", help="write the training kit for the seed path only (no memory content) — language, philosophy and GRPO stages")
+    kt.add_argument("ref")
+    kt.add_argument("directory")
+    kt.add_argument("--base", help="the model to fine-tune (Hugging Face id or directory); default: config finetune.base_model")
+    kt.add_argument("--seed", type=int, default=11)
+    kt.add_argument("--rows", type=int, help="seed-stage rows (default: the kit's PHILOSOPHY_ROWS)")
     ins = u.add_parser("install", help="check and store in the VI as a rule set")
     ins.add_argument("ref")
     ins.add_argument("--visibility", choices=["shared", "internal"], default="internal")
@@ -406,6 +433,11 @@ def main(argv: list[str]) -> int:
         r = ph.check(ph.load(o.ref))
         print("\n".join(check_lines(r)))
         return 0 if r["ok"] else 1
+    if o.cmd == "kit":
+        from . import finetune
+        r = finetune.philosophy_kit(o.directory, o.ref, o.base, o.seed, o.rows or finetune.PHILOSOPHY_ROWS)
+        print("\n".join(kit_lines(r)))
+        return 0
     if o.cmd == "evaluate":
         from pathlib import Path
         print(json.dumps(ph.evaluate(ph.load(o.ref), Path(o.facts).read_text(encoding="utf-8")), ensure_ascii=False, indent=1))

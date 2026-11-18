@@ -242,8 +242,9 @@ every value), `messung` (only an applicable measurement admits a statement) and 
 4. **Which one fits when is learned** — afterwards the AI rates it: `vi_philosophy(action="rate", name=X, tags=[…], helped=true|false,
    reason=…)`. `vi_philosophy(action="suggest", situation=…)` ranks the philosophies for a situation from what is declared (a head
    start) and what was rated (the decision), with the counts.
-5. **Bind** one to an instance or an index (`use`); **train** a model on it (the training section above, `vi-mcp finetune kit …
-   --philosophy NAME`). A philosophy never changes visibility, review or tool rights.
+5. **Bind** one to an instance or an index (`use`); **train** a model on it: `vi_philosophy(action="kit", name=X, base_model=…)` (or
+   `vi-mcp philosophy kit X DIR --base …`) writes the kit for the seed path alone — nothing of the memory in it; the server picks the
+   directory and returns it, a person runs the training on a GPU host ([docs/FINETUNING.md](docs/FINETUNING.md) section 4b). A philosophy never changes visibility, review or tool rights.
 
 Step by step: [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) (also the initial skill `philosophy`).
 

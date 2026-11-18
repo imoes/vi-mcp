@@ -5,6 +5,22 @@ Linked from [README.md](README.md).
 
 ## 0.70.1 — unreleased
 
+### What is new: a philosophy's training kit over MCP (`vi_philosophy` action `kit`, `vi-mcp philosophy kit`)
+
+- The kit for the seed path alone — language, philosophy and GRPO stages, evaluation, scorer — built from the package and a seed.
+  Nothing of the memory goes into it (no dataset, no incubator; `run.json` says `memory_exported: false`), so an AI may build it over
+  MCP; the knowledge kit (`vi-mcp finetune kit`) stays a person's command. Over MCP the server picks the directory under its data
+  directory (`kits/<name>-<version>-<hash>-s<seed>-r<rows>-<base>`) — a caller never names a path on the server —, the same package,
+  seed, rows and base model give the same kit back instead of building it again, and at most 10 kits are kept (then refused with the
+  reason). The training itself stays a person's run on a GPU host.
+- For kollektiv 1.3 the kit writes the recipe (`trace-v1`, above) and an evaluation in the same format: judge_same, judge_paraphrase,
+  pressure_heldout, formalize_heldout, judge_long (4–6 statements), judge_xlong (7–10), package_worlds, plus explain, recite and
+  language items. The kit's `phil_score.py` reads numbered Facts blocks and scores the spoken verdict without the trace.
+- `phil_answers.py` generates up to 8,192 new tokens by default (was 768): twice the longest traced gold answer (about 3,450 tokens for
+  10 statements, estimated as characters / 3); 768 would have cut most traced answers.
+  Evidence: `tests/test_finetune.py::test_a_philosophy_kit_exports_nothing_of_the_memory_and_is_built_once_over_mcp` and the kit test
+  that scores gold answers with the kit's own `phil_score.py` (every set n/n).
+
 ### What is new: the training recipe with traces (`clingo_object.philosophy_recipe`)
 
 - Seed-stage rows in the format the fine-tuning runs measured, for kollektiv 1.3.0, built from a seed alone (no earlier kit is read;

@@ -140,7 +140,10 @@ The user decided the order on 15.11.2026: "first teach the AI clingo, then the s
 solver is the teacher. One kit holds the whole path; there is no hand-made data.
 
 ```sh
-vi-mcp finetune kit /srv/ft/kit --base Qwen/Qwen3-0.6B --force --philosophy kollektiv
+vi-mcp philosophy kit kollektiv /srv/ft/kit --base Qwen/Qwen3-0.6B   # the seed path only (0.70.1) — nothing of the memory in it
+#   or over MCP: vi_philosophy(action="kit", name="kollektiv", base_model="Qwen/Qwen3-0.6B") — the server picks the directory
+#   (<data dir>/kits/…), returns it, and gives the same kit back for the same package, seed, rows and base model (at most 10 kits)
+#   vi-mcp finetune kit DIR --base B --force --philosophy kollektiv  writes the same seed path next to the memory's knowledge stages
 python train.py --stage language --fp32 --lora-rank 64        # the clingo-object language, from the base
 python train.py --stage philosophy --fp32                     # the seed, continues out/language
 python train.py --stage grpo --fp32                           # the seed as reward, continues out/philosophy
@@ -156,7 +159,7 @@ missing fields are named.
 | file | content |
 |---|---|
 | `split/language.{train,test}.jsonl` | clingo-object in both directions (`clingo_prose`), on rule sets that use no predicate of the package (3,000 rows) |
-| `split/philosophy.{train,test}.jsonl` | the seed's judge, formalize and pressure examples (1,700 rows); half of the judge and pressure prompts show the seed's rules first; test rows use held-out phrasings and pressure, and no test world occurs in training |
+| `split/philosophy.{train,test}.jsonl` | kollektiv 1.3 (0.70.1, `clingo_object.philosophy_recipe`, format `trace-v1`): judge, formalize, pressure and "which sentences state …?" rows (1,700) — a numbered situation with filler sentences as "unknown", the fact types defined in the system prompt (20 % without), and the answer Facts → Statements → the solver-checked trace (Count, Origins, Totals, Holds, Value check, Duty check; `philosophy_trace`) → the verdict; worlds of 1–10 statements with the short ones at full volume, rare cases drawn up to 4 % of the judged rows. Other packages: the earlier judge, formalize and pressure rows, half of their prompts showing the seed's rules. Test rows use held-out phrasings and pressure; no test world occurs in training |
 | `split/grpo.train.jsonl` | GRPO prompts with the seed's verdict (below) |
 | `eval/philosophy.jsonl` | judge on training phrasings and on held-out phrasings, held-out pressure, held-out formalize, the package worlds, explain the seed (whole and per block), recite, the held-out language; judge items whose world occurs in training are dropped and counted |
 | `phil_answers.py`, `phil_score.py` | answers and the score: world_exact, every answer value, duties_exact, invented certainty, facts_exact for formalize, budget cuts |

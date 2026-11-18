@@ -407,21 +407,25 @@ def test_one_kit_holds_the_whole_seed_path_without_any_principle_prose(vi, monke
     prose = [p["text"] for p in pkg.get("principles") or []] + [p.get("title", "") for p in pkg.get("principles") or [] if p.get("title")]
     leaked = [t for t in prose + pt.seed_comments(pkg) if t and t in text]
     assert not leaked, leaked[:2]
-    assert {r["meta"]["task"] for r in rows["philosophy.train.jsonl"]} == {"judge", "formalize", "pressure"}
+    # 0.70.1: kollektiv 1.3 is built with the recipe — negative type queries ("find") beside judge, formalize and pressure
+    assert {r["meta"]["task"] for r in rows["philosophy.train.jsonl"]} == {"judge", "formalize", "pressure", "find"}
+    assert meta["philosophy"]["format"] == "trace-v1" and meta["philosophy"]["recipe"]["refused_by_trace_check"] == 0
     vocab = set(pkg["vocabulary"])
     lang = " ".join(m["content"] for r in rows["language.train.jsonl"] for m in r["messages"])
     assert not [p for p in vocab - {"forbidden", "obligatory", "may"} if f"{p}(" in lang]  # the language shares no predicate with the seed
     judged = [r for r in rows["philosophy.train.jsonl"] if r["meta"]["task"] in ("judge", "pressure")]
-    shown = [r for r in judged if r["messages"][1]["content"].startswith(pt.CODE_HEAD)]
-    assert 0.3 < len(shown) / len(judged) < 0.7 and pt.seed_code(pkg) in shown[0]["messages"][1]["content"]
+    # the recipe never shows the seed's code in a judge prompt (run 7: "seed code → verdict" was taught as a format, paper §5.4); the
+    # answer carries the facts, the statement line, the solver-checked trace and the verdict
+    assert not [r for r in judged if pt.CODE_HEAD in r["messages"][1]["content"]]
+    assert all(r["messages"][2]["content"].startswith("Facts:\n[1] ") and "\n\nDuty check:\n" in r["messages"][2]["content"] for r in judged)
     train_facts = {r["meta"]["facts"] for r in rows["philosophy.train.jsonl"]}
     assert not train_facts & {r["meta"]["facts"] for r in rows["philosophy.test.jsonl"]}
     items = [json.loads(x) for x in (d / "eval" / "philosophy.jsonl").read_text().splitlines()]
     sets = {i["set"] for i in items}
     assert sets >= {"judge_same", "judge_paraphrase", "pressure_heldout", "formalize_heldout", "package_worlds", "explain_seed",
-                    "explain_seed_part", "recite", "language_heldout"}
+                    "explain_seed_part", "recite", "language_heldout", "judge_long", "judge_xlong"}
     assert not train_facts & {i["meta"].get("facts") for i in items if i["set"].startswith("judge")}
-    assert meta["eval"]["sha256"] and meta["philosophy"]["seed_shown"] == len(shown)
+    assert meta["eval"]["sha256"] and meta["philosophy"]["seed_shown"] == 0
     # the scorer in the kit, on simulated answers: the seed's own words are exactly right, nonsense is never right
     answers = [{"id": i["id"], "set": i["set"], "base": "no idea", "base_finish": "stop", "tuned": i["gold_text"] or "", "tuned_finish": "stop"}
                for i in items]
@@ -624,3 +628,31 @@ def test_no_world_of_the_evaluation_is_in_the_seed_training(tmp_path):
     evals = [json.loads(x) for x in (tmp_path / "eval" / "philosophy.jsonl").read_text().splitlines()]
     assert not [i["id"] for i in evals if (i.get("meta") or {}).get("facts") in train]
     assert out["philosophy"]["dropped_as_evaluation_worlds"] >= 1  # this kit draws package worlds at random (measured: 2)
+
+
+def test_a_philosophy_kit_exports_nothing_of_the_memory_and_is_built_once_over_mcp(vi, monkeypatch):
+    """0.70.1: vi_philosophy action kit — the seed path alone (no dataset, no incubator), in a directory the server chooses; the same
+    package, seed, rows and base model give the same kit back; a cap on kits; a caller can never name a path on the server."""
+    from vi_mcp import philosophy as vph, tools
+    monkeypatch.setattr(finetune, "kits_dir", lambda: vi / "kits")
+    monkeypatch.setattr(finetune, "LANGUAGE_ROWS", 40)
+    monkeypatch.setattr(finetune, "PHILOSOPHY_PROMPTS", 10)
+    calls = []
+    real = finetune.philosophy_kit
+    monkeypatch.setattr(finetune, "philosophy_kit", lambda *a, **k: calls.append(a) or real(*a, language_rows=40, prompts=10, **k))
+    out = tools.call_tool("vi_philosophy", {"action": "kit", "name": "kollektiv", "base_model": "Qwen/Qwen3-0.6B", "rows": 60,
+                                            "directory": "/etc/should-never-be-used"}, "a", True)
+    assert out.startswith("Built: ") and "memory exported: no" in out and "trace-v1" in out
+    d = Path(out.split("Built: ", 1)[1].splitlines()[0])
+    assert d.parent == vi / "kits" and "/etc" not in str(d)
+    run = json.loads((d / "run.json").read_text())
+    assert run["kind"] == "philosophy-only" and run["memory_exported"] is False and not (d / "dataset").exists()
+    assert {p.name for p in (d / "split").iterdir()} >= {"philosophy.train.jsonl", "language.train.jsonl", "grpo.train.jsonl"}
+    again = tools.call_tool("vi_philosophy", {"action": "kit", "name": "kollektiv", "base_model": "Qwen/Qwen3-0.6B", "rows": 60}, "a", True)
+    assert again.startswith("Already built") and len(calls) == 1
+    monkeypatch.setattr(finetune, "PHILOSOPHY_KITS_MAX", 1)
+    with pytest.raises(Exception, match="at most 1"):
+        tools.call_tool("vi_philosophy", {"action": "kit", "name": "kollektiv", "base_model": "Qwen/Qwen3-0.6B", "rows": 61}, "a", True)
+    with pytest.raises(ValueError, match="rows: 1 to"):
+        finetune.philosophy_kit(str(vi / "k9"), "kollektiv", "Qwen/Qwen3-0.6B", philosophy_rows=finetune.PHILOSOPHY_ROWS_MAX + 1)
+    assert vph.kit_lines(run | {"directory": str(d)})[0].startswith("Built")
