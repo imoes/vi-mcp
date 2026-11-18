@@ -335,7 +335,8 @@ three items — a forced token shifts the greedy path after it (cf. the distorti
 answers had treated their invented `confirmed` like `verified` downstream, so their verdicts were right with a wrong atom. 30bg in turn
 skips the adopt line far less often (12/133) but skips the *source* line in unclosed one-statement worlds (17/23 unclosed worlds against
 23/23 for run 27). Fine-tuning runs of the same recipe agree in distribution and differ widely out of it — 100 BERT fine-tunings within
-83.6–84.8 % in distribution ranged from 0 to 66 % on a shifted set [52]. So the format question 30a vs 30b (count or not) is not decided
+83.6–84.8 % in distribution ranged from 0.0 to 66.2 % on one subcase of the shifted set HANS (subject/object swap) [52]
+(corrected 18.11.2026: an earlier wording made the range hold for the whole shifted set). So the format question 30a vs 30b (count or not) is not decided
 by this pair; run 30cg (seed 43) measures the noise, and averaging the weights of runs from one initialization (model soups [56]) is
 measured as a remedy (the exact average of two LoRA deltas, checked module by module to a relative 8·10⁻⁷). The soup of 30ag and
 30bg read facts like the better arm (64/64 on the items either arm failed; 30bg 43) but judged worse than both (20 of 61 such worlds
@@ -360,6 +361,27 @@ rows with 2–3 duty rules over one body against run 31 without them.
 - **The wrong kit counted.** The comparison "kit 30 has 3.4× fewer short-world rows" was taken from an older build of kit 27 with 1–3
   statements only; run 27 trained the consolidated kit (1–6 statements), and the factor is 1.7. Corrected here and in the memory.
 - **A slide claimed 6× from the attention fix** (§5.18): corrected to about 1.2× on the same card.
+
+### 5.23 Weighting the loss on the lines a model skips — what the literature says, and why it is not run yet
+
+The lines run 27–31 skip are few tokens in long traces; uniform cross-entropy gives them the weight of every connective. Three recent
+papers reweight tokens in SFT (full texts read 18.11.2026, numbers from their tables):
+- **RFT** [57] separates "reasoning" from "boilerplate" tokens with a model trained on shuffled input–output pairs (SHAD: a token is
+  boilerplate if that model predicts it at least as well as the original) and weights the two groups' losses by a softmax with
+  temperature τ, so the group with the higher loss gets more weight. On agent tasks (LLaMA3-8B) it raised the average of four benchmarks
+  from 52.5 (SFT) to 59.3, the held-out Nexus from 14.0 to 27.8. A **fixed** weight on the same tokens reached 57.9; a **constant
+  weight on regex-matched format tokens fell below SFT** (44.5), and RFT with regex instead of SHAD labels too (49.6).
+- **CFT** [58] trains only on tokens whose replacement changes the final answer (counterfactual, fewer than 12 % of tokens):
+  Qwen2.5-3B 49.3 → 55.1 average over 11 math sets; LLaMA3.1-8B only +0.5, below SFT on five sets. Stricter criteria did better.
+- **TrimSFT** [59] reports the negative result: emphasizing hard (low-confidence) tokens, focal-style, was below SFT on all six models
+  (e.g. Qwen2.5-Math-1.5B 3.27 vs 15.47); a Gaussian weight on the logit gap helped.
+No paper tests a model below 1.5 B parameters, solver-written traces or skipped lines. Our traces offer what CFT computes at great cost
+for free: the solver knows which lines depend on which fact, so the counterfactual "critical" tokens are known without a model —
+**hypothesis**, untested. Because rule-based weighting fell below SFT in [57] and hard-token emphasis in [59], token weighting is first
+tested on a tiny GPT trained from scratch on the same trace language (LLM_FROM_SCRATCH_PAPER, arms: a weight on the conditional line, a
+weight on its first token only — the decision whether the line starts — and the RFT group softmax, each against oversampling, ≥ 3 seeds),
+not on a Qwen run. First pilots there (1 seed) memorized the 3,000 training worlds (training loss ≈ 0.001) and are not evidence; the
+seeded grid on 60,000 worlds is running.
 
 ## 6 Open points
 
@@ -474,3 +496,9 @@ them are the abstracts' own. Reference 54's title and authors are not verified h
 54. Distillation study of chain-of-thought format and step granularity for small students (2025). https://arxiv.org/abs/2502.18001
 55. Park, Wang, Berg-Kirkpatrick, Polikarpova, D'Antoni. Grammar-Aligned Decoding (NeurIPS 2024). https://arxiv.org/abs/2405.21047
 56. Wortsman et al. Model Soups: Averaging Weights of Multiple Fine-Tuned Models Improves Accuracy without Increasing Inference Time (ICML 2022). https://arxiv.org/abs/2203.05482
+57. Ye, Zhang, Zhang, Ma, Lin, Feng. Disentangling Reasoning Tokens and Boilerplate Tokens For Language Model Fine-tuning (2024). https://arxiv.org/abs/2412.14780
+58. Ruan et al. Enhancing Large Language Model Reasoning via Selective Critical Token Fine-Tuning (2025). https://arxiv.org/abs/2510.10974
+59. Jia et al. Which Tokens Should SFT Actually Learn? A Token-Trimming Perspective on Mathematical Reasoning (Findings of EMNLP 2026). https://arxiv.org/abs/2609.09707
+
+*References 57–59 were read in their HTML full text on 18.11.2026 up to about half of each; numbers from appendices were not read
+verbatim and are not quoted.*
