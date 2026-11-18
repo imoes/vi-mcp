@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.70.0 — unreleased
+## 0.70.0 — 2026-11-18
 
 ### What was fixed: host triggers in a lab addressed by IP — `ssh root@<IP>` gave host:root, `wc -l CLAUDE.md` gave host:claude.md
 
