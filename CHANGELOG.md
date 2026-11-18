@@ -55,7 +55,7 @@ Linked from [README.md](README.md).
 
 - [docs/FINETUNING_PAPER.md](docs/FINETUNING_PAPER.md) §5.18–5.22: length must be trained (7–8 statements 0/40 → 35 and 39/40);
   thinning the short worlds made the model skip trace lines (judge_more 158 → 144/149 of 160; the skipped line, forced back without
-  training, repairs 25 of 26 worlds); two runs with the same data slip in different places (an invented predicate, a skipped source
+  training, repairs 41 of 43 worlds); two runs with the same data slip in different places (an invented predicate, a skipped source
   line), so one pair of runs decides no format question; two duties from one condition are what still breaks the seed's prose; the
   measurement errors found on the way. Open point 9 names the largest gap: the recipe that meets the targets is not yet written by
   `vi-mcp finetune kit --philosophy`.

@@ -31,7 +31,7 @@ The update of 18.11.2026 adds three results. (6) **Length must be trained**: wor
 every fact was read — its per-statement lists stopped at the longest trained world (6); training worlds of 1–10 statements made them
 35/40 and 39/40 in two arms (run 30). (7) **What is left is skipped steps, not misreadings**: with the facts right, the remaining wrong
 worlds lack a line of the written trace that exists only because of a fact (a source, a foreign statement); forcing exactly that line
-repairs 25 of 26 such worlds without training (free: 12 of 26; 26 of 43 answered so far), and the model continues the trace correctly. The skips concentrate where the training
+repairs 41 of 43 such worlds without training (free: 21 of 43), and the model continues the trace correctly. The skips concentrate where the training
 mix thinned out (short worlds: 34 % of the relevant statements in one arm, 6 % in long worlds, run 27: 7 %). (8) **Two runs with the same
 data slip in different places** (one invents a predicate for a held-out phrasing, the other skips a different trace line), as
 fine-tuning runs are known to differ out of distribution [52] — a format question cannot be decided from one pair of runs.
@@ -317,8 +317,8 @@ last line of the statement's block. Skips per statement whose own fact list need
 45/132 (34 %) in short worlds, 3/50 and 4/71 (6 %) in longer ones. The share of blocks with the line is 20 % in both kits, so not its
 frequency but the short worlds' volume changed. A no-training check confirms that the rest of the chain is intact: when the model leaves
 a statement's block although its own facts name the statement foreign or unreviewed, the harness writes "sX: foreign" and lets the
-model continue freely — of the first 26 of 43 such items of 30ag, 25 became exact (free: 12 of 26), and the forced line reached the
-final Duties line each time.
+model continue freely — 41 of the 43 such items of 30ag became exact (free: 21 of 43), and the forced line reached the final Duties
+line each time.
 Two levers follow and are in run 31: the short worlds come back at their old volume with the long ones added on top (replay, §5.3), and
 the two conditional lines are written for every statement ("foreign no, unreviewed no → not met, no adopt rule"), so that the trace never
 has to decide whether a line exists — absence becomes a named case. The second is a hypothesis: studies of trace design find that the
@@ -337,7 +337,11 @@ skips the adopt line far less often (12/133) but skips the *source* line in uncl
 23/23 for run 27). Fine-tuning runs of the same recipe agree in distribution and differ widely out of it — 100 BERT fine-tunings within
 83.6–84.8 % in distribution ranged from 0 to 66 % on a shifted set [52]. So the format question 30a vs 30b (count or not) is not decided
 by this pair; run 30cg (seed 43) measures the noise, and averaging the weights of runs from one initialization (model soups [56]) is
-measured as a remedy (the exact average of two LoRA deltas, checked module by module to a relative 8·10⁻⁷).
+measured as a remedy (the exact average of two LoRA deltas, checked module by module to a relative 8·10⁻⁷). The soup of 30ag and
+30bg read facts like the better arm (64/64 on the items either arm failed; 30bg 43) but judged worse than both (20 of 61 such worlds
+against 29 and 37) and broke 5 of 37 control worlds both arms solved — it lost precision in summing the count (totals dropping a
+counted origin). The two arms were trained on different answer formats; soups assume models from one basin [56], so the fair test is
+two seeds of one format (30ag and 30cg).
 
 ### 5.21 What still breaks the seed's prose: two duties from one condition
 P6 is the block no run explains reliably (run 27 0/46, 30ag 28/46). Its rules include `may(state_as_hypothesis(S))` and
