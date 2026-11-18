@@ -547,6 +547,36 @@ def load_many(oids: list[str]) -> dict[str, MemoryObject]:
 #: 0.61.0: index names known to exist in vi_index (saves an INSERT per save)
 _known_indexes: set[str] = set()
 
+#: 0.70.3 (genius project, exaptation): what a knowledge object was BUILT FOR — the context tags of its first save, the instance and
+#: the index, fixed there and never changed by a later save or data update. A later successful use outside it is a functional shift
+#: ("not built by natural selection for its current role", Gould & Vrba 1982; forward measure after Mastrogiorgio & Gilsing 2016).
+#: Without it the origin cannot be told from tags added later — the limit of the exaptation measurement G4 (18.11.2026).
+#: Knowledge kinds only: an experience is its own context.
+BUILT_FOR_KINDS = ("insight", "rule", "skill", "search", "page", "image")
+BUILT_FOR_TAG_KINDS = ("host", "tool", "topic", "skill", "service", "error", "docs", "knowledge_kind")
+
+
+def built_for_of(tags, instance: str, idx: str, ts: str) -> dict:
+    """The origin record of a knowledge object: its context tags (kinds BUILT_FOR_TAG_KINDS), instance, index and time."""
+    return {"tags": sorted({t for t in tags if t.split(":", 1)[0] in BUILT_FOR_TAG_KINDS}), "instance": instance, "index": idx, "ts": ts}
+
+
+def _keep_built_for(o: MemoryObject, tags) -> None:
+    """Set o.data['built_for'] on the first save, and on every later save restore the stored one — whatever the caller holds."""
+    row = db().execute("SELECT data FROM object WHERE id = ?", (o.id,)).fetchone()
+    stored = None
+    if row:
+        try:
+            stored = (json.loads(row[0] or "{}") or {}).get("built_for")
+        except ValueError:
+            stored = None
+    if stored:
+        o.data["built_for"] = stored
+    elif row:  # stored before 0.70.3: its tags today may include later ones — the origin is unknown, a named state, never guessed
+        o.data["built_for"] = {"unknown": "stored before 0.70.3", "instance": o.instance, "index": o.idx, "ts": o.ts}
+    else:
+        o.data["built_for"] = built_for_of(tags, o.instance, o.idx, o.ts)
+
 
 def save(o: MemoryObject, *, commit: bool = True) -> MemoryObject:
     # 0.67.0: one form of stored data — the English keys of names.DATA_KEYS, whatever the caller wrote (and the history keys likewise);
@@ -564,6 +594,8 @@ def save(o: MemoryObject, *, commit: bool = True) -> MemoryObject:
                          (o.idx, "global" if o.idx == "global" else "project", now()))
         _known_indexes.add(o.idx)
     with lock:
+        if o.kind in BUILT_FOR_KINDS:
+            _keep_built_for(o, tags)
         db().execute(f"INSERT OR REPLACE INTO object ({', '.join(COLUMNS)}) VALUES ({', '.join('?' * len(COLUMNS))})",
                      (o.id, o.kind, o.ts, o.last_at, o.text, _data_json(o), o.importance,
                       o.confirmed, o.refuted, o.accesses, o.mode, json.dumps(o.changes, ensure_ascii=False), o.conversation,
@@ -592,7 +624,10 @@ def update_data(oid: str, change) -> int:
         if row is None:
             return 0
         d = json.loads(row[0] or "{}")
+        origin = d.get("built_for")
         change(d)
+        if origin is not None:  # 0.70.3: the origin record is immutable
+            d["built_for"] = origin
         if row[1] in names.DOMAIN_KINDS:  # 0.67.0: one form of stored data, as in save()
             names.data_keys(d)
         return db().execute("UPDATE object SET data = ? WHERE id = ?", (json.dumps(d, ensure_ascii=False), oid)).rowcount

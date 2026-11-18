@@ -3,6 +3,27 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## Unreleased (0.70.3) — branch built-for
+
+### What is new: every knowledge object remembers what it was built for
+
+- On its first save an insight, rule, skill, search, page or image gets `data.built_for`: its context tags at that moment (host:,
+  tool:, topic:, skill:, service:, error:, docs:, knowledge_kind:), its instance, index and time. A later save or data update never
+  changes it — a caller that sends another `built_for` gets the stored one back. An object stored before this version gets the named
+  state `{"unknown": "stored before 0.70.3"}` on its next save, never today's tags as a guessed origin.
+- Why: a later successful use OUTSIDE that context is a functional shift (exaptation — "not built for its current role", Gould & Vrba
+  1982). The offline measurement of 18.11.2026 (production copy of 16.11) could not tell origin from use, because today's tags include
+  tags added later; it found no measurable effect of hints outside their context (matched lift −0.7 ± 0.8 points over 10,572 showings;
+  agents marked them helpful 20 times and misleading 75 times). Measuring that again, properly, needs the origin recorded at birth.
+- Evidence: `tests/test_built_for.py` (first save records the context tags; later tags and a caller's rewrite do not change it;
+  update_data keeps it; old objects get the unknown state; experiences carry none).
+
+### What is missing
+
+- Nothing reads `built_for` yet: the forward detection (a successful use in a context outside it, matched) and an edge `coopted`
+  are a later step, only after the offline measurement says they carry something.
+- No field for an envisioned purpose at learning time (`vi_learn` would need a parameter).
+
 ## 0.70.2 — 2026-11-18
 
 ### Correction: 0.70.1's account of the weight audit was wrong twice over
