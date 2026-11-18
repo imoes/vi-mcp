@@ -5,6 +5,20 @@ Linked from [README.md](README.md).
 
 ## 0.70.0 — unreleased
 
+### What was fixed: a hashtag given again under the same key stayed German and no filter found it
+
+- `vi_learn` with an existing `key` (`memory.repeat`) stored the new hashtags as given, while `new_object` stores them in the English
+  form (`names.canonical_tag`). A German kind (`thema:`, `fehler:`, `projekt:` …) added on a repetition therefore stayed German — and
+  no filter found it, because the search translates `thema:x` to `topic:x` as well. Only the migration at the next start fixed it.
+  Seen with a documentation import that updates one object per section by key: every re-import left 2 German hashtags per section
+  (180 after one run over 90 sections), invisible to `topic:`/`project:` filters until the service restarted.
+- Now `repeat` stores them through `names.canonical_tag`, like `new_object`.
+- Evidence: `tests/test_dedup.py::test_a_repetition_stores_its_hashtags_in_english_like_a_new_object` — fails on 0.69.7 (`fehler:dns`
+  stored instead of `error:dns`), passes now. Running live on a 0.69.7 install: re-importing 39 sections and 65 keyed objects left
+  0 German hashtag kinds (before: 2 per section) and `project:… topic:…` finds the updated object at once. **Migration:** none
+  (the start migration already rewrites tags left German before).
+  (PR #5, issue #4, contributed by einanderson.)
+
 ### What is new: the documentation import reads documents directly — PDF, Office, OpenDocument and more
 
 - The user (18.11.2026): "Jetzt wird es Zeit, dass wir alle gängigen Datenformate unterstützen: PDF, doc, docx, ods, odt, etc." Until

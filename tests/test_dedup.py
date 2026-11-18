@@ -98,3 +98,15 @@ def test_now_is_strictly_increasing_within_the_process():
     by the random id — on Python 3.14 this test file failed depending on the order of the run."""
     ts = [g.now() for _ in range(2000)]
     assert all(a < b for a, b in zip(ts, ts[1:])) and all(len(t) == len(ts[0]) for t in ts)
+
+
+def test_a_repetition_stores_its_hashtags_in_english_like_a_new_object(gd):
+    """17.11.2026: new_object stored thema:x as topic:x, repeat (vi_learn with an existing key) kept thema:x German — and then no
+    filter found the object (the search translates thema:x to topic:x as well) until the next start migrated the tag."""
+    first = _learn("cs", "Known error: web1 asks bad.example", key="host:web1 threat:bad.example", tags=("thema:first", "projekt:lab"))
+    oid = first.split()[1]
+    _learn("cs", "Known error: web1 asks bad.example again", key="host:web1 threat:bad.example", tags=("thema:second", "fehler:dns"))
+    tags = set(g.load(oid).hashtags)
+    assert {"topic:first", "project:lab", "topic:second", "error:dns"} <= tags
+    assert not {t for t in tags if t.split(":", 1)[0] in ("thema", "projekt", "fehler")}
+    assert oid in tools.call_tool("vi_recall", {"filter": "topic:second", "reinforce": False}, "cs", False)

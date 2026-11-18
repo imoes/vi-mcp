@@ -693,7 +693,9 @@ def repeat(o: MemoryObject, text: str, hashtags: list[str], data: dict, importan
     o.data.update(data)
     o.data["repeats"] = int(o.data.get("repeats") or 1) + 1
     o.text = text
-    o.hashtags = sorted(set(o.hashtags) | {t for t in hashtags if not t.startswith("instance:")})
+    # 17.11.2026: the hashtags of a repetition in their stored (English) form, as new_object stores them — before, a German kind
+    # (thema:, fehler:, projekt:) given again under the same key stayed German and no filter found it until the next start migrated it
+    o.hashtags = sorted(set(o.hashtags) | {names.canonical_tag(t) for t in hashtags if not t.startswith("instance:")})
     o.importance = max(o.importance, max(0, min(3, importance)))
     o.change(who, f"repeated ({o.data['repeats']}×), earlier text in the history", "vi_learn with the same key")
     save(o)
