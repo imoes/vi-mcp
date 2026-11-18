@@ -380,7 +380,12 @@ for free: the solver knows which lines depend on which fact, so the counterfactu
 **hypothesis**, untested. Because rule-based weighting fell below SFT in [57] and hard-token emphasis in [59], token weighting is first
 tested on a tiny GPT trained from scratch on the same trace language (LLM_FROM_SCRATCH_PAPER, arms: a weight on the conditional line, a
 weight on its first token only — the decision whether the line starts — and the RFT group softmax, each against oversampling, ≥ 3 seeds),
-not on a Qwen run. First pilots there (1 seed) memorized the 3,000 training worlds (training loss ≈ 0.001) and are not evidence; the
+not on a Qwen run. The alternative to weighting is drawing rare cases more often — the recipe's CASE_FLOOR. Upsampling and loss
+weighting are equivalent only for full-batch gradients; under SGD the weighted loss has the larger gradient variance, and upsampling
+converges faster but overfits the rare group at high temperature; upsampling first and switching to proportional sampling once at a
+fixed step ("Cooldown") kept the speed and reduced the overfitting [60] (machine translation and language modeling, a rare share of
+0.5 %; our floor is 4 %). A floor that is high in the first epoch and natural in the second is the cheap translation — **hypothesis**.
+First pilots there (1 seed) memorized the 3,000 training worlds (training loss ≈ 0.001) and are not evidence; the
 seeded grid on 60,000 worlds is running.
 
 ## 6 Open points
@@ -500,5 +505,7 @@ them are the abstracts' own. Reference 54's title and authors are not verified h
 58. Ruan et al. Enhancing Large Language Model Reasoning via Selective Critical Token Fine-Tuning (2025). https://arxiv.org/abs/2510.10974
 59. Jia et al. Which Tokens Should SFT Actually Learn? A Token-Trimming Perspective on Mathematical Reasoning (Findings of EMNLP 2026). https://arxiv.org/abs/2609.09707
 
-*References 57–59 were read in their HTML full text on 18.11.2026 up to about half of each; numbers from appendices were not read
+60. Li, Xu, Tan, Murray, Khashabi. Upsample or Upweight? Balanced Training on Heavily Imbalanced Datasets (NAACL 2025). https://arxiv.org/abs/2410.04579
+
+*References 57–60 were read in their HTML full text on 18.11.2026 up to about half of each; numbers from appendices were not read
 verbatim and are not quoted.*
