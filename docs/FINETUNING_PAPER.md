@@ -1,6 +1,6 @@
-# Teaching a 0.6B Model to Work by a Philosophical Seed: Nineteen Fine-Tuning Runs, Measured by a Solver
+# Teaching a 0.6B Model to Work by a Philosophical Seed: Thirty Fine-Tuning Runs, Measured by a Solver
 
-*Working paper, vi-mcp project, 16.11.2026. Companion to [PAPER.md](PAPER.md) section 6 and the guide [FINETUNING.md](FINETUNING.md).
+*Working paper, vi-mcp project, 16.11.2026, updated 18.11.2026 (runs 27 and 30, §5.18–5.22). Companion to [PAPER.md](PAPER.md) section 6 and the guide [FINETUNING.md](FINETUNING.md).
 Every number below was measured in this project unless it carries a reference; every reference was read for this work (the PDFs are kept
 with the experiment files). What is not measured is marked as hypothesis or estimate.*
 
@@ -26,6 +26,15 @@ phrasings from 11/40 to 40/40, verdicts from 24/40 to 37/40 (p = 0.0002), pressu
 the generator never produced (shuffled head variables, constants in heads, several heads on one body); adding them brought six of seven
 blocks to a perfect round trip (296/322 worlds, run 15: 259). (5) **GRPO sharpened, it did not teach**: +6/146 worlds (p = 0.15) with
 entropy near 0.02. The paper lists what is still open, and the measurement errors we made and corrected on the way.
+
+The update of 18.11.2026 adds three results. (6) **Length must be trained**: worlds with 7–8 statements were 0/40 for run 27 although
+every fact was read — its per-statement lists stopped at the longest trained world (6); training worlds of 1–10 statements made them
+35/40 and 39/40 in two arms (run 30). (7) **What is left is skipped steps, not misreadings**: with the facts right, the remaining wrong
+worlds lack a line of the written trace that exists only because of a fact (a source, a foreign statement); forcing exactly that line
+repairs 25 of 26 such worlds without training (free: 12 of 26; 26 of 43 answered so far), and the model continues the trace correctly. The skips concentrate where the training
+mix thinned out (short worlds: 34 % of the relevant statements in one arm, 6 % in long worlds, run 27: 7 %). (8) **Two runs with the same
+data slip in different places** (one invents a predicate for a held-out phrasing, the other skips a different trace line), as
+fine-tuning runs are known to differ out of distribution [52] — a format question cannot be decided from one pair of runs.
 
 ## 1 Goal and targets
 
@@ -106,7 +115,11 @@ worlds are noise.
 | 24 | 23 + 400 language rows for the constant-in-ternary-body form | language **29/30 = 97 %** (run 22: 28/30); judge_more **158/160** (+6/−2 vs 23); other verdict sets at the ceiling; minimal pairs 24/30 (Claude's test) and 28/35 (qwen's test) — opposite moves vs 23, within noise |
 | 20b | kit 20 on **Qwen3-1.7B** (AMD host) | verdict sets vs run 20 on the 270 answered items: +6/−1 worlds (judge 40/40, paraphrase 38/40, pressure 29/30, package 16/16; no set significant, min mid-p 0.375), invented certainty 0 (run 20: 1) — at the ceiling, generation stopped there; **minimal pairs 23/30 (unknown 3/9 = run 20) and 12/35 on qwen's test (unknown 2/25)**: run 23 (0.6B + contrast twins) beats it **+19/−2 (p = 0.0002)**, run 24 +20/−3 — reading negation, future and questions is a data gap, not a capacity gap [50, 51] |
 | 22 seed 43 | run 22, training seed 43 instead of 42 (same kit, same host) | the **noise level** between two seeds of one recipe: worlds pooled **+5/−5** (judge_more +3/−3, paraphrase +0/−2, pressure +2/−0, judge and package identical), formalize facts +0/−2, invented certainty 1 vs 1; minimal pairs 21/30 in both (unknown 2/9), qwen's test 9/35 (run 22: not run). So a set moving by 2–3 items between two runs is within seed noise (Dodge et al. [36]); run 24 vs 23 on the minimal pairs (+3/−6) is within it, run 23 vs 20b (+19/−2) and run 22 vs 20 (+18/−5) are not |
-| 27 (consolidated) | every finding that held in one kit: stage A of run 24 (language rows) + stage B of run 26 (value check, duty trace, contrast twins veridical-filtered and balanced per form) with training worlds of **1–6 statements** and a copied **statement-list line** before the count (index hint) — the lessons of the long-world test, where runs 20b, 23 and 24 reach at most 1/40 because their per-statement lists stop at the trained length of 3. The single-change arms 25 (twin cues), 26, 28 (list line only), 29 (lengths only) and the adapter merge were cancelled instead of run one by one. Tests: held-out set, both minimal-pair tests, judge_long (4–5, now in range) and judge_xlong (7–8, held out) | running at the time of writing |
+| 27 (consolidated) | every finding that held in one kit: stage A of run 24 (language rows) + stage B of run 26 (value check, duty trace, contrast twins veridical-filtered and balanced per form) with training worlds of **1–6 statements** and a copied **statement-list line** before the count (index hint) — the lessons of the long-world test, where runs 20b, 23 and 24 reach at most 1/40 because their per-statement lists stop at the trained length of 3. The single-change arms 25 (twin cues), 26, 28 (list line only), 29 (lengths only) and the adapter merge were cancelled instead of run one by one. Tests: held-out set, both minimal-pair tests, judge_long (4–5, now in range) and judge_xlong (7–8, held out) | every verdict target: judge 40/40, paraphrase 40/40, pressure 28/30, formalize 20/20, judge_more **158/160**, invented certainty 0, language 30/30; judge_long (4–5 statements) **37/40** (runs 20b/23/24: ≤ 1/40); **judge_xlong (7–8) 0/40** with complete answers — every fact right, but the statement list ends at "s6 (6)", the longest trained world (§5.18); seed prose 5/8 items (P5 32/46, P6 0/46) |
+| 30ag | run 27 + training worlds of **1–10 statements** (stage B), 600 language rows with programs of 5–12 rules, statement line copied **without** the count; stage B on the RTX 3070 with the fp32 attention fix (§5.18), seed 42 | judge_xlong **35/40** (vs 0/40), judge_long 39/40, 1–10-statement set 38/40; judge 37/40, paraphrase 34/40, pressure 27/30, formalize 20/20, invented certainty 1/535; language_long 20/20; minimal pairs **29/30** (unknown 9/9), qwen's test 33/35; seed prose blocks 604/644 (P5 44/46, **P6 28/46**), whole seed 0/46; but **judge_more 144/160** (run 27: 158, §5.19) |
+| 30bg | as 30ag with the count "(N)" in the statement line (as run 27) | judge_xlong **39/40**, judge_long 36/40, 1–10 set 37/40; judge 39/40, paraphrase 35/40, pressure 28/30, formalize **17/20** (§5.20), invented certainty 2/535; judge_more **149/160** (vs run 27 +2/−11, mid-p 0.013); minimal pairs 26/30, qwen's test 30/35 |
+| 30cg | as 30ag, training seed 43 | running at the time of writing — the seed-noise reference for 30ag vs 30bg |
+| 31, 31h9 | 30a's long worlds **on top of** every row of run 27 (no redistribution, §5.19) + every statement's ask and adopt line written ("→ not met", §5.19); 31h9 adds 600 language rows with 2–3 duty rules over one body (§5.21). 31 on the RTX 3060, 31h9 on the RTX 3070 (hardware replicate of run 23 on both cards: every set identical except judge_more +4/−2, mid-p 0.45) | running at the time of writing |
 
 ## 4 Status against the targets (runs 19 and 20)
 
@@ -121,6 +134,13 @@ worlds are noise.
 | every explain item perfect (8: whole seed + 7 blocks) | 4/8 | 6/8 (P6 one rule wrong; whole seed 17/46) | 7/8 (run 22: all blocks 46/46; whole seed in one answer 15/46, block by block 46/46) | yes, block-wise |
 | counterfactual programs followed | 3 of 5 | 5 of 5 (46/46 each) | 5 of 5 (46/46 each, run 22) | yes |
 | language (30 held-out rule sets) | 30/30 (runs 10, 13) | not re-measured | 28/30 = 93 % (run 22); **29/30 = 97 % (run 24**, the constant-in-body form trained) | yes (run 24) |
+
+**After runs 27 and 30 (18.11.2026).** Run 27 holds every verdict target (judge 40/40, paraphrase 40/40, pressure 28/30, formalize 20/20,
+judge_more 158/160, invented certainty 0, language 30/30) and adds worlds of 4–5 statements (37/40), but not 7–8 (0/40). Run 30 closes
+the length gap (35–39/40 on 7–8 statements, 37–38/40 on 1–10) and keeps every verdict target within seed noise except two sets that fell
+in the same direction in both arms: judge_more (144 and 149 against 158/160) and, in one arm, formalize (17/20). Seed prose improves at
+block level (604/644 against 524/644; P5 44/46 against 32/46) but no run explains the whole seed in one answer, and P6 stays the open block
+(28/46). The target "every explain item perfect" is not met; the others are.
 
 Run 19 meets every target but the perfect prose of every item and the re-measured language set. Run 20 keeps every verdict target and
 raises the judge sets (pooled +29/−16 worlds, p = 0.07 — a trend, one seed); it is the first run since 12 with invented certainty above 0
@@ -274,6 +294,69 @@ removes the closed-condition errors (invented certainty 3 → 1 of 433) and lift
 paraphrase 40/40). The errors left are duties in the largest worlds (18–19 sentences, answers of 2,200–2,900 characters), where small
 models are known to learn long traces worst [arXiv 2502.12143]; mixing full traces with shorter ones is the measured remedy there.
 
+### 5.18 Length must be trained, and an index line shows where it stops
+Runs 20b, 23 and 24 solved at most 1 of 40 worlds with 4–5 statements; run 27 trained worlds of 1–6 statements and a copied line
+"Statements: s1, …, sN" before the count (an index hint [46]) and solved 37/40 of them — and 0/40 with 7–8 statements, although with a
+budget of 3,072 tokens every answer was complete and every fact right: the statement line ended at "s1, …, s6 (6)", the longest trained
+world, and the values of s7 and s8 were never written. Length generalization is bounded by the lengths seen in training [5, 53]. Run 30
+trained worlds of 1–10 statements and 600 language rows with programs of 5–12 rules: 7–8 statements 35/40 and 39/40 in two arms, a
+1–10-statement set 38 and 37/40, the statement line reaching the last statement in 118 of 120 answers. Two technical points made it
+possible on an 8 GB card. The longest stage-B row has 5,565 tokens. In fp32, transformers asks PyTorch's attention for grouped-query
+attention (`enable_gqa`), which only the quadratic math kernel serves — +4.1 GB at 4,096 tokens; repeating the key/value heads before the
+call gives the same attention through the efficient kernel (outputs equal to 7·10⁻⁷, gradients to 1.6·10⁻⁶), and vi-mcp's training
+runtime does so since 0.69.9. (A first report of "6× faster" from this fix was wrong: on the same card it gives about 1.2×; the rest was
+the move to the faster card.)
+
+### 5.19 Thinning the short worlds made the model skip trace lines
+Run 30 spread a similar number of rows over 1–10 statements instead of 1–6, so worlds of 1–3 statements lost a factor 1.7 of their rows
+(827 against 1,409 statement blocks with a duty check). judge_more — mostly short worlds — fell from 158 to 144/160 (30ag) and 149/160
+(30bg; paired against run 27 +2/−11, mid-p 0.013). The mechanism is visible in the answers. Every remaining world error is a duty, never a
+value. The duty trace writes a line "sX: foreign …, unreviewed … →" only when one of the two facts holds (§5.14); the training data always
+contains it then (1,511 of 1,511 statements in kit 30a), and the model never misreads it (0 of 253) — it **skips** it, always as the
+last line of the statement's block. Skips per statement whose own fact list needs the line: run 27 8/123 (7 %) in short worlds; 30ag
+45/132 (34 %) in short worlds, 3/50 and 4/71 (6 %) in longer ones. The share of blocks with the line is 20 % in both kits, so not its
+frequency but the short worlds' volume changed. A no-training check confirms that the rest of the chain is intact: when the model leaves
+a statement's block although its own facts name the statement foreign or unreviewed, the harness writes "sX: foreign" and lets the
+model continue freely — of the first 26 of 43 such items of 30ag, 25 became exact (free: 12 of 26), and the forced line reached the
+final Duties line each time.
+Two levers follow and are in run 31: the short worlds come back at their old volume with the long ones added on top (replay, §5.3), and
+the two conditional lines are written for every statement ("foreign no, unreviewed no → not met, no adopt rule"), so that the trace never
+has to decide whether a line exists — absence becomes a named case. The second is a hypothesis: studies of trace design find that the
+granularity of steps matters for small students [54], but none tests explicit negative steps.
+
+### 5.20 Two runs, the same data, different slips
+30ag and 30bg differ only in "(N)" after the statement list. 30bg invented a predicate for the held-out phrasing "Someone confirmed that
+doc_b really contains what is said about s1" — `confirmed(doc_b, s1)` instead of `verified(doc_b, s1)`, 19 times; the training data has
+0 such phrasings and 0 `confirmed(` atoms in both kits. Scoring each allowed predicate at that slot with the model's own prefix shows that
+30bg holds the right mapping, only weakly: `verified` was the runner-up every time, 0.72 nats behind (median), where 30ag chose it with
+11–15 nats to spare. Restricting the slot to the vocabulary (grammar-constrained decoding [38]) repaired the fact lists (1 → 16 of 19)
+but cost one verdict (15 → 14 of 19): after the forced token the model wrote `author(s1, x)` instead of `line(…, x)` on the next line in
+three items — a forced token shifts the greedy path after it (cf. the distortion grammar-constrained decoding causes [55]). The free
+answers had treated their invented `confirmed` like `verified` downstream, so their verdicts were right with a wrong atom. 30bg in turn
+skips the adopt line far less often (12/133) but skips the *source* line in unclosed one-statement worlds (17/23 unclosed worlds against
+23/23 for run 27). Fine-tuning runs of the same recipe agree in distribution and differ widely out of it — 100 BERT fine-tunings within
+83.6–84.8 % in distribution ranged from 0 to 66 % on a shifted set [52]. So the format question 30a vs 30b (count or not) is not decided
+by this pair; run 30cg (seed 43) measures the noise, and averaging the weights of runs from one initialization (model soups [56]) is
+measured as a remedy (the exact average of two LoRA deltas, checked module by module to a relative 8·10⁻⁷).
+
+### 5.21 What still breaks the seed's prose: two duties from one condition
+P6 is the block no run explains reliably (run 27 0/46, 30ag 28/46). Its rules include `may(state_as_hypothesis(S))` and
+`forbidden(assert_unqualified(S))`, both `<= acceptance(S, tentative)` — two duties from one body; the second is dropped. A matched
+diagnostic (40 programs with a shared-head pair and a shared-body duty pair against controls of the same forms) confirms the shape: 30ag
+kept same-head pairs 40/40 and dropped the second same-body duty 4/40 (controls 40/40; run 27: 2/40). A first lead — the language stage
+merges the transitive-closure pair (two rules with the same head) into one sentence in 10 % of its explain rows — was refuted by the
+same diagnostic (same-head pairs are kept). Such duty pairs occur in 33 of 3,080 explain rows (1.1 %). Run 31h9 adds 600 translation
+rows with 2–3 duty rules over one body against run 31 without them.
+
+### 5.22 What the measurement got wrong (continued)
+- **A held-out set that was not held out at the rule level.** language_long was called "held out", but 98 of its 169 rules occur in
+  run 30's training; it measures unseen programs of partly seen rules, and is named so now.
+- **A set out of its range.** The "11–12 statement" set judge_x2 had worlds of 1–10 statements, because a patched generator function was
+  shared between two builders; the real 11–12 set (x2b) was built again and is answered after run 30cg.
+- **The wrong kit counted.** The comparison "kit 30 has 3.4× fewer short-world rows" was taken from an older build of kit 27 with 1–3
+  statements only; run 27 trained the consolidated kit (1–6 statements), and the factor is 1.7. Corrected here and in the memory.
+- **A slide claimed 6× from the attention fix** (§5.18): corrected to about 1.2× on the same card.
+
 ## 6 Open points
 
 1. **Reading unseen phrasings** — solved for this seed's test phrasings by run 19 (§5.11). Still open: the held-out phrasings come from
@@ -295,11 +378,19 @@ models are known to learn long traces worst [arXiv 2502.12143]; mixing full trac
    on the same host as its 0.6B control.
 8. **The newer seed**: `kollektiv` 1.3.0 (P8–P13: origins not votes, hearsay, camps, untestable, extraordinary claims, withdrawn) is not
    trained yet; all runs here use 1.2.0 so they stay comparable.
-9. **Into the product**: the kit builder's variants (facts first, count trace, duty trace, numbered reading with unknown class, anchored
-   recitation, hard language forms) are experiment scripts; `vi-mcp finetune kit --philosophy` does not write them yet.
+9. **Into the product** (the largest open point, 18.11.2026): the recipe that meets the targets — facts first with numbered sentences and
+   an unknown class, count trace, value check, duty trace, statement line, contrast twins, the language forms, worlds of 1–10 statements
+   with the short ones at full volume — lives in a chain of experiment builders (kit 31 is built from kits 30a, 27c, 26, 20 and two
+   trace modules); `vi-mcp finetune kit --philosophy` writes none of it yet. Until it does, nobody but this project can reproduce the
+   numbers above.
 10. **Duties** (§5.14): done by run 20's duty trace (§5.16); its value step needs a value line naming the closed condition (run 22); then GRPO v3 with a graded reward — F2 of the fact list (an omission costs more than an
    extra fact) plus the verdict reward plus an exact-set bonus — because an exact-set or verdict-only reward leaves most groups without
    gradient at pass@8 = 9/40 [24, 49].
+
+11. **Run 31 and 31h9** (§5.19, §5.21): skip rate of the conditional trace lines in short worlds ≤ run 27's 7 %, judge_more back to
+    ≥ 158/160, P6 in prose and the same-body diagnostic ≥ 39/40 — read against run 30cg's seed noise, not item by item.
+12. **The trace lines a fact creates** (§5.19–5.20): the source line cannot be made unconditional (one line per source fact); whether the
+    replay alone stops its skips is measured separately in run 31.
 
 ## 7 Threats to validity
 
@@ -309,6 +400,9 @@ classification tasks [34, 35] (BERT full fine-tuning up to 6–7 points [36]); n
 on generated output, so 1–5 points is an estimate. With one seed per arm, the paired effects of +25 points (run 15 vs 12) and +22.5
 points (runs 13 and 16 vs 12) stay significant up to a seed SD of about 3–5 points (estimate, normal approximation). Comparisons from now
 on use three seeds per arm and at least 160 items per set; at 3 seeds × 160 items only effects of about 11–16 points are detectable.
+Measured since: two seeds of run 22 differ by +5/−5 pooled worlds; the same kit and seed on two GPUs (run 23, RTX 3070 and RTX 3060)
+differ by +4/−2 in one set and not at all in the others — hardware adds little. But out of distribution two runs can differ in *what*
+they get wrong (§5.20, [52]); a single pair of runs is no evidence for a small format effect.
 
 One seed (`kollektiv` 1.2.0) and one model family; one training seed per configuration; the round trip of runs 8–15 was done by the author,
 who knows the seed (mitigated by counterfactual programs and literal translation rules, not removed); runs 12 and 16 ran on different
@@ -368,3 +462,11 @@ and are cited as direction, not as prediction.
 49. Liu et al. ProUIE (2026). https://arxiv.org/abs/2604.10633
 50. Truong, Baldwin, Verspoor, Cohn. Language models are not naysayers: an analysis of language models on negation benchmarks (*SEM 2023). https://arxiv.org/abs/2306.08189
 51. McKenzie et al. Inverse Scaling: When Bigger Isn't Better (TMLR 2023; NeQA task). https://arxiv.org/abs/2306.09479
+*References 52–56 (added 18.11.2026) were checked at abstract level through a web search, not read in full; the numbers quoted from
+them are the abstracts' own. Reference 54's title and authors are not verified here.*
+
+52. McCoy, Min, Linzen. BERTs of a Feather Do Not Generalize Together: Large Variability in Generalization across Models with Similar Test Set Performance (BlackboxNLP 2020). https://aclanthology.org/2020.blackboxnlp-1.21
+53. Zhou et al. Transformers Can Achieve Length Generalization But Not Robustly (2024). https://arxiv.org/abs/2402.09371
+54. Distillation study of chain-of-thought format and step granularity for small students (2025). https://arxiv.org/abs/2502.18001
+55. Park, Wang, Berg-Kirkpatrick, Polikarpova, D'Antoni. Grammar-Aligned Decoding (NeurIPS 2024). https://arxiv.org/abs/2405.21047
+56. Wortsman et al. Model Soups: Averaging Weights of Multiple Fine-Tuned Models Improves Accuracy without Increasing Inference Time (ICML 2022). https://arxiv.org/abs/2203.05482
