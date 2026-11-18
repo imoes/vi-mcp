@@ -5,6 +5,20 @@ Linked from [README.md](README.md).
 
 ## 0.70.1 — unreleased
 
+### What is new: reasoning traces for kollektiv 1.3.0 (`clingo_object.philosophy_trace`)
+
+- The step between the facts a model read and its verdict, written out the way the fine-tuning runs found it must be (paper §5.6–5.19):
+  Count (every evidence line, counted or excluded with the reason), Origins (an origin of its own, a copy with its roots, machine-made —
+  P8), Totals, Holds (hearsay only, camps and bridging, extraordinary claims — P9, P10, P12), Value check (value with the closed
+  condition, acceptance with its reason, untestable and withdrawn — P3, P5, P11, P13) and Duty check (every duty condition statement by
+  statement; the ask and adopt lines for every statement, "→ not met" when they do not hold — H7, run 31).
+- No second semantics: every block names the atoms it claims and is compared with the solver's; a difference raises `TraceError`, so no
+  training row comes from such a world. Checked on 635 worlds (random with 1–3 and 1–10 statements, and the package's 35 test worlds):
+  0 differences, every branch reached — some rarely (one camp only 3, hearsay only 7, rejected 15 of 635), which the kit must balance.
+  `derive` lifts the notation's 200-atom output cap for its own call (worlds of 10 statements derive more). The user decided
+  (18.11.2026) that the fine-tuning kit targets kollektiv 1.3.0 directly; the runs measured so far used 1.2.0, so 1.3.0 needs its own.
+  Evidence: `tests/test_philosophy_trace.py`.
+
 ### What is new: the fine-tuning paper covers runs 27 and 30
 
 - [docs/FINETUNING_PAPER.md](docs/FINETUNING_PAPER.md) §5.18–5.22: length must be trained (7–8 statements 0/40 → 35 and 39/40);
