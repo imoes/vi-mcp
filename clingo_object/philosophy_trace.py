@@ -72,8 +72,8 @@ def one(derived: set[str], name: str) -> set[str]:
 
 def statements(derived: set[str]) -> list[str]:
     """The statements of a world, in natural order (s2 before s10)."""
-    ss = {a[0] for p in STATEMENT_FACTS for a in atoms(derived, p)}
-    return sorted(ss, key=lambda s: (len(s), s))
+    from .philosophy_train import subject_order
+    return sorted({a[0] for p in STATEMENT_FACTS for a in atoms(derived, p)}, key=subject_order)
 
 
 def _gold(derived: set[str], *names: str) -> set[str]:

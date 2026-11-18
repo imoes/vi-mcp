@@ -99,6 +99,12 @@ def render(pkg: dict, facts: list[tuple], rnd: random.Random, test: bool = False
     return " ".join(out)
 
 
+def subject_order(s: str) -> tuple:
+    """0.70.1: statements in natural order (s2 before s10) — one order for the verdict, the statement line and every trace block (it
+    was lexical here and natural in the trace: every world with 10 statements disagreed)."""
+    return (len(s), s)
+
+
 def verdict(pkg: dict, facts: list[tuple]) -> dict:
     """The seed's verdict as structure: subject -> {answer: value}, duties as atoms, reasons per subject."""
     r = ph.solve(pkg, facts_text(facts))  # one solve: answers, duties and reasons all come from it
@@ -116,7 +122,7 @@ def verdict(pkg: dict, facts: list[tuple]) -> dict:
             reasons.setdefault(args[0], []).append(",".join(args[1:]))
     duties = [d for d in ev["duties"] if d.split("(", 1)[0] in pkg["speak"]["duty_predicates"]]
     prefix = pkg["generator"]["subjects"].get("prefix", "s")
-    subjects = sorted({a for f in facts for a in f[1:] if re.fullmatch(re.escape(prefix) + r"\d+", a)})
+    subjects = sorted({a for f in facts for a in f[1:] if re.fullmatch(re.escape(prefix) + r"\d+", a)}, key=subject_order)
     return {"subjects": subjects, "answers": per, "duties": sorted(duties), "reasons": {k: sorted(v) for k, v in reasons.items()},
             "state": ev["state"]}
 

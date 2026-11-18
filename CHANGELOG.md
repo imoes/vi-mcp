@@ -5,6 +5,22 @@ Linked from [README.md](README.md).
 
 ## 0.70.1 — unreleased
 
+### What is new: the training recipe with traces (`clingo_object.philosophy_recipe`)
+
+- Seed-stage rows in the format the fine-tuning runs measured, for kollektiv 1.3.0, built from a seed alone (no earlier kit is read;
+  the same seed gives the same rows — tested): a numbered situation with filler sentences as the trained class "unknown", the reading
+  instruction with every fact type and two example phrasings (20 % of rows without, guideline dropout), and the answer "Facts:" →
+  "Statements:" → the solver-checked trace → the spoken verdict; formalize and negative type queries ("which sentences state …?").
+  Worlds of 1–10 statements in kit 31's proportions (the short ones at full volume); rare cases are drawn until each reaches 4 % of the
+  judged rows (one camp only rose from 3 in 635 random worlds to 11 in 249 judged rows).
+- Scoring reads the spoken verdict, not the trace: `verdict_part` leaves the trace paragraphs out — a duty a trace line names is a
+  condition, not an answer (the whole-text reading would count it). `facts_of` reads numbered Facts blocks.
+
+### What was fixed: statements were ordered s1, s10, s2 in the verdict
+
+- `philosophy_train.verdict` sorted statements lexically, the traces naturally; in every world with 10 statements the two disagreed and
+  the check refused the world (25 of 25 such worlds in a test). One order now: `philosophy_train.subject_order` (s2 before s10).
+
 ### What is new: reasoning traces for kollektiv 1.3.0 (`clingo_object.philosophy_trace`)
 
 - The step between the facts a model read and its verdict, written out the way the fine-tuning runs found it must be (paper §5.6–5.19):
