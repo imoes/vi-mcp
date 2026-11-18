@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.69.9 — unreleased
+## 0.69.9 — 2026-11-18
 
 ### What is new: a signed pacman repository for Arch Linux and CachyOS (issue #3, point 3)
 
