@@ -494,3 +494,26 @@ def test_generated_prose_never_doubles_an_object():
         assert not re.search(r"\b([A-Z]) some \1\b", prose), prose
         seen_rel += bool(re.search(r"when X (?:" + "|".join(cp.BINARY.values()) + r") some Y and Y is ", prose))
     assert seen_rel > 10  # the fixed form is still generated
+
+
+def test_rule_runs_are_off_by_default_and_well_formed_when_on():
+    """0.69.9: runs of 2–4 near-identical rules (the seed's duty-block shape) — off by default so older kits rebuild identically."""
+    import random
+    import re
+    from clingo_object import clingo_prose as cp, notation as n
+    # default: the random stream is untouched (no extra draw), so the output equals a call without the parameter
+    a = [cp.program(random.Random(s), rules=(3, 6), extended=0.3) for s in range(50)]
+    b = [cp.program(random.Random(s), rules=(3, 6), extended=0.3, runs=0.0) for s in range(50)]
+    assert a == b
+    found = 0
+    for s in range(200):
+        code, prose = cp.program(random.Random(s), rules=(3, 6), extended=0.3, runs=1.0)
+        n.translate(code)
+        lines = code.splitlines()
+        sig = [(re.sub(r"\b(ok|late|lost|fresh|stale|hot|cold)\b", "C", l)) for l in lines]
+        best = max(sum(1 for _ in g) for _k, g in __import__("itertools").groupby(sig))
+        assert best >= 2, code
+        found += best >= 3
+        states = re.findall(r"of X is (ok|late|lost|fresh|stale|hot|cold)[,.]", prose)
+        assert len(states) >= 2  # every rule of the run has its own sentence with its constant
+    assert found > 50  # runs of 3 and 4 occur, not only pairs

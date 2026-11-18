@@ -31,6 +31,15 @@ Linked from [README.md](README.md).
   0.6324. Evidence: `tests/test_training_runtime.py::test_fp32_attention_uses_the_efficient_kernel_for_grouped_query_models`; the
   measurements in the VI (`insight:9e823287…`).
 
+### What is new: translation examples with runs of near-identical rules (for the next training kits)
+
+- `clingo_prose.program(..., runs=p)` / `examples(..., runs=p)` puts, with probability p, a run of 2–4 rules that differ only in a
+  constant at a random place — the shape of a philosophy seed's duty block. Measured 18.11.2026 on the run-27 adapter with 20 matched
+  pairs of 8-rule programs: inside such a run 12 of 60 rules were dropped or replaced by invented ones, in controls of the same form
+  0 (sign test mid-p 0.007), and random programs never contained one (0 of 3,080 explain prompts of kit 30). Off by default: with
+  runs=0 the generator draws exactly as before (identical output on 300 seeds), so older kits rebuild unchanged. Evidence:
+  `tests/test_philosophy.py::test_rule_runs_are_off_by_default_and_well_formed_when_on`.
+
 ### What was fixed: generated rule prose doubled an object ("X reports Y some Y")
 
 - One of the generator's rule forms (`clingo_prose`, "rel") wrote "X is trusted when X reports Y some Y and Y is running" — the

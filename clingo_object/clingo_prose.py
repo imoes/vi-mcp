@@ -161,10 +161,26 @@ def _rule(rnd: random.Random, unary: list[str], binary: list[str]) -> tuple[str,
     return f"level(X, {const}) <= {cb1}", f"The level of X is {const} when {pb1}."
 
 
+def rule_run(rnd: random.Random, unary: list[str], k: int) -> tuple[list[str], list[str]]:
+    """0.69.9: k rules that differ ONLY in a constant — the shape of a philosophy seed's duty block (forbidden(assert_unqualified(S)) <=
+    acceptance(S, tentative|rejected|unresolved)). Measured 18.11.2026 (run 27 adapter, 20 matched pairs): inside such a run 12 of 60
+    rules were dropped or replaced, in matched controls of the same form 0 (sign test mid-p 0.007); random programs never contain one
+    (0 of 3,080 explain prompts in kit 30). (codes, prose sentences), one per rule."""
+    h = rnd.choice(unary)
+    states = rnd.sample(STATES, k)
+    if rnd.random() < 0.5:
+        d, act = rnd.choice(list(DUTY_WORDS)), rnd.choice(list(ACTS))
+        return ([f"{d}({act}(X)) <= {h}(X, {st})" for st in states],
+                [f"If the {_w(h)} of X is {st}, {DUTY_WORDS[d]} {ACTS[act]} X." for st in states])
+    h2 = rnd.choice([u for u in unary if u != h])
+    return ([f"{h2}(X) <= {h}(X, {st})" for st in states], [f"X is {_w(h2)} when the {_w(h)} of X is {st}." for st in states])
+
+
 def program(rnd: random.Random, exclude: set[str] = frozenset(), rules: tuple[int, int] = (1, 4), extended: float = 0.0,
-            rename: float = 0.0) -> tuple[str, str]:
+            rename: float = 0.0, runs: float = 0.0) -> tuple[str, str]:
     """A random rule set as (code, prose); predicates in `exclude` are never used. Recursion is added sometimes. extended: the share of
-    rules in a seed's forms (_rule_ext); rename: the probability that the set uses other variable letters (0.67.0, run 8)."""
+    rules in a seed's forms (_rule_ext); rename: the probability that the set uses other variable letters (0.67.0, run 8); runs: the
+    probability that a run of 2–4 near-identical rules (rule_run) sits at a random place among them (0.69.9; 0 keeps older kits)."""
     unary = [p for p in UNARY if p not in exclude]
     binary = [p for p in BINARY if p not in exclude]
     out_c, out_p = [], []
@@ -173,6 +189,11 @@ def program(rnd: random.Random, exclude: set[str] = frozenset(), rules: tuple[in
         if c not in out_c:
             out_c.append(c)
             out_p.append(p)
+    if runs and rnd.random() < runs:
+        used = set(re.findall(r"([a-z_]+)\(", "\n".join(out_c)))
+        rc, rp = rule_run(rnd, [u for u in unary if u not in used] or unary, rnd.randint(2, 4))
+        at = rnd.randint(0, len(out_c))
+        out_c[at:at], out_p[at:at] = rc, rp
     if rnd.random() < 0.15:
         r = rnd.choice(binary)
         out_c += [f"reach(X, Y) <= {r}(X, Y)", f"reach(X, Z) <= reach(X, Y) & {r}(Y, Z)"]
@@ -185,12 +206,12 @@ def program(rnd: random.Random, exclude: set[str] = frozenset(), rules: tuple[in
 
 
 def examples(count: int, seed: int, exclude: set[str] = frozenset(), system: str = "", extended: float = 0.0,
-             rename: float = 0.0, rules: tuple[int, int] = (1, 4)) -> list[dict]:
+             rename: float = 0.0, rules: tuple[int, int] = (1, 4), runs: float = 0.0) -> list[dict]:
     """Translation examples in both directions (explain: code → prose, formalize: prose → code)."""
     rnd = random.Random(seed)
     out = []
     for i in range(count):
-        code, prose = program(rnd, exclude, rules=rules, extended=extended, rename=rename)
+        code, prose = program(rnd, exclude, rules=rules, extended=extended, rename=rename, runs=runs)
         if rnd.random() < 0.5:
             q, a, task = f"Translate these clingo-object rules into plain English:\n{code}", prose, "explain_rules"
         else:
