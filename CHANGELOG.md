@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## 0.70.2 — unreleased
+## 0.70.2 — 18.11.2026
 
 ### Correction: 0.70.1's account of the weight audit was wrong twice over
 
@@ -42,6 +42,11 @@ Linked from [README.md](README.md).
 - **The group contradiction (`content:<n>`) still pools unmatched lifts.**
 - **A confirmed contradiction is only reported.** Proposal, not built: after a matched, significant contradiction in two sleeps in
   a row, the router caps that hint's view at 0 (a fixed rule that only tightens) and asks the hint's author instance to review it.
+- **The labels the router learns from are still unmatched.** A hint shown while its host was failing is still a negative label.
+  Weight-space programming cannot repair that: rewriting weights fits the same confounded labels. The plan: give the feature writer
+  matched-lift labels first, keep the language-model weight layer a source of hypotheses, and let only the matched measurement decide.
+- **The phrasings for the eight new kollektiv 1.3 types are still the leniently filtered ones.** The strict re-filter runs at most two
+  requests at a time on a production model; its result replaces them in a later release.
 
 ### What was fixed: `vi_model` reported "direct feedback on hints 0"
 
