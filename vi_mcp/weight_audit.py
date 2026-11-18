@@ -12,9 +12,11 @@ Classes (exhaustive; "ok" when none applies):
                 directions; since 0.30.0 also a meaning-group weight (content:<c>) against the pooled measured usefulness of the group's
                 hints. 0.70.1: the model's view of a hint is NOT its own weight hint:<id> alone but what the router computes for it —
                 the logit difference with vs without the hint (learning.why: hint:<id> + content group + kind + age + rules +
-                hint_n), averaged over the showings the measurement counts. Seen live 18.11.2026: "weight +1.94, but measured −8
-                points" — the hint's own weight +1.41 offset its group (−0.98) and age:new (−1.20); the model's view was −0.49, in
-                line with the measurement. Comparing one summand with the whole is an invalid derivation.
+                hint_n), averaged over the showings the measurement counts. Comparing one summand with the whole is an invalid
+                derivation: a hint's own weight can agree with its measurement while the router as a whole ranks it the other way
+                (live 0.70.1, 18.11.2026: own weight −0.90, router view +0.92, measured −34 points over 54 showings — a contradiction
+                only the whole view shows). Correction of 0.70.1's note: its example ("view −0.49, in line with −8 points") was ONE
+                early showing while the hint was new; averaged over its 37 showings the view was +1.51 — a real contradiction.
   network       a hint from the network (origin:p2p) with a strong positive weight and no confirmation by another instance
   hour          an hour feature (hour:HH) is among the strongest weights — time of day as a cause is post hoc
 """

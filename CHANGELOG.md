@@ -3,6 +3,22 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.70.2 — unreleased
+
+### Correction: the reason given for 0.70.1's weight-audit change was wrong
+
+- 0.70.1 said the audit had reported contradictions the router did not have, with the example "router view −0.49, in line with −8
+  points measured". That view came from one early showing of the hint, while it was still new (`age:new` −1.20). Averaged over the
+  hint's 37 showings — what the audit computes since 0.70.1 — the router's view is +1.51 against −8 points: a real contradiction. Live
+  after the deploy the audit reports 9 contradictions (0.70.0: 8), among them one the old audit could not see: own weight −0.90, the
+  router's whole view +0.92, measured −34 points over 54 showings — the router ranks a hint up that its measurement says hurts. The
+  change itself stands (it compares what the router computes); the claim that most findings had been false alarms does not. The
+  measured lifts are recomputed with the instance's own rate (`vorteil-v2`) in the next sleep, so their numbers may still move.
+- The read-back filter for training phrasings was too lenient: forced to write one fact, the reader mapped "has not been tested yet"
+  to untestable and "checked by an AI" to machine-made — 6 of 17 deliberately wrong templates passed. With the answer "none" allowed,
+  0 of 17 pass. The 197 templates for the new kollektiv 1.3 types shipped in 0.70.1 were filtered the lenient way and are filtered
+  again; training kits are the only place they are used.
+
 ## 0.70.1 — 2026-11-18
 
 ### What is new: a pool of training phrasings for kollektiv 1.3 (`clingo_object.philosophy_phrasings`)
