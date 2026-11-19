@@ -152,6 +152,24 @@ mechanism (the G5b replication). 994 deduplicated (query, candidate answer) item
   mechanisms than the plain hybrid search. Hope et al.'s gain came with crowd-annotated slots and a purpose gate inside one product
   domain; G7 does not reproduce it with LLM slots across Unix sub-domains.
 
+### 5.8 G8 — an evolutionary search over rule blocks, stopped as invalid by construction
+G8 (pre-registered 19.11.2026, sha256 f57c28bc…) asked whether a library of formal mechanisms — the rule blocks of the philosophy
+packages kollektiv, messung and code — helps an evolutionary search (genetic programming with the solver as fitness) solve six
+problems of other domains, against random start rules (Z), the text-nearest block (T) and mapping only (S). An independent review by
+a second model (Claude Fable, read-only, file:line evidence) found it unable to show exaptation, and the runs were stopped at 119 of
+240; no result is reported:
+- the six tasks were library blocks with renamed predicates (e.g. the package-cycle task equals code:P2 down to its variable names,
+  the bipartisan task equals kollektiv P10's `bridged`) — written by the experimenter, who knew the library;
+- the random arm could not build helper predicates or recursion and drew malformed rules (56–91 % with a repeated variable), so
+  "library beats random" would have compared well-formed with crippled rules;
+- the library arm's solutions were draws of the start phase (lookup by enumeration, not evolution);
+- "solved" was unsound: a non-recursive program passed the cycle task because no test world had a cycle of length 4;
+- a mapping operator shared one variable for every missing argument; origin labels survived crossover;
+- the unit of analysis is the task (n = 6; best two-sided sign test p = 0.031, 0.094 after Holm), not 60 (task, seed) pairs.
+Lesson kept for G8b: tasks written blind to the library and graded by structural distance, a scrambled-library control of equal
+shape, equal expressiveness for every arm (invented and recursive helper predicates), lexicase selection with a size archive,
+canonical forms with a cache, and "solved" as equivalence on an exhaustively enumerated domain plus a stress check.
+
 ## 6 What the VI changes
 
 1. **built_for (implemented, branch built-for).** Every knowledge object records on its first save the context tags it was learned in,
