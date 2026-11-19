@@ -19,7 +19,7 @@ solves). The question behind it: can a VI find new laws in data (genius: a targe
 | G8 | does a library of mechanisms speed up an evolutionary rule search? | **invalid by construction** — an independent review found the tasks were renamed library blocks, the random arm crippled, hits were lookups, "solved" unsound; stopped at 119/240 runs | paper §5.8; `g8/` |
 | G8b-0 | can the search find known mechanisms from data alone, without a library? | **42 of 60 runs**, 5 of 6 mechanisms (an invented recursive closure among them; one law shorter than the reference); lineage_root never | paper §5.9; `g8b/result_G8b0.json`, `note_G8b0.md` |
 | Popper baseline | how does an established ILP system do on the same tasks? | Popper v5.0.1 native 20/60, with assists 40/60; dependency_cycle 0/10 (GP 10/10) — Popper's optimal size-10 program was not general | VI insight (Popper baseline, 19.11.2026) |
-| G8b-1 | exaptation, fairly: 33 tasks written blind to the library; library vs rewired vs relinked vs random | **library helps by reuse as it is** (lookup 25.7 % vs 10.4 %, Holm p = 0.0003); **not as a seed for modification** (H1 ratio 1.10, CI [0.93, 1.24] excludes 1.5); random rules not worse in total cost | paper §5.10; `g8b/prereg_G8b1*.md`, `result_G8b1*.json`, `robust1.json`, `runs1.tar.gz` |
+| G8b-1 | exaptation, fairly: 33 tasks written blind to the library; library vs rewired vs relinked vs random | **library helps by reuse as it is** (lookup 25.7 % vs 10.4 %, Holm p = 0.0003); **not as a seed for modification** (H1 ratio 1.10, CI [0.93, 1.24] excludes 1.5); random rules not worse in total cost. Provenance (after the data): searched solutions keep the origin's structure from the true block (48 %) barely more often than from its rewired copy (46 %) — the structure comes from the task, not the lineage | paper §5.10; `g8b/prereg_G8b1*.md`, `result_G8b1*.json`, `robust1.json`, `provenance1.json`, `runs1.tar.gz` |
 | G9 | do rules found over the VI's own experiences predict future failures? | **no** (instance claude-code, 3 seeds): every seed fails the test-period gate; a 2-leaf tree beats it (F1 0.066 vs ≤ 0.032). Cause: selection on one validation day picked a predictor that drifted (0 of 75 on the test period); 69 training failures only | `g9/` (code only — the data are private experiences and stay local) |
 | G9b | same data, selection fixed: MDL (size + FN + FP) on two validation days, "no rule" always a candidate, the same rule for every method | pre-registered (predictions: mostly abstain; no non-abstaining choice fails the test). Baselines: single rule and tree both **abstain** — no rule pays for its size on validation. GP seeds running | `g9/prereg_G9b.md`, `.sha256`, `g9b.py`, `g9b_baselines.json` |
 | A2 | external evidence: our search on Popper's own example tasks | running: 32 of 51 tasks usable (19 need lists or Prolog rules); Popper 3 reps, GP 5 seeds, 600 s; protocol hashed before the run | `a2/PROTOCOL_A2.md`, `.sha256` |
@@ -62,7 +62,6 @@ And: **a library without a learned proposer acts only as a lookup** (G8b-1). Thi
   pre-registrations name.
 
 ## Open
-- G8b-1: the provenance analysis promised in the protocol is not implemented yet.
 - A2: results pending.
 - G9 over all instances: running; G9b with MDL and window validation: next.
 - G8c (proposer) and B3 (rules → weights): to be pre-registered.

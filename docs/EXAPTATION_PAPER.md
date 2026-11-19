@@ -212,9 +212,19 @@ L vs XL p = 0.06. Robustness (amendment 1): 1,238 of 1,242 first solutions also 
 
 Reading: the library pays off as **co-option without change** — a mechanism from another purpose, mapped onto the new vocabulary,
 solves the task as it is (Gould & Vrba's exaptation in the narrow sense). Its rule structure does not make the evolutionary search for
-a *modified* mechanism measurably faster, and over all tasks random rules are not worse in total cost. Not yet done: the provenance
-analysis promised in the protocol (share of L solutions that keep a rule of their origin block, against rewired and random-block base
-rates) is missing from the scoring script; when added it will be marked as implemented after the data were seen.
+a *modified* mechanism measurably faster, and over all tasks random rules are not worse in total cost.
+
+Provenance (the protocol's descriptive analysis; implemented after the data were seen, `provenance1.py`): share of first solutions
+with a non-trivial rule matching a rule of the origin block under the renaming-invariant key —
+| | found in the start phase | found by search |
+|---|---|---|
+| L vs its origin block | 87 % (n = 79) | 48 % (n = 219) |
+| XR vs its UNSCRAMBLED origin block | 78 % (n = 41) | 46 % (n = 244) |
+| XL vs its unscrambled origin block | 86 % (n = 65) | 46 % (n = 236) |
+| L vs the mean of all other blocks | 20 % | 33 % |
+Solutions found by search keep the origin's structure barely more often from the true block (48 %) than from its rewired copy (46 %):
+the search arrives at the same structures whichever start it had — they come from the task, not from the lineage. 40 first solutions
+had no recorded library origin (lineage lost, 13/17/10 in L/XR/XL) and 14 came from immigrants; both are left out and counted.
 
 ## 6 What the VI changes
 

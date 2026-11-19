@@ -1,0 +1,75 @@
+{
+ "note": "implemented after the data were seen; descriptive only (prereg S8)",
+ "shares": {
+  "L|mean_other|all": {
+   "n": 298,
+   "share": 0.2982
+  },
+  "L|mean_other|search": {
+   "n": 219,
+   "share": 0.3339
+  },
+  "L|mean_other|start": {
+   "n": 79,
+   "share": 0.1992
+  },
+  "L|origin|all": {
+   "n": 298,
+   "share": 0.5839
+  },
+  "L|origin|search": {
+   "n": 219,
+   "share": 0.4795
+  },
+  "L|origin|start": {
+   "n": 79,
+   "share": 0.8734
+  },
+  "L|random_other|all": {
+   "n": 298,
+   "share": 0.2785
+  },
+  "L|random_other|search": {
+   "n": 219,
+   "share": 0.3196
+  },
+  "L|random_other|start": {
+   "n": 79,
+   "share": 0.1646
+  },
+  "XL|origin|all": {
+   "n": 301,
+   "share": 0.5449
+  },
+  "XL|origin|search": {
+   "n": 236,
+   "share": 0.4576
+  },
+  "XL|origin|start": {
+   "n": 65,
+   "share": 0.8615
+  },
+  "XR|origin|all": {
+   "n": 285,
+   "share": 0.5053
+  },
+  "XR|origin|search": {
+   "n": 244,
+   "share": 0.459
+  },
+  "XR|origin|start": {
+   "n": 41,
+   "share": 0.7805
+  }
+ },
+ "skipped_no_library_origin": {
+  "XL:?": 10,
+  "Z:random": 304,
+  "XR:?": 17,
+  "L:?": 13,
+  "L:immigrant": 6,
+  "XR:immigrant": 3,
+  "XL:immigrant": 5
+ },
+ "library_blocks": 24
+}
