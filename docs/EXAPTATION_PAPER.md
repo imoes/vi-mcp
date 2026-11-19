@@ -190,8 +190,31 @@ Without any library (6 tasks, seeds 0–9, budget 20,000 evaluations): 42 of 60 
 | lineage root | 0/10 | — | recursion plus a negated projection: not found |
 Two lessons: exactness on a closed set of values admits a "talent" program that lists the known colours (it failed 44 of 200 worlds
 with an unseen party once those were added); the search can find a SHORTER law than the human reference. Whether a library of
-mechanisms from another purpose helps (exaptation) is G8b-1, pre-registered after two independent reviews and running at the time of
-writing (33 tasks written blind to the library; arms: library, library rewired inside rules, library relinked between rules, random).
+mechanisms from another purpose helps (exaptation) is G8b-1 (§5.10).
+
+### 5.10 G8b-1 — a library of mechanisms helps by reuse as it is, not as a seed for modification
+Pre-registered after two independent reviews (hashes of protocol, search, arms and scoring frozen before the first run and verified
+before scoring). 33 everyday tasks written by an agent that never saw the library; four arms with the same search and the same budget
+(15,000 evaluations after the start phase): **L** library, **XR** library rewired (variable occurrences permuted inside each rule —
+same predicates, signs and lengths), **XL** library relinked (rules intact, references between rules redirected), **Z** random rules.
+Seeds 0–9, 1,320 runs, no setup failure. Ten tasks are trivial (random rules solve them in the start phase in ≥ 8 of 10 seeds); the
+tests run on the other 23. Unit = task; statistic = sum over tasks of mean rank differences, 10,000 sign flips, Holm over three tests.
+
+| hypothesis | measure | result | Holm p |
+|---|---|---|---|
+| H1 search path: the wiring of L makes the search AFTER the start phase cheaper than XR | evaluations to first verified solution, pairs without a start-phase hit | median cost ratio XR/L 1.10, 95 % CI [0.93, 1.24] — excludes the smallest effect of interest 1.5: **not supported** | 0.28 |
+| H2 lookup: L solves in the start phase more often | share of runs | L 25.7 % vs XR 10.4 % (XL 19.6 %, Z 0 %) | 0.0003 |
+| H3 total cost | evaluations from the first start candidate | ratio 1.12 [1.05, 1.53] in L's favour | 0.0003 |
+
+Solved within budget: L 94.3 %, XR 89.1 %, XL 93.9 %, Z 88.7 %. Secondary, without a claim: L vs random rules on total cost p = 0.49,
+L vs XL p = 0.06. Robustness (amendment 1): 1,238 of 1,242 first solutions also hold on 1,000 new larger worlds per task; counting the
+4 others as unsolved changes no conclusion (H1 p = 0.22, ratio 1.09 [0.95, 1.24]).
+
+Reading: the library pays off as **co-option without change** — a mechanism from another purpose, mapped onto the new vocabulary,
+solves the task as it is (Gould & Vrba's exaptation in the narrow sense). Its rule structure does not make the evolutionary search for
+a *modified* mechanism measurably faster, and over all tasks random rules are not worse in total cost. Not yet done: the provenance
+analysis promised in the protocol (share of L solutions that keep a rule of their origin block, against rewired and random-block base
+rates) is missing from the scoring script; when added it will be marked as implemented after the data were seen.
 
 ## 6 What the VI changes
 
