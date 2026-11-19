@@ -423,6 +423,9 @@ def _cli(argv: list[str]) -> int:
     if command == "classify":  # 0.62.0
         from . import classify
         return classify.main(argv[1:])
+    if command == "vectors":  # 0.70.4: texts of an external index out, its vectors (computed elsewhere) in — checked
+        from . import vector_import
+        return vector_import.main(argv[1:])
     if command == "stdio":
         from . import stdio_bridge
         return stdio_bridge.main(argv[1:])

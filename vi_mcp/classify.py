@@ -270,7 +270,7 @@ def _pending_rest(n: int, ph: str) -> list[str]:
         rows = g.db().execute(
             "SELECT id, json_extract(data, '$.class.version.prompt') FROM object WHERE kind IN ('insight', 'rule', 'skill') "
             "AND mode NOT IN ('quarantine', 'refuted', 'withdrawn', 'merged', 'archived') AND visibility <> 'private' "
-            "AND idx NOT IN (SELECT name FROM vi_index WHERE explicit = 1) ORDER BY ts DESC LIMIT ?",  # 0.70.3: no LLM labels in sleep
+            "AND idx NOT IN (SELECT name FROM vi_index WHERE explicit <> 0) ORDER BY ts DESC LIMIT ?",  # 0.70.3: no LLM labels in sleep
             (int(n),)).fetchall()
     return [oid for oid, p in rows if p != ph]
 
@@ -699,7 +699,7 @@ def pairs_pending(limit: int = 20, stale: bool = False, sample: int = 0) -> list
     live = ("SELECT id FROM object WHERE kind IN ('insight', 'rule', 'skill') AND mode NOT IN ('quarantine', 'refuted', 'withdrawn', "
             "'merged', 'archived') AND visibility <> 'private' AND NOT EXISTS (SELECT 1 FROM tag t WHERE t.object_id = object.id "
             "AND t.tag = 'knowledge_kind:code') "
-            "AND idx NOT IN (SELECT name FROM vi_index WHERE explicit = 1) ")  # 0.70.3: an explicit-only corpus gets no LLM pairs in sleep
+            "AND idx NOT IN (SELECT name FROM vi_index WHERE explicit <> 0) ")  # 0.70.3: an explicit-only corpus gets no LLM pairs in sleep
     from datetime import datetime, timedelta, timezone
     cutoff = (datetime.now(timezone.utc) - timedelta(seconds=PAIRS_RETRY_AFTER_S)).isoformat(timespec="milliseconds")
     _pairs_queue_table()

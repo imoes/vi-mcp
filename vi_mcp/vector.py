@@ -161,7 +161,7 @@ def catch_up(max_s: float | None = None) -> dict:
             f"AND o.id NOT IN (SELECT object_id FROM tag WHERE tag IN ({','.join('?' * len(FACT_TAGS))})) "
             # 0.70.3: an index searched only when named (a large external corpus) is not embedded in sleep — it would keep the shared
             # embedding service busy for weeks; it is found by full text when named
-            "AND o.idx NOT IN (SELECT name FROM vi_index WHERE explicit = 1) ORDER BY o.ts DESC",
+            "AND o.idx NOT IN (SELECT name FROM vi_index WHERE explicit <> 0) ORDER BY o.ts DESC",
             (*VECTOR_KINDS, *FACT_TAGS)).fetchall()
     n, error, end, paused = 0, None, time.monotonic() + (CATCHUP_MAX_S if max_s is None else max_s), 0.0
     model = (config or {}).get("model") or "embed"
@@ -192,7 +192,15 @@ def proximity_edges() -> dict:
     Incremental since 0.20.0: only not yet compared vectors against all (O(new × all) instead of O(all²); measured 9.6 s for 3,312 vectors
     with the full comparison, which would grow quadratically with the Confluence import)."""
     _table()
-    ids, m = _matrix(all_())
+    with g.lock:
+        # 0.70.4: objects of an index with a search scope (named only, external) get no proximity edges, neither as new vectors nor as
+        # partners — a large external corpus would add O(new × all) comparisons and an edge flood; they are marked compared, counted
+        outside = {r[0] for r in g.db().execute(
+            "SELECT v.id FROM vector v JOIN object o ON o.id = v.id WHERE o.idx IN (SELECT name FROM vi_index WHERE explicit <> 0)")}
+        skipped = g.db().execute("UPDATE vector SET compared = 1 WHERE compared = 0 AND id IN "
+                                 "(SELECT o.id FROM object o WHERE o.idx IN (SELECT name FROM vi_index WHERE explicit <> 0))").rowcount
+        g.db().commit()
+    ids, m = _matrix({k: v for k, v in all_().items() if k not in outside})
     with g.lock:
         new_ids = {r[0] for r in g.db().execute("SELECT id FROM vector WHERE compared = 0")}
     pos = {oid: i for i, oid in enumerate(ids)}
@@ -227,7 +235,8 @@ def proximity_edges() -> dict:
     with g.lock:
         g.db().executemany("UPDATE vector SET compared = 1 WHERE id = ?", [(ids[i],) for i in new])
         g.db().commit()
-    return {"kanten_neu": edges, "dubletten_moeglich": duplicates, "vektoren": len(ids), "neu_verglichen": len(new), "gekappt": cap()}
+    return {"kanten_neu": edges, "dubletten_moeglich": duplicates, "vektoren": len(ids), "neu_verglichen": len(new), "gekappt": cap(),
+            "scoped_skipped": skipped}
 
 
 def cap(per_object: int | None = None) -> int:

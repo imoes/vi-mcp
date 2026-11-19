@@ -190,7 +190,7 @@ def home(base: str, instance: str) -> str:
     with g.lock:
         ids = [r[0] for r in g.db().execute(
             "SELECT id FROM object WHERE kind IN ('insight', 'rule', 'skill') AND visibility <> 'private' AND mode NOT IN ('quarantine', 'refuted', 'withdrawn') "
-            "AND idx NOT IN (SELECT name FROM vi_index WHERE explicit = 1) "  # 0.70.3: explicit-only indexes only when named
+            "AND idx NOT IN (SELECT name FROM vi_index WHERE explicit <> 0) "  # 0.70.3: explicit-only indexes only when named
             "ORDER BY ts DESC LIMIT 12")]
     recent = "".join(_hit(base, o) for o in g.load_many(ids).values() if _visible(o) is None)
     body = (f'<div class="hero"><h1>What does the memory know?</h1><form class="search" action="{e(base)}/suche" method="get" role="search">'
@@ -211,12 +211,13 @@ def search_page(base: str, instance: str, q: str, index: str = "") -> tuple[str,
     except ValueError:
         only = None
     t0 = time.monotonic()
-    t_inst, t_idx = g.current_instance.set(instance), g.search_index.set(only)
+    t_inst, t_idx, t_user = g.current_instance.set(instance), g.search_index.set(only), g.user_search.set(True)  # 0.70.4: external too
     try:
         hits, notes, _kind = tools.search({"filter": q, "limit": PAGE_HITS}, only, None)
     except tools.Rejected as ex:
         hits, notes = [], f"{q} · {ex}"
     finally:
+        g.user_search.reset(t_user)
         g.search_index.reset(t_idx)
         g.current_instance.reset(t_inst)
     shown, held = [], {}

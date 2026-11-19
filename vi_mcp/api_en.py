@@ -41,6 +41,7 @@ STORED_VALUES: dict[str, dict[str, str]] = {
     "answers": {v: v for v in ("how", "why", "what", "who", "where", "rule")},  # 0.69.3 vi_qualify
     "certainty": {v: v for v in ("low", "medium", "high")},  # 0.69.3 vi_rate
     "memory": {v: v for v in ("fact", "procedure", "episode", "rule")},
+    "scope": {v: v for v in ("all", "named", "external")},  # 0.70.4: vi_indexes search scope
     "area": {"values": "values", "goals": "goals", "style": "style", "limits": "limits",
              "werte": "values", "ziele": "goals", "stil": "style", "grenzen": "limits"},
     "action": {"approve": "freigeben", "discard": "verwerfen", "state": "state", "sync": "sync",

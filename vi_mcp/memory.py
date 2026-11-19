@@ -128,6 +128,7 @@ def open_db(fpath: Path | str) -> None:
     from . import db as dbmod
     _known_indexes.clear()  # 0.61.0: another database, other indexes
     _KINDS_CACHE.update(t=float("-inf"), kinds=frozenset())  # another database: other kinds
+    _EXPLICIT_CACHE.update(t=float("-inf"), v={})  # 0.70.4: another database, other index scopes (a stale one leaked across)
     if dbmod.is_url(fpath):
         con = dbmod.connect(str(fpath))
         target, archive_target, archive_schema_ = str(fpath), str(fpath), f"{con.schema}_lager"
@@ -883,21 +884,41 @@ def split_index(filter_text: str) -> tuple[str, list[str]]:
 #: 0.70.3: indexes searched ONLY when named (vi_index.explicit = 1) — a large external corpus (e.g. an imported Q&A site) lives in the
 #: memory without flooding every search and every hint (the user, 19.11.2026: "Erst Index-Option bauen"). Cached briefly: _filter_sql
 #: runs for every search and hint.
-_EXPLICIT_CACHE: dict = {"t": float("-inf"), "v": frozenset()}
+#: 0.70.4: the column vi_index.explicit holds ONE search scope per index, so no index can be "named only" and "searched" at once:
+#: 0 = everywhere (as before), 1 = only when named, 2 = external — found by every user search (vi_recall, the web search) without
+#: naming it, but never a hint, never embedded or labelled in sleep, no proximity edges (the user, 19.11.2026: "Eigentlich wollten
+#: wir die Suche ohne explicit machen"). Its vectors come from an offline import, not the shared embedding service.
+SCOPE_ALL, SCOPE_NAMED, SCOPE_EXTERNAL = 0, 1, 2
+SCOPES = {"all": SCOPE_ALL, "named": SCOPE_NAMED, "external": SCOPE_EXTERNAL}
+_EXPLICIT_CACHE: dict = {"t": float("-inf"), "v": {}}
 EXPLICIT_TTL_S = 30.0
+#: set by the searches a person or agent asks for (vi_recall, the internal web search): only they see external indexes unnamed.
+#: Every other path — hints before an action, error hints, the prompt context — keeps them out by default, so a new hint path
+#: cannot leak a large corpus into the hints by forgetting a flag.
+user_search: contextvars.ContextVar[bool] = contextvars.ContextVar("user_search", default=False)
 
 
-def explicit_indexes() -> frozenset:
-    """The names of the indexes that are searched only when named."""
+def index_scopes() -> dict[str, int]:
+    """name → scope of every index that is not searched everywhere."""
     import time as _t
     if _t.monotonic() - _EXPLICIT_CACHE["t"] > EXPLICIT_TTL_S:
         with lock:
             try:
-                v = frozenset(r[0] for r in db().execute("SELECT name FROM vi_index WHERE explicit = 1"))
+                v = {r[0]: int(r[1]) for r in db().execute("SELECT name, explicit FROM vi_index WHERE explicit <> 0")}
             except sqlite3.OperationalError:  # a database before the column (opened read-only, never migrated)
-                v = frozenset()
+                v = {}
         _EXPLICIT_CACHE.update(t=_t.monotonic(), v=v)
     return _EXPLICIT_CACHE["v"]
+
+
+def explicit_indexes() -> frozenset:
+    """The names of the indexes that are searched only when named."""
+    return frozenset(n for n, s in index_scopes().items() if s == SCOPE_NAMED)
+
+
+def external_indexes() -> frozenset:
+    """The names of the external indexes (0.70.4): in user searches, never in hints."""
+    return frozenset(n for n, s in index_scopes().items() if s == SCOPE_EXTERNAL)
 
 
 def invalidate_explicit() -> None:
@@ -911,7 +932,8 @@ def _filter_sql(groups: list, remove: list, viewer: str | None, indexes_: list[s
     for ix in named:
         sql += " AND idx = ?"
         par.append(ix)
-    if not named and (ex := explicit_indexes()):  # 0.70.3: an explicit-only index stays out unless named
+    # 0.70.3: an explicit-only index stays out unless named; 0.70.4: an external one also, unless a user search asks
+    if not named and (ex := explicit_indexes() | (frozenset() if user_search.get() else external_indexes())):
         sql += f" AND idx NOT IN ({','.join('?' * len(ex))})"
         par += sorted(ex)
     if not any("mode:quarantine" in grp for grp in groups):

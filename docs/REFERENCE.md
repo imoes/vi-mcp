@@ -352,7 +352,8 @@ VI: the indexes of the memory — projects and special VIs: objects, experiences
 | `description` | string |  | optional: what the index is for (German: `beschreibung`) |
 | `tags` | array of string |  | optional: tags of the index (replace the old ones) |
 | `kind` | string (project, special) |  | optional: project or special (a special VI) (German: `art`) |
-| `explicit` | boolean |  | optional (0.70.3): true = this index is searched only when named (index:<name> or vi_recall index=…) — never in a search without an index, never a hint, not embedded in sleep (for large external corpora); false = normal again |
+| `scope` | string (all, named, external) |  | optional (0.70.4): where the index is searched — all (default); named = only when named (index:<name> or vi_recall index=…), never a hint; external = found by vi_recall and the web search without naming it, but never a hint, not embedded or labelled in sleep, no proximity edges (a large external corpus whose vectors are imported) |
+| `explicit` | boolean |  | optional (0.70.3), the older form of scope: true = named, false = all |
 
 ### `vi_vocabulary`
 
@@ -1287,6 +1288,7 @@ First line of each module's docstring.
 | `training_runtime` | Standalone training-kit runtime: audited tokenization, assistant targets and real trainer preflight without weight updates. |
 | `usage_stats` | Usage statistics — is the VI used, and does it work as intended? (0.21.0) |
 | `vector` | Vectors — meaning instead of identical words (stage 3, docs/TRAINING.md 4c; Park et al. 2023, section 4.1: relevance |
+| `vector_import` | 0.70.4: vectors of a large external index are computed on another host and imported — the shared embedding service stays free. |
 | `vil` | VIL — the language in which an AI asks the memory and the memory answers (0.62.0, first executable part). |
 | `vocabulary` | The vocabulary of the memory (0.62.0) — "what is there, what can I search?" before searching. |
 | `web` | 0.46.0: the web page of a server — a read-only window onto what the free and open networks carry: search, wiki, forum, knowledge. |

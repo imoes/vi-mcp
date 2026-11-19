@@ -95,9 +95,20 @@ vi-mcp docs import pages.jsonl --source confluence-it --label "Confluence IT" --
 It prints `{"pages": …, "held_before": …, "to_send": …, "to_remove": …}` and sends nothing. `to_send` is the number of new or
 changed pages. `--index` puts the pages into a special VI (e.g. `cue`, `dcx`); without it they go to `global`.
 
-**A large external corpus** (0.70.3; e.g. a public Q&A site with hundreds of thousands of pages): mark its index as searched only when
-named BEFORE the import — `vi_indexes(index="NAME", explicit=true)` — so its pages are found with `index:NAME` / `vi_recall(index=…)`
-but never in a search without an index, never as a hint, and the sleep neither embeds nor labels them.
+**A large external corpus** (e.g. a public Q&A site with hundreds of thousands of pages): give its index a search scope BEFORE the
+import — one value per index, `vi_indexes(index="NAME", scope=…)`:
+- `external` (0.70.4): `vi_recall` and the internal web search find its pages without naming the index; it is never a hint (before an
+  action, after an error, in the prompt context), the sleep neither embeds nor labels it, and it gets no proximity edges. Its vectors
+  are computed elsewhere and imported, so the shared embedding service stays free.
+  The vectors, on the server, after the import:
+  ```bash
+  vi-mcp vectors export --index NAME --out DIR --reference 200   # texts.jsonl + reference vectors of this server's service
+  # on the other host: embed texts.jsonl with the SAME model file and pooling; compare with reference.npy first
+  vi-mcp vectors import --index NAME --ids ids.txt --vectors vectors.npy --check 50 --dry-run   # then without --dry-run
+  ```
+  The import is all or nothing: 50 seeded texts are embedded again here and must agree to a cosine of at least 0.999.
+- `named` (0.70.3, also `explicit=true`): found only with `index:NAME` / `vi_recall(index=…)`.
+- `all`: the default, like every other index.
 
 ## Step 4 — the import
 

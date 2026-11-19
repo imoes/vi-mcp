@@ -136,15 +136,22 @@ def registry() -> dict[str, dict]:
     from . import memory as g
     with g.lock:
         rows = g.db().execute("SELECT name, kind, description, tags, created, source, explicit FROM vi_index").fetchall()
+    scope_name = {v: k for k, v in g.SCOPES.items()}
     return {r[0]: {"art": r[1], "beschreibung": r[2], "tags": json.loads(r[3] or "[]"), "erstellt": r[4], "quelle": r[5],
-                   "explicit": bool(r[6])} for r in rows}
+                   "explicit": int(r[6] or 0) == g.SCOPE_NAMED, "scope": scope_name.get(int(r[6] or 0), "all")} for r in rows}
+
+
+SCOPE_NOTE = {"named": " · searched only when named (index:{n}), never a hint",
+              "external": " · external: found by vi_recall and the web search without naming it, never a hint, not embedded or "
+                          "labelled in sleep (vectors are imported)"}
 
 
 def describe(name: str, description: str | None = None, tags: list[str] | None = None, kind: str | None = None,
-             explicit: bool | None = None) -> str:
+             explicit: bool | None = None, scope: str | None = None) -> str:
     """Give an index a description, tags and its kind (project / special). Creates the row if the index has no objects yet.
-    explicit (0.70.3): True = searched only when named (index:<name> or vi_recall index=…), never in a search without an index, never a
-    hint, never embedded in sleep; False = back to normal."""
+    scope (0.70.4, one value per index): "all" = searched everywhere; "named" = only when named (index:<name> or vi_recall index=…),
+    never a hint, never embedded in sleep; "external" = in every user search without naming it, but never a hint, not embedded or
+    labelled in sleep, no proximity edges. explicit (0.70.3) is the older form: True = "named", False = "all"."""
     import json
     from . import memory as g, names
     n = normalize(name)
@@ -155,7 +162,14 @@ def describe(name: str, description: str | None = None, tags: list[str] | None =
         raise ValueError(f"kind must be one of {', '.join(KINDS[1:])}")
     if n == GLOBAL and kind is not None:
         raise ValueError("global stays global")
-    if n == GLOBAL and explicit:  # checked before any write: a refusal leaves no open transaction behind
+    if scope is not None and scope not in g.SCOPES:
+        raise ValueError(f"scope must be one of {', '.join(g.SCOPES)}")
+    if explicit is not None:
+        alias = "named" if explicit else "all"
+        if scope is not None and scope != alias:  # two answers to one question: refused, never one silently preferred
+            raise ValueError(f"explicit={str(bool(explicit)).lower()} means scope {alias}, but scope {scope} was given")
+        scope = alias
+    if n == GLOBAL and scope not in (None, "all"):  # checked before any write: a refusal leaves no open transaction behind
         raise ValueError("global is always searched")
     clean = None
     if tags is not None:
@@ -172,14 +186,14 @@ def describe(name: str, description: str | None = None, tags: list[str] | None =
             g.db().execute("UPDATE vi_index SET tags = ? WHERE name = ?", (json.dumps(clean), n))
         if kind is not None:
             g.db().execute("UPDATE vi_index SET kind = ? WHERE name = ?", (kind, n))
-        if explicit is not None:
-            g.db().execute("UPDATE vi_index SET explicit = ? WHERE name = ?", (1 if explicit else 0, n))
+        if scope is not None:
+            g.db().execute("UPDATE vi_index SET explicit = ? WHERE name = ?", (g.SCOPES[scope], n))
         g.db().commit()
     g._known_indexes.add(n)
     g.invalidate_explicit()
     r = registry()[n]
     return (f"index {n} ({r['art']}): {r['beschreibung'] or '—'}" + (f" · tags {', '.join(r['tags'])}" if r["tags"] else "")
-            + (" · searched only when named (index:" + n + "), never a hint" if r["explicit"] else ""))
+            + SCOPE_NOTE.get(r["scope"], "").format(n=n))
 
 def summary() -> list[dict]:
     """Every index: objects, experiences, knowledge, its own model's state. global first, then by size."""

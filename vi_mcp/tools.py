@@ -235,9 +235,13 @@ TOOLS = [
                              "description": {"type": "string", "description": "optional: what the index is for"},
                              "tags": {"type": "array", "items": {"type": "string"}, "description": "optional: tags of the index (replace the old ones)"},
                              "kind": {"type": "string", "enum": ["project", "special"], "description": "optional: project or special (a special VI)"},
-                             "explicit": {"type": "boolean", "description": "optional (0.70.3): true = this index is searched only when named "
-                                          "(index:<name> or vi_recall index=…) — never in a search without an index, never a hint, not embedded "
-                                          "in sleep (for large external corpora); false = normal again"}})},
+                             "scope": {"type": "string", "enum": ["all", "named", "external"],
+                                       "description": "optional (0.70.4): where the index is searched — all (default); named = only when named "
+                                       "(index:<name> or vi_recall index=…), never a hint; external = found by vi_recall and the web search "
+                                       "without naming it, but never a hint, not embedded or labelled in sleep, no proximity edges (a large "
+                                       "external corpus whose vectors are imported)"},
+                             "explicit": {"type": "boolean", "description": "optional (0.70.3), the older form of scope: true = named, "
+                                          "false = all"}})},
     {"name": "vi_vocabulary",
      "description": "VI: the words you can search with — before a search when you are unsure which hashtags exist. Without arguments: the "
                     "kinds (host, tool, thema, …) with how many values and objects; word_kind=…: its values, most used first, with their "
@@ -1686,7 +1690,8 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
             if instance == config.OPEN:
                 raise Rejected("describing an index needs a token")
             try:
-                return indexes.describe(args["index"], args.get("description"), args.get("tags"), args.get("kind"), args.get("explicit"))
+                return indexes.describe(args["index"], args.get("description"), args.get("tags"), args.get("kind"), args.get("explicit"),
+                                        args.get("scope"))
             except ValueError as e:
                 raise Rejected(str(e)) from e
         return "Indexes (kind · objects · experiences · knowledge · own model):\n" + "\n".join(indexes.lines())
@@ -1745,10 +1750,11 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         first = only or (indexes.from_project(args["project"]) if args.get("project") else g.current_index.get())
         if not first and session.recent_project(instance):  # the hook's vi_context just before this call
             first = indexes.from_project(session.recent_project(instance))
-        token = g.search_index.set(only)
+        token, t_user = g.search_index.set(only), g.user_search.set(True)  # 0.70.4: a user search sees external indexes
         try:
             return _recall(args, instance, only, first if first and first != indexes.GLOBAL else None)
         finally:
+            g.user_search.reset(t_user)
             g.search_index.reset(token)
     if name == "vi_feedback":  # 0.49.0
         helped = [str(x) for x in (args.get("helped") or []) if x][:20]

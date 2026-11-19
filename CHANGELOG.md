@@ -3,6 +3,50 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## Unreleased (0.70.4)
+
+### What is new: an external index is searched, but never a hint
+
+- `vi_indexes(index=NAME, scope="external")`: `vi_recall` and the internal web search find the index's objects without naming it,
+  but they never become a hint (before an action, after an error, in the prompt context), the sleep neither embeds nor labels them, and
+  they get no proximity edges (step 7b — neither as new vectors nor as partners; counted as `scoped_skipped`). Their vectors are meant
+  to be computed elsewhere and imported, so the shared embedding service stays free.
+- One scope per index (`all`, `named`, `external`) in the existing column `vi_index.explicit` (0 / 1 / 2): an index cannot be "named
+  only" and "external" at once. `explicit=true` (0.70.3) still means `named`; `explicit` and a contradicting `scope` in one call are
+  refused, never one silently preferred.
+- External indexes are left out by default and opened only by the searches a person or agent asks for (`memory.user_search`), so a new
+  hint path cannot leak a large corpus into the hints by forgetting a flag.
+- Why (the user, 19.11.2026: "Eigentlich wollten wir die Suche ohne explicit machen"): the Stack Exchange corpus (about 622,000 pages)
+  should be found by normal searches. Measured the same day: a brute-force cosine search over 645,000 vectors × 1,024 dimensions takes
+  74 ms and 2.6 GB (float32, workstation, 16 cores) — the vector search scales; hints, sleep embedding on the shared service and
+  O(new × all) proximity edges do not.
+- Evidence: `tests/test_external_index.py` — found by `vi_recall` without naming it but not by an internal search; never a hint
+  (control: the same object is a hint while its index is normal); not embedded by `vector.catch_up`; no proximity edges while two normal
+  objects with the same vector get one; contradicting scopes and `global` refused.
+
+### What is new: vectors of an external index are computed elsewhere and imported, checked
+
+- `vi-mcp vectors export --index X --out DIR [--reference N]` writes the texts the VI itself would embed (`object.text` of the
+  index's knowledge objects) as `texts.jsonl`, and N reference vectors of this server's embedding service. Another host (a spare GPU)
+  computes the vectors with the same model; `vi-mcp vectors import --index X --ids FILE --vectors FILE.npy [--check N] [--dry-run]`
+  stores them.
+- All or nothing, by fixed rules: the index must have a search scope (a normal index is embedded by sleep — two sources for one
+  vector would be two definitions of it); one row per id, the stored dimension, finite and not zero; ids outside the index are counted
+  and named, not stored; N seeded ids are embedded again here and must agree to a cosine of at least 0.999 — another model,
+  quantization or pooling is refused before anything is written. Imported vectors are marked compared (no proximity edges).
+- Why: the production embedding service is shared (live requests waited about 20 s during batch embedding, VI record of 09.11.2026)
+  and refuses inputs over its physical batch of 2,048 tokens (measured 19.11.2026: "input (2221 tokens) is too large to process");
+  a corpus of 622,000 pages would occupy it for many hours. The user, 19.11.2026: "Vergiss nicht, dass wir noch die 3060 haben, um
+  tagsüber zu rechnen."
+- Evidence: `tests/test_vector_import.py` — export of exactly the index's texts and the reference vectors; a checked import stores
+  every vector with compared = 1; vectors of "another model" are refused and nothing is stored; an id outside the index is counted, not
+  stored; zero vectors, a missing row and an index without a scope are refused before writing.
+
+### What was fixed
+
+- The 30-second cache of index scopes survived a change of database (`memory.open_db`), so a scope of the previous database applied
+  to the next one for up to 30 s — seen as a failing test order; reset on every open now.
+
 ## 0.70.3 — 2026-11-19
 
 ### What is new: an index can be searched only when named
