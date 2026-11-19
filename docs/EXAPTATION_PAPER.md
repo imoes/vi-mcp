@@ -170,6 +170,29 @@ Lesson kept for G8b: tasks written blind to the library and graded by structural
 shape, equal expressiveness for every arm (invented and recursive helper predicates), lexicase selection with a size archive,
 canonical forms with a cache, and "solved" as equivalence on an exhaustively enumerated domain plus a stress check.
 
+### 5.9 G8b-0 — symbolic regression over rules finds 5 of 6 mechanisms from data alone
+Symbolic regression searches the space of formulas for one that fits data and stays short (genetic programming: Koza 1992; AI Feynman,
+Udrescu & Tegmark 2020; PySR, Cranmer 2023; SRBench, La Cava et al. 2021). G8b transfers it to rule sets: candidates are ASP rules in
+clingo-object notation; mutation changes predicates, variables, constants, literals and negation; crossover exchanges parts of rule
+bodies with variable unification; the search may invent helper predicates, also recursive ones; selection is lexicase over the example
+worlds (Helmuth, Spector & Matheson 2015) with an archive of the best fit per size; every candidate is reduced to a canonical form and
+evaluated once. "Solved" means equal answers to a hidden reference on every world of an exhaustively enumerated small domain and on
+200 larger stress worlds that hold values never seen in training; a failure there adds the counterexample to the training worlds.
+
+Without any library (6 tasks, seeds 0–9, budget 20,000 evaluations): 42 of 60 runs solved —
+| task | solved | median evaluations | what was found |
+|---|---|---|---|
+| trusted reading | 10/10 | 102 | the reference |
+| dependency cycle | 10/10 | 107 | an invented recursive transitive closure, then the cycle test |
+| sensor state | 10/10 | 2,349 | four-valued state with negation |
+| release gate | 7/10 | 1,322 | ONE rule where the reference has two (size 7 vs 8) |
+| bipartisan | 5/10 | 4,054 | the general law "a supporter of party P and one not in P" |
+| lineage root | 0/10 | — | recursion plus a negated projection: not found |
+Two lessons: exactness on a closed set of values admits a "talent" program that lists the known colours (it failed 44 of 200 worlds
+with an unseen party once those were added); the search can find a SHORTER law than the human reference. Whether a library of
+mechanisms from another purpose helps (exaptation) is G8b-1, pre-registered after two independent reviews and running at the time of
+writing (33 tasks written blind to the library; arms: library, library rewired inside rules, library relinked between rules, random).
+
 ## 6 What the VI changes
 
 1. **built_for (implemented, branch built-for).** Every knowledge object records on its first save the context tags it was learned in,

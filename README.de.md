@@ -263,6 +263,36 @@ Stütze und Widerspruch getrennt, ein Grund für jeden Wert), `messung` (nur ein
 
 Schritt für Schritt: [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) (auch der erste Skill `philosophy`).
 
+## Symbolische Regression — neue Erkenntnis aus Erfahrung (Forschung)
+
+> **Stand:** Forschung, noch kein Bestandteil des Pakets. Messungen und Grenzen: [docs/EXAPTATION_PAPER.md](docs/EXAPTATION_PAPER.md)
+> §5.8–5.9.
+
+**Bekannte Zitate mit derselben Kernaussage**
+
+- **Arthur Schopenhauer** (oft zitiert, sinngemäß): Ein sehr verwandter und weit verbreiteter Gedanke lautet: „Das Talent trifft ein
+  Ziel, das niemand sonst treffen kann; das Genie trifft ein Ziel, das niemand sonst sehen kann.“ Schopenhauer definierte Genialität
+  zudem als die Fähigkeit zur reinen, objektiven Anschauung, bei der man das Wesen und die verborgenen Ideen der Dinge erkennt.
+- **Steve Jobs** (über Kreativität): Auf die Frage nach Innovation und Genialität sagte der Apple-Mitgründer sinngemäß: „Kreativität
+  besteht einfach darin, Dinge miteinander zu verbinden.“ Wer über viele verschiedene Erfahrungen verfügt, sieht Verbindungen, die
+  anderen verborgen bleiben.
+- **Albert Einstein:** Auch Einstein wird oft mit dem Gedanken verknüpft, dass wahre Erkenntnis nicht im bloßen Wissen liegt, sondern im
+  Erkennen von Mustern und Zusammenhängen hinter den offensichtlichen Fakten.
+
+**Was symbolische Regression daraus macht.** Statt eine Formel vorzugeben, sucht eine evolutionäre Suche (genetische Programmierung)
+nach der kürzesten Regel, die zu den Daten passt: Mutation verändert Prädikate, Variablen, Konstanten und Negation; Kreuzung
+**verbindet** Teile zweier Regeln (Jobs); erfundene Hilfsprädikate sind neue Begriffe hinter den Fakten (Einstein); ausgewählt wird nach
+Passung **und** Kürze. Ein Kandidat gilt erst, wenn er auf **allen** Welten einer erschöpfend aufgezählten Domäne und auf großen Welten
+mit nie gesehenen Werten gleich antwortet — sonst ist er Talent, nicht Genie (Schopenhauer): Eine Lösung, die nur die bekannten Farben
+aufzählte, traf jede Trainingswelt und fiel bei einer neuen Partei durch; erst das allgemeine Gesetz „ein Unterstützer der Partei P und
+einer, der nicht in P ist“ hält.
+
+Gemessen (G8b-0, ohne jede Vorlage, 60 Läufe): 5 von 6 Mechanismen wiedergefunden, darunter eine selbst erfundene rekursive Hülle, und
+einmal ein **kürzeres** Gesetz als die menschliche Referenz. Offen: ob eine Bibliothek von Mechanismen aus einem anderen Zweck die Suche
+beschleunigt (Exaptation, G8b-1, vorregistriert), und ob die Suche aus den Erfahrungen der VI selbst Regeln findet, die auf späteren
+Erfahrungen halten (G9). Die Grenze bleibt: Die Suche trifft Ziele, die ihr die Daten vorgeben — welche Frage sich zu stellen lohnt,
+entscheidet sie nicht.
+
 ## Installieren
 
 | System | Wie | Dienst |
