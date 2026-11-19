@@ -14,7 +14,7 @@ from collections import Counter, defaultdict
 db, out = sys.argv[1], sys.argv[2]
 CHUNK, TOP = 100, 40  # notation.MAX_STATEMENTS = 500 per program: ~4 facts per experience
 c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-ONLY = __import__("os").environ.get("G9_INSTANCE")  # one instance only (G9 main: claude-code), so the instance is no predictor
+ONLY = __import__("os").environ.get("G9_INSTANCE")  # one instance only (G9 main: one agent instance), so the instance is no predictor
 rows = [r for r in c.execute("select id, ts, instance, conversation from object where kind='experience' order by ts").fetchall()
         if not ONLY or r[2] == ONLY]
 tags = defaultdict(list)
