@@ -129,6 +129,29 @@ was a plausible mechanism (a browser tool fails → fall back to the shell, in 6
 - **G6** — a *trained* relation map (ridge regression p → s − p, i.e. a learned TransE-style relation) on raw texts and on the
   abstractions, with a learning curve (25–153 pairs), Linzen's direction-reversal control and 200 shuffled refits.
 
+### 5.7 G7 — a domain-free purpose slot does not beat normal search (refuted, public data)
+Pre-registered 19.11.2026 (sha256 e6b6f51f…, amendment 1 7f89073c…; arms of normal search frozen before any label). 500 pages of
+unix.stackexchange.com (CC BY-SA, dump 2026-06-30), 100 queries (title + question), candidates only from a far domain (no shared SE
+label), top 3 per arm. N = the VI's hybrid search (bge-m3 + BM25, rank fusion); R = random; P = cosine of domain-free purpose
+sentences written by glm-5.3-flash from the question alone (1,000 calls, 0.041 USD); A = query purpose vs candidate purpose +
+mechanism (the G5b replication). 994 deduplicated (query, candidate answer) items were judged blind by eight Claude subagents
+(another family than the teacher; arms and hypothesis unseen): "would the technique, adapted, solve or substantially help?"
+
+| per query, top 3 | N normal | R random | P purpose | A purpose+mechanism |
+|---|---|---|---|---|
+| `yes` (mean) | **0.07** | 0.00 | 0.04 | 0.04 |
+| queries with a `yes` | 7 | 0 | 3 | 4 |
+| `yes`+`partly` (mean) | 0.29 | 0.00 | 0.33 | 0.32 |
+| queries with `yes`/`partly` | 25 | 0 | 27 | 25 |
+
+- **H1 (P > N) refuted:** P better on 2 queries, N on 5, exact sign test p = 0.45 (Holm 0.45). With `partly` counted: 17 vs 13,
+  p = 0.58. A vs N: 1 vs 4, p = 0.38.
+- **H2 (N > R) supported:** 7 vs 0, Holm p = 0.031; with `partly` 25 vs 0, p = 6·10⁻⁸ — the judge discriminates, the floor is real.
+- **Limit:** transferable far-domain mechanisms are rare in a pool of 500 (11 `yes` in 994 items), so the test has little power for a
+  small gain; one judge family; one site. It agrees with G5b: abstracting into domain-free text does not find more transferable
+  mechanisms than the plain hybrid search. Hope et al.'s gain came with crowd-annotated slots and a purpose gate inside one product
+  domain; G7 does not reproduce it with LLM slots across Unix sub-domains.
+
 ## 6 What the VI changes
 
 1. **built_for (implemented, branch built-for).** Every knowledge object records on its first save the context tags it was learned in,
