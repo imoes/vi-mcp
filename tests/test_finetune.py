@@ -402,23 +402,25 @@ def test_one_kit_holds_the_whole_seed_path_without_any_principle_prose(vi, monke
     assert meta["order"] == ["language", "philosophy", "grpo"] and meta["prose_in_training"] is False
     rows = {f: [json.loads(x) for x in (d / "split" / f).read_text().splitlines()]
             for f in ("language.train.jsonl", "language.test.jsonl", "philosophy.train.jsonl", "philosophy.test.jsonl", "grpo.train.jsonl")}
-    assert len(rows["language.train.jsonl"]) == 200 and len(rows["philosophy.train.jsonl"]) == 200 and rows["language.test.jsonl"]
+    seed_rows = [r for r in rows["philosophy.train.jsonl"] if not (r.get("meta") or {}).get("replay")]  # 0.70.9: + 20 % language replay
+    assert len(rows["language.train.jsonl"]) == 200 and len(seed_rows) == 200 and rows["language.test.jsonl"]
+    assert 0.15 <= meta["philosophy"]["language_replay"] / len(rows["philosophy.train.jsonl"]) <= 0.25
     text = json.dumps(rows, ensure_ascii=False)
     prose = [p["text"] for p in pkg.get("principles") or []] + [p.get("title", "") for p in pkg.get("principles") or [] if p.get("title")]
     leaked = [t for t in prose + pt.seed_comments(pkg) if t and t in text]
     assert not leaked, leaked[:2]
     # 0.70.1: kollektiv 1.3 is built with the recipe — negative type queries ("find") beside judge, formalize and pressure
-    assert {r["meta"]["task"] for r in rows["philosophy.train.jsonl"]} == {"judge", "formalize", "pressure", "find"}
+    assert {r["meta"]["task"] for r in seed_rows} == {"judge", "formalize", "pressure", "find"}
     assert meta["philosophy"]["format"] == "trace-v1" and meta["philosophy"]["recipe"]["refused_by_trace_check"] == 0
     vocab = set(pkg["vocabulary"])
     lang = " ".join(m["content"] for r in rows["language.train.jsonl"] for m in r["messages"])
     assert not [p for p in vocab - {"forbidden", "obligatory", "may"} if f"{p}(" in lang]  # the language shares no predicate with the seed
-    judged = [r for r in rows["philosophy.train.jsonl"] if r["meta"]["task"] in ("judge", "pressure")]
+    judged = [r for r in seed_rows if r["meta"]["task"] in ("judge", "pressure")]
     # the recipe never shows the seed's code in a judge prompt (run 7: "seed code → verdict" was taught as a format, paper §5.4); the
     # answer carries the facts, the statement line, the solver-checked trace and the verdict
     assert not [r for r in judged if pt.CODE_HEAD in r["messages"][1]["content"]]
     assert all(r["messages"][2]["content"].startswith("Facts:\n[1] ") and "\n\nDuty check:\n" in r["messages"][2]["content"] for r in judged)
-    train_facts = {r["meta"]["facts"] for r in rows["philosophy.train.jsonl"]}
+    train_facts = {r["meta"]["facts"] for r in seed_rows}
     assert not train_facts & {r["meta"]["facts"] for r in rows["philosophy.test.jsonl"]}
     items = [json.loads(x) for x in (d / "eval" / "philosophy.jsonl").read_text().splitlines()]
     sets = {i["set"] for i in items}
@@ -624,7 +626,7 @@ def test_no_world_of_the_evaluation_is_in_the_seed_training(tmp_path):
     from vi_mcp import finetune
     (tmp_path / "split").mkdir()
     out = finetune.philosophy_stage(tmp_path, "kollektiv")
-    train = {json.loads(x)["meta"]["facts"] for x in (tmp_path / "split" / "philosophy.train.jsonl").read_text().splitlines()}
+    train = {f for x in (tmp_path / "split" / "philosophy.train.jsonl").read_text().splitlines() if (f := json.loads(x)["meta"].get("facts"))}  # replay rows have no world (0.70.9)
     evals = [json.loads(x) for x in (tmp_path / "eval" / "philosophy.jsonl").read_text().splitlines()]
     assert not [i["id"] for i in evals if (i.get("meta") or {}).get("facts") in train]
     assert out["philosophy"]["dropped_as_evaluation_worlds"] >= 1  # this kit draws package worlds at random (measured: 2)
@@ -656,3 +658,20 @@ def test_a_philosophy_kit_exports_nothing_of_the_memory_and_is_built_once_over_m
     with pytest.raises(ValueError, match="rows: 1 to"):
         finetune.philosophy_kit(str(vi / "k9"), "kollektiv", "Qwen/Qwen3-0.6B", philosophy_rows=finetune.PHILOSOPHY_ROWS_MAX + 1)
     assert vph.kit_lines(run | {"directory": str(d)})[0].startswith("Built")
+
+
+
+def test_the_philosophy_stage_replays_the_language(tmp_path):
+    """0.70.9: run 13 (official kit, 19.11.2026) forgot clingo-object — 'none' for all 30 language items and 12 of 13 seed explanations;
+    its philosophy stage held no translation row. Now a share of translation rows is replayed in that stage, never a language test
+    prompt and never a rule over the package's vocabulary."""
+    from vi_mcp import finetune
+    (tmp_path / "split").mkdir()
+    out = finetune.philosophy_stage(tmp_path, "kollektiv", 10, language_rows=60, philosophy_rows=200, heldout=20)
+    train = [json.loads(x) for x in (tmp_path / "split" / "philosophy.train.jsonl").read_text().splitlines()]
+    replay = [r for r in train if (r.get("meta") or {}).get("replay") == "language"]
+    assert out["philosophy"]["language_replay"] == len(replay) > 0
+    assert 0.15 <= len(replay) / len(train) <= 0.25
+    tests = {json.loads(x)["messages"][-2]["content"] for x in (tmp_path / "split" / "language.test.jsonl").read_text().splitlines()}
+    assert not {r["messages"][-2]["content"] for r in replay} & tests
+    assert {r["meta"]["task"] for r in replay} <= {"explain_rules", "write_rules"}

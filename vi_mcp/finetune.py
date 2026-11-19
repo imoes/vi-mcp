@@ -786,6 +786,11 @@ PHILOSOPHY_PROMPTS = 1000
 #: rows of the language stage (clingo-object both ways) and of the seed SFT stage — the sizes of run 6 (15.11.2026)
 LANGUAGE_ROWS = 3000
 PHILOSOPHY_ROWS = 1700
+#: 0.70.9: share of clingo-object translation rows replayed inside the philosophy stage. Without it the stage overwrote the language
+#: stage: run 13 (official kit13, kollektiv 1.3.0, 19.11.2026) answered "none" to all 30 language items and 12 of 13 seed explanations,
+#: because 5,399 philosophy rows held no translation and 283 answered exactly "none"; the hand-built kits that kept ~36 % language rows
+#: in their second stage kept the language (run 32: write 16/18). Rehearsal of the earlier stage is the standard remedy.
+LANGUAGE_REPLAY_SHARE = 0.2
 HELDOUT_ROWS = 40
 #: what a package needs for training data, beyond what check() asks (philosophy_train: worlds drawn, facts and verdicts in words)
 TRAINING_FIELDS = ("generator", "domains", "render", "render_test", "speak", "pressure", "pressure_test")
@@ -1118,7 +1123,8 @@ def philosophy_stage(d: Path, name: str, prompts: int = PHILOSOPHY_PROMPTS, seed
     """Everything for the seed path in the same kit as the knowledge stages (one base model, one run.json lineage for `record`):
       language   split/language.{train,test}.jsonl — clingo-object both ways on rule sets that use no predicate of the package
       philosophy split/philosophy.{train,test}.jsonl — the seed's judge, formalize and pressure examples; half of the judge and
-                 pressure prompts show the seed's rules (without comment lines); no principle prose anywhere
+                 pressure prompts show the seed's rules (without comment lines); no principle prose anywhere; since 0.70.9 plus a
+                 LANGUAGE_REPLAY_SHARE of clingo-object translation rows, so the stage does not overwrite the language stage
       grpo       split/grpo.train.jsonl — the seed as reward
       eval       eval/philosophy.jsonl with phil_answers.py, phil_score.py and phil_roundtrip.py
     Order (the user, 15.11.2026: "first teach the AI clingo, then the seed"): --stage language (from the base), --stage philosophy
@@ -1165,13 +1171,21 @@ def philosophy_stage(d: Path, name: str, prompts: int = PHILOSOPHY_PROMPTS, seed
     eval_facts = {i["meta"]["facts"] for i in ev["items"] if (i.get("meta") or {}).get("facts")}
     dropped_for_eval = sum(x["meta"]["facts"] in eval_facts for x in phil_train)
     phil_train = [x for x in phil_train if x["meta"]["facts"] not in eval_facts]
+    # 0.70.9: language replay — translation rows (never a language test prompt, never the package's vocabulary) mixed into the stage
+    held_lang = {x["messages"][-2]["content"] for x in lang_test}
+    n_replay = round(len(phil_train) * LANGUAGE_REPLAY_SHARE / (1 - LANGUAGE_REPLAY_SHARE)) if LANGUAGE_REPLAY_SHARE else 0
+    replay = [dict(x, meta={**(x.get("meta") or {}), "replay": "language"})
+              for x in cp.examples(n_replay * 2, seed + 7, exclude=vocab, system=system) if x["messages"][-2]["content"] not in held_lang][:n_replay]
+    phil_train = phil_train + replay
+    random.Random(seed + 8).shuffle(phil_train)
     (d / "eval").mkdir(mode=0o700, exist_ok=True)
     out = {"name": pkg["name"], "version": pkg["version"], "hash": r["hash"], "seed": seed, "order": ["language", "philosophy", "grpo"],
            "prose_in_training": False, "seed_code_without_comments": True,
            "language": {"train": len(lang_train), "test": len(lang_test), "excluded_predicates": len(vocab),
                         "train_sha256": _rows(split / "language.train.jsonl", lang_train), "test_sha256": _rows(split / "language.test.jsonl", lang_test)},
            "philosophy": {"train": len(phil_train), "test": len(phil_test), "dropped_as_evaluation_worlds": dropped_for_eval,
-                          "tasks": dict(sorted(Counter(x["meta"]["task"] for x in phil_train).items())),
+                          "language_replay": len(replay), "language_replay_share": LANGUAGE_REPLAY_SHARE,
+                          "tasks": dict(sorted(Counter((x.get("meta") or {}).get("task", "?") for x in phil_train).items())),
                           "seed_shown": sum(bool(x["meta"].get("seed_shown")) for x in phil_train),
                           "format": pr.FORMAT if recipe else "verdict-v1", "recipe": recipe,
                           "train_sha256": _rows(split / "philosophy.train.jsonl", phil_train),

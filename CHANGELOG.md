@@ -3,6 +3,23 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.70.9 — 2026-11-19
+
+### What was fixed
+
+- **The philosophy kit no longer makes the model forget clingo-object.** `vi-mcp finetune kit --philosophy` trains the language stage,
+  then the philosophy stage continuing from it — and that stage held no translation row at all. Measured on run 13 (official kit,
+  kollektiv 1.3.0, Qwen3-0.6B, seed 43, 19.11.2026): judging excellent (judge_same 40/40, paraphrase 37/40, pressure 26/30, formalize
+  17/20), but "none" as the answer to all 30 held-out language items, to 12 of 13 seed explanations and to the recitation; 283 of the
+  stage's 5,399 rows answer exactly "none" (find). The hand-built kits that kept about a third language rows in their second stage kept
+  the language. Now 20 % of the philosophy stage (`LANGUAGE_REPLAY_SHARE`) are translation rows — rehearsal of the earlier stage, the
+  usual remedy for catastrophic forgetting — never a language test prompt and never a rule over the package's vocabulary; run.json
+  names how many (`philosophy.language_replay`). Evidence: `tests/test_finetune.py::test_the_philosophy_stage_replays_the_language`.
+
+### What is open
+
+- Not yet trained with the replay: the effect on the language and the seed prose is a prediction until a run measures it.
+
 ## 0.70.8 — 2026-11-19
 
 ### What was fixed
