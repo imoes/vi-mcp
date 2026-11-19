@@ -9,7 +9,7 @@ Before every action the session asks `vi_before` and gets at most four hints fro
 Since 0.49.0 a hint before a shell command must share a host, program or error with it — the tool and common words (`intuition.GENERIC_SHELL_WORDS`) do not count —
 and a hint without measured benefit appears at most `DAILY_MAX` times a day per instance. `vi_feedback(helped, wrong)` books which hints
 helped in one call; `metrics.hint_lift_matched` compares within instance and tool (the raw lift mixes base rates: Simpson's paradox).
-When an AI consults the VI and when it learns is defined in `tools.RULES` and goes to every client with the `instructions` (since 0.20.7).
+When an AI consults the VI and when it learns is defined in `tools.RULES` and goes to every client with the `instructions` (since 0.20.7); since 0.70.6 `RULES` is a short core under Claude Code's 4,096-character cut, the complete text `RULES_FULL` is the initial skill vi-rules, and `tests/test_instructions_budget.py` holds the budget.
 Sleep (when enough important things have accumulated; at night only after 24 h without sleep) condenses experiences into insights and skills and rates the work (scorer). Router, bandit and vectors
 learn on demand (`on_demand`), about a minute after new experiences or new knowledge. Visibilities: private, shared, internal (only with a token; never an open network, only a company network).
 Everything is an object in SQLite with hashtags (`art:wert`, kind:value), owning instance and visibility (stored as `privat`/`geteilt`/`intern`). vi-mcp trains no model by itself; fine-tuning an AI with a VI's knowledge is a person's explicit action (`vi_finetune`, `vi-mcp finetune`: data, scripts and lineage — the training runs in an external program on a GPU host, 0.62.0).

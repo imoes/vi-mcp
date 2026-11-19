@@ -46,6 +46,11 @@ def _finetune() -> str:
     return finetune_skill.skill()
 
 
+def _vi_rules() -> str:
+    from . import tools
+    return tools.RULES_FULL
+
+
 def _philosophy() -> str:
     from clingo_object import philosophy as ph
     return ph.GUIDE
@@ -57,6 +62,9 @@ INITIAL = {
                "measured mistakes", ["vi_logic"], _clingo),
     "finetune": ("Fine-tune any open model with the knowledge of a VI or a philosophy seed, step by step, for small models too",
                  ["vi_finetune", "vi_incubator"], _finetune),
+    # 0.70.6: the complete rules; the instructions carry only the core (Claude Code cuts them at 4,096 characters)
+    "vi-rules": ("The complete rules for working with the VI: when to search and learn, code, wiki, images, logic, philosophy, "
+                 "fine-tuning, what never to learn", ["vi_recall", "vi_learn", "vi_object"], _vi_rules),
     "philosophy": ("Equip an AI with a philosophy: a checked clingo-object seed with test worlds, install, bind, train, measure",
                    ["vi_philosophy", "vi_logic"], _philosophy),
 }

@@ -229,5 +229,5 @@ def test_old_image_insights_become_kind_bild(tmp_path):
 
 
 def test_rules_tell_when_to_save_a_screenshot():
-    assert "Images are their own kind (kind:image)" in tools.RULES
-    assert "Save a screenshot when it shows what text would lose" in tools.RULES and "Never screenshots with passwords" in tools.RULES
+    assert "Images are their own kind (kind:image)" in tools.RULES_FULL
+    assert "Save a screenshot when it shows what text would lose" in tools.RULES_FULL and "Never screenshots with passwords" in tools.RULES_FULL

@@ -32,7 +32,7 @@ def test_plan_names_an_immature_vi_and_the_missing_base_model(vi):
     assert "LoRA" in tools.call_tool("vi_finetune", {"action": "guide"}, "a", False)
     with pytest.raises(tools.Rejected):
         tools.call_tool("vi_finetune", {}, "offen", False)  # needs a token
-    assert "call vi_finetune" in tools.RULES  # "I want to fine-tune" is enough for an AI on vi-mcp
+    assert "call vi_finetune" in tools.RULES_FULL and "insight:skill-finetune (vi_finetune)" in tools.RULES  # 0.70.6: full text in the skill
 
 
 def test_kit_writes_data_split_and_valid_scripts_without_running_anything(vi):

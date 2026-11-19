@@ -59,9 +59,9 @@ def test_german_tool_names_of_old_records_count_under_the_english_name(gd):
 
 def test_rules_ask_for_code_and_name_images():
     """0.35.1: the rules say that the code of a solution belongs in content, and how images go in."""
-    assert "working code, script or commands of the solution unabridged in content" in tools.RULES
-    assert "Not a copy of a file that lives in a repository: name repository, path and commit instead" in tools.RULES
-    assert "vi-mcp image FILE" in tools.RULES and "SAM 3" in tools.RULES
+    assert "working code, script or commands of the solution unabridged in content" in tools.RULES_FULL
+    assert "Not a copy of a file that lives in a repository: name repository, path and commit instead" in tools.RULES_FULL
+    assert "vi-mcp image FILE" in tools.RULES_FULL and "SAM 3" in tools.RULES_FULL
 
 
 def test_rule_one_covers_follow_up_questions():

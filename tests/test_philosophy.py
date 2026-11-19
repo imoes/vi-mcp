@@ -71,7 +71,7 @@ def test_the_tool_and_install_store_a_checked_philosophy_as_a_rule_set(gd):
     from vi_mcp import tools
     from vi_mcp import memory as g
     assert "Philosophy packages" in tools.call_tool("vi_philosophy", {}, "a", False)
-    assert "call vi_philosophy" in tools.RULES
+    assert "call vi_philosophy" in tools.RULES_FULL and "insight:skill-philosophy (vi_philosophy)" in tools.RULES  # 0.70.6: full text in the skill
     with pytest.raises(tools.Rejected):
         tools.call_tool("vi_philosophy", {}, "offen", False)  # needs a token
     assert "passes every check" in tools.call_tool("vi_philosophy", {"action": "check", "name": "kollektiv"}, "a", False)

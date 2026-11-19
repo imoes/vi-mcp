@@ -31,7 +31,8 @@ _TAGS = {"type": "array", "items": _S}
 
 TEXT_MAX = 1000
 #: 0.20.7: When an AI asks the VI and when it learns — goes with the instructions to every client (server._initialize). One source.
-RULES = """Rules for the VI — apply in every session:
+#: 0.70.6: the complete rules — the initial skill vi-rules (insight:skill-vi-rules); the instructions carry only RULES (the core)
+RULES_FULL = """Rules for the VI — apply in every session:
 ASK (vi_recall with free text — meaning and full text, hybrid by default — or kind:value; then vi_object for the full content):
 1. At the start of every task and for every new question in a conversation — follow-up questions too, not only the first message: search for the hosts, systems, products and error messages it names — before planning or changing anything.
 2. Before any changing action on a system (deploy, restart, configuration, playbook, delete), unless step 1 already covered it.
@@ -52,6 +53,22 @@ Code: the code of a solution, a fix, a reusable script or a query belongs in con
 Network wiki: what the whole network should maintain (a runbook, the answer to a recurring question) goes on a page with vi_page_write (network, page, text, base_rev = the revision you edited); vi_page_read shows a page with its open conflicts — resolve one by writing with base_rev = one head and also_parents = the others.
 Images are their own kind (kind:image). Save a screenshot when it shows what text would lose: an error dialog, a UI state, a configuration screen, a graph — take it (e.g. browser_take_screenshot) and store it with vi-mcp image FILE --text … --hashtags … --source … [--content-file F] [--regions F.json] (text = what it shows, content = full description, regions in SAM 3 format); vi_object shows it. Never screenshots with passwords or tokens on screen.
 Never learn: passwords, tokens, keys; unproven claims (only explicitly as a hypothesis); transient state (progress, current load); copies of what is maintained in a repository or documentation. Company knowledge with visibility=internal."""
+
+#: 0.70.6: the core that goes into every session's instructions. Claude Code cuts server instructions at 4,096 characters (docs
+#: code.claude.com/docs/en/mcp.md); the full rules were 5,640 characters, so everything after LEARN — 'Never learn' included — and the
+#: memory index never arrived. The core names where the rest is, like links in a CLAUDE.md; tests/test_instructions_budget.py holds it.
+RULES = """Rules for the VI — the memory of this organisation: hosts, fixes, decisions, runbooks. Most tasks have something here; it is found only if you search.
+SEARCH FIRST (vi_recall: free text or kind:value — several short searches beat one long one; vi_object reads a hit whole):
+1. At the start of every task and for every new question in a conversation — follow-up questions too, not only the first message: search for each host, system, product and error text it names — before planning or changing anything.
+2. Before any changing action on a system (deploy, restart, configuration, playbook, delete) and after any error or surprise: search for the system and the error text.
+3. Hints "[VI memory …]" before your actions are hits: use them or contradict them with a reason; "… N more hits … vi_drilldown(…)": run it when your task concerns that subject.
+4. Internal systems, processes, people: the VI first. Nothing found: vi_net_search or vi_ask(to="net"). Hits mostly from another instance: vi_ask it.
+LEARN (vi_learn: text = one key statement; content = complete, with code and commands; hashtags host:/tool:/topic:/error:; source; in the same call pairs + answers + memory):
+5. a solved non-obvious problem (cause, fix, the working commands); 6. a rule or decision of the user beyond this session (topic:requirement); 7. a reusable fact (path, port, version, access route); 8. something turns out wrong: at once vi_refute it and vi_learn the correction.
+Search before learning — if it exists, vi_confirm. After hints: vi_feedback(helped=[ids], wrong=[ids]).
+NEVER learn passwords, tokens or keys, transient state, unproven claims (only as a hypothesis), copies of repository files. Company knowledge: visibility=internal.
+MORE — read the whole text when the topic comes up (vi_object <id>): all rules incl. code, wiki, images → insight:skill-vi-rules · rules, allowed/forbidden, questions over many objects → insight:skill-clingo (vi_logic) · philosophy packages → insight:skill-philosophy (vi_philosophy) · fine-tuning → insight:skill-finetune (vi_finetune) · manuals per system → vi_capabilities."""
+
 #: Without a token, confirming, refuting and visibility=internal are not allowed (OPEN_ALLOWED) — the rules say so instead of only refusing
 RULES_WITHOUT_TOKEN = ("Without an own token: search, read and propose knowledge with vi_learn (visibility=shared) — confirming, refuting, vi_ask "
                      "and visibility=internal need a token; report wrong knowledge to the user instead.")
@@ -684,11 +701,21 @@ OPEN_ALLOWED = {"vi_before", "vi_after", "vi_learn", "vi_recall", "vi_drilldown"
                  "vi_feedback", "vi_capabilities", "vi_vocabulary", "vi_incubator"}  # 0.41.0: the open network's pages are readable like the rest; a company network is refused in the tool
 
 
+#: 0.70.6: Claude Code defers MCP tools by default — the model has to call ToolSearch before it can search the memory at all
+#: (code.claude.com/docs/en/mcp.md 'Scale with MCP tool search'). These load upfront; Anthropic's advice: keep the three to five most-used
+#: tools always loaded (anthropic.com/engineering/advanced-tool-use). Their descriptions stay under the 4,096-character upfront cut.
+ALWAYS_LOAD = ("vi_recall", "vi_object", "vi_learn")
+
+
+def _with_meta(t: dict) -> dict:
+    return {**t, "_meta": {"anthropic/alwaysLoad": True}} if t["name"] in ALWAYS_LOAD else t
+
+
 def listing(instance: str | None = None) -> list[dict]:
     """Public tool list — English since 0.22.0; German names stay accepted as aliases (api_en)."""
     if instance == config.OPEN:
-        return [t for t in TOOLS if t["name"] in OPEN_ALLOWED]
-    return list(TOOLS) + reflexes.tool_schemas()
+        return [_with_meta(t) for t in TOOLS if t["name"] in OPEN_ALLOWED]
+    return [_with_meta(t) for t in TOOLS] + reflexes.tool_schemas()
 
 
 def known(name: str) -> bool:

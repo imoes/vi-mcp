@@ -3,6 +3,36 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.70.6 — 2026-11-19
+
+### What has changed: the instructions fit, and the memory search is loaded from the start
+
+- **The instructions arrive whole.** Claude Code shows only the first 4,096 characters of a server's instructions
+  (code.claude.com/docs/en/mcp.md: "Claude sees only the text before the cut"). The rules alone were 5,640 characters, with a header in
+  front: everything after LEARN never reached the model — the sections on logic, philosophy, fine-tuning, code, the wiki, images, the
+  rule "Never learn: passwords, tokens, keys" — and the memory index with the user's requirements came after the rules and was lost
+  completely. Seen 19.11.2026 in a live session: "… vi_confirm / vi_refute when yo… [truncated]".
+- Now the instructions carry a **core** (2,100 characters): SEARCH FIRST with four concrete triggers, LEARN, NEVER learn secrets, and a
+  "MORE" line that names where the rest is, like links in a CLAUDE.md: the complete rules are the new initial skill **vi-rules**
+  (`vi_object insight:skill-vi-rules`), next to skill-clingo, skill-philosophy, skill-finetune and vi_capabilities. The memory index
+  follows the core and gets the rest of a 4,000-character budget; the training notice comes last.
+- **vi_recall, vi_object and vi_learn load at session start.** Claude Code defers MCP tools by default, so a model had to call ToolSearch
+  before it could search the memory at all. These three tools carry `_meta: {"anthropic/alwaysLoad": true}` (Claude Code docs "Mark a
+  tool to load upfront"; Anthropic: keep the three to five most-used tools loaded); every other tool stays deferred.
+
+Why: agents rarely searched on their own — instance claude-code made 52 explicit searches against 7,773 recorded actions
+(production copy, 12.–16.11.2026), although the memory held the answer often (this session: the Popper setup, the deploy procedure,
+the AMD host's limits). Evidence: `tests/test_instructions_budget.py` — the core says search first and never learn secrets and names
+every moved section; the full rules are the skill vi-rules; with 40 requirements in the index the instructions stay at or below 4,000
+characters and the rules come before the index; the three tools load upfront and the rest stays deferred.
+
+### What is missing
+
+- The effect on the search rate is not measured yet: the search log's conversation id does not join with the experiences' conversation
+  id for Claude Code sessions, so "searched before the first changing action" cannot be counted per conversation. Next.
+- Retrieval stays mostly the model's choice; agent-memory products that retrieve on every prompt (Zep, Mem0, Supermemory since
+  08/2026) suggest making the hook the main path — a separate step, measured against a no-memory baseline.
+
 ## 0.70.5 — 2026-11-19
 
 ### What was fixed

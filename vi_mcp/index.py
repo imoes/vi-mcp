@@ -75,8 +75,9 @@ def _line(o) -> str:
     return f"- [{o.id}] {'image: ' if o.kind == 'image' else ''}{text}"
 
 
-def text(instance: str) -> str:
-    """The index as it goes into the instructions; '' if there is nothing to list."""
+def text(instance: str, max_chars: int | None = None) -> str:
+    """The index as it goes into the instructions; '' if there is nothing to list. max_chars: the budget left (0.70.6), default MAX_CHARS."""
+    max_chars = MAX_CHARS if max_chars is None else max_chars
     try:
         sec = sections(instance)
     except Exception:  # noqa: BLE001 — an index must never break initialize
@@ -99,7 +100,7 @@ def text(instance: str) -> str:
         lines = [f"{titles[key]}:"] + [_line(o) for o in objs]
         for i, ln in enumerate(lines):
             # a title needs room for at least one entry after it; the cut is named, not silent
-            if size + len(ln) + 1 + (len(lines[1]) + 1 if i == 0 else 0) > MAX_CHARS:
+            if size + len(ln) + 1 + (len(lines[1]) + 1 if i == 0 else 0) > max_chars:
                 if out[-1].endswith(":"):
                     out.pop()
                 out.append("(index cut at its size limit — vi_recall finds the rest)")

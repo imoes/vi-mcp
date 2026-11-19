@@ -54,7 +54,7 @@ def init(port, token, name="pytest"):
     assert st == 200, a
     assert a["result"]["protocolVersion"] == "2025-03-26"
     # 0.20.7: every client gets the rules for when to consult the VI and when to learn
-    assert "ASK" in a["result"]["instructions"] and "LEARN" in a["result"]["instructions"] and "Never learn" in a["result"]["instructions"]
+    assert "SEARCH FIRST" in a["result"]["instructions"] and "LEARN" in a["result"]["instructions"] and "NEVER learn" in a["result"]["instructions"]  # 0.70.6: the core rules
     sid = header["Mcp-Session-Id"]
     st, _, _ = request(port, "POST", {"jsonrpc": "2.0", "method": "notifications/initialized"}, token, sid)
     assert st == 202

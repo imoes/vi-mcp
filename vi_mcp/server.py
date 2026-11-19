@@ -134,14 +134,26 @@ def _initialize(msg: dict, inst: config.Instance, announced: str | None = None) 
     return _answer(msg.get("id"), {
         "protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
         "serverInfo": {"name": SERVER_NAME, "version": __version__},
-        "instructions": (f"VI memory, conversation {s.serial}, instance {inst.name} — other sessions of {inst.name} ask you with "
-                         f"vi_ask(to=\"{inst.name}#{s.serial}\"), all of them with to=\"{inst.name}\". Report vi_before before an action and vi_after "
-                         "afterwards; vi_recall/vi_drilldown to look things up, vi_object reads one object completely. vi_learn with a source to learn: code, API tables and commands belong unabridged into the field content, otherwise memory has gaps.\n"
-                         + _training_notice() + "\n"  # 0.57.0: early, clients cut long instructions
-                         + tools.RULES + "\n"
-                         + (tools.RULES_WITHOUT_TOKEN + "\n" if inst.name == config.OPEN else "") + self_model.hint()
-                         + (f"\n{ix}" if (ix := index.text(inst.name)) else "")
-                         + (f"\n{nt}" if (nt := _network_notice()) else ""))}), s  # 0.38.0: the memory index, like a MEMORY.md
+        "instructions": _instructions(inst, s)}), s
+
+
+#: 0.70.6: Claude Code cuts server instructions at 4,096 characters and shows only what comes before the cut
+#: (code.claude.com/docs/en/mcp.md); the rest of the budget after the fixed parts goes to the memory index, and the parts that matter most
+#: come first: who you are, the core rules, the index of requirements. tests/test_instructions_budget.py holds the total.
+INSTRUCTIONS_BUDGET = 4000
+
+
+def _instructions(inst: config.Instance, s) -> str:
+    head = (f"VI memory, conversation {s.serial}, instance {inst.name} — other sessions ask you with vi_ask(to=\"{inst.name}#{s.serial}\"). "
+            "Report vi_before before an action and vi_after afterwards.\n")
+    fixed = [head, tools.RULES + "\n"]
+    if inst.name == config.OPEN:
+        fixed.append(tools.RULES_WITHOUT_TOKEN + "\n")
+    tail = [x for x in (_training_notice(), self_model.hint(), _network_notice()) if x]
+    used = sum(len(x) for x in fixed) + sum(len(x) + 1 for x in tail)
+    ix = index.text(inst.name, max_chars=max(400, min(index.MAX_CHARS, INSTRUCTIONS_BUDGET - used - 1)))
+    out = "".join(fixed) + (ix + "\n" if ix else "") + "\n".join(tail)
+    return out[:INSTRUCTIONS_BUDGET]
 
 
 def _training_notice() -> str:
