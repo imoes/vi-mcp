@@ -3,6 +3,15 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## Unreleased (0.70.5)
+
+### What was fixed
+
+- `vi_indexes(index=X, scope=…)` with no other field returned the index overview and changed nothing (0.70.4 checked only
+  description, tags, kind and explicit before describing). Seen live on 19.11.2026: setting the Stack Exchange index to `external`
+  silently did nothing; a call with a description worked. Evidence: `tests/test_external_index.py` — a scope-only call through the tool
+  changes the scope (external, then all).
+
 ## 0.70.4 — 2026-11-19
 
 ### What is new: an external index is searched, but never a hint

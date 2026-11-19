@@ -76,3 +76,13 @@ def test_one_scope_per_index_and_global_stays_searched(gd):
     msg = indexes.describe("se-ext", scope="external")
     assert "external" in msg and indexes.registry()["se-ext"]["explicit"] is False
     assert indexes.registry()["global"]["scope"] == "all"
+
+
+def test_scope_alone_through_the_tool_changes_the_index(gd):
+    """0.70.5: vi_indexes(index=…, scope=…) without description/tags/kind must describe, not silently list (seen live 19.11.2026:
+    the scope-only call returned the overview and left the index unchanged)"""
+    _page("a page of the corpus", ["topic:corpus"])
+    out = tools.call_tool("vi_indexes", {"index": "se-ext", "scope": "external"}, "a", False)
+    assert "external" in out and indexes.registry()["se-ext"]["scope"] == "external"
+    tools.call_tool("vi_indexes", {"index": "se-ext", "scope": "all"}, "a", False)
+    assert indexes.registry()["se-ext"]["scope"] == "all"

@@ -1686,7 +1686,7 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         return json.dumps(r, ensure_ascii=False)
     if name == "vi_indexes":  # 0.61.0
         from . import indexes
-        if args.get("index") and any(args.get(k) is not None for k in ("description", "tags", "kind", "explicit")):
+        if args.get("index") and any(args.get(k) is not None for k in ("description", "tags", "kind", "explicit", "scope")):
             if instance == config.OPEN:
                 raise Rejected("describing an index needs a token")
             try:
