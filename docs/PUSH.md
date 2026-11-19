@@ -1,6 +1,6 @@
 # Push: can vi-mcp tell a connected AI something on its own?
 
-Design note, 19.11.2026. Status: **in 0.70.4 (not released yet), off by default**; it delivers only after the precondition below. Sources are named after every claim; whatever
+Design note, 19.11.2026. Status: **released in 0.70.4, off by default**; it delivers only after the precondition below. Sources are named after every claim; whatever
 was not read from a primary source or measured is called a hypothesis.
 
 ## In short
