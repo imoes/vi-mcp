@@ -3,6 +3,22 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.70.8 — 2026-11-19
+
+### What was fixed
+
+- An import into an **external** index no longer starts the training on demand. Every `vi_doc_sync` batch nudged it, so the Stack
+  Exchange import retrained the router about every 2 minutes on the production server (model history 19.11.2026 18:31–18:50 UTC:
+  "retrained — on demand: documentation imported" 10 times) — although an external index's pages are never embedded in sleep, never
+  hints and get no proximity edges, so there was nothing to learn; a busy server answered `vi_model` with a timeout meanwhile. Imports
+  into other indexes still nudge. Evidence: `tests/test_doc_import.py::test_an_import_into_an_external_index_starts_no_training`.
+
+### What is open
+
+- The router's holdout AUC is 0.448 (19.11.2026 evening; 0.644 at noon) and the router is off by its own gate. The composition of the
+  newest 5,468 actions is like the window before (132 vs 114 failures, the same instances and tools), so it is not the composition effect of
+  16.11. — cause not determined; next: old vs new model on the same holdout, AUC within tool.
+
 ## 0.70.7 — 2026-11-19
 
 ### What was fixed

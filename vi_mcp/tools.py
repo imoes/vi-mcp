@@ -1695,8 +1695,11 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
                                        (str(args.get("old_source_kind") or "").strip().lower() or None))
         except ValueError as e:
             raise Rejected(str(e)) from e
-        from . import on_demand
-        on_demand.nudge("documentation imported")
+        from . import indexes, on_demand
+        # 0.70.8: an import into an EXTERNAL index starts no training — its pages are never embedded in sleep, never hints and get no
+        # proximity edges, so there is nothing to learn; the Stack Exchange import retrained the router every ~2 minutes (19.11.2026)
+        if indexes.normalize(args.get("index")) not in g.external_indexes():
+            on_demand.nudge("documentation imported")
         return json.dumps(r, ensure_ascii=False)
     if name == "vi_code_sync":  # 0.61.0
         from . import code_import, indexes

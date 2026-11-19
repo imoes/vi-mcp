@@ -188,3 +188,16 @@ def test_documents_of_a_directory_are_imported_and_prune_keeps_refused_files(gd,
     assert g.load(doc_import.object_id("files", "notes.md", 1)).mode == "archived"
     s = doc_import.summary(*doc_import.load([str(tmp_path)]))
     assert s["refused_by_class"] == {"unreadable": 1} and s["refused_files"][0]["reason"]
+
+
+def test_an_import_into_an_external_index_starts_no_training(gd):
+    """0.70.8: the Stack Exchange import (external index) retrained the router every ~2 minutes on the production server (19.11.2026:
+    'retrained — on demand: documentation imported' 10 times in 20 minutes) — its pages are never hints, embedded or linked by sleep."""
+    from vi_mcp import indexes, on_demand
+    _call("vi_doc_sync", {"action": "sync", "source": "corpus", "index": "se-ext", "pages": [_page("p0")]})  # creates the index
+    indexes.describe("se-ext", scope="external")
+    before = on_demand.progress["angestossen"]
+    _call("vi_doc_sync", {"action": "sync", "source": "corpus", "index": "se-ext", "pages": [_page("p1", title="Another page")]})
+    assert on_demand.progress["angestossen"] == before
+    _call("vi_doc_sync", {"action": "sync", "source": "wiki", "pages": [_page("p2", title="A normal page")]})  # a normal index still nudges
+    assert on_demand.progress["angestossen"] == before + 1
