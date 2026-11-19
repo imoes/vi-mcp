@@ -5,6 +5,21 @@ Linked from [README.md](README.md).
 
 ## Unreleased (0.70.3) — branch built-for
 
+### What is new: an index can be searched only when named
+
+- `vi_indexes(index=NAME, explicit=true)` marks an index as searched ONLY when named — `index:NAME` in a filter or `vi_recall(index=…)`.
+  Its objects then never appear in a search without an index, never become a hint before an action, are not embedded in sleep (step
+  7) and get no language-model labels or training pairs in sleep (steps 8f/8i); the internal web search's "recent" list leaves them out.
+  `explicit=false` makes it normal again. `global` cannot be made explicit. A database is migrated in place (new column
+  `vi_index.explicit`, default 0 — every existing index behaves as before).
+- Why (the user, 19.11.2026: "Erst Index-Option bauen"): an external corpus of about 622,000 Stack Exchange question/answer pages
+  (operations sites, CC BY-SA) is to be imported into the production VI — about ten times its knowledge. Without the option every
+  search searches every index (`memory._filter_sql` restricted only when an index was named), every imported page would compete as a
+  hint for every agent, and the sleep would embed and label it for weeks on the shared embedding and language-model services.
+- Evidence: `tests/test_explicit_index.py` — found only when named (filter and `vi_recall index=`), and found again when switched off;
+  never a hint (control: the same object is a hint while its index is normal); not embedded by `vector.catch_up`; `global` refused
+  before any write.
+
 ### What is new: every knowledge object remembers what it was built for
 
 - On its first save an insight, rule, skill, search, page or image gets `data.built_for`: its context tags at that moment (host:,

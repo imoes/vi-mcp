@@ -158,7 +158,10 @@ def catch_up(max_s: float | None = None) -> dict:
             "AND o.mode NOT IN ('refuted', 'withdrawn', 'archived', 'quarantine') AND length(o.text) > 0 "
             # code structure facts: generated one-line summaries, found by hashtag and clingo — embedding them would only add near
             # duplicates (and proximity edges between them)
-            f"AND o.id NOT IN (SELECT object_id FROM tag WHERE tag IN ({','.join('?' * len(FACT_TAGS))})) ORDER BY o.ts DESC",
+            f"AND o.id NOT IN (SELECT object_id FROM tag WHERE tag IN ({','.join('?' * len(FACT_TAGS))})) "
+            # 0.70.3: an index searched only when named (a large external corpus) is not embedded in sleep — it would keep the shared
+            # embedding service busy for weeks; it is found by full text when named
+            "AND o.idx NOT IN (SELECT name FROM vi_index WHERE explicit = 1) ORDER BY o.ts DESC",
             (*VECTOR_KINDS, *FACT_TAGS)).fetchall()
     n, error, end, paused = 0, None, time.monotonic() + (CATCHUP_MAX_S if max_s is None else max_s), 0.0
     model = (config or {}).get("model") or "embed"

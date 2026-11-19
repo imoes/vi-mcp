@@ -352,6 +352,7 @@ VI: the indexes of the memory — projects and special VIs: objects, experiences
 | `description` | string |  | optional: what the index is for (German: `beschreibung`) |
 | `tags` | array of string |  | optional: tags of the index (replace the old ones) |
 | `kind` | string (project, special) |  | optional: project or special (a special VI) (German: `art`) |
+| `explicit` | boolean |  | optional (0.70.3): true = this index is searched only when named (index:<name> or vi_recall index=…) — never in a search without an index, never a hint, not embedded in sleep (for large external corpora); false = normal again |
 
 ### `vi_vocabulary`
 

@@ -234,7 +234,10 @@ TOOLS = [
      "inputSchema": _schema({"index": {"type": "string", "description": "optional: the index to describe"},
                              "description": {"type": "string", "description": "optional: what the index is for"},
                              "tags": {"type": "array", "items": {"type": "string"}, "description": "optional: tags of the index (replace the old ones)"},
-                             "kind": {"type": "string", "enum": ["project", "special"], "description": "optional: project or special (a special VI)"}})},
+                             "kind": {"type": "string", "enum": ["project", "special"], "description": "optional: project or special (a special VI)"},
+                             "explicit": {"type": "boolean", "description": "optional (0.70.3): true = this index is searched only when named "
+                                          "(index:<name> or vi_recall index=…) — never in a search without an index, never a hint, not embedded "
+                                          "in sleep (for large external corpora); false = normal again"}})},
     {"name": "vi_vocabulary",
      "description": "VI: the words you can search with — before a search when you are unsure which hashtags exist. Without arguments: the "
                     "kinds (host, tool, thema, …) with how many values and objects; word_kind=…: its values, most used first, with their "
@@ -1679,11 +1682,11 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
         return json.dumps(r, ensure_ascii=False)
     if name == "vi_indexes":  # 0.61.0
         from . import indexes
-        if args.get("index") and any(args.get(k) is not None for k in ("description", "tags", "kind")):
+        if args.get("index") and any(args.get(k) is not None for k in ("description", "tags", "kind", "explicit")):
             if instance == config.OPEN:
                 raise Rejected("describing an index needs a token")
             try:
-                return indexes.describe(args["index"], args.get("description"), args.get("tags"), args.get("kind"))
+                return indexes.describe(args["index"], args.get("description"), args.get("tags"), args.get("kind"), args.get("explicit"))
             except ValueError as e:
                 raise Rejected(str(e)) from e
         return "Indexes (kind · objects · experiences · knowledge · own model):\n" + "\n".join(indexes.lines())

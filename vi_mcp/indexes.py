@@ -135,12 +135,16 @@ def registry() -> dict[str, dict]:
     import json
     from . import memory as g
     with g.lock:
-        rows = g.db().execute("SELECT name, kind, description, tags, created, source FROM vi_index").fetchall()
-    return {r[0]: {"art": r[1], "beschreibung": r[2], "tags": json.loads(r[3] or "[]"), "erstellt": r[4], "quelle": r[5]} for r in rows}
+        rows = g.db().execute("SELECT name, kind, description, tags, created, source, explicit FROM vi_index").fetchall()
+    return {r[0]: {"art": r[1], "beschreibung": r[2], "tags": json.loads(r[3] or "[]"), "erstellt": r[4], "quelle": r[5],
+                   "explicit": bool(r[6])} for r in rows}
 
 
-def describe(name: str, description: str | None = None, tags: list[str] | None = None, kind: str | None = None) -> str:
-    """Give an index a description, tags and its kind (project / special). Creates the row if the index has no objects yet."""
+def describe(name: str, description: str | None = None, tags: list[str] | None = None, kind: str | None = None,
+             explicit: bool | None = None) -> str:
+    """Give an index a description, tags and its kind (project / special). Creates the row if the index has no objects yet.
+    explicit (0.70.3): True = searched only when named (index:<name> or vi_recall index=…), never in a search without an index, never a
+    hint, never embedded in sleep; False = back to normal."""
     import json
     from . import memory as g, names
     n = normalize(name)
@@ -151,6 +155,8 @@ def describe(name: str, description: str | None = None, tags: list[str] | None =
         raise ValueError(f"kind must be one of {', '.join(KINDS[1:])}")
     if n == GLOBAL and kind is not None:
         raise ValueError("global stays global")
+    if n == GLOBAL and explicit:  # checked before any write: a refusal leaves no open transaction behind
+        raise ValueError("global is always searched")
     clean = None
     if tags is not None:
         clean = sorted({str(t).strip().lower() for t in tags if str(t).strip()})
@@ -166,10 +172,14 @@ def describe(name: str, description: str | None = None, tags: list[str] | None =
             g.db().execute("UPDATE vi_index SET tags = ? WHERE name = ?", (json.dumps(clean), n))
         if kind is not None:
             g.db().execute("UPDATE vi_index SET kind = ? WHERE name = ?", (kind, n))
+        if explicit is not None:
+            g.db().execute("UPDATE vi_index SET explicit = ? WHERE name = ?", (1 if explicit else 0, n))
         g.db().commit()
     g._known_indexes.add(n)
+    g.invalidate_explicit()
     r = registry()[n]
-    return f"index {n} ({r['art']}): {r['beschreibung'] or '—'}" + (f" · tags {', '.join(r['tags'])}" if r["tags"] else "")
+    return (f"index {n} ({r['art']}): {r['beschreibung'] or '—'}" + (f" · tags {', '.join(r['tags'])}" if r["tags"] else "")
+            + (" · searched only when named (index:" + n + "), never a hint" if r["explicit"] else ""))
 
 def summary() -> list[dict]:
     """Every index: objects, experiences, knowledge, its own model's state. global first, then by size."""

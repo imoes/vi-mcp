@@ -95,6 +95,10 @@ vi-mcp docs import pages.jsonl --source confluence-it --label "Confluence IT" --
 It prints `{"pages": …, "held_before": …, "to_send": …, "to_remove": …}` and sends nothing. `to_send` is the number of new or
 changed pages. `--index` puts the pages into a special VI (e.g. `cue`, `dcx`); without it they go to `global`.
 
+**A large external corpus** (0.70.3; e.g. a public Q&A site with hundreds of thousands of pages): mark its index as searched only when
+named BEFORE the import — `vi_indexes(index="NAME", explicit=true)` — so its pages are found with `index:NAME` / `vi_recall(index=…)`
+but never in a search without an index, never as a hint, and the sleep neither embeds nor labels them.
+
 ## Step 4 — the import
 
 The same command without `--dry-run`. Add `--prune` only when the file holds the WHOLE source — every page missing from it is

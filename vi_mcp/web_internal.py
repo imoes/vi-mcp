@@ -190,6 +190,7 @@ def home(base: str, instance: str) -> str:
     with g.lock:
         ids = [r[0] for r in g.db().execute(
             "SELECT id FROM object WHERE kind IN ('insight', 'rule', 'skill') AND visibility <> 'private' AND mode NOT IN ('quarantine', 'refuted', 'withdrawn') "
+            "AND idx NOT IN (SELECT name FROM vi_index WHERE explicit = 1) "  # 0.70.3: explicit-only indexes only when named
             "ORDER BY ts DESC LIMIT 12")]
     recent = "".join(_hit(base, o) for o in g.load_many(ids).values() if _visible(o) is None)
     body = (f'<div class="hero"><h1>What does the memory know?</h1><form class="search" action="{e(base)}/suche" method="get" role="search">'

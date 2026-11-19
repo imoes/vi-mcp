@@ -223,6 +223,9 @@ def _migrate(con: Any) -> None:
     con.execute("CREATE TABLE IF NOT EXISTS vi_index (name TEXT PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'project', "
                 "description TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]', created TEXT NOT NULL, "
                 "source TEXT NOT NULL DEFAULT 'automatic')")
+    if "explicit" not in {r[1] for r in con.execute("PRAGMA table_info(vi_index)")}:  # 0.70.3: searched only when named
+        con.execute("ALTER TABLE vi_index ADD COLUMN explicit INTEGER NOT NULL DEFAULT 0")
+        log("migration: column vi_index.explicit added (every index searched by default, as before)")
     con.execute("INSERT OR IGNORE INTO vi_index (name, kind, description, created, source) VALUES "
                 "('global', 'global', 'shared knowledge of all projects', ?, 'system')", (now(),))
     con.execute("INSERT OR IGNORE INTO vi_index (name, created) SELECT DISTINCT idx, ? FROM object WHERE idx <> 'global'", (now(),))
@@ -877,12 +880,40 @@ def split_index(filter_text: str) -> tuple[str, list[str]]:
     return INDEX_TOKEN.sub(" ", filter_text or "").strip(), list(dict.fromkeys(names_))
 
 
+#: 0.70.3: indexes searched ONLY when named (vi_index.explicit = 1) — a large external corpus (e.g. an imported Q&A site) lives in the
+#: memory without flooding every search and every hint (the user, 19.11.2026: "Erst Index-Option bauen"). Cached briefly: _filter_sql
+#: runs for every search and hint.
+_EXPLICIT_CACHE: dict = {"t": float("-inf"), "v": frozenset()}
+EXPLICIT_TTL_S = 30.0
+
+
+def explicit_indexes() -> frozenset:
+    """The names of the indexes that are searched only when named."""
+    import time as _t
+    if _t.monotonic() - _EXPLICIT_CACHE["t"] > EXPLICIT_TTL_S:
+        with lock:
+            try:
+                v = frozenset(r[0] for r in db().execute("SELECT name FROM vi_index WHERE explicit = 1"))
+            except sqlite3.OperationalError:  # a database before the column (opened read-only, never migrated)
+                v = frozenset()
+        _EXPLICIT_CACHE.update(t=_t.monotonic(), v=v)
+    return _EXPLICIT_CACHE["v"]
+
+
+def invalidate_explicit() -> None:
+    _EXPLICIT_CACHE["t"] = float("-inf")
+
+
 def _filter_sql(groups: list, remove: list, viewer: str | None, indexes_: list[str] | None = None) -> tuple[str, list]:
     """SQL for mode, visibility and hashtag conditions (without free text) — one source for recall() and ids_for_filter()."""
     sql, par = f"SELECT id FROM object WHERE mode NOT IN {GONE_SQL}", []
-    for ix in ([search_index.get()] if search_index.get() else []) + list(indexes_ or []):
+    named = ([search_index.get()] if search_index.get() else []) + list(indexes_ or [])
+    for ix in named:
         sql += " AND idx = ?"
         par.append(ix)
+    if not named and (ex := explicit_indexes()):  # 0.70.3: an explicit-only index stays out unless named
+        sql += f" AND idx NOT IN ({','.join('?' * len(ex))})"
+        par += sorted(ex)
     if not any("mode:quarantine" in grp for grp in groups):
         sql += " AND mode <> 'quarantine'"  # only via vi_quarantine
     if not any("mode:merged" in grp for grp in groups):
