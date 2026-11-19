@@ -14,7 +14,7 @@ nothing disputed, refuted, archived or in quarantine.
 """
 from __future__ import annotations
 
-from . import memory as g
+from . import doc_triggers, memory as g
 
 MAX_CHARS = 2000
 LINE_CHARS = 110
@@ -61,7 +61,7 @@ def sections(instance: str) -> dict[str, list]:
     taken: set[str] = set()
     req = _pick(_ids(f"SELECT o.id FROM object o JOIN tag t ON t.object_id = o.id AND t.tag = 'topic:requirement' "
                      f"WHERE o.kind IN ({kinds}) AND o.mode = 'active' ORDER BY o.ts DESC LIMIT 60", KINDS), instance, PER_SECTION["vorgaben"], taken,
-                imports_ok=True)
+                imports_ok=True, keep=lambda o: not doc_triggers.is_doc(o))  # 0.70.10: a documentation page is no decision of the user
     proven = _pick(_ids(f"SELECT o.id FROM object o WHERE o.kind IN ({kinds}) AND o.mode = 'active' AND (o.confirmed > 0 OR o.accesses > 0) "
                         f"AND {_NOT_IMPORTED} ORDER BY o.confirmed DESC, o.accesses DESC LIMIT 200", KINDS), instance, PER_SECTION["bewaehrt"], taken)
     here = _pick(_ids(f"SELECT o.id FROM object o WHERE o.kind IN ({kinds}) AND o.mode = 'active' AND o.instance = ? AND {_NOT_IMPORTED} "

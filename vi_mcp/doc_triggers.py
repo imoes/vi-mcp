@@ -22,6 +22,11 @@ from . import memory as g
 
 VERSION = 2  # 2 (0.69.1): STOPWORDS — function and filler words are never a topic trigger (an import of 17.11.2026 set topic:for,
 #              topic:old, topic:error on documentation because learned knowledge carried them as topics)
+#: 0.70.10: SYSTEM_TOPICS — a topic an agent assigns by meaning is never derived from a page's words (Stack Exchange pages with
+#: "requirement" in the title became topic:requirement and filled the index section of the user's decisions: 13 of 111,735 pages on
+#: 19.11.2026). No VERSION bump for 13 pages: run() takes the pages that carry a derived system topic along with the stale ones.
+#: topics with a fixed meaning set by an agent or the server (rule 6: topic:requirement = what the user decided) — never a derived trigger
+SYSTEM_TOPICS = frozenset({"requirement", "open", "offen"})
 #: words that are no topic however often learned knowledge used them as one (English and German function and filler words)
 STOPWORDS = frozenset("""
 a an and are as at be by for from has have in into is it its new no not of old on or out so the to up use used using was were
@@ -67,7 +72,7 @@ def vocabulary() -> tuple[dict[str, str], set[str]]:
     for first, full in short.items():
         if len(full) == 1 and first not in names:
             names[first] = next(iter(full))
-    return names, {t for t in themen if len(t) >= 3 and t not in STOPWORDS}
+    return names, {t for t in themen if len(t) >= 3 and t not in STOPWORDS and t not in SYSTEM_TOPICS}
 
 
 def common_sets(names: dict[str, str], themen: set[str]) -> tuple[set[str], set[str]]:
@@ -105,6 +110,13 @@ def run(batch: int = BATCH) -> dict:
         ids = [r[0] for r in g.db().execute(
             f"SELECT id FROM object WHERE id IN ({_doc_ids_sql()}) AND mode NOT IN ('merged', 'refuted', 'withdrawn') "
             "AND COALESCE(CAST(json_extract(data, '$.derived_triggers.version') AS REAL), 0) < ? ORDER BY ts LIMIT ?", (*DOC_TAGS, VERSION, batch))]
+        system = tuple(f"topic:{t}" for t in sorted(SYSTEM_TOPICS))
+        carrying = [r[0] for r in g.db().execute(  # 0.70.10: pages an earlier run gave a system topic — only a derived one is taken off
+            f"SELECT DISTINCT object_id FROM tag WHERE tag IN ({','.join('?' * len(system))}) AND object_id IN ({_doc_ids_sql()})",
+            (*system, *DOC_TAGS)) if r[0] not in ids][:batch]
+    for oid, o in g.load_many(carrying).items():
+        if SYSTEM_TOPICS & set((o.data.get("derived_triggers") or {}).get("topic") or []):
+            ids.append(oid)
     too_common_h: set[str] = set()
     too_common_t: set[str] = set()
     if ids:  # document frequency over all documentation: what fits too much of it is no specific trigger
@@ -120,7 +132,7 @@ def run(batch: int = BATCH) -> dict:
         report["geprueft"] += 1
         hosts, topics = derive(o.text, str(o.data.get("content") or ""), names, themen)
         # 0.69.1: topics an earlier version derived that are filler words now (topic:for, topic:old …) are taken off again
-        stale = [f"topic:{t}" for t in (o.data.get("derived_triggers") or {}).get("topic") or [] if t in STOPWORDS]
+        stale = [f"topic:{t}" for t in (o.data.get("derived_triggers") or {}).get("topic") or [] if t in STOPWORDS | SYSTEM_TOPICS]
         stale = [t for t in stale if t in o.hashtags]
         if stale:
             o.hashtags = [t for t in o.hashtags if t not in stale]
@@ -169,7 +181,7 @@ def refresh(o, who: str = "vi", why: str = "on access") -> list[str]:
     topics an earlier version derived off again, record data.derived_triggers. Returns the hashtags added (and "-tag" for removed)."""
     names, themen = cached_vocabulary()
     hosts, topics = derive(o.text, str(o.data.get("content") or ""), names, themen)
-    removed = [f"topic:{t}" for t in ((o.data.get("derived_triggers") or {}).get("topic") or []) if t in STOPWORDS]
+    removed = [f"topic:{t}" for t in ((o.data.get("derived_triggers") or {}).get("topic") or []) if t in STOPWORDS | SYSTEM_TOPICS]
     removed = [t for t in removed if t in o.hashtags]
     new = [t for t in [f"host:{h}" for h in hosts] + [f"topic:{t}" for t in topics] if t not in o.hashtags and g.TAG.match(t)]
     o.hashtags = sorted((set(o.hashtags) - set(removed)) | set(new))

@@ -3,6 +3,32 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.70.10 — 2026-11-19
+
+### What was fixed
+
+- **A polling loop no longer counts as a failed action, so the router learns from real failures again.** The scorer's code stage
+  penalised every successful read-only call whose identical call followed among the next three actions ("identisch_wiederholt", grade
+  0.4 < 0.5 → failure). A wait loop (`until grep -q …; do sleep 30; done`) repeated every 3 minutes by a session was therefore labelled a
+  failure about 100 times a day (18.11.: 106, 19.11.: 85 of the identical-repeat marks; 12.–17.11.: 1–31 a day). Measured on a working
+  copy of the production database (19.11.2026): 192 of the 530 failures in the router's holdout were such polls, all with the tool's own
+  outcome ok; the active model ranked them inversely (holdout AUC 0.434, 0.347 on the actions after its training). Relabelled as
+  successes, the same model's AUC is 0.616 (0.611 after its training) — the drop from 0.644 to 0.45 was this label, not the model.
+  Now an identical repeat is a detour only when it re-asks unchanged state: the identical call follows within `REPEAT_MAX_GAP_S` (60 s;
+  measured detours 9 s apart, polls 167–198 s, other re-checks 532–3,610 s) and the command is no wait loop (`until`/`while … do`,
+  `watch`, a leading `sleep`). Such a re-check is named `erneut_geprueft`, not penalised; an unknown gap keeps the old rule.
+  `CODE_VERSION` 2: sleep rescores every conversation. Evidence: `tests/test_scorer.py::test_rechecks_are_not_detours`; on the
+  database copy, rescored with this rule (642 s) and retrained: holdout AUC 0.651 (336 failures in 7,921), state active, ranking
+  gap +22.5 ± 1.3 points, and better than the kept champion on 2,640 later actions (log loss −0.0053 ± 0.0025).
+
+- **Documentation pages no longer appear as the user's decisions.** The memory index in the instructions has a section
+  "Requirements and decisions (topic:requirement)" — what a user decided (rule 6). The documentation triggers derive `topic:` values
+  from the topics learned knowledge uses, and `requirement` is one of them, so a Stack Exchange question with "requirement" in its
+  title got `topic:requirement` and was listed there (live instructions 19.11.2026: 2 of the 3 lines; 13 of 111,735 pages on the
+  production database copy). Now the topics with a fixed meaning (`SYSTEM_TOPICS`: requirement, open, offen) are never derived, sleep
+  takes a derived one off the pages that carry it (without reprocessing all pages), and the index section never lists a documentation
+  page. Evidence: `tests/test_doc_triggers.py::test_system_topics_are_never_derived_and_never_a_users_decision`.
+
 ## 0.70.9 — 2026-11-19
 
 ### What was fixed

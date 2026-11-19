@@ -34,6 +34,26 @@ def test_code_rules():
     assert scorer.rate_conversation([e(1, ok=None)], []) == {}
 
 
+def test_rechecks_are_not_detours():
+    """0.70.10: an identical call minutes later or a wait loop re-checks changing state (production 19.11.2026: a polling loop every
+    3 minutes was labelled a failure ~100 times a day); an identical call seconds later stays a detour; an unknown gap keeps the old rule."""
+    def at(i, ts, args):
+        return {**e(i, args=args), "zeit": ts}
+    n = scorer.rate_conversation([at(1, "2026-11-19T10:00:00", {"a": 1}), at(2, "2026-11-19T10:03:00", {"a": 1})], [])
+    assert n["e1"]["note"] == 1.0 and "erneut_geprueft" in n["e1"]["merkmale"] and "identisch_wiederholt" not in n["e1"]["merkmale"]
+    n = scorer.rate_conversation([at(1, "2026-11-19T10:00:00", {"a": 1}), at(2, "2026-11-19T10:00:09", {"a": 1})], [])
+    assert n["e1"]["note"] == 0.4 and "identisch_wiederholt" in n["e1"]["merkmale"]
+    poll = {"command": "until grep -q done /tmp/x.log; do sleep 30; done; tail -3 /tmp/x.log"}
+    n = scorer.rate_conversation([at(1, "2026-11-19T10:00:00", poll), at(2, "2026-11-19T10:00:05", poll)], [])
+    assert n["e1"]["note"] == 1.0 and "erneut_geprueft" in n["e1"]["merkmale"]
+    for cmd in ("sleep 60; curl -s localhost/health", "watch -n 5 df -h", "while pgrep x; do sleep 5; done"):
+        assert scorer.WAIT_LOOP.search(cmd), cmd
+    for cmd in ("grep -n until file.py", "git log --oneline -1", "python3 -c 'print(1)'"):
+        assert not scorer.WAIT_LOOP.search(cmd), cmd
+    n = scorer.rate_conversation([at(1, "not a time", {"a": 1}), at(2, "2026-11-19T10:03:00", {"a": 1})], [])
+    assert n["e1"]["note"] == 0.4
+
+
 def action(s, tool, ok, error=None, n=None, **extra):
     args = {"n": n if n is not None else time.time_ns(), **extra}
     with session.on_behalf(s):

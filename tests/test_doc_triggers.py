@@ -78,3 +78,34 @@ def test_imported_docs_only_via_exploration_manuals_regularly(gd, monkeypatch):
         v = intuition.before("Bash", {"command": "mysql -h db0137.example.org"}, "a", False)
     assert manual.id in v["zugriff"]["shown"] and company.id not in v["zugriff"]["shown"]
     assert company.id in v["zugriff"]["offer"] and 0 < v["zugriff"]["offer"][company.id] < 1  # offered with a propensity: still measured
+
+
+def test_system_topics_are_never_derived_and_never_a_users_decision(gd):
+    """0.70.10: topic:requirement means "the user decided" (rule 6). Learned knowledge uses it, so before, every page with the word
+    "requirement" got it (production 19.11.2026: Stack Exchange questions filled the index section of the user's decisions)."""
+    from vi_mcp import index
+    for i in range(doc_triggers.THEMA_MIN):
+        g.new_object("insight", f"user requirement {i}: always ask before pushing", ["topic:requirement", "topic:mariadb"], {"source": "x"},
+                     instance="a")
+    d = _doc("Stack Exchange ops: mariadb tee with echo as per this requirement", "the requirement is to append a variable")
+    doc_triggers.run()
+    o = g.load(d.id)
+    assert "topic:mariadb" in o.hashtags and "topic:requirement" not in o.hashtags
+    # an older derivation that set it is taken off on the next refresh
+    o.hashtags = sorted(set(o.hashtags) | {"topic:requirement"})
+    o.data["derived_triggers"] = {"version": 2, "host": [], "topic": ["requirement", "mariadb"]}
+    g.save(o)
+    assert doc_triggers.run()["geprueft"] == 1 and "topic:requirement" not in g.load(d.id).hashtags  # sleep takes it along
+    assert doc_triggers.run()["geprueft"] == 0  # and only once
+    o = g.load(d.id)
+    o.hashtags = sorted(set(o.hashtags) | {"topic:requirement"})
+    o.data["derived_triggers"] = {"version": 2, "host": [], "topic": ["requirement", "mariadb"]}
+    g.save(o)
+    assert "-topic:requirement" in doc_triggers.refresh(g.load(d.id)) and "topic:requirement" not in g.load(d.id).hashtags
+    # a page tagged topic:requirement by hand keeps it (not derived), is not taken again by sleep, and never fills the decisions section
+    o = g.load(d.id)
+    o.hashtags = sorted(set(o.hashtags) | {"topic:requirement"})
+    g.save(o)
+    assert doc_triggers.run()["geprueft"] == 0 and "topic:requirement" in g.load(d.id).hashtags
+    req = [x.id for x in index.sections("a")["vorgaben"]]
+    assert d.id not in req and len(req) >= 1
