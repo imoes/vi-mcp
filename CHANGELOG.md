@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## Unreleased (0.70.3) — branch built-for
+## 0.70.3 — 2026-11-19
 
 ### What is new: an index can be searched only when named
 
