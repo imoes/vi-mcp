@@ -1,0 +1,47 @@
+{
+ "runs": 356,
+ "missing_all_arms": [
+  [
+   25,
+   1
+  ]
+ ],
+ "start_phase_solved_pairs": 45,
+ "inconsistent_start": [],
+ "dreams_with_ratio": 13,
+ "dreams_all_censored_excluded": 2,
+ "median_ratio_U_over_O": 1.4,
+ "ratio_by_k": {
+  "1": 1.201,
+  "2": 1.237,
+  "3": 2.774
+ },
+ "O_vs_P": {
+  "S": 18.0,
+  "p": 0.0013,
+  "dreams": 15,
+  "pairs": 44,
+  "direction": "O cheaper"
+ },
+ "O_vs_M": {
+  "S": 11.3333,
+  "p": 0.0336,
+  "dreams": 15,
+  "pairs": 44,
+  "direction": "O cheaper"
+ },
+ "U_vs_O_descriptive": {
+  "S": 20.3333,
+  "p": 0.0007,
+  "dreams": 15,
+  "pairs": 44,
+  "direction": "O cheaper"
+ },
+ "solved_rate": {
+  "U": 0.921,
+  "O": 0.921,
+  "P": 0.91,
+  "M": 0.944
+ },
+ "PASS": false
+}
