@@ -1,6 +1,6 @@
 # Push: can vi-mcp tell a connected AI something on its own?
 
-Design note, 19.11.2026. Status: **prototype on a branch, off by default, not released.** Sources are named after every claim; whatever
+Design note, 19.11.2026. Status: **in 0.70.4 (not released yet), off by default**; it delivers only after the precondition below. Sources are named after every claim; whatever
 was not read from a primary source or measured is called a hypothesis.
 
 ## In short
@@ -17,6 +17,19 @@ was not read from a primary source or measured is called a hypothesis.
 - **Prototype:** `vi-mcp stdio --channel` pushes questions and answers as channel messages. It was measured end to end with Claude Code
   2.1.328 on a Team account. The bridge sent the message, Claude Code recognised the capability and then dropped the message because the
   organisation has not enabled channels. Nothing was lost: the push marks nothing, so the next `vi_before` still delivered it.
+
+## Precondition: who switches channels on
+
+Channel delivery works only after two steps that are **not vi-mcp's to take**:
+1. **The organisation enables channels.** On a Team or Enterprise account an administrator sets `channelsEnabled: true` in the managed
+   settings ([channels](https://code.claude.com/docs/en/channels)). Without it Claude Code drops every channel message silently.
+2. **The session loads the server as a channel.** While custom channels are a research preview and vi-mcp is not on the approved
+   allowlist, the user starts Claude Code with `--dangerously-load-development-channels server:<name of the vi-mcp server>`; the flag
+   works in interactive sessions only.
+
+vi-mcp adds `--channel` to `vi-mcp stdio` and does nothing else on its own: `vi-mcp setup` does not write the flag, and nothing in
+vi-mcp changes a client's settings. Until both steps are done, and for every other client, **the hook stays the delivery route**: the
+next `vi_before` or `vi_prompt_context` delivers what the channel would have pushed.
 
 ## 1. What the specification allows
 
