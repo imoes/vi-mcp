@@ -1,0 +1,370 @@
+{
+ "dreams": [
+  {
+   "idx": 0,
+   "task": "sports_ranking",
+   "block": "code:P2",
+   "k": 2,
+   "ops": [
+    "add_neg",
+    "var"
+   ],
+   "ref": "outranks(V0, V1) <= beat(V2, V3) & beat(V0, V1) & ~beat(V3, V1)",
+   "ref0": "outranks(V0, V1) <= beat(V0, V1) & beat(V1, V2)"
+  },
+  {
+   "idx": 1,
+   "task": "hospital_exposure",
+   "block": "kollektiv:P13",
+   "k": 2,
+   "ops": [
+    "add_neq",
+    "del_lit"
+   ],
+   "ref": "exposed(V0) <= (V0 != V1) & contact(V0, V1)",
+   "ref0": "exposed(V0) <= contact(V0, V1) & positive(V0)"
+  },
+  {
+   "idx": 2,
+   "task": "sports_ranking",
+   "block": "kollektiv:P7",
+   "k": 3,
+   "ops": [
+    "add_lit",
+    "var",
+    "add_lit"
+   ],
+   "ref": "unbeaten(V0) <= beat(V0, V1) & beat(V0, V2) & beat(V1, V0) & beat(V3, V2)",
+   "ref0": "unbeaten(V0) <= beat(V0, V1) & beat(V1, V2)"
+  },
+  {
+   "idx": 3,
+   "task": "library_overdue",
+   "block": "messung:M4",
+   "k": 3,
+   "ops": [
+    "add_lit",
+    "var",
+    "add_rule"
+   ],
+   "ref": "notify(V0) <= book_status(V1, V2) & inv1(V0, V3, V4)\nnotify(V0) <= book_status(V1, V2) & loan(V0, V1)",
+   "ref0": "notify(V0) <= inv1(V0, V1, V2)"
+  },
+  {
+   "idx": 4,
+   "task": "bank_hold",
+   "block": "kollektiv:P13",
+   "k": 3,
+   "ops": [
+    "flip",
+    "add_lit",
+    "flip"
+   ],
+   "ref": "hold(V0) <= paid_to(V0, V1) & ~flagged(V0) & ~flagged(V1)",
+   "ref0": "hold(V0) <= flagged(V0) & paid_to(V0, V1)"
+  },
+  {
+   "idx": 5,
+   "task": "kitchen_nut_label",
+   "block": "code:P2",
+   "k": 1,
+   "ops": [
+    "var"
+   ],
+   "ref": "nut_warning(V0) <= contains(V1, V0)",
+   "ref0": "nut_warning(V0) <= contains(V0, V0)"
+  },
+  {
+   "idx": 6,
+   "task": "library_lendable",
+   "block": "kollektiv:P2",
+   "k": 3,
+   "ops": [
+    "add_neg",
+    "pred",
+    "add_rule"
+   ],
+   "ref": "lendable(V0) <= book(V0) & damaged(V0)\nlendable(V0) <= damaged(V0) & ~book(V0)",
+   "ref0": "lendable(V0) <= book(V0)"
+  },
+  {
+   "idx": 7,
+   "task": "office_projector",
+   "block": "kollektiv:P9",
+   "k": 1,
+   "ops": [
+    "add_rule"
+   ],
+   "ref": "can_present(V0) <= equipped(V0, V1)\ncan_present(V0) <= held_in(V0, V1)",
+   "ref0": "can_present(V0) <= equipped(V0, V1)"
+  },
+  {
+   "idx": 8,
+   "task": "hospital_triage",
+   "block": "kollektiv:P2",
+   "k": 2,
+   "ops": [
+    "add_lit",
+    "var"
+   ],
+   "ref": "icu(V0) <= admitted(V0) & condition(V1, critical)",
+   "ref0": "icu(V0) <= admitted(V0)"
+  },
+  {
+   "idx": 9,
+   "task": "garden_needs_water",
+   "block": "messung:M4",
+   "k": 2,
+   "ops": [
+    "pred",
+    "add_rule"
+   ],
+   "ref": "needs_water(V0) <= planted_in(V1, V0)\nneeds_water(V0) <= soil(V0, wet)",
+   "ref0": "needs_water(V0) <= soil(V1, V0)"
+  },
+  {
+   "idx": 10,
+   "task": "garden_needs_water",
+   "block": "messung:M5",
+   "k": 3,
+   "ops": [
+    "add_rule",
+    "add_rule",
+    "del_rule"
+   ],
+   "ref": "needs_water(V0) <= planted_in(V0, V1) & soil(V1, V2) & soil(V1, dry)\nneeds_water(V0) <= soil(V0, V1)",
+   "ref0": "needs_water(V0) <= soil(V0, V1)"
+  },
+  {
+   "idx": 11,
+   "task": "bank_fraud",
+   "block": "code:P1",
+   "k": 2,
+   "ops": [
+    "add_rule",
+    "recurse"
+   ],
+   "ref": "suspicious(V0) <= transfer(V0, V1) & watchlisted(V2) & ~watchlisted(V1)\nsuspicious(V0) <= transfer(V1, V0) & watchlisted(V0) & watchlisted(V1)",
+   "ref0": "suspicious(V0) <= transfer(V0, V1) & watchlisted(V2) & ~watchlisted(V1)"
+  },
+  {
+   "idx": 12,
+   "task": "logistics_served",
+   "block": "kollektiv:P7",
+   "k": 2,
+   "ops": [
+    "add_neq",
+    "invent"
+   ],
+   "ref": "inv1(V0) <= depot(V0)\nserved(V0) <= (V0 != V1) & inv1(V1) & road(V2, V0)",
+   "ref0": "served(V0) <= depot(V1) & road(V2, V0)"
+  },
+  {
+   "idx": 13,
+   "task": "logistics_cold_chain",
+   "block": "messung:M5",
+   "k": 2,
+   "ops": [
+    "pred",
+    "add_neg"
+   ],
+   "ref": "spoil_risk(V0) <= cargo(V0, V1) & ~cargo(V0, dry)",
+   "ref0": "spoil_risk(V0) <= loaded_on(V0, V1)"
+  },
+  {
+   "idx": 14,
+   "task": "bank_fraud",
+   "block": "code:P5",
+   "k": 3,
+   "ops": [
+    "var",
+    "del_lit",
+    "del_lit"
+   ],
+   "ref": "suspicious(V0) <= (V1 != V2) & transfer(V0, V1) & transfer(V3, V2) & watchlisted(V0) & watchlisted(V4)",
+   "ref0": "suspicious(V0) <= (V1 != V2) & transfer(V0, V3) & transfer(V0, V1) & transfer(V4, V3) & transfer(V4, V2) & watchlisted(V0) & watchlisted(V4)"
+  },
+  {
+   "idx": 15,
+   "task": "library_overdue",
+   "block": "messung:M2",
+   "k": 1,
+   "ops": [
+    "pred"
+   ],
+   "ref": "notify(V0) <= loan(V0, V1)",
+   "ref0": "notify(V0) <= book_status(V0, V1)"
+  },
+  {
+   "idx": 16,
+   "task": "traffic_gridlock",
+   "block": "kollektiv:P13",
+   "k": 1,
+   "ops": [
+    "add_rule"
+   ],
+   "ref": "deadlocked(V0) <= blocks(V0, V1)\ndeadlocked(V0) <= blocks(V1, V0)",
+   "ref0": "deadlocked(V0) <= blocks(V0, V1)"
+  },
+  {
+   "idx": 17,
+   "task": "games_levels",
+   "block": "messung:M3",
+   "k": 1,
+   "ops": [
+    "add_rule"
+   ],
+   "ref": "next_up(V0) <= completed(V0) & ~completed(V0) & ~inv1(V0)\nnext_up(V0) <= completed(V0)",
+   "ref0": "next_up(V0) <= completed(V0) & ~completed(V0) & ~inv1(V0)"
+  },
+  {
+   "idx": 18,
+   "task": "sports_available",
+   "block": "messung:M1",
+   "k": 1,
+   "ops": [
+    "del_lit"
+   ],
+   "ref": "available(V0) <= fitness(V1, V0)",
+   "ref0": "available(V0) <= fitness(V1, V0) & in_squad(V2)"
+  },
+  {
+   "idx": 19,
+   "task": "office_signoff",
+   "block": "messung:M2",
+   "k": 3,
+   "ops": [
+    "add_lit",
+    "invent",
+    "del_lit"
+   ],
+   "ref": "inv1(V0) <= filed_by(V0, V1)\nneeds_signoff(V0) <= inv1(V0)",
+   "ref0": "needs_signoff(V0) <= manager(V0)"
+  },
+  {
+   "idx": 20,
+   "task": "sports_results",
+   "block": "messung:M5",
+   "k": 2,
+   "ops": [
+    "add_neq",
+    "add_rule"
+   ],
+   "ref": "lost(V0) <= (V0 != V1) & home(V0, V1)\nlost(V0) <= home(V1, V0)",
+   "ref0": "lost(V0) <= home(V0, V1)"
+  },
+  {
+   "idx": 21,
+   "task": "library_overdue",
+   "block": "kollektiv:P13",
+   "k": 3,
+   "ops": [
+    "add_rule",
+    "del_lit",
+    "pred"
+   ],
+   "ref": "notify(V0) <= book_status(V0, V1) & loan(V0, V2)\nnotify(V0) <= loan(V0, V1)",
+   "ref0": "notify(V0) <= book_status(V0, V1) & book_status(V0, V2) & loan(V0, V3)"
+  },
+  {
+   "idx": 22,
+   "task": "games_levels",
+   "block": "kollektiv:P7",
+   "k": 3,
+   "ops": [
+    "add_rule",
+    "pred",
+    "var"
+   ],
+   "ref": "next_up(V0) <= start(V1) & unlocks(V0, V2)\nnext_up(V0) <= start(V1) & unlocks(V2, V0)",
+   "ref0": "next_up(V0) <= start(V1) & unlocks(V0, V2)"
+  },
+  {
+   "idx": 23,
+   "task": "family_grandparent",
+   "block": "code:P4",
+   "k": 2,
+   "ops": [
+    "invent",
+    "recurse"
+   ],
+   "ref": "grandparent(V0, V1) <= inv1(V2, V1) & parent(V0, V1) & parent(V2, V0)\ninv1(V0, V1) <= inv1(V0, V2) & parent(V2, V1)\ninv1(V0, V1) <= parent(V0, V1)",
+   "ref0": "grandparent(V0, V1) <= parent(V2, V0) & parent(V2, V1) & parent(V0, V1)"
+  },
+  {
+   "idx": 24,
+   "task": "garden_irrigation",
+   "block": "code:P7",
+   "k": 1,
+   "ops": [
+    "add_neg"
+   ],
+   "ref": "dry(V0) <= flows_to(V0, V1) & ~flows_to(V1, V0)",
+   "ref0": "dry(V0) <= flows_to(V0, V1)"
+  },
+  {
+   "idx": 25,
+   "task": "garden_crowded",
+   "block": "kollektiv:P13",
+   "k": 1,
+   "ops": [
+    "add_rule"
+   ],
+   "ref": "crowded(V0) <= in_bed(V0, V1)\ncrowded(V0) <= in_bed(V1, V0) & in_bed(p2, V0) & in_bed(p4, V0)",
+   "ref0": "crowded(V0) <= in_bed(V0, V1)"
+  },
+  {
+   "idx": 26,
+   "task": "garden_crowded",
+   "block": "kollektiv:P9",
+   "k": 1,
+   "ops": [
+    "add_rule"
+   ],
+   "ref": "crowded(V0) <= in_bed(V0, V1)\ncrowded(V0) <= in_bed(p1, V0) & in_bed(p4, V0)",
+   "ref0": "crowded(V0) <= in_bed(V0, V1)"
+  },
+  {
+   "idx": 27,
+   "task": "traffic_red_light",
+   "block": "kollektiv:P1",
+   "k": 2,
+   "ops": [
+    "invent",
+    "add_rule"
+   ],
+   "ref": "inv1(V0, V1) <= crossed(V0, V2) & emergency(V0) & signal(V2, V1)\ninv1(V0, V1) <= signal(V0, V1)\nran_red(V0) <= (V1 != V2) & inv1(V0, V2) & signal(V3, V1)",
+   "ref0": "ran_red(V0) <= (V1 != V2) & signal(V3, V1) & signal(V0, V2)"
+  },
+  {
+   "idx": 28,
+   "task": "garden_crowded",
+   "block": "code:P4",
+   "k": 1,
+   "ops": [
+    "const"
+   ],
+   "ref": "crowded(V0) <= in_bed(V1, V0) & in_bed(V1, V2) & in_bed(V3, V4) & ~inv1(V2, V0)\ninv1(V0, V1) <= in_bed(V2, V0) & in_bed(p1, V1)",
+   "ref0": "crowded(V0) <= in_bed(V1, V0) & in_bed(V1, V2) & in_bed(V3, V4) & ~inv1(V2, V0)\ninv1(V0, V1) <= in_bed(V2, V0) & in_bed(V0, V1)"
+  },
+  {
+   "idx": 29,
+   "task": "logistics_cold_chain",
+   "block": "code:P4",
+   "k": 3,
+   "ops": [
+    "flip",
+    "pred",
+    "var"
+   ],
+   "ref": "spoil_risk(V0) <= cargo(V1, V0) & loaded_on(V2, V3) & ~cargo(V1, V2)",
+   "ref0": "spoil_risk(V0) <= cargo(V1, V0) & loaded_on(V1, V2) & loaded_on(V2, V0)"
+  }
+ ],
+ "tries": 159,
+ "dropped": {
+  "empty map": 91,
+  "answers barely vary": 31,
+  "equivalent to the unmodified block": 7
+ }
+}
