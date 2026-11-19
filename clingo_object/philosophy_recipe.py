@@ -33,7 +33,10 @@ SIZE_WEIGHTS = {1: 431, 2: 528, 3: 480, 4: 347, 5: 400, 6: 371, 7: 222, 8: 217, 
 TASK_WEIGHTS = {"judge": 0.5, "formalize": 0.2, "pressure": 0.15, "find": 0.15}
 DROPOUT = 0.2
 FILLER_SHARE = 0.6
-#: every rare case at least this share of the judge and pressure rows (drawn again until the least frequent one is in the world)
+#: every rare case at least this share of the judge and pressure rows (drawn again until the least frequent one is in the world).
+#: A rare case is raised by its share, never by token weights: on a tiny model trained from scratch (10 seeds) no weight arm beat
+#: oversampling, and the conditional line's error rose 5 % → 42 % from a 20 % to a 2 % share (FINETUNING_PAPER §5.23). Whether a
+#: higher floor helps Qwen is a hypothesis for the next kit.
 CASE_FLOOR = 0.04
 CASES = {"held_hearsay": "held: hearsay only", "held_one_camp": "held: one camp only", "held_camp_unknown": "held: a camp unknown",
          "held_extraordinary": "held: extraordinary", "copy_root": "copy of", "no_root": "no root (every", "machine": "machine-made → no root",

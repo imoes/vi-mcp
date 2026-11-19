@@ -394,13 +394,27 @@ weighting are equivalent only for full-batch gradients; under SGD the weighted l
 converges faster but overfits the rare group at high temperature; upsampling first and switching to proportional sampling once at a
 fixed step ("Cooldown") kept the speed and reduced the overfitting [60] (machine translation and language modeling, a rare share of
 0.5 %; our floor is 4 %). A floor that is high in the first epoch and natural in the second is the cheap translation — **hypothesis**.
-First pilots there (1 seed) memorized the 3,000 training worlds (training loss ≈ 0.001) and are not evidence; the
-seeded grid on 60,000 worlds is running. Interim (6 of 10 seeds, provisional): on the tiny model the dominant error on a rare
-conditional line is not omission but **misbinding** — the line written under the wrong statement of the same world, 7.9 % → 27.2 % of
-conditional statements from share 1.0 to 1/10, against pure skips 0.2 % → 13.6 %; an attention probe finds the fact (head mass 0.94 when
-the line is written, still 0.71 when it is skipped). The reading "retrieval works, binding the fact to the right statement fails" is a
-**hypothesis** until the 10-seed grid; variable binding is known to be learned in phases, a shallow "early assignment" heuristic first
-[62].
+First pilots there (1 seed) memorized the 3,000 training worlds (training loss ≈ 0.001) and are not evidence. The
+seeded grid on 60,000 worlds is done (10 seeds per cell, peer session report of 19.11.2026; level A for the tiny model, never for Qwen):
+- **Rarity costs the conditional line, and the error is misbinding.** The share of conditional statements whose line is wrong or missing
+  rises 5.0 % [−2.0, 12.0] → 13.8 % → 29.4 % → 41.9 % [35.0, 48.9] at a training share of 20 / 12 / 7 / 2 %. Most of it is the line
+  written under the wrong statement of the same world, not omitted; an attention probe still finds the fact when the line is skipped
+  (interim: head mass 0.71 against 0.94). The duty line is not affected (57.1 vs 57.2 % at 2 %), and the distance between fact and
+  statement had no effect (refuted). The reading "retrieval works, binding fails" stays a **hypothesis**; variable binding is known to
+  be learned in phases, a shallow "early assignment" heuristic first [62].
+- **Weighting loses to oversampling.** No token-weight arm (the whole conditional line, its first token, the RFT group softmax) beat
+  drawing the rare case more often: oversampling to a 20 % share gave skip 0.5 % and exact 72.3 %. Consequence for our recipe: raise
+  the rare case's share in the data (CASE_FLOOR), do not reweight its tokens — this agrees with [57] and [59] above.
+- **Cooldown** (high share first, natural share later, [60]) kept part of the gain: skip 14.2 %, between the natural and the
+  oversampled arm.
+- **Multi-token prediction helps at this scale:** 4 heads, exact 83.5 % against 66.2 % for a parameter-matched control, 10 of 12 seed
+  pairs, p ≈ 0.04 — against Gloeckle et al., who saw mixed results at 1.3 B and consistent gains only from 3 B on. Measured on a tiny
+  model from scratch on a closed trace language; whether it carries to Qwen is untested.
+- **Null results:** counterfactual pairs in training changed nothing; with RoPE the model needs no line-index token (E4).
+- **Weight averaging:** two independently initialised tiny models collapse when averaged; two runs branched from one checkpoint
+  interpolate — consistent with §5.24, where two LoRA runs from the same base did not combine.
+Next kit (**hypothesis** until measured with ≥ 2 seeds): a higher CASE_FLOOR for rare conditional cases, and MTP for the from-scratch
+LLM stages.
 
 ### 5.24 Combining the weights of two seeds fails both ways — too weak when averaged, interfering when summed
 
