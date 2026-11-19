@@ -764,8 +764,10 @@ python3 -m vi_mcp family INSTANCE [FAMILY|-]
 python3 -m vi_mcp visibility FILTER shared|internal REASON [--apply]
                                         switch the objects of FILTER between shared and internal (through the running service, release
                                         token); without --apply it only counts. Private objects are never switched.
-python3 -m vi_mcp stdio [--socket PATH]  MCP over stdio for clients on the server host (claude mcp add vi-mcp -- vi-mcp stdio):
-                                        a bridge to the running service's local socket — no token, the kernel names the user
+python3 -m vi_mcp stdio [--socket PATH] [--channel [--channel-interval S]]
+                                        MCP over stdio for clients on the server host (claude mcp add vi-mcp -- vi-mcp stdio):
+                                        a bridge to the running service's local socket — no token, the kernel names the user;
+                                        --channel also pushes questions and answers into a Claude Code session (docs/PUSH.md)
 python3 -m vi_mcp local [USER [INSTANCE|-]]
                                         show or allow which local user reaches the VI over stdio as which instance; restarts the service
 python3 -m vi_mcp image FILE --text T --hashtags a:b,c:d --source S [--content-file F|-] [--regions F.json] [--visibility shared|internal]

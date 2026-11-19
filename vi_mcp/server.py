@@ -35,6 +35,9 @@ from .log_output import log
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 MAX_BODY = 8 * 1024 * 1024
 SERVER_NAME = "vi-mcp"
+#: 0.70.4: a vendor method, not MCP. What `questions.deliver` would show this conversation now, unmarked (docs/PUSH.md). A request
+#: that carries only this method is a poll, not work: it neither keeps the workstation awake (sleep_cycle.touch) nor the session alive.
+PENDING = "vi/pending"
 
 
 def _answer(mid, result) -> dict:
@@ -60,6 +63,9 @@ def process(msg: dict, s: session.Session | None, inst: config.Instance) -> dict
                 return _answer(mid, {})
             if method == "tools/list":
                 return _answer(mid, {"tools": tools.listing(inst.name)})
+            if method == PENDING:  # 0.70.4: the push channel of `vi-mcp stdio --channel` asks; nothing is marked delivered
+                from . import questions
+                return _answer(mid, {"items": questions.pending(inst.name)})
             if method == "tools/call":
                 name = params.get("name", "")
                 if not tools.known(name):
@@ -353,7 +359,6 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.rstrip("/") != "/mcp":
             return self._send(404, "only /mcp and /signal")
         from . import sleep_cycle
-        sleep_cycle.touch()  # 0.62.0: an AI is working with the memory — a workstation does not sleep under its feet
         inst = self._check()
         if not inst:
             return
@@ -367,6 +372,9 @@ class Handler(BaseHTTPRequestHandler):
         stack = message if isinstance(message, list) else [message]
         if not stack:
             return self._send(400, _error(None, -32600, "empty batch"))
+        poll = all(isinstance(m, dict) and m.get("method") == PENDING for m in stack)
+        if not poll:  # 0.70.4: since the push channel polls, the touch comes after the body is read (and authorised)
+            sleep_cycle.touch()  # 0.62.0: an AI is working with the memory — a workstation does not sleep under its feet
         sid = self.headers.get("Mcp-Session-Id")
         init = [m for m in stack if isinstance(m, dict) and m.get("method") == "initialize"]
         if init:
@@ -376,7 +384,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, answer, {"Mcp-Session-Id": s.id})
         if not sid:
             return self._send(400, _error(None, -32600, "header Mcp-Session-Id missing — initialize first"))
-        s = session.find(sid)
+        s = session.find_without_touching(sid) if poll else session.find(sid)
         if not s or s.instance != inst.name:
             return self._send(404, _error(None, -32001, "session unknown or ended — initialize again"))
         answers = [a for a in (process(m, s, inst) for m in stack) if a is not None]

@@ -118,10 +118,21 @@ def _answers_due_here(d: dict, instance: str, conv: str | None) -> bool:
 def deliver(instance: str | None, conversation: str | None = None) -> list[str]:
     """Hints for `vi_before`: new questions to this instance (or this conversation) and new answers to its questions. Marks them.
     conversation: the calling conversation, canonical (a hook's stands for its agent's); default: the current one."""
+    return [i["text"] for i in _collect(instance, conversation, mark=True)]
+
+
+def pending(instance: str | None, conversation: str | None = None) -> list[dict]:
+    """0.70.4: what `deliver` would show now, WITHOUT marking it — for the push channel (stdio_bridge --channel). The client may drop a
+    pushed message silently (Claude Code does when its channel gate is closed), so only the next `vi_before` marks it delivered and
+    nothing is lost; the pushed item can therefore appear a second time there. Items: {kind: question|answer, id, text}."""
+    return _collect(instance, conversation, mark=False)
+
+
+def _collect(instance: str | None, conversation: str | None, mark: bool) -> list[dict]:
     if not instance:
         return []
     conv = conversation if conversation is not None else own_conversation()
-    hints = []
+    items = []
     with g.lock:
         ids = [r[0] for r in g.db().execute(
             "SELECT id FROM object WHERE kind = 'question' AND json_extract(data, '$.state') IN ('open', 'delivered', 'answered') "
@@ -133,27 +144,31 @@ def deliver(instance: str | None, conversation: str | None = None) -> list[str]:
             if _due_here(d, instance, conv):
                 full = str(d.get("content") or o.text)
                 more = f" … (complete: vi_questions(id={o.id}))" if len(full) > 400 else ""
-                hints.append(f"Question from {_who(d)} [{o.id}]: {full[:400]}{more} — answer with vi_answer(id, text, belege)")
-                if _per_conversation(d):
-                    d["zugestellt_gespraeche"] = d.get("zugestellt_gespraeche", []) + [conv]
-                    where = f"{instance}#{conv}"
-                else:
-                    d["delivered_to"] = d["delivered_to"] + [instance]
-                    where = instance
-                if d["state"] == "open":
-                    _set_state(o, "delivered")
-                o.change("vi", f"delivered to {where}", "next vi_before of the target")
-                g.save(o)
+                items.append({"kind": "question", "id": o.id,
+                              "text": f"Question from {_who(d)} [{o.id}]: {full[:400]}{more} — answer with vi_answer(id, text, belege)"})
+                if mark:
+                    if _per_conversation(d):
+                        d["zugestellt_gespraeche"] = d.get("zugestellt_gespraeche", []) + [conv]
+                        where = f"{instance}#{conv}"
+                    else:
+                        d["delivered_to"] = d["delivered_to"] + [instance]
+                        where = instance
+                    if d["state"] == "open":
+                        _set_state(o, "delivered")
+                    o.change("vi", f"delivered to {where}", "next vi_before of the target")
+                    g.save(o)
             if _answers_due_here(d, instance, conv):  # not elif: another conversation of the asker may get the question and its answers
                 new = d["answers"][d.get("reported", 0):]
                 ended = (f" (the asking conversation {d['from_conversation']} has ended — shown here so it is not lost)"
                          if d.get("from_conversation") and d["from_conversation"] != conv else "")
-                hints += [f"Answer from {_who(d, a)} to your question [{o.id}] \"{o.text[:80]}\"{ended}: {a['text'][:400]}"
-                          + (f" … (complete: vi_questions(id={o.id}))" if len(a["text"]) > 400 or len(a.get("evidence") or "") > 160 else "")
-                             + (f" [Evidence: {a['evidence'][:160]}]" if a.get("evidence") else "") for a in new]
-                d["reported"] = len(d["answers"])
-                g.save(o)
-    return hints
+                items += [{"kind": "answer", "id": o.id,
+                           "text": f"Answer from {_who(d, a)} to your question [{o.id}] \"{o.text[:80]}\"{ended}: {a['text'][:400]}"
+                           + (f" … (complete: vi_questions(id={o.id}))" if len(a["text"]) > 400 or len(a.get("evidence") or "") > 160 else "")
+                           + (f" [Evidence: {a['evidence'][:160]}]" if a.get("evidence") else "")} for a in new]
+                if mark:
+                    d["reported"] = len(d["answers"])
+                    g.save(o)
+    return items
 
 
 def answer_question(oid: str, instance: str, text: str, evidence_list: str, conversation: str | None = None) -> g.MemoryObject:

@@ -42,10 +42,37 @@ Linked from [README.md](README.md).
   every vector with compared = 1; vectors of "another model" are refused and nothing is stored; an id outside the index is counted, not
   stored; zero vectors, a missing row and an index without a scope are refused before writing.
 
+### What is new: an AI can be told something while its session is idle (Claude Code channel, off by default)
+
+- **`vi-mcp stdio --channel`** pushes what is due for the conversation — questions to it and answers to its `vi_ask` — into a
+  Claude Code session as a channel message (`notifications/claude/channel`), also while the session is idle. Every 15 s
+  (`--channel-interval`), at most 3 messages per round, each once. A note that channel messages come from another AI, not from the
+  user, goes first in the instructions (Claude Code 2.1.328 cuts them at 4,096 characters). Design, the MCP specification
+  (2026-07-28) and what Claude Code, Codex and Hermes do with each kind of notification: [docs/PUSH.md](docs/PUSH.md).
+  Evidence: `tests/test_push_channel.py` (9 tests, including the real command line).
+- **Vendor method `vi/pending`** (not MCP): what `vi_before` would deliver now, without marking it — a push the client drops is not
+  lost. A request made only of it keeps neither the workstation awake nor the session alive (tested).
+- **Precondition, not vi-mcp's to take:** the organisation enables channels (`channelsEnabled: true` in its managed settings) and the
+  session is started with `--dangerously-load-development-channels server:<vi-mcp server>` while custom channels are a research
+  preview. Until then, and for every other client, the hook stays the delivery route.
+
+### What has changed
+
+- An MCP request now counts as activity for sleep only after it was authorised and read; before, a refused request also kept the
+  workstation awake.
+
 ### What was fixed
 
 - The 30-second cache of index scopes survived a change of database (`memory.open_db`), so a scope of the previous database applied
   to the next one for up to 30 s — seen as a failing test order; reset on every open now.
+
+### What is missing
+
+- **Delivery into the model is not shown yet.** Measured end to end on 19.11.2026 with Claude Code 2.1.328 on a Team account: the
+  bridge sent the message; Claude Code recognised the capability and dropped the message — "Channel notifications skipped: channels
+  not enabled by org policy". The question stayed undelivered in the database, and the next `vi_before` delivered it.
+- Codex CLI 0.169.0 and Hermes Agent 0.21.0 have no way to put a server message into the conversation (docs/PUSH.md, section 2);
+  they keep the pull paths.
 
 ## 0.70.3 — 2026-11-19
 

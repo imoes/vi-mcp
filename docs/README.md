@@ -14,6 +14,7 @@ Where to find what. Start with the [README](../README.md) ([deutsch](../README.d
 | [ARCHITECTURE](ARCHITECTURE.md) | developers | Design: memory, intuition (hints), sleep, scorer, router and bandit, the network (logbook, gossip, long poll, network score, wiki, forum, live search), open wiki mode |
 | [PAPER](PAPER.md) | people and AIs | Technical report: how the memory learns, how a VI matures in the incubator, how its language VIL is built (symbols and weights), measurements, errors found, limitations, references |
 | [HOOK](HOOK.md) | client setup | The Claude Code / Hermes hook: what it reports before and after every action and prompt, and why |
+| [PUSH](PUSH.md) | client setup, developers | Can the server tell a connected AI something on its own: what the MCP specification allows (2026-07-28), what Claude Code, Codex and Hermes do with each notification, the channel prototype `vi-mcp stdio --channel` and its measurement |
 | [AGENTS](../AGENTS.md) | AI agents and contributors working on the code | How it works in short, commands, modules, the rules (no internal names in the repository, portable SQL, nothing disappears silently …) |
 | [CHANGELOG](../CHANGELOG.md) | everyone | What changed in each version, with evidence, and what is still missing |
 | [TRAINING](TRAINING.md) (German) | research | How an AI is trained and how vi-mcp stores its data for that |
