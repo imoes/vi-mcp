@@ -402,24 +402,28 @@ the line is written, still 0.71 when it is skipped). The reading "retrieval work
 **hypothesis** until the 10-seed grid; variable binding is known to be learned in phases, a shallow "early assignment" heuristic first
 [62].
 
-### 5.24 Averaging the weights of two seeds is a magnitude problem, not only interference
+### 5.24 Combining the weights of two seeds fails both ways — too weak when averaged, interfering when summed
 
 Two runs of the same recipe (30ag seed 42, 30cg seed 43) misread different unseen phrasings (§5.20). Averaging their LoRA deltas —
 0.5·(ΔA + ΔC), checked module by module to a relative 6·10⁻⁷ — was measured on the 54 items either run failed and 40 control items both
 solved (CPU, greedy):
 
-| | 30ag | 30cg | soup 0.5·(ΔA+ΔC) | 30ag at half strength 0.5·ΔA |
-|---|---|---|---|---|
-| facts exact, failed items | 50/54 | 41/54 | **53/54** | — |
-| facts exact, controls | 40/40 | 40/40 | 40/40 | 39/40 |
-| worlds exact, controls | 37/37 | 37/37 | 16/37 | **0/37** |
+| | 30ag | 30cg | soup 0.5·(ΔA+ΔC) | 30ag at half strength 0.5·ΔA | sum ΔA+ΔC |
+|---|---|---|---|---|---|
+| facts exact, failed items | 50/54 | 41/54 | **53/54** | — | 35/54 |
+| worlds exact, failed items | 18/50 | 17/50 | 12/50 | — | 0/50 |
+| facts exact, controls | 40/40 | 40/40 | 40/40 | 39/40 | 32/40 |
+| worlds exact, controls | 37/37 | 37/37 | 16/37 | **0/37** | 8/37 |
 
 Reading facts survives half the delta; the multi-step verdict computation does not survive it at all. The soup keeps more worlds than
 either half alone, so the two halves add up partly — but the average of two seeds is far weaker than either seed, i.e. the two deltas
 point in largely different directions. That matches the low alignment of LoRA weights across fine-tunings that motivates aligning them
-by SVD before merging [61]. Consequences: weight averaging across seeds is no remedy as it stands; the cheap test that follows from the
-magnitude reading — the SUM ΔA + ΔC (task-arithmetic scale) on the same 94 items — is running; aligned merging (KnOTS, TIES) is the
-next step only if the sum keeps the verdicts.
+by SVD before merging [61]. The test that followed from the magnitude reading — the SUM ΔA + ΔC, each direction at full strength — was
+worse still: 8/37 control worlds, and reading broke too (facts 32/40 on controls, 35/54 on failed items). So the magnitude reading
+(first written here on 18.11.) was only half of it: halving destroys the verdict computation, and adding the two deltas at full strength
+interferes with both reading and verdicts. Naive weight combination of two seeds is refuted in both directions; aligned merging
+(SVD alignment [61], sign-resolved merging) would be the only remaining weight-space remedy — **hypothesis**, not tested. Seed noise is
+better met in the data (more phrasings per type) or by agreement of several runs at inference.
 
 **Operations note (18.11.2026).** Training on the AMD host next to its llama.cpp (Vulkan) inference servers coincided with amdgpu
 compute-ring timeouts that crashed an inference server (15 timeouts that day, two during run 13); run 13 was stopped there and runs on
