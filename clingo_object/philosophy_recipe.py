@@ -10,7 +10,9 @@ A row of the seed stage:
              (philosophy_trace, solver-checked) · the spoken verdict (philosophy_train.speak); formalize: the Facts block; find: the
              sentences that state one fact type, or "none" (negative type queries, run 20)
 Worlds have 1–10 statements in the proportions of kit 31 — the short ones at their full volume (run 30: thinning them made the model skip
-trace lines, §5.19) — and rare cases (a hold, a rejection, an untestable or withdrawn statement, a copy without root …) are drawn until
+trace lines, §5.19). Measured with this shape (run 31, kollektiv 1.2.0, Qwen3-0.6B LoRA r64, one seed, 19.11.2026): judge 40/40,
+paraphrase 38/40, pressure 30/30, formalize 20/20, 160 more worlds 154/160 (run 30 without the replay: 144, +14/−4, mid-p 0.019),
+worlds of 7–10 statements 38/40 — and 0/40 for 11–12, beyond the trained range (FINETUNING_PAPER §3, run 31) — and rare cases (a hold, a rejection, an untestable or withdrawn statement, a copy without root …) are drawn until
 each reaches CASE_FLOOR of the judge rows (the same lesson for rare cases).
 Not here yet (open, FINETUNING_PAPER §6): more phrasings per fact type and contrast twins (B3) — with 2–3 phrasings per type, reading
 held-out phrasings was weak in every run before them."""

@@ -11,6 +11,9 @@ kollektiv 1.3.0 directly; this module writes its traces. Design rules, all from 
 - Enumerate, never summarize: one line per evidence line, per origin, per statement and side, per duty condition.
 - Lines that depend on a condition are written for every statement with "→ not met" when it does not hold (H7, run 31): the model never
   has to decide whether a line exists.
+  Measured in run 31 (with the short-world replay H5): 160 more worlds 154/160 against 144 without both (mid-p 0.019); on a tiny model
+  trained from scratch the same rule turned silent skips into visible wrong values without changing duty correctness (provisional,
+  FINETUNING_PAPER §5.23) — the rare condition itself still needs its share of the data (CASE_FLOOR in philosophy_recipe).
 - No second semantics: every block names the atoms it claims, and `check` compares them with the solver's; a block that disagrees
   raises `TraceError` and no training row is written from that world.
 
