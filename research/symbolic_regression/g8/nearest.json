@@ -1,0 +1,8 @@
+{
+ "release_gate": "kollektiv:P13",
+ "dependency_cycle": "code:P6",
+ "sensor_state": "kollektiv:P4",
+ "trusted_reading": "code:P7",
+ "lineage_root": "kollektiv:P13",
+ "bipartisan": "kollektiv:P4"
+}

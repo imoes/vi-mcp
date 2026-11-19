@@ -288,10 +288,13 @@ aufzählte, traf jede Trainingswelt und fiel bei einer neuen Partei durch; erst 
 einer, der nicht in P ist“ hält.
 
 Gemessen (G8b-0, ohne jede Vorlage, 60 Läufe): 5 von 6 Mechanismen wiedergefunden, darunter eine selbst erfundene rekursive Hülle, und
-einmal ein **kürzeres** Gesetz als die menschliche Referenz. Offen: ob eine Bibliothek von Mechanismen aus einem anderen Zweck die Suche
-beschleunigt (Exaptation, G8b-1, vorregistriert), und ob die Suche aus den Erfahrungen der VI selbst Regeln findet, die auf späteren
-Erfahrungen halten (G9). Die Grenze bleibt: Die Suche trifft Ziele, die ihr die Daten vorgeben — welche Frage sich zu stellen lohnt,
-entscheidet sie nicht.
+einmal ein **kürzeres** Gesetz als die menschliche Referenz. Eine Bibliothek von Mechanismen aus einem anderen Zweck hilft, wenn ein
+Mechanismus unverändert passt (in der Startphase gefunden in 25,7 % statt 10,4 % der Läufe mit umverdrahteter Bibliothek), aber nicht als
+Ausgangspunkt für einen abgewandelten (G8b-1, vorregistriert, 1.320 Läufe). Regeln aus den Erfahrungen der VI selbst hielten auf späteren
+Erfahrungen noch nicht (G9): Die Auswahl griff zu einer Regel, die driftete. Bisher lag jeder Fehlschlag in der Auswahl, nicht in der
+Suche — genau das ändern die nächsten Schritte. Die Grenze bleibt: Die Suche trifft Ziele, die ihr die Daten vorgeben — welche Frage sich
+zu stellen lohnt, entscheidet sie nicht. Das Forschungstagebuch mit jedem Schritt, Ergebnis und jeder Datei:
+[docs/SYMBOLIC_REGRESSION.md](docs/SYMBOLIC_REGRESSION.md).
 
 ## Installieren
 

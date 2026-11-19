@@ -1,0 +1,395 @@
+{
+ "library_overdue": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "a",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "kitchen_nut_label": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "a",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "hospital_floor": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "a",
+  "blocks": [
+   "code:P1",
+   "code:P6",
+   "kollektiv:P7",
+   "kollektiv:P8",
+   "messung:M1"
+  ]
+ },
+ "traffic_must_stop": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "a",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "school_passed": {
+  "nearness": 0.0,
+  "matched": 0,
+  "nontrivial": 0,
+  "kind": "a",
+  "blocks": []
+ },
+ "bank_hold": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "a",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "sports_available": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "a",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "garden_needs_water": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "a",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "office_projector": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "a",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "logistics_express": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "a",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "family_grandparent": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "a",
+  "blocks": [
+   "code:P1",
+   "code:P6",
+   "kollektiv:P7",
+   "kollektiv:P8",
+   "messung:M1"
+  ]
+ },
+ "library_lendable": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "b",
+  "blocks": [
+   "kollektiv:P8",
+   "messung:M3"
+  ]
+ },
+ "school_classmates": {
+  "nearness": 0.0,
+  "matched": 0,
+  "nontrivial": 1,
+  "kind": "b",
+  "blocks": []
+ },
+ "hospital_triage": {
+  "nearness": 1.0,
+  "matched": 2,
+  "nontrivial": 2,
+  "kind": "b",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "kitchen_pan_clash": {
+  "nearness": 0.0,
+  "matched": 0,
+  "nontrivial": 1,
+  "kind": "b",
+  "blocks": []
+ },
+ "traffic_red_light": {
+  "nearness": 0.0,
+  "matched": 0,
+  "nontrivial": 1,
+  "kind": "b",
+  "blocks": []
+ },
+ "bank_loan": {
+  "nearness": 0.5,
+  "matched": 1,
+  "nontrivial": 2,
+  "kind": "b",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "sports_results": {
+  "nearness": 1.0,
+  "matched": 4,
+  "nontrivial": 4,
+  "kind": "b",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "garden_crowded": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "b",
+  "blocks": [
+   "kollektiv:P1",
+   "kollektiv:P5"
+  ]
+ },
+ "office_signoff": {
+  "nearness": 1.0,
+  "matched": 2,
+  "nontrivial": 2,
+  "kind": "b",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "games_rps": {
+  "nearness": 0.0,
+  "matched": 0,
+  "nontrivial": 2,
+  "kind": "b",
+  "blocks": []
+ },
+ "logistics_cold_chain": {
+  "nearness": 0.0,
+  "matched": 0,
+  "nontrivial": 1,
+  "kind": "b",
+  "blocks": []
+ },
+ "family_ancestor": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "c",
+  "blocks": [
+   "kollektiv:P8"
+  ]
+ },
+ "logistics_served": {
+  "nearness": 1.0,
+  "matched": 2,
+  "nontrivial": 2,
+  "kind": "c",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "office_top_manager": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "c",
+  "blocks": [
+   "kollektiv:P11",
+   "kollektiv:P3",
+   "kollektiv:P5",
+   "kollektiv:P7",
+   "kollektiv:P9",
+   "messung:M1"
+  ]
+ },
+ "kitchen_vegetarian": {
+  "nearness": 1.0,
+  "matched": 2,
+  "nontrivial": 2,
+  "kind": "c",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "school_eligible": {
+  "nearness": 0.0,
+  "matched": 0,
+  "nontrivial": 2,
+  "kind": "c",
+  "blocks": []
+ },
+ "hospital_exposure": {
+  "nearness": 1.0,
+  "matched": 2,
+  "nontrivial": 2,
+  "kind": "c",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "traffic_gridlock": {
+  "nearness": 1.0,
+  "matched": 1,
+  "nontrivial": 1,
+  "kind": "c",
+  "blocks": [
+   "kollektiv:P8"
+  ]
+ },
+ "bank_fraud": {
+  "nearness": 1.0,
+  "matched": 2,
+  "nontrivial": 2,
+  "kind": "c",
+  "blocks": [
+   "code:P1",
+   "code:P2",
+   "code:P3",
+   "code:P4",
+   "code:P6",
+   "code:P7"
+  ]
+ },
+ "garden_irrigation": {
+  "nearness": 1.0,
+  "matched": 2,
+  "nontrivial": 2,
+  "kind": "c",
+  "blocks": [
+   "kollektiv:P11",
+   "kollektiv:P3",
+   "kollektiv:P5",
+   "kollektiv:P7",
+   "kollektiv:P8",
+   "kollektiv:P9"
+  ]
+ },
+ "sports_ranking": {
+  "nearness": 1.0,
+  "matched": 2,
+  "nontrivial": 2,
+  "kind": "c",
+  "blocks": [
+   "kollektiv:P11",
+   "kollektiv:P5",
+   "kollektiv:P7",
+   "kollektiv:P8",
+   "kollektiv:P9",
+   "messung:M1"
+  ]
+ },
+ "games_levels": {
+  "nearness": 0.5,
+  "matched": 1,
+  "nontrivial": 2,
+  "kind": "c",
+  "blocks": [
+   "kollektiv:P11",
+   "kollektiv:P3",
+   "kollektiv:P5",
+   "kollektiv:P7",
+   "kollektiv:P9",
+   "messung:M1"
+  ]
+ }
+}

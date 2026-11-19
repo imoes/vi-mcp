@@ -1,0 +1,98 @@
+{
+ "runs": 1320,
+ "complete_seed_blocks": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9
+ ],
+ "trivial_tasks": [
+  "bank_hold",
+  "garden_needs_water",
+  "hospital_floor",
+  "kitchen_nut_label",
+  "library_overdue",
+  "logistics_express",
+  "office_projector",
+  "school_passed",
+  "sports_available",
+  "traffic_must_stop"
+ ],
+ "core_tasks": 23,
+ "H1_search_cost": {
+  "S": 11.6889,
+  "p": 0.22068,
+  "tasks": 18,
+  "pairs": 167,
+  "testable_tasks": 16,
+  "not_testable": false
+ },
+ "H2_lookup": {
+  "S": -35.0,
+  "p": 0.0001,
+  "tasks": 23,
+  "pairs": 230
+ },
+ "H3_total": {
+  "S": 59.0,
+  "p": 0.0001,
+  "tasks": 23,
+  "pairs": 230
+ },
+ "holm": {
+  "H2": 0.0003,
+  "H3": 0.0003,
+  "H1": 0.22068
+ },
+ "effect_H1": {
+  "median_log_ratio": 0.0866,
+  "ratio": 1.09,
+  "ci95_ratio": [
+   0.95,
+   1.243
+  ],
+  "tasks": 16,
+  "excluded_tasks": 7
+ },
+ "effect_H3": {
+  "median_log_ratio": 0.0965,
+  "ratio": 1.101,
+  "ci95_ratio": [
+   1.049,
+   1.917
+  ],
+  "tasks": 21,
+  "excluded_tasks": 2
+ },
+ "lookup_rate": {
+  "L": 0.257,
+  "XR": 0.104,
+  "XL": 0.196,
+  "Z": 0.0
+ },
+ "solved_rate": {
+  "L": 0.935,
+  "XR": 0.887,
+  "XL": 0.939,
+  "Z": 0.883
+ },
+ "secondary_L_vs_XL_total": {
+  "S": 21.0,
+  "p": 0.07149,
+  "tasks": 23,
+  "pairs": 230
+ },
+ "secondary_L_vs_Z_total": {
+  "S": -11.0,
+  "p": 0.43016,
+  "tasks": 23,
+  "pairs": 230
+ },
+ "setup_failures": 0
+}

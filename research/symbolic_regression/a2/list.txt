@@ -1,0 +1,51 @@
+SKIP  1d_flip  bk.pl has rules or non-flat terms
+SKIP  1d_pcopy_1c  bk.pl has rules or non-flat terms
+OK    andersen  facts=7 pos=7 neg=0 head=('pt', 2)
+OK    iggp-attrition-next-score  facts=132 pos=6 neg=650 head=('next_score', 3)
+OK    iggp-buttons-goal  facts=215 pos=22 neg=22 head=('goal', 3)
+OK    iggp-buttons-next  facts=656 pos=98 neg=432 head=('next', 2)
+OK    iggp-coins-next-cell  facts=1101 pos=576 neg=1968 head=('next_cell', 3)
+OK    iggp-connect4team-next-control  facts=9355 pos=500 neg=1500 head=('next_control', 2)
+OK    iggp-dont-touch-next-control  facts=6713 pos=356 neg=356 head=('next_control', 2)
+OK    iggp-eight-puzzle-legal-move  facts=5247 pos=1383 neg=3117 head=('legal_move', 4)
+OK    iggp-farming-next-has-arson  facts=8965 pos=125 neg=875 head=('next_has_arson', 2)
+OK    iggp-gt-chicken-goal  facts=1813 pos=1000 neg=100000 head=('goal', 3)
+OK    iggp-gt_centipede-goal  facts=109 pos=20 neg=400 head=('goal', 3)
+OK    iggp-hextforthree-next-control  facts=41956 pos=500 neg=1000 head=('next_control', 2)
+OK    iggp-horseshoe-next-cell  facts=1463 pos=660 neg=1620 head=('next_cell', 3)
+OK    iggp-minimal-decay-next-value  facts=29 pos=8 neg=46 head=('next_value', 2)
+OK    iggp-polgrimage-goal  facts=12912 pos=1000 neg=25000 head=('goal', 3)
+OK    iggp-rps-next-score  facts=297 pos=108 neg=356 head=('next_score', 3)
+OK    iggp-sokoban-goal  facts=2887 pos=1 neg=999 head=('goal', 3)
+OK    iggp-ultimatium-goal  facts=3675 pos=1000 neg=100000 head=('goal', 3)
+OK    imdb3  facts=1330 pos=4075 neg=117726 head=('f', 2)
+OK    kinship-ancestor  facts=12 pos=3 neg=0 head=('ancestor', 2)
+OK    kinship-pi  facts=8 pos=5 neg=1 head=('grandparent', 2)
+SKIP  noisy-alzheimer_acetyl  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  noisy-alzheimer_amine  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  noisy-alzheimer_mem  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  noisy-alzheimer_toxic  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  noisy-dropk-20  bk.pl has lists, quoted atoms or upper-case constants
+OK    noisy-drugdrug  facts=1774 pos=1975 neg=2232 head=('interacts', 2)
+OK    noisy-wn18rr1  facts=85912 pos=923 neg=923 head=('memberofdomainregion', 2)
+OK    noisy-wn18rr3  facts=85697 pos=1138 neg=1138 head=('verbgroup', 2)
+OK    noisy-zendo2-10  facts=4794 pos=99 neg=101 head=('zendo', 1)
+SKIP  robots-linear  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  robots-recursion  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  synthesis-alleven  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  synthesis-contains  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  synthesis-dropk  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  synthesis-droplast  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  synthesis-filter  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  synthesis-finddupl  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  synthesis-length  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  synthesis-next  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  synthesis-reverse  bk.pl has lists, quoted atoms or upper-case constants
+SKIP  synthesis-sorted  bk.pl has lists, quoted atoms or upper-case constants
+OK    trains1  facts=28503 pos=394 neg=606 head=('f', 1)
+OK    trains2  facts=28503 pos=20 neg=81 head=('f', 1)
+OK    trains3  facts=28503 pos=792 neg=208 head=('f', 1)
+OK    trains4  facts=28503 pos=321 neg=679 head=('f', 1)
+OK    zendo1  facts=928 pos=20 neg=20 head=('zendo', 1)
+OK    zendo2  facts=4824 pos=100 neg=100 head=('zendo', 1)
+OK    zendo3  facts=2373 pos=50 neg=50 head=('zendo', 1)

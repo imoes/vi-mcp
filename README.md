@@ -271,9 +271,12 @@ seen — otherwise it is talent, not genius (Schopenhauer): a solution that list
 on a new party; only the general law "a supporter of party P and one not in P" holds.
 
 Measured (G8b-0, no template at all, 60 runs): 5 of 6 mechanisms recovered, among them a self-invented recursive closure, and once a
-**shorter** law than the human reference. Open: whether a library of mechanisms from another purpose speeds the search up (exaptation,
-G8b-1, pre-registered), and whether the search finds rules in the VI's own experiences that hold on later experiences (G9). The limit
-stays: the search hits targets the data give it — which question is worth asking, it does not decide.
+**shorter** law than the human reference. A library of mechanisms from another purpose helps when a mechanism fits as it is (found
+in the start phase in 25.7 % vs 10.4 % of runs with the library rewired), but not as a seed for a modified one (G8b-1, pre-registered,
+1,320 runs). Rules searched over the VI's own experiences did not yet hold on later experiences (G9): the selection picked a rule that
+drifted. So far every failure was in the selection, not the search — which is what the next steps change. The limit stays: the search
+hits targets the data give it — which question is worth asking, it does not decide. The research log, with every step, result and
+file: [docs/SYMBOLIC_REGRESSION.md](docs/SYMBOLIC_REGRESSION.md).
 
 ## Install
 

@@ -1,0 +1,46 @@
+{
+ "note": "files whose PATHS were made relative for the public repository; logic unchanged. The pre-registration hashes (prereg_*.sha256) name the ORIGINAL files; original_sha256 here matches them.",
+ "changed": [
+  {
+   "file": "symbolic_regression/g8/g8_eval.py",
+   "original_sha256": "343aff7e4ba6ecba941fececd7e21933ac17d20e4bf053198b305c2e46044149",
+   "repo_sha256": "95cf9fcd03d1c07bfdf7d2b9d99293b5fdff954fe8e0a8a2a090e19a92a5b3f6"
+  },
+  {
+   "file": "symbolic_regression/g8/g8_search.py",
+   "original_sha256": "82937e0bb28ebb0a12604286304f0fabff1b0868db7edb81c5b7ea85c34aa670",
+   "repo_sha256": "6a37f330704d9dba8ad697ad3decb6fab9c8cd88ddf8b3468aef4691b5d62c31"
+  },
+  {
+   "file": "symbolic_regression/g8b/grade.py",
+   "original_sha256": "979e209b55fcc8a786e300e919665d02c0e74fa3e1f996c1aa17de9ee137d37e",
+   "repo_sha256": "f214defa0f607db0da0fff12609c9b0f1abc764b1dbce53d00f1c85ffe5e3935"
+  },
+  {
+   "file": "symbolic_regression/g8b/run0.sh",
+   "original_sha256": "6e8ac239b1d6409e1b8863984808e58874e6a494f0a950fa731386b1b0af1a8b",
+   "repo_sha256": "bf8681ed6ba81018b5886f3fa13a7849429e8283cd08d3831a3c070e3313d584"
+  },
+  {
+   "file": "symbolic_regression/g8b/run1.sh",
+   "original_sha256": "a1863685ab7fc029069060e559972983ccdad3cf859391b4248c51665eb8a8ea",
+   "repo_sha256": "ace78b44ba3ce46bc24a91365635b73b5a702afec23cc06c18718dc99587d0cb"
+  },
+  {
+   "file": "symbolic_regression/a2/run_a2.sh",
+   "original_sha256": "ee341b3bc5c0d4132cbd84e918c15ac3a81d5c38213e313d438dc49e2a9255b1",
+   "repo_sha256": "c70271273a27740a9f45246730e322b9632c0d59e9d1eeaea517cea5e7a54099"
+  },
+  {
+   "file": "blind_tasks/check.py",
+   "original_sha256": "a14b7768c74614030097d10775c319ccfc12d7ad9684e4fddb985d1916048eb0",
+   "repo_sha256": "7ebea52ba1cceffd02f8b2c9e286d3a381fdfcee0f1d5e4e337a7f49c8255bdd"
+  },
+  {
+   "file": "blind_tasks/AUTHOR_REPORT.md",
+   "original_sha256": "76bf49070f988390da7616d09729e04e4a18fda16ecc4c47d06a126226b72905",
+   "repo_sha256": "889cd5201d868675bd1ddeef0388dc35740d80e40effa10c3841b7b7f92f2c2b"
+  }
+ ],
+ "log": []
+}
