@@ -149,11 +149,24 @@ def _instructions(inst: config.Instance, s) -> str:
     fixed = [head, tools.RULES + "\n"]
     if inst.name == config.OPEN:
         fixed.append(tools.RULES_WITHOUT_TOKEN + "\n")
-    tail = [x for x in (_training_notice(), self_model.hint(), _network_notice()) if x]
+    # 0.70.6: the tail never eats the index (live 19.11.2026: the [Self] line of ~900 characters left the index 280 and was itself cut
+    # mid-sentence) — each tail part is capped with the tool that shows it whole, the index keeps at least INDEX_FLOOR
+    tail = [_capped(x, TAIL_MAX, more) for x, more in ((_training_notice(), "vi_model"), (self_model.hint(), "vi_self"),
+                                                        (_network_notice(), "vi_net_status")) if x]
     used = sum(len(x) for x in fixed) + sum(len(x) + 1 for x in tail)
-    ix = index.text(inst.name, max_chars=max(400, min(index.MAX_CHARS, INSTRUCTIONS_BUDGET - used - 1)))
+    ix = index.text(inst.name, max_chars=max(INDEX_FLOOR, min(index.MAX_CHARS, INSTRUCTIONS_BUDGET - used - INDEX_SLACK)))
     out = "".join(fixed) + (ix + "\n" if ix else "") + "\n".join(tail)
-    return out[:INSTRUCTIONS_BUDGET]
+    if len(out) > INSTRUCTIONS_BUDGET:  # never silent: what is cut is named
+        out = out[:INSTRUCTIONS_BUDGET - 60].rstrip() + " … (cut at the client limit — vi_capabilities)"
+    return out
+
+
+TAIL_MAX, INDEX_FLOOR, INDEX_SLACK = 280, 900, 120  # core ~2,300 + index >= 900 + tail <= 3 x 280 stays under the budget
+
+
+def _capped(text: str, n: int, more: str) -> str:
+    text = text.strip()
+    return text if len(text) <= n else text[:n - len(more) - 12].rsplit(" ", 1)[0] + f" … (whole: {more})"
 
 
 def _training_notice() -> str:

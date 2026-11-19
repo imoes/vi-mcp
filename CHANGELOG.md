@@ -3,6 +3,17 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.70.7 — 2026-11-19
+
+### What was fixed
+
+- The memory index got only about 280 characters in the live instructions of 0.70.6: the closing parts — the training notice and the
+  [Self] line (about 900 characters) — took the budget, and the last part was cut mid-sentence at 4,000 characters. Now each closing part
+  is capped at 280 characters with the tool that shows it whole (vi_model, vi_self, vi_net_status), the index keeps at least 900
+  characters, and a cut, if one is still needed, is named. Evidence: live initialize on the production server after the 0.70.6 deploy
+  (index 2,288–2,568 of 4,000 characters, [Self] cut); `tests/test_instructions_budget.py` — with 40 requirements the index spans at
+  least 850 characters and nothing is cut.
+
 ## 0.70.6 — 2026-11-19
 
 ### What has changed: the instructions fit, and the memory search is loaded from the start

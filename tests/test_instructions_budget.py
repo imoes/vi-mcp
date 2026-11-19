@@ -58,6 +58,10 @@ def test_instructions_stay_under_the_cut_with_a_full_index(srv):
     seen = ins[:CLAUDE_CODE_CUT]
     assert "SEARCH FIRST" in seen and "NEVER learn passwords" in seen and "[Index]" in seen and "insight:skill-vi-rules" in seen
     assert seen.index("Rules for the VI") < seen.index("[Index]")
+    i = seen.index("[Index]")
+    j = min([k for k in (seen.find("[Training]"), seen.find("[Self]")) if k > 0] or [len(seen)])
+    assert j - i >= 850  # the index keeps its floor; the tail (training, self) is capped instead (live 19.11.2026: index 280 chars)
+    assert "cut at the client limit" not in ins
 
 
 def test_the_search_tools_load_upfront_and_fit_the_cut():
