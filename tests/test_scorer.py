@@ -88,6 +88,22 @@ def test_open_conversation_waits(gd):
     assert scorer.code_run()["bewertet"] == 0
 
 
+def test_code_run_rescores_the_newest_conversations_first(gd, monkeypatch):
+    """0.70.11: after a CODE_VERSION bump the newest conversations (the router's holdout) are rescored first."""
+    ids = []
+    for k in range(3):
+        s = session.begin("a", "t")
+        ids.append(action(s, "Bash", True))
+        session.finish(s.id)
+    for k, oid in enumerate(ids):  # ages: oldest first, all older than OPEN_LATER_S
+        g.db().execute("UPDATE object SET ts = ? WHERE id = ?", (f"2026-11-0{k + 1}T10:00:00.000+00:00", oid))
+    monkeypatch.setattr(scorer, "CODE_BATCH", 1)
+    scorer.code_run()
+    assert [bool((g.load(i).data.get("score") or {}).get("version") == scorer.CODE_VERSION) for i in ids] == [False, False, True]
+    scorer.code_run()
+    assert [bool((g.load(i).data.get("score") or {}).get("version") == scorer.CODE_VERSION) for i in ids] == [False, True, True]
+
+
 def _conversation(turns=6, instance="a"):
     s = session.begin(instance, "t")
     for _ in range(turns):

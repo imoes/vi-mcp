@@ -37,6 +37,8 @@ WINDOW_CORRECTION = 3
 PENALTY_REPEAT = 0.6
 PENALTY_TEST_RED = 0.6
 OPEN_LATER_S = 6 * 3600
+#: conversations rescored per sleep (code_run), newest first
+CODE_BATCH = 2000
 MIN_TURNS_MODEL = 5
 MODEL_PER_RUN = 20
 CAL_MIN = 20
@@ -139,8 +141,11 @@ def _form(o: g.MemoryObject) -> dict:
 def code_run() -> dict:
     """Sleep: all actions not yet rated (or rated with an old version). Open conversations only after OPEN_LATER_S."""
     with g.lock:
-        lines = g.db().execute("SELECT DISTINCT conversation FROM object WHERE kind = 'experience' AND mode = 'active' AND "
-                                "COALESCE(CAST(json_extract(data, '$.score.version') AS REAL), 0) <> ? LIMIT 2000", (CODE_VERSION,)).fetchall()
+        # 0.70.11: newest conversations first — after a CODE_VERSION bump the router's holdout (the newest actions) is rescored in the
+        # first sleep; unordered, the oldest came first and the holdout kept the old labels for two sleeps (production 19./20.11.2026)
+        lines = g.db().execute("SELECT conversation FROM object WHERE kind = 'experience' AND mode = 'active' AND "
+                                "COALESCE(CAST(json_extract(data, '$.score.version') AS REAL), 0) <> ? GROUP BY conversation "
+                                "ORDER BY MAX(ts) DESC LIMIT ?", (CODE_VERSION, CODE_BATCH)).fetchall()
     open_ = {s.serial: s for s in session.open_items()}
     bound = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - OPEN_LATER_S))
     n = bad = rebooked = 0

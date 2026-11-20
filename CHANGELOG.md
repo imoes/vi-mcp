@@ -3,6 +3,17 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.70.11 — 2026-11-20
+
+### What was fixed
+
+- **After a scoring change the router is right again after the first sleep, not the third.** The scorer rescores up to 2,000
+  conversations per sleep after a `CODE_VERSION` bump, in no particular order — in production (0.70.10) the oldest came first, so the
+  router's holdout, which is the NEWEST actions, kept the old labels: the on-demand training of 19.11. 23:09 UTC still measured AUC
+  0.447, the sleep of 20.11. 04:50 UTC (4,340 of 4,676 conversations rescored) 0.644 again with 337 instead of 530 holdout failures.
+  Now the newest conversations are rescored first (`CODE_BATCH`, ordered by their latest action). Evidence:
+  `tests/test_scorer.py::test_code_run_rescores_the_newest_conversations_first`.
+
 ## 0.70.10 — 2026-11-19
 
 ### What was fixed
