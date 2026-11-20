@@ -3,6 +3,22 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.70.12 — 2026-11-20
+
+### What is new
+
+- **The hook now makes the agent search the memory after every (re)start and context compaction, and keep its status objects.**
+  The hints the hook shows are passive. On 20.11.2026 an agent worked for hours after a context compaction without one `vi_recall`:
+  it read local notes instead and missed a known risk (`insight:14a342cc`, training next to the production LLM servers crashed the
+  embedding service). Its status objects had not been updated since the day before. Two duties, both set up by `vi-mcp setup --hook`:
+  - `SessionStart` (startup, resume, clear, compact): the first task is `vi_recall topic:status`, then the hosts, systems and topics of the
+    current task, and the report says what the memory delivered. Off with `VI_MCP_FIRST_TASK=0`.
+  - `Stop`: a round with at least 8 tool calls (the VI's own do not count) that updated no status object (`vi_learn` key `status:…`) is
+    held once with that request; together with the feedback request of 0.59.0 in one block. Off with `VI_MCP_STATUS_DUTY=0`.
+  - Verified: `tests/test_hook.py` (first task, held once, never twice, status update or VI-only rounds or small rounds pass, a
+    missing transcript passes, both requests in one block) and `tests/test_einrichten.py` (setup writes SessionStart and Stop once,
+    removes them again); pipe-tested on the real transcript of that session. Existing clients: `vi-mcp setup --hook` again.
+
 ## 0.70.11 — 2026-11-20
 
 ### What was fixed

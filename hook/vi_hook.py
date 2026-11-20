@@ -306,6 +306,62 @@ def feedback_request(e: dict) -> dict | None:
                                             "If none applied, say so in one line and finish. This is how the VI learns which hint to show.")}
 
 
+# 0.70.12 (user decision 20.11.2026): the hints above are passive — after a context compaction the agent forgot to SEARCH the
+# memory and to keep its status objects. Two duties the hook enforces: the first task of every (re)started session, and a status
+# update at the end of a round that did real work.
+FIRST_TASK = (
+    "VI first (rule of this installation, set by the vi-mcp hook): before any other work, call vi_recall(filter=\"topic:status\") "
+    "and read the status objects of the work you continue, then vi_recall for every host, system, run and topic the current task "
+    "names. Use the hits or contradict them with a reason, and say in your report what the VI delivered. At the end of each work "
+    "round update the status object: vi_learn(key=\"status:<strand>\", ...).")
+STATUS_MIN = 8  # tool calls (other than the VI's own) that make a round "real work"
+
+
+def session_start(e: dict) -> dict | None:
+    """SessionStart (startup, resume, clear and compact): the first task — search the memory before working."""
+    if os.environ.get("VI_MCP_FIRST_TASK", "1") == "0":
+        return None
+    return {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": FIRST_TASK}}
+
+
+def turn_tool_uses(path: str) -> list[tuple[str, dict]]:
+    """Tool uses of the main agent since the last message the user typed (a tool result is not one)."""
+    uses: list[tuple[str, dict]] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            try:
+                x = json.loads(line)
+            except ValueError:
+                continue
+            if x.get("isSidechain"):
+                continue
+            content = (x.get("message") or {}).get("content")
+            if x.get("type") == "user":
+                if isinstance(content, str) or (isinstance(content, list) and not any(
+                        isinstance(b, dict) and b.get("type") == "tool_result" for b in content)):
+                    uses = []
+            elif x.get("type") == "assistant" and isinstance(content, list):
+                uses += [(b.get("name") or "", b.get("input") or {}) for b in content if isinstance(b, dict) and b.get("type") == "tool_use"]
+    return uses
+
+
+def status_duty(e: dict) -> str | None:
+    """Stop: a round with ≥ STATUS_MIN tool calls that updated no status object (vi_learn key "status:…") is held once."""
+    if os.environ.get("VI_MCP_STATUS_DUTY", "1") == "0" or e.get("stop_hook_active") or not e.get("transcript_path"):
+        return None
+    try:
+        uses = turn_tool_uses(e["transcript_path"])
+    except OSError as ex:
+        log_output(f"Stop status duty: {ex}")
+        return None
+    work = [u for u in uses if tool_parts(u[0])[1] is None or not tool_parts(u[0])[0].startswith("vi_")]
+    if len(work) < STATUS_MIN or any(tool_parts(n)[0] == "vi_learn" and str(a.get("key", "")).startswith("status:") for n, a in uses):
+        return None
+    return (f"Before you finish: this round made {len(work)} tool calls but updated no status object. "
+            "vi_learn(key=\"status:<strand>\", text=the current state, content=numbers with their sources) for each piece of work "
+            "this round moved; if nothing changed in substance, say so in one line and finish.")
+
+
 def finish(claude_session: str) -> None:
     """SessionEnd has only 1.5 s by default in Claude Code — hence the short timeout. If the DELETE does not arrive,
     vi-mcp closes the conversation itself after 4 h idle (state `abgelaufen`)."""
@@ -469,8 +525,12 @@ def process(e: dict) -> dict | None:
     if event == "SessionEnd":
         finish(e["session_id"])
         return None
-    if event == "Stop":
-        return feedback_request(e)
+    if event == "SessionStart":
+        return session_start(e)
+    if event == "Stop":  # 0.70.12: one block carries both duties (a second block would never come: stop_hook_active)
+        duty, feedback = status_duty(e), feedback_request(e)
+        reasons = [r for r in (duty, feedback and feedback["reason"]) if r]
+        return {"decision": "block", "reason": "\n".join(reasons)} if reasons else None
     return None
 
 

@@ -1,6 +1,6 @@
 # vi-mcp reference
 
-Generated from the code of vi-mcp 0.70.11 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
+Generated from the code of vi-mcp 0.70.12 by `scripts/gen_reference.py` — do not edit by hand; a test fails when it is out of date. Explanations: [README](../README.md) · design: [ARCHITECTURE](ARCHITECTURE.md) · operations: [OPERATIONS](OPERATIONS.md) · all documents: [docs/README](README.md).
 
 Contents: [MCP tools](#mcp-tools) · [Command line](#command-line) · [Server configuration](#server-configuration-configjson) · [Network service configuration](#network-service-configuration-etcvi-p2pnetworkjson) · [Configuration catalogue](#configuration-catalogue-debconf-vi-mcp-configure-vi_mcp_key) · [Environment variables](#environment-variables) · [HTTP endpoints](#http-endpoints) · [Modules](#modules-vi_mcp)
 
@@ -1152,6 +1152,7 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 | `VI_MCP_EXPORT_KEY` | Ed25519 key that signs index files (`vi-mcp index export`, 0.62.0; default `export.key` in the network directory `/var/lib/vi-p2p`, made on the first export). |
 | `VI_MCP_EXTRA_PYTHON` | Directory with Python packages that the distribution lacks — clingo for the logic layer (`vi-mcp logic install`, 0.62.0; default `/var/lib/vi-mcp/python` as root, else `~/.local/share/vi-mcp/python`), appended to the import path after the system's packages. |
 | `VI_MCP_FEEDBACK_NUDGE` | Claude Code hook: `0` switches off the one feedback request at the end of a session (event `Stop`, 0.59.0). |
+| `VI_MCP_FIRST_TASK` | Claude Code hook: `0` switches off the first task after start, resume and context compaction — search the memory before working (event `SessionStart`, 0.70.12). |
 | `VI_MCP_FREIGABE_TOKEN_FILE` | Token file of `vi-mcp release` (the release right). |
 | `VI_MCP_KEIN_DIENST` | Tests and containers: `vi-mcp net …` does not start or stop systemd services. |
 | `VI_MCP_KEIN_MENUE` | Package installation without the interactive menu. |
@@ -1162,6 +1163,7 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 | `VI_MCP_REPO_GNUPG` | Release: GnuPG home with the OpenPGP key of the apt/dnf repository (default `~/.config/vi-mcp/repo-gnupg`). |
 | `VI_MCP_SIGNAL_TOKEN_FILE` | Hook: token of the human instance for user signals (corrections, grades). |
 | `VI_MCP_SOCKET` | Local Unix socket of the server (`vi-mcp stdio`), instead of config `socket`. |
+| `VI_MCP_STATUS_DUTY` | Claude Code hook: `0` switches off the status duty — a round with at least 8 tool calls that updated no status object (`vi_learn` key `status:…`) is held once (event `Stop`, 0.70.12). |
 | `VI_MCP_TEST_PG` | Tests: run the whole suite against this PostgreSQL URL (every test its own schema). |
 | `VI_MCP_TOKEN` | Hermes Agent: the token referenced as `${VI_MCP_TOKEN}` in its MCP configuration (`~/.hermes/.env`). |
 | `VI_MCP_TOKEN_DIR` | Where `vi-mcp configure` writes the token of a new instance (default `/root`, file `vi-mcp-token-<name>`, 0600). |

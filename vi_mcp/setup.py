@@ -238,7 +238,9 @@ def _hook_on(z: TargetUser, url: str, token: str, signal: str | None) -> str:
     for e in HOOK_EVENTS:
         h.setdefault(e, []).append({"matcher": "*", "hooks": [{"type": "command", "command": command, "timeout": 5}]})
     # UserPromptSubmit always since 0.44.0: memory for every question, follow-ups included (the user decided, 11.11.2026)
-    for e in ("SessionEnd", "UserPromptSubmit", "Stop"):  # Stop: 0.59.0, one feedback request per session
+    # Stop: 0.59.0, one feedback request per session; 0.70.12 also the status duty. SessionStart (0.70.12): the first task after
+    # start, resume and compaction — search the memory before working (the user decided, 20.11.2026)
+    for e in ("SessionStart", "SessionEnd", "UserPromptSubmit", "Stop"):
         h.setdefault(e, []).append({"hooks": [{"type": "command", "command": command, "timeout": 5}]})
     text = _write(p, json.dumps(d, indent=2, ensure_ascii=False) + "\n")
     return text + ("" if signal else "; without correction detection (no signal token)")

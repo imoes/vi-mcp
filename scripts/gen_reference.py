@@ -92,6 +92,8 @@ ENV_VARS = {
     "VI_MCP_TOKEN_DIR": "Where `vi-mcp configure` writes the token of a new instance (default `/root`, file `vi-mcp-token-<name>`, 0600).",
     "VI_MCP_FREIGABE_TOKEN_FILE": "Token file of `vi-mcp release` (the release right).",
     "VI_MCP_FEEDBACK_NUDGE": "Claude Code hook: `0` switches off the one feedback request at the end of a session (event `Stop`, 0.59.0).",
+    "VI_MCP_FIRST_TASK": "Claude Code hook: `0` switches off the first task after start, resume and context compaction — search the memory before working (event `SessionStart`, 0.70.12).",
+    "VI_MCP_STATUS_DUTY": "Claude Code hook: `0` switches off the status duty — a round with at least 8 tool calls that updated no status object (`vi_learn` key `status:…`) is held once (event `Stop`, 0.70.12).",
     "VI_MCP_KEIN_DIENST": "Tests and containers: `vi-mcp net …` does not start or stop systemd services.",
     "VI_MCP_KEIN_MENUE": "Package installation without the interactive menu.",
     "VI_MCP_KEIN_WIKI": "At installation: do not join the public wiki network (same as `VI_MCP_WIKI=false`).",

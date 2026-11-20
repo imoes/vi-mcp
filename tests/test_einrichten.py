@@ -123,6 +123,9 @@ def test_claude_and_hook_leave_foreign_entries_alone(target):
     assert len(s["hooks"]["PreToolUse"]) == 2 and s["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == "fremd" and "http://i/mcp" in s["hooks"]["PreToolUse"][1]["hooks"][0]["command"]
     assert len(s["hooks"]["UserPromptSubmit"]) == 1 and "tok" not in s["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"].replace("token", "")
     assert (target.home / ".config/vi-mcp/token-nutzer").read_text() == "sig\n"
+    # 0.70.12: the first task after start/compaction and the status duty at Stop come with every installation
+    assert len(s["hooks"]["SessionStart"]) == 1 and "vi_hook.py" in s["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+    assert len(s["hooks"]["Stop"]) == 1
     e._hook_off(target)
     s = json.loads((target.home / ".claude/settings.json").read_text())
     assert list(s["hooks"]) == ["PreToolUse"] and len(s["hooks"]["PreToolUse"]) == 1 and s["model"] == "m"

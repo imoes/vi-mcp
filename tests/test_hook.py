@@ -149,3 +149,52 @@ def test_vi_context_answer_is_plain_text_and_logs_no_error(h):
     assert h.process(ev("PreToolUse", tool_name="mcp__vi-mcp__vi_recall", tool_input={"filter": "x"}, cwd="/home/x/cue-print")) is None
     log = h.STATE / "hook.log"
     assert not log.exists() or "vi_context" not in log.read_text()
+
+
+def _transcript(path, rows):
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    return str(path)
+
+
+def test_session_start_gives_the_first_task_and_can_be_switched_off(monkeypatch):
+    # 0.70.12 (user decision 20.11.2026): after start, resume and compaction the agent is told to search the memory first
+    monkeypatch.delenv("VI_MCP_FIRST_TASK", raising=False)
+    r = hook.process({"hook_event_name": "SessionStart", "session_id": "s1", "source": "compact"})
+    assert r["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+    assert "vi_recall" in r["hookSpecificOutput"]["additionalContext"] and "status:" in r["hookSpecificOutput"]["additionalContext"]
+    monkeypatch.setenv("VI_MCP_FIRST_TASK", "0")
+    assert hook.process({"hook_event_name": "SessionStart", "session_id": "s1"}) is None
+
+
+def test_stop_holds_a_working_round_without_a_status_update_once(tmp_path, monkeypatch):
+    # 0.70.12: >= STATUS_MIN tool calls in the round (the VI's own do not count) and no vi_learn key status:… → held once
+    monkeypatch.setattr(hook, "STATE", tmp_path / "hook")
+    monkeypatch.delenv("VI_MCP_STATUS_DUTY", raising=False)
+    user = lambda c: {"type": "user", "message": {"role": "user", "content": c}}
+    result = {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "x", "content": "ok"}]}}
+    use = lambda n, i=None: {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "name": n, "input": i or {}}]}}
+    work = [user("old question"), use("Bash")] + [user("new question")] + [r for _ in range(hook.STATUS_MIN) for r in (use("Bash"), result)]
+    t = _transcript(tmp_path / "work.jsonl", work)
+    r = hook.process({"hook_event_name": "Stop", "session_id": "w1", "transcript_path": t})
+    assert r["decision"] == "block" and "status" in r["reason"] and f"{hook.STATUS_MIN} tool calls" in r["reason"]
+    assert hook.process({"hook_event_name": "Stop", "session_id": "w1", "transcript_path": t, "stop_hook_active": True}) is None
+    done = _transcript(tmp_path / "done.jsonl", work + [use("mcp__vi-mcp__vi_learn", {"key": "status:x", "text": "t"}), result])
+    assert hook.process({"hook_event_name": "Stop", "session_id": "w2", "transcript_path": done}) is None
+    vi_only = [user("q")] + [r for _ in range(hook.STATUS_MIN) for r in (use("mcp__vi-mcp__vi_recall"), result)]
+    assert hook.process({"hook_event_name": "Stop", "session_id": "w3", "transcript_path": _transcript(tmp_path / "vi.jsonl", vi_only)}) is None
+    small = [user("q")] + [r for _ in range(hook.STATUS_MIN - 1) for r in (use("Bash"), result)]
+    assert hook.process({"hook_event_name": "Stop", "session_id": "w4", "transcript_path": _transcript(tmp_path / "s.jsonl", small)}) is None
+    assert hook.process({"hook_event_name": "Stop", "session_id": "w5", "transcript_path": str(tmp_path / "missing.jsonl")}) is None
+    monkeypatch.setenv("VI_MCP_STATUS_DUTY", "0")
+    assert hook.process({"hook_event_name": "Stop", "session_id": "w6", "transcript_path": t}) is None
+
+
+def test_stop_carries_status_duty_and_feedback_request_in_one_block(tmp_path, monkeypatch):
+    monkeypatch.setattr(hook, "STATE", tmp_path / "hook")
+    monkeypatch.delenv("VI_MCP_STATUS_DUTY", raising=False)
+    monkeypatch.delenv("VI_MCP_FEEDBACK_NUDGE", raising=False)
+    hook.note_hints("b1", ["[erkenntnis:a1] [regel:b2] [skill:c3]"])
+    rows = [{"type": "user", "message": {"content": "q"}}] + [
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {}}]}}] * hook.STATUS_MIN
+    r = hook.process({"hook_event_name": "Stop", "session_id": "b1", "transcript_path": _transcript(tmp_path / "b.jsonl", rows)})
+    assert r["decision"] == "block" and "status object" in r["reason"] and "vi_feedback" in r["reason"]
