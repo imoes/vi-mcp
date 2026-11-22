@@ -49,6 +49,8 @@ CONFIG_KEYS = {
     "web_base": ("`/web`", "[`web_basis`] Path the browser sees behind the reverse proxy, e.g. `/vi-mcp/web`."),
     "web_internal": ("`false`", "Internal knowledge search in the browser under `/intern` (0.62.0): sign-in with a VI token, shared and internal knowledge, never private."),
     "web_internal_base": ("`/intern`", "Path of the internal search as the browser sees it, e.g. `/vi-mcp/intern`; it scopes the session cookie."),
+    "plugins": ("`true`", "Serve the client integration under `/plugins` (0.71.0): Claude Code marketplace and plugin archive, the hook file. Nothing served there is secret."),
+    "public_url": ("from the request", "The URL clients see in front of `/plugins` and `/mcp`, e.g. `https://host/vi-mcp` behind the reverse proxy (0.71.0). Claude Code takes the plugin archive only over https."),
 }
 
 #: /etc/vi-p2p/<network>.json — the network service; in brackets the German keys of files before 0.51.0
@@ -92,7 +94,8 @@ ENV_VARS = {
     "VI_MCP_CONFIGURE_STATE": "Which configuration questions were answered (default `/etc/vi-mcp/configure.json`).",
     "VI_MCP_TOKEN_DIR": "Where `vi-mcp configure` writes the token of a new instance (default `/root`, file `vi-mcp-token-<name>`, 0600).",
     "VI_MCP_FREIGABE_TOKEN_FILE": "Token file of `vi-mcp release` (the release right).",
-    "VI_MCP_FEEDBACK_NUDGE": "Claude Code hook: `0` switches off the one feedback request at the end of a session (event `Stop`, 0.59.0).",
+    "VI_MCP_FEEDBACK_NUDGE": "Hook: `0` switches off the feedback request at `Stop` (0.59.0; since 0.71.0 once per round, per hinted action with its `before_id`).",
+    "VI_MCP_HOOK_SCRIPT": "Setup: the hook file the client entries point at (0.71.0; the served installer `vi-mcp-setup.pyz` sets it to its copy under `~/.local/share/vi-mcp/hook`).",
     "VI_MCP_FIRST_TASK": "Claude Code hook: `0` switches off the first task after start, resume and context compaction — search the memory before working (event `SessionStart`, 0.70.12).",
     "VI_MCP_STATUS_DUTY": "Claude Code hook: `0` switches off the status duty — a round with at least 8 tool calls that updated no status object (`vi_learn` key `status:…`) is held once (event `Stop`, 0.70.12).",
     "VI_MCP_KEIN_DIENST": "Tests and containers: `vi-mcp net …` does not start or stop systemd services.",
@@ -117,8 +120,9 @@ ENDPOINTS = [
     ("memory server", "POST", "/mcp", "MCP over Streamable HTTP (JSON-RPC): initialize, tools/list, tools/call. Bearer token = instance."),
     ("memory server", "DELETE", "/mcp", "End the conversation (`Mcp-Session-Id`)."),
     ("memory server", "GET", "/health", "Health: `ok vi-mcp <version>`. Old name `/gesund` still answered."),
-    ("memory server", "POST", "/signal", "User signals from the hook (correction, grade) — token of a human instance."),
+    ("memory server", "POST", "/signal", "User signals from the hook (correction, grade) — token of a human instance. Since 0.71.0 also `feedback_asked` (the hook asked the agent to label these actions, `before_ids`) — any instance, for its own session."),
     ("memory server", "GET", "/web", "Read-only web page of the free and open networks (config `web`)."),
+    ("memory server", "GET", "/plugins", "Client integration (0.71.0, config `plugins`): index, `/plugins/claude/marketplace.json`, `/plugins/claude/vi-mcp-<version>.zip` (sha256 in the marketplace), `/plugins/vi-mcp-setup.pyz` (installer for Codex and Hermes: the package's setup with the hook), `/plugins/hook/vi_hook.py`. No token."),
     ("network service", "GET", "/netz/health", "Health and version (peers gate new entry types on it). Old name `/netz/gesund` still answered."),
     ("network service", "POST", "/netz/koepfe", "Exchange heads: the highest sequence number per publisher."),
     ("network service", "GET", "/netz/log/<pub>", "Entries of one publisher from `ab`, at most `max`."),

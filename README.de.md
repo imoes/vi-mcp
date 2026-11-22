@@ -426,12 +426,35 @@ vi-mcp setup --hermes --uninstall
 | Programm | Datei | Eintrag |
 |---|---|---|
 | Claude Code | `~/.claude.json`, Hook in `~/.claude/settings.json` | `mcpServers.vi-mcp` |
-| Codex CLI | `~/.codex/config.toml` | `[mcp_servers.vi-mcp]` |
+| Codex CLI | `~/.codex/config.toml`, hook in `~/.codex/hooks.json` (0.71.0) | `[mcp_servers.vi-mcp]` |
 | Hermes Agent | `~/.hermes/config.yaml`, Token in `~/.hermes/.env` | `mcp_servers.vi-mcp` |
 
-Der Claude-Code-Hook meldet jede Handlung von selbst; Hermes bekommt den Prompt-Hook (Wissen vor jeder Frage); Codex und andere Clients
-melden, was das Modell selbst aufruft. Arbeit bewertest du im Prompt: `#gut`, `#schlecht`, `#note 0.8`; ein Prompt, der mit „nein“,
+Der Claude-Code-Hook und (0.71.0) der Codex-Hook melden jede Handlung von selbst; Hermes bekommt den Prompt-Hook (Wissen vor jeder Frage);
+andere Clients melden, was das Modell selbst aufruft. Arbeit bewertest du im Prompt: `#gut`, `#schlecht`, `#note 0.8`; ein Prompt, der mit „nein“,
 „falsch“, „no“ oder „wrong“ beginnt, zählt als Korrektur. Dein Text verlässt die Sitzung nie, nur das Ergebnis.
+
+**Ein Client auf einem anderen Rechner** braucht kein Paket (0.71.0): Der Server liefert sein eigenes Claude-Code-Plugin aus — Hooks und die
+MCP-Verbindung, URL und Token als Plugin-Optionen (das Token liegt im sicheren Speicher von Claude Code, nie in einer Datei oder URL):
+
+```bash
+claude plugin marketplace add https://server/vi-mcp/plugins/claude/marketplace.json
+claude plugin install vi-mcp@vi-mcp                       # danach /plugin → vi-mcp → configure: Token
+```
+
+**Codex CLI und Hermes Agent auf einem anderen Rechner** bekommen dasselbe vom Server als einen Installer — das Setup dieses Pakets mit
+dem Hook, sonst nichts (`--token-file -` liest das Token von der Standardeingabe, nie von der Befehlszeile):
+
+```bash
+curl -fsSO https://server/vi-mcp/plugins/vi-mcp-setup.pyz        # sha256 auf https://server/vi-mcp/plugins
+python3 vi-mcp-setup.pyz --codex --codex-hook --hermes --token-file -
+```
+
+Codex führt einen Hook, der nicht von einem Administrator kommt, erst aus, wenn du ihm vertraust: einmal `/hooks` in Codex öffnen. Hermes
+fragt beim nächsten Start einmal nach Zustimmung. Auf dem Rechner des Servers ist dasselbe `vi-mcp setup --codex --codex-hook`.
+
+`https://server/vi-mcp/plugins` zeigt, was ausgeliefert wird. Diese Pfade brauchen absichtlich kein Token: Sie liefern nur öffentlichen Code (Plugin und Hook dieser Version), nie Daten einer Instanz, und in keine Datei wird ein Token geschrieben; `"plugins": false` schaltet sie ab. Claude Code lädt das Plugin-Archiv nur über https und nicht von einer
+Loopback-Adresse; hinter dem Reverse-Proxy deshalb `"public_url": "https://server/vi-mcp"` in die Konfiguration (`"plugins": false`
+schaltet die Pfade ab). Plugin oder `vi-mcp setup --hook`, nicht beides — sind beide installiert, bearbeitet der Hook jedes Ereignis einmal.
 
 Eine neue Instanz von Hand: `sudo vi-mcp instance NAME [--reflexes] [--human]`, dann den Dienst neu starten; das Token wird einmal
 gezeigt. **Über stdio ohne Token** (auf dem Server-Rechner, Linux): Der Dienst lauscht auch auf einem lokalen Socket, und der Kernel sagt
@@ -513,7 +536,7 @@ Befehle, Betriebsarten und jede Regel: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 
 | Werkzeuge | Zweck |
 |---|---|
-| `vi_before` · `vi_after` · `vi_feedback` | vor und nach einer Handlung melden; welche Hinweise halfen |
+| `vi_before` · `vi_after` · `vi_feedback` | vor und nach einer Handlung melden; welche Hinweise halfen, irreführten oder in einer Handlung genutzt wurden (`before_id`, `used`) |
 | `vi_learn` · `vi_recall` · `vi_drilldown` · `vi_object` · `vi_learn_search` | lernen (vollständig, mit Quelle — im selben Aufruf getaggt und mit Frage-Antwort-Paaren qualifiziert), suchen, vertiefen, ein Objekt ganz lesen |
 | `vi_qualify` · `vi_rate` | Gelesenes qualifizieren (Paare, Labels, Tags in einem Aufruf); das eigene Gespräch bewerten (Selbstprüfung, halbes Gewicht) |
 | `vi_tag` · `vi_confirm` · `vi_refute` · `vi_forget` · `vi_set_visibility` | Wissen ändern — immer mit Begründung; jede andere Instanz ist eine eigene Linie, die Prüfung eines eigenen Objekts zählt halb |

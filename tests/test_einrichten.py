@@ -292,3 +292,31 @@ def test_menu_ends_when_idle(target):
 def test_without_terminal_the_hint_appears(target):
     r = subprocess.run([sys.executable, "-m", "vi_mcp", "einrichten"], capture_output=True, text=True, stdin=subprocess.DEVNULL, env={**os.environ, "PYTHONPATH": str(REPO)}, cwd=REPO)
     assert r.returncode == 2 and "No terminal" in r.stderr
+
+
+def test_codex_hook_sets_replaces_and_removes_only_its_own(target):
+    # 0.71.0: ~/.codex/hooks.json in Claude Code's shape; a foreign hook stays, ours is replaced on a second run, SessionEnd ≤ 3 s
+    (target.home / ".codex").mkdir()
+    foreign = {"matcher": "Bash", "hooks": [{"type": "command", "command": "audit.sh"}]}
+    (target.home / ".codex/hooks.json").write_text(json.dumps({"description": "mine", "hooks": {"PreToolUse": [foreign]}}))
+    text = e._codex_hook_on(target, "http://h/mcp", "tok")
+    assert "/hooks" in text  # the trust step is named
+    e._codex_hook_on(target, "http://i/mcp", "tok")
+    d = json.loads((target.home / ".codex/hooks.json").read_text())
+    assert d["description"] == "mine" and d["hooks"]["PreToolUse"][0] == foreign and len(d["hooks"]["PreToolUse"]) == 2
+    assert set(d["hooks"]) == {"PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop", "SessionStart", "SessionEnd"}
+    cmd = d["hooks"]["PostToolUse"][0]["hooks"][0]["command"]
+    assert "http://i/mcp" in cmd and cmd.endswith("--codex") and "tok" not in cmd.replace("token", "")
+    assert d["hooks"]["SessionEnd"][0]["hooks"][0]["timeout"] == 3 and "matcher" not in d["hooks"]["Stop"][0]
+    assert (target.home / ".config/vi-mcp/token-codex").read_text() == "tok\n"
+    assert oct((target.home / ".config/vi-mcp/token-codex").stat().st_mode)[-3:] == "600"
+    assert e._codex_hook_active(target)
+    e._codex_hook_off(target)
+    d = json.loads((target.home / ".codex/hooks.json").read_text())
+    assert d == {"description": "mine", "hooks": {"PreToolUse": [foreign]}} and not (target.home / ".config/vi-mcp/token-codex").exists()
+    assert {x.key: x for x in e.progress(target)}["codex-hook"].configured is False
+
+
+def test_hook_script_can_be_named_by_the_installer(monkeypatch, tmp_path):
+    monkeypatch.setenv("VI_MCP_HOOK_SCRIPT", str(tmp_path / "vi_hook.py"))
+    assert e._hook_script() == tmp_path / "vi_hook.py"

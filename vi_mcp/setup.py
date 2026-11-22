@@ -3,6 +3,7 @@
   vi-mcp setup                            menu
   vi-mcp setup --status                   state per program
   vi-mcp setup --claude --hermes --hook --url URL --token-file FILE   without menu
+  vi-mcp setup --codex --codex-hook --url URL --token-file FILE        Codex with its hook (0.71.0; trust it once in Codex /hooks)
   vi-mcp setup --claude --uninstall
 
 Started with sudo, it applies to the calling user; files are written with that user's rights.
@@ -189,6 +190,8 @@ def _claude_token(z: TargetUser) -> str | None:
 
 
 def _hook_script() -> Path:
+    if env := os.environ.get("VI_MCP_HOOK_SCRIPT"):  # 0.71.0: the served installer (plugins.setup_pyz) copies the hook to the user first
+        return Path(env)
     package = Path("/usr/share/vi-mcp/hook/vi_hook.py")
     return package if package.exists() else Path(__file__).resolve().parents[1] / "hook" / "vi_hook.py"
 
@@ -253,6 +256,66 @@ def _hook_off(z: TargetUser) -> str:
     for name in ("token-claude", "token-nutzer"):
         (z.home / ".config" / "vi-mcp" / name).unlink(missing_ok=True)
     return _write(p, json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+
+
+# ---- Codex hook (0.71.0): ~/.codex/hooks.json — the same hook as Claude Code's, called with --codex ----
+# Codex reads hooks.json in the shape of Claude Code's settings (learn.chatgpt.com/docs/hooks, read 22.11.2026): events with matcher
+# groups and command handlers, timeout in seconds; there is no PostToolUseFailure (a failed Bash goes through PostToolUse), SessionEnd
+# may take at most 3 s. A non-managed hook runs only after the user trusted it in Codex (/hooks) — the result text says so.
+CODEX_HOOK_EVENTS = (("PreToolUse", "*"), ("PostToolUse", "*"), ("UserPromptSubmit", None), ("Stop", None), ("SessionStart", None),
+                     ("SessionEnd", None))
+
+
+def _codex_home(z: TargetUser) -> Path:
+    e = os.environ.get("CODEX_HOME", "").strip()
+    return Path(e) if e else z.home / ".codex"
+
+
+def codex_hooks_set(d: dict, command: str | None) -> dict:
+    """Pure: hooks.json with our handlers removed, and (command given) added again for every event. Other hooks stay as they are."""
+    d = copy.deepcopy(d)
+    hooks = d.get("hooks") if isinstance(d.get("hooks"), dict) else {}
+    for event in list(hooks):
+        groups = [gr for gr in (hooks[event] or []) if not _is_ours(gr)]
+        if groups:
+            hooks[event] = groups
+        else:
+            del hooks[event]
+    if command:
+        for event, matcher in CODEX_HOOK_EVENTS:
+            handler = {"type": "command", "command": command, "timeout": 3 if event == "SessionEnd" else 5}
+            hooks.setdefault(event, []).append({**({"matcher": matcher} if matcher else {}), "hooks": [handler]})
+    if hooks:
+        d["hooks"] = hooks
+    else:
+        d.pop("hooks", None)
+    return d
+
+
+def _codex_hook_active(z: TargetUser) -> bool:
+    d = _json(_codex_home(z) / "hooks.json")
+    return any(_is_ours(gr) for groups in (d.get("hooks") or {}).values() for gr in (groups or []))
+
+
+def _codex_hook_on(z: TargetUser, url: str, token: str) -> str:
+    dir_path = z.home / ".config" / "vi-mcp"
+    environment = f"VI_MCP_URL={shlex.quote(url)}"
+    if token:
+        _write(dir_path / "token-codex", token + "\n")
+        environment += " VI_MCP_TOKEN_FILE=$HOME/.config/vi-mcp/token-codex"
+    else:
+        environment += " VI_MCP_TOKEN_FILE=/dev/null"
+    command = f"{environment} python3 -I {shlex.quote(str(_hook_script()))} --codex"
+    p = _codex_home(z) / "hooks.json"
+    text = _write(p, json.dumps(codex_hooks_set(_json(p), command), indent=2, ensure_ascii=False) + "\n")
+    return text + "; Codex runs it only after you trust it: open /hooks in Codex once"
+
+
+def _codex_hook_off(z: TargetUser) -> str:
+    p = _codex_home(z) / "hooks.json"
+    text = _write(p, json.dumps(codex_hooks_set(_json(p), None), indent=2, ensure_ascii=False) + "\n")
+    (z.home / ".config" / "vi-mcp" / "token-codex").unlink(missing_ok=True)
+    return text
 
 
 # ---- Codex CLI: ~/.codex/config.toml, table [mcp_servers.vi-mcp] ----
@@ -604,7 +667,15 @@ def progress(z: TargetUser) -> list[SetupStatus]:
         hv, ht = "fehlt", "needs Claude Code"
     else:
         hv, ht = "installiert", "set up" if h else "reports every action to the server (arguments masked)"
-    return outputs + [SetupStatus("hook", "Claude Code hook", hv, h, ht)]
+    with _as_user(z):
+        try:
+            ch = _codex_hook_active(z)
+        except Refused:
+            ch = False
+    x = outputs[1]
+    cv, ct = ("fehlt", "needs Codex CLI") if x.present == "fehlt" else ("installiert", "set up (trusted in Codex /hooks?)" if ch else
+                                                                         "reports every Codex action (trust it once in /hooks)")
+    return outputs + [SetupStatus("hook", "Claude Code hook", hv, h, ht), SetupStatus("codex-hook", "Codex hook", cv, ch, ct)]
 
 
 # ---- Server ----
@@ -732,8 +803,11 @@ def default_url(z: TargetUser) -> str:
     return f"http://127.0.0.1:{port}/mcp"
 
 
+HOOK_TITLES = {"hook": "Claude Code hook", "codex-hook": "Codex hook"}
+
+
 def _title(key: str) -> str:
-    return "Claude Code hook" if key == "hook" else next(p.title for p in PROGRAMS if p.key == key)
+    return HOOK_TITLES.get(key) or next(p.title for p in PROGRAMS if p.key == key)
 
 
 def uninstall(choice: list[str], z: TargetUser) -> list[Result]:
@@ -741,7 +815,8 @@ def uninstall(choice: list[str], z: TargetUser) -> list[Result]:
     for key in choice:
         try:
             with _as_user(z):
-                text = _hook_off(z) if key == "hook" else next(p for p in PROGRAMS if p.key == key).outputs(z)
+                text = (_hook_off(z) if key == "hook" else _codex_hook_off(z) if key == "codex-hook"
+                        else next(p for p in PROGRAMS if p.key == key).outputs(z))
             outputs.append(Result(key, _title(key), True, text))
         except (Refused, OSError) as e:
             outputs.append(Result(key, _title(key), False, str(e)))
@@ -756,9 +831,14 @@ def setup(choice: list[str], z: TargetUser, url: str, token: str | None, signal:
     elif can_create_tokens(url):
         short = re.sub(r"[^A-Za-z0-9_.-]", "-", z.name)
         for k in choice:
-            if k == "hook":
+            if k in HOOK_TITLES:
                 continue
             tokens[k] = config.create_instance(f"{short}-{k}")
+        if "codex-hook" in choice:  # 0.71.0: the Codex hook reports as the Codex instance
+            with _as_user(z):
+                present = ((_codex_entry(z) or {}).get("http_headers") or {}).get("Authorization", "")
+            tokens["codex-hook"] = tokens.get("codex") or (present[7:] if present.startswith("Bearer ") else "") \
+                or config.create_instance(f"{short}-codex")
         if "hook" in choice:
             with _as_user(z):
                 present = _claude_token(z)
@@ -785,7 +865,8 @@ def setup(choice: list[str], z: TargetUser, url: str, token: str | None, signal:
                 continue
         try:
             with _as_user(z):
-                text = _hook_on(z, url, t, signal) if k == "hook" else next(p for p in PROGRAMS if p.key == k).on(z, url, t)
+                text = (_hook_on(z, url, t, signal) if k == "hook" else _codex_hook_on(z, url, t) if k == "codex-hook"
+                        else next(p for p in PROGRAMS if p.key == k).on(z, url, t))
             outputs.append(Result(k, _title(k), True, text))
         except (Refused, OSError) as e:
             outputs.append(Result(k, _title(k), False, str(e)))
@@ -991,7 +1072,7 @@ def _file(fpath: str | None) -> str | None:
 
 def main(argv: list[str]) -> int:
     a = argparse.ArgumentParser(prog="vi-mcp setup", description="register vi-mcp in Claude Code, Codex CLI and Hermes Agent")
-    for k in ("claude", "codex", "hermes", "hook"):
+    for k in ("claude", "codex", "hermes", "hook", "codex-hook"):
         a.add_argument(f"--{k}", action="store_true")
     a.add_argument("--url")
     a.add_argument("--token-file", "--token-datei", dest="token_file", help="file containing the token, - for standard input")
@@ -1012,7 +1093,7 @@ def main(argv: list[str]) -> int:
         return 0
     url = o.url or default_url(z)
     token, signal = _file(o.token_file), _file(o.signal_token_file)
-    choice = [k for k in ("claude", "codex", "hermes", "hook") if getattr(o, k)]
+    choice = [k for k in ("claude", "codex", "hermes", "hook", "codex-hook") if getattr(o, k.replace("-", "_"))]
     try:
         if not choice:
             if WINDOWS:

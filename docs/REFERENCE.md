@@ -573,8 +573,9 @@ VI: tell the memory which of the hints shown to you helped and which misled you 
 |---|---|---|---|
 | `helped` | array of string |  | ids of hints that helped |
 | `wrong` | array of string |  | ids of hints that misled |
+| `used` | array of string |  | with before_id: ids of that action's shown hints you followed or cited ([] = none of them); the others count as not used |
 | `note` | string |  | optional |
-| `before_id` | string |  | optional: the vorher_id vi_before returned for the action — books exactly on it (needed when several agents share one instance in parallel) (German: `vorher_id`) |
+| `before_id` | string |  | optional: the vorher_id vi_before returned for the action — books exactly on it (needed when several agents share one instance in parallel, and for used) (German: `vorher_id`) |
 
 ### `vi_confirm`
 
@@ -1075,6 +1076,8 @@ options:
 | `web_base` | `/web` | [`web_basis`] Path the browser sees behind the reverse proxy, e.g. `/vi-mcp/web`. |
 | `web_internal` | `false` | Internal knowledge search in the browser under `/intern` (0.62.0): sign-in with a VI token, shared and internal knowledge, never private. |
 | `web_internal_base` | `/intern` | Path of the internal search as the browser sees it, e.g. `/vi-mcp/intern`; it scopes the session cookie. |
+| `plugins` | `true` | Serve the client integration under `/plugins` (0.71.0): Claude Code marketplace and plugin archive, the hook file. Nothing served there is secret. |
+| `public_url` | from the request | The URL clients see in front of `/plugins` and `/mcp`, e.g. `https://host/vi-mcp` behind the reverse proxy (0.71.0). Claude Code takes the plugin archive only over https. |
 
 ## Network service configuration (`/etc/vi-p2p/<network>.json`)
 
@@ -1152,9 +1155,10 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 | `VI_MCP_CONFIGURE_STATE` | Which configuration questions were answered (default `/etc/vi-mcp/configure.json`). |
 | `VI_MCP_EXPORT_KEY` | Ed25519 key that signs index files (`vi-mcp index export`, 0.62.0; default `export.key` in the network directory `/var/lib/vi-p2p`, made on the first export). |
 | `VI_MCP_EXTRA_PYTHON` | Directory with Python packages that the distribution lacks — clingo for the logic layer (`vi-mcp logic install`, 0.62.0; default `/var/lib/vi-mcp/python` as root, else `~/.local/share/vi-mcp/python`), appended to the import path after the system's packages. |
-| `VI_MCP_FEEDBACK_NUDGE` | Claude Code hook: `0` switches off the one feedback request at the end of a session (event `Stop`, 0.59.0). |
+| `VI_MCP_FEEDBACK_NUDGE` | Hook: `0` switches off the feedback request at `Stop` (0.59.0; since 0.71.0 once per round, per hinted action with its `before_id`). |
 | `VI_MCP_FIRST_TASK` | Claude Code hook: `0` switches off the first task after start, resume and context compaction — search the memory before working (event `SessionStart`, 0.70.12). |
 | `VI_MCP_FREIGABE_TOKEN_FILE` | Token file of `vi-mcp release` (the release right). |
+| `VI_MCP_HOOK_SCRIPT` | Setup: the hook file the client entries point at (0.71.0; the served installer `vi-mcp-setup.pyz` sets it to its copy under `~/.local/share/vi-mcp/hook`). |
 | `VI_MCP_KEIN_DIENST` | Tests and containers: `vi-mcp net …` does not start or stop systemd services. |
 | `VI_MCP_KEIN_MENUE` | Package installation without the interactive menu. |
 | `VI_MCP_KEIN_WIKI` | At installation: do not join the public wiki network (same as `VI_MCP_WIKI=false`). |
@@ -1180,8 +1184,9 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 | memory server | POST | `/mcp` | MCP over Streamable HTTP (JSON-RPC): initialize, tools/list, tools/call. Bearer token = instance. |
 | memory server | DELETE | `/mcp` | End the conversation (`Mcp-Session-Id`). |
 | memory server | GET | `/health` | Health: `ok vi-mcp <version>`. Old name `/gesund` still answered. |
-| memory server | POST | `/signal` | User signals from the hook (correction, grade) — token of a human instance. |
+| memory server | POST | `/signal` | User signals from the hook (correction, grade) — token of a human instance. Since 0.71.0 also `feedback_asked` (the hook asked the agent to label these actions, `before_ids`) — any instance, for its own session. |
 | memory server | GET | `/web` | Read-only web page of the free and open networks (config `web`). |
+| memory server | GET | `/plugins` | Client integration (0.71.0, config `plugins`): index, `/plugins/claude/marketplace.json`, `/plugins/claude/vi-mcp-<version>.zip` (sha256 in the marketplace), `/plugins/vi-mcp-setup.pyz` (installer for Codex and Hermes: the package's setup with the hook), `/plugins/hook/vi_hook.py`. No token. |
 | network service | GET | `/netz/health` | Health and version (peers gate new entry types on it). Old name `/netz/gesund` still answered. |
 | network service | POST | `/netz/koepfe` | Exchange heads: the highest sequence number per publisher. |
 | network service | GET | `/netz/log/<pub>` | Entries of one publisher from `ab`, at most `max`. |
@@ -1266,6 +1271,7 @@ First line of each module's docstring.
 | `philosophy` | vi-mcp side of philosophy packages (0.66.0): the command line, installing a checked package into the VI, the tool vi_philosophy. |
 | `philosophy_fit` | Which philosophy fits which situation (0.69.6) — declared by the package, learned from rated use. |
 | `philosophy_provenance` | Provenance adapter: the evidence about a knowledge object as input facts of kollektiv 1.3.0 — shadow mode only (0.67.0). |
+| `plugins` | 0.71.0: the server serves its own client integration — a client that knows only the server's URL and a token installs the hooks. |
 | `qa_pairs` | Grounded question-answer pairs for knowledge — the training form of a VI's knowledge (0.65.0). |
 | `qualify` | Qualification on access (0.69.2): an object that is searched for or read and whose hashtags are incomplete is completed at that |
 | `query_adapter` | Query adapter (0.68.0) — learned embedding weights by scikit-learn instead of fine-tuning the embedding model. |

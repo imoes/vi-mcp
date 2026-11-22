@@ -29,7 +29,7 @@ from pathlib import Path
 
 from . import __version__
 from . import memory as g
-from . import anonymize, index, on_demand, intuition, config, reflexes, main_loop, scorer, self_model, session, usage_stats, tools
+from . import anonymize, index, on_demand, intuition, config, plugins, reflexes, main_loop, scorer, self_model, session, usage_stats, tools
 from .log_output import log
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -308,10 +308,24 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
         elif self.k.web_internal and (self.path == "/intern" or self.path.startswith(("/intern/", "/intern?"))):  # 0.62.0
             self._internal("GET", b"")
+        elif self.k.plugins and (self.path == plugins.ROUTE or self.path.startswith((plugins.ROUTE + "/", plugins.ROUTE + "?"))):
+            try:  # 0.71.0: the client integration (hooks, Claude Code plugin) — public files, the token is never read here
+                code, ctype, data, header = plugins.handle(self.path, self.k.public_url, self.headers)
+            except Exception as ex:  # noqa: BLE001 — a missing hook file must not take the server down
+                log(f"plugins {self.path.split('?')[0]}: {type(ex).__name__}: {ex}")
+                code, ctype, data, header = 500, "text/plain; charset=utf-8", b"internal error (named in the server log)", {}
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            for hk, hv in header.items():
+                self.send_header(hk, hv)
+            self.end_headers()
+            self.wfile.write(data)
         elif self.path.rstrip("/") == "/mcp":
             self._send(405, "GET is not supported: the server sends nothing on its own", {"Allow": "POST, DELETE"})
         else:
-            self._send(404, "only /mcp, /health" + (" and /web" if self.k.web else "") + (" and /intern" if self.k.web_internal else ""))
+            self._send(404, "only /mcp, /health" + (" and /web" if self.k.web else "") + (" and /intern" if self.k.web_internal else "")
+                       + (" and /plugins" if self.k.plugins else ""))
 
     def _internal(self, method: str, body: bytes) -> None:
         """0.62.0: the internal knowledge search (web_internal.py) — its own sign-in, never the bearer token of /mcp."""
@@ -345,12 +359,12 @@ class Handler(BaseHTTPRequestHandler):
         self._send(204)
 
     def _signal(self):
-        """Signal of the user from the hook: correction or grade, never their text. Deliberately not an MCP tool."""
+        """Signal of the user from the hook: correction or grade, never their text. Deliberately not an MCP tool.
+        0.71.0: art=feedback_asked — the hook reports that it asked the agent to rate the hints of these actions (before_ids), so ask
+        rate and answer rate are measurable per experience (data.feedback_asked). Any instance may report it for its OWN session."""
         inst = self._check()
         if not inst:
             return
-        if not inst.human:
-            return self._send(403, f"instance {inst.name} may not report signals")
         length = int(self.headers.get("Content-Length") or 0)
         if not 0 < length <= 4096:
             return self._send(400, "body missing or too large")
@@ -358,7 +372,19 @@ class Handler(BaseHTTPRequestHandler):
             d = json.loads(self.rfile.read(length))
         except (json.JSONDecodeError, UnicodeDecodeError):
             return self._send(400, "not JSON")
+        if not isinstance(d, dict):
+            return self._send(400, "not a JSON object")
         s = session.find_without_touching(d.get("mcp_session_id") or "")
+        if d.get("art") == "feedback_asked":
+            ids = d.get("before_ids")
+            if not s or s.instance != inst.name:
+                return self._send(404, "session unknown")
+            if not isinstance(ids, list) or not ids or len(ids) > 20 or not all(isinstance(x, str) and 0 < len(x) <= 64 for x in ids):
+                return self._send(400, "before_ids must be 1–20 ids")
+            marked = intuition.mark_feedback_asked(inst.name, ids)
+            return self._send(200, {"marked": marked, "unknown": len(ids) - marked})
+        if not inst.human:
+            return self._send(403, f"instance {inst.name} may not report signals")
         if not s:
             return self._send(404, "session unknown")
         kind, grade = d.get("art"), d.get("note")

@@ -587,12 +587,43 @@ def opened(instance: str, hint_id: str) -> str | None:
     return None
 
 
+#: 0.71.0: how far back a feedback bound to one action (before_id) may reach
+BOUND_FEEDBACK_H = 24
+
+
+def experience_for_before(instance: str, before_id: str) -> g.MemoryObject | None:
+    """0.71.0: the experience of exactly that vi_before of this instance (within BOUND_FEEDBACK_H hours), or None."""
+    since = (datetime.now(timezone.utc) - timedelta(hours=BOUND_FEEDBACK_H)).isoformat(timespec="milliseconds")
+    with g.lock:
+        row = g.db().execute("SELECT id FROM object WHERE kind = 'experience' AND instance = ? AND ts >= ? AND json_extract(data, '$.before.id') = ?",
+                             (instance, since, before_id)).fetchone()
+    return g.load(row[0]) if row else None
+
+
+def mark_feedback_asked(instance: str, before_ids: list[str]) -> int:
+    """0.71.0: the hook asked the agent to rate the hints of these actions — data.feedback_asked = time on each (the first ask counts).
+    The answer is data.declared on the same experience; answer rate = declared / feedback_asked. Returns how many were found."""
+    n = 0
+    for bid in dict.fromkeys(before_ids):
+        o = experience_for_before(instance, bid)
+        if o:
+            g.update_data(o.id, lambda d: d.setdefault("feedback_asked", g.now()))
+            n += 1
+    if n:
+        with g.lock:
+            g.db().commit()
+    return n
+
+
 def feedback(instance: str, hint_id: str, value: int, before_id: str | None = None) -> str | None:
     """Assigns a vi_confirm (+1) / vi_refute (−1) to this instance's most recent action before which exactly this hint was shown
     (at most FEEDBACK_MIN minutes back). Returns the id of the experience or None (then it stays a normal confirmation).
     before_id (0.50.1): exactly the action of that vi_before — several agents sharing one instance in parallel otherwise may hit a
-    neighbour's action with the same hint. With before_id there is no fallback to the most recent action."""
-    since = (datetime.now(timezone.utc) - timedelta(minutes=FEEDBACK_MIN)).isoformat(timespec="milliseconds")
+    neighbour's action with the same hint. With before_id there is no fallback to the most recent action.
+    0.71.0: with before_id the window is BOUND_FEEDBACK_H hours — the id names the action exactly, and the hook asks at the end of a
+    round, which may be longer than FEEDBACK_MIN."""
+    since = (datetime.now(timezone.utc) - (timedelta(hours=BOUND_FEEDBACK_H) if before_id else timedelta(minutes=FEEDBACK_MIN))
+             ).isoformat(timespec="milliseconds")
     with g.lock:
         if before_id:
             rows = g.db().execute("SELECT id FROM object WHERE kind = 'experience' AND instance = ? AND ts >= ? AND json_extract(data, '$.before.id') = ?",
@@ -632,22 +663,25 @@ def feedback(instance: str, hint_id: str, value: int, before_id: str | None = No
     return None
 
 
-def declare_used(o: g.MemoryObject, used: list, ok: bool) -> dict:
+def declare_used(o: g.MemoryObject, used: list, ok: bool, label: bool = True) -> dict:
     """0.68.0: the agent says in its own vi_after which of the hints shown before this action it used — no extra call (explicit feedback
     was given for 3 % of shown hints, production 16.11.2026). A used hint becomes direct feedback on this action, the same label as
     vi_feedback: +1 when the action succeeded, −1 when it failed (followed and misled). A shown hint NOT named is recorded as declared
     unused — that it was not needed here says nothing about whether it is right, so it is no label (scorer.label ignores it). An id
     that was not shown before this action is ignored and counted; feedback already given (vi_feedback) is never overwritten.
-    Old experiences have no `declared` key — nothing to migrate."""
+    Old experiences have no `declared` key — nothing to migrate.
+    label=False (0.71.0, vi_feedback(before_id, used) asked by the hook): `declared` only, outcome-free — used is "followed or cited",
+    not "helped"; a −1 comes only from an explicit wrong (agreed with the router work Z7, 22.11.2026)."""
     shown = list((o.data.get("before") or {}).get("shown") or [])
     names_ = [str(x).strip() for x in (used or []) if str(x).strip()]
     valid = [h for h in dict.fromkeys(names_) if h in shown]
     ignored = [h for h in dict.fromkeys(names_) if h not in shown]
 
     def write(d):
-        fb = d.setdefault("feedback", {})
-        for h in valid:
-            fb.setdefault(h, 1 if ok else -1)
+        if label:
+            fb = d.setdefault("feedback", {})
+            for h in valid:
+                fb.setdefault(h, 1 if ok else -1)
         d["declared"] = {"used": valid, "unused": [h for h in shown if h not in valid], "ignored": ignored}
     if shown or ignored:
         g.update_data(o.id, write)

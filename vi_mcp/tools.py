@@ -479,9 +479,9 @@ TOOLS = [
      "description": "VI: tell the memory which of the hints shown to you helped and which misled you — ids from the hint lines. One call, no "
                     "reason needed. This is the signal the VI learns from which hint to show; it does not change the knowledge itself (vi_confirm / "
                     "vi_refute do that).",
-     "inputSchema": _schema({"helped": _TAGS, "wrong": _TAGS, "note": {"type": "string", "description": "optional"},
+     "inputSchema": _schema({"helped": _TAGS, "wrong": _TAGS, "used": _TAGS, "note": {"type": "string", "description": "optional"},
                              "before_id": {"type": "string", "description": "optional: the vorher_id vi_before returned for the action — books "
-                                           "exactly on it (needed when several agents share one instance in parallel)"}})},
+                                           "exactly on it (needed when several agents share one instance in parallel, and for used)"}})},
     {"name": "vi_confirm",
      "description": "VI: confirm an object (it becomes more important) — with a reason. Counts as feedback if it was just shown as a "
                     "hint. Weight comes from lines: each other instance counts 1, your own object counts half (a self-review, marked "
@@ -630,6 +630,7 @@ _TOOL_PARAM_DOCS = {
     ("vi_tag", "remove"): "hashtags to remove",
     ("vi_feedback", "helped"): "ids of hints that helped",
     ("vi_feedback", "wrong"): "ids of hints that misled",
+    ("vi_feedback", "used"): "with before_id: ids of that action's shown hints you followed or cited ([] = none of them); the others count as not used",
     ("vi_forget", "tool"): "the tool whose remembered answers are discarded",
     ("vi_experience", "tool"): "only this tool",
     ("vi_experience", "hours"): "period in hours (default 24)",
@@ -1789,14 +1790,28 @@ def call_tool(name: str, args: dict, instance: str, reflex_permission: bool, rel
     if name == "vi_feedback":  # 0.49.0
         helped = [str(x) for x in (args.get("helped") or []) if x][:20]
         wrong = [str(x) for x in (args.get("wrong") or []) if x][:20]
-        if not helped and not wrong:
-            raise Rejected("give helped=[ids] and/or wrong=[ids] — the ids of the hint lines")
+        used = args.get("used")  # 0.71.0: the within-action label the hook asks for; [] = none used is an answer too
+        if used is not None and not isinstance(used, list):
+            raise Rejected("used must be a list of hint ids ([] = none of them)")
         before_id = str(args.get("before_id") or "").strip() or None
+        if not helped and not wrong and used is None:
+            raise Rejected("give helped=[ids] and/or wrong=[ids] — the ids of the hint lines (or used=[ids] with before_id)")
+        declared = None
+        if used is not None:
+            if not before_id:
+                raise Rejected("used needs before_id — the label belongs to exactly one action (the hook names it)")
+            o = intuition.experience_for_before(instance, before_id)
+            if not o:
+                raise Rejected(f"no action {before_id} of {instance} in the last {intuition.BOUND_FEEDBACK_H} h — nothing recorded")
+            # outcome-free: used = followed or cited, not "helped"; −1 only from an explicit wrong (agreed with Z7, 22.11.2026)
+            declared = intuition.declare_used(o, [str(x) for x in used if x][:20], True, label=False)  # ok unused: label=False
         booked, unknown = [], []
         for hid, value in [(h, 1) for h in helped] + [(w, -1) for w in wrong]:
             (booked if intuition.feedback(instance, hid, value, before_id) else unknown).append(hid)
         where = f"before the action {before_id}" if before_id else f"to {instance} in the last {intuition.FEEDBACK_MIN} min"
-        return (f"feedback recorded for {len(booked)} hint(s)" + (f"; not shown {where}: {', '.join(unknown)}" if unknown else "")
+        return ((f"use recorded for action {before_id}: used {len(declared['booked'])}, not used {len(declared['unused'])}"
+                 + (f", not shown there: {', '.join(declared['ignored'])}" if declared["ignored"] else "") + "; " if declared else "")
+                + f"feedback recorded for {len(booked)} hint(s)" + (f"; not shown {where}: {', '.join(unknown)}" if unknown else "")
                 + " — thanks, this is what the VI learns from")
     if name == "vi_object":
         o = _readable(args.get("id"), instance, release_permission)

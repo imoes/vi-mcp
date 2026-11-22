@@ -410,13 +410,36 @@ vi-mcp setup --hermes --uninstall
 | Program | File | Entry |
 |---|---|---|
 | Claude Code | `~/.claude.json`, hook in `~/.claude/settings.json` | `mcpServers.vi-mcp` |
-| Codex CLI | `~/.codex/config.toml` | `[mcp_servers.vi-mcp]` |
+| Codex CLI | `~/.codex/config.toml`, hook in `~/.codex/hooks.json` (0.71.0) | `[mcp_servers.vi-mcp]` |
 | Hermes Agent | `~/.hermes/config.yaml`, token in `~/.hermes/.env` | `mcp_servers.vi-mcp` |
 
-The Claude Code hook reports every action by itself; Hermes gets the prompt hook (knowledge before each question); Codex and other
-clients report what the model calls itself. Rate work
+The Claude Code hook and (0.71.0) the Codex hook report every action by themselves; Hermes gets the prompt hook (knowledge before
+each question); other clients report what the model calls itself. Rate work
 in your prompt: `#gut` (good), `#schlecht` (bad), `#note 0.8`; a prompt starting with "no", "wrong", "nein" or "falsch" counts as a
 correction. Your text never leaves the session, only the result does.
+
+**A client on another machine** needs no package (0.71.0): the server serves its own Claude Code plugin — hooks plus the MCP connection,
+URL and token as plugin options (the token goes to Claude Code's secure credential store, never into a file or a URL):
+
+```bash
+claude plugin marketplace add https://server/vi-mcp/plugins/claude/marketplace.json
+claude plugin install vi-mcp@vi-mcp                       # then /plugin → vi-mcp → configure: token
+```
+
+**Codex CLI and Hermes Agent on another machine** get the same from the server as one installer — the setup of this package with the
+hook, nothing else (`--token-file -` reads the token from standard input, never from the command line):
+
+```bash
+curl -fsSO https://server/vi-mcp/plugins/vi-mcp-setup.pyz        # sha256 on https://server/vi-mcp/plugins
+python3 vi-mcp-setup.pyz --codex --codex-hook --hermes --token-file -
+```
+
+Codex runs a hook it did not get from an administrator only after you trusted it: open `/hooks` in Codex once. Hermes asks once for
+consent at its next start. On the server's own machine the same is `vi-mcp setup --codex --codex-hook`.
+
+`https://server/vi-mcp/plugins` lists what is served. These routes need no token by design: they serve only public code (the plugin and the hook of this version), never instance data, and no token is written into any of them; `"plugins": false` switches them off. Claude Code downloads the plugin archive only over https and not from a loopback
+address, so behind the reverse proxy set `"public_url": "https://server/vi-mcp"` in the configuration (`"plugins": false` switches the
+routes off). Use the plugin or `vi-mcp setup --hook`, not both — if both are installed, the hook handles each event once.
 
 A new instance by hand: `sudo vi-mcp instance NAME [--reflexes] [--human]`, then restart the service; the token is shown once.
 **Over stdio without a token** (on the server host, Linux): the service also listens on a local socket and the kernel tells it which
@@ -498,7 +521,7 @@ Commands, modes and every rule: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
 
 | Tools | Purpose |
 |---|---|
-| `vi_before` · `vi_after` · `vi_feedback` | report before and after an action; which hints helped |
+| `vi_before` · `vi_after` · `vi_feedback` | report before and after an action; which hints helped, misled or were used in one action (`before_id`, `used`) |
 | `vi_learn` · `vi_recall` · `vi_drilldown` · `vi_object` · `vi_learn_search` | learn (in full, with source — tagged and qualified with question/answer pairs in the same call), search, drill down, read one object completely |
 | `vi_qualify` · `vi_rate` | qualify what you just read (pairs, labels, tags in one call); rate your own conversation (a self-review, half weight) |
 | `vi_tag` · `vi_confirm` · `vi_refute` · `vi_forget` · `vi_set_visibility` | change knowledge — always with a reason; each other instance is a line of its own, a review of your own object counts half |

@@ -3,18 +3,97 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## Unreleased (branch z7-router)
+## Unreleased (0.71.0) — release candidate: branch plugins + branch z7-router on 0.70.12
 
-### What was fixed
+### What is new
 
-- **The hold-back comparison (`vi_stats`, `metrics.holdback_effect`) no longer reports an effect that a change of the hold probability
-  created.** It compared actions with shown and held-back hints within (instance, tool). When the probability rose from 0.05 to 0.2
-  (16.11.2026) while the base rate drifted, the held-back arm came mostly from the later period: production copy 22.11.2026,
-  −3.9 ± 1.1 points ("hints lower success"). The hold probability is now part of the stratum: −0.1 ± 1.1, i.e. no measurable effect
-  (Simpson's paradox). Verified: `tests/test_holdback.py::test_a_change_of_the_hold_probability_does_not_fake_an_effect` fails without
-  the change and passes with it.
+- **A client on another machine installs the hooks from the server itself — the server serves its own Claude Code plugin.** Before,
+  the hooks came only from the local package (`vi-mcp setup` → `/usr/share/vi-mcp/hook/vi_hook.py`); a client elsewhere needed the
+  package or a checkout. An MCP server cannot install hooks, so the vehicle is a client plugin (user decision 22.11.2026, design
+  `insight:848cb1f6`). New routes, GET without a token (nothing served is secret):
+  - `/plugins` — index with the install commands;
+  - `/plugins/claude/marketplace.json` — a Claude Code marketplace whose plugin source is an archive with its sha256;
+  - `/plugins/claude/vi-mcp-<version>.zip` — the plugin: `userConfig` url and token (`sensitive`), `.mcp.json` (http server,
+    `Authorization: Bearer ${user_config.token}`), `hooks/hooks.json` (the same seven events as `vi-mcp setup --hook`), `hook/vi_hook.py`.
+    Built deterministically (fixed timestamps), so the sha256 stays valid between requests;
+  - `/plugins/hook/vi_hook.py` — the hook alone (standard library only).
+  Config: `public_url` (the URL clients see; Claude Code takes the archive only over https and not from loopback), `plugins: false`
+  switches the routes off. The hook reads URL and token from the plugin options (`CLAUDE_PLUGIN_OPTION_URL/_TOKEN`).
+  - Verified end to end on 22.11.2026 11:27–11:28 UTC with Claude Code 2.1.329 in an isolated `CLAUDE_CONFIG_DIR` against a local test
+    server behind TLS: `claude plugin marketplace add https://…/plugins/claude/marketplace.json` → added; `claude plugin install
+    vi-mcp@vi-mcp --config url=…` → installed; token via `claude plugin configure --values-stdin` → stored only in the credential
+    file (0600); `claude mcp list` → `plugin:vi-mcp:vi-mcp … ✔ Connected` (server log: session of instance e2e — the token from the
+    option reached the header); the installed hook commands, run as Claude Code runs them, booked the action as an experience of that
+    instance. The token was in no served file, URL, server log or hook log. The model run itself was not part of the test (the
+    isolated configuration has no login).
+  - Tests: `tests/test_plugins.py` (marketplace ↔ archive sha256, archive contents and options, deterministic bytes, no token in any
+    served file or URL, URLs from `public_url` or forwarded headers, a bad Host refused, switched off → 404, the hook takes URL and token
+    from the plugin options, the token not in the hook log, a second installed copy of the hook does not report twice).
+
+- **The hook asks for a label per action — which of the hints shown before it the agent followed — so the hint router gets
+  within-action labels.** Agents rarely gave feedback (Claude Code 1–8 times a day); the router's best label source, CentralStation,
+  stopped on 16.11.2026 (`insight:d42495f6`). On the production copy of 22.11.2026 only labels from one labeller at one moment within
+  one action carry signal (a per-hint use rate predicts the used hint at 0.82–0.84 within-action AUC; agreed with the router work Z7,
+  session of 22.11.2026). At `Stop`, once per round with hinted actions (at most 8, the newest), the hook names each action with its
+  `before_id` and shown ids and asks for `vi_feedback(before_id, used=[ids followed or cited], wrong=[ids that misled])`; `used=[]`
+  (none) is an answer; ids not named count as not used. Asked regardless of the outcome; never in the nudge "off" arm or when hints
+  were held back; off with `VI_MCP_FEEDBACK_NUDGE=0`. It replaces the session-wide request of 0.59.0.
+  - `vi_feedback` has an optional `used` (with `before_id`): it writes `data.declared {used, unused, ignored}` on exactly that action,
+    outcome-free — `used` is "followed or cited", not "helped"; a −1 comes only from an explicit `wrong`. (`vi_after(used)` keeps its
+    0.68.0 mapping, used → ±1 by the outcome.) A `before_id` reaches back 24 h (before: 60 min).
+  - Measurable, not silent: the hook reports each request (`POST /signal`, `art: feedback_asked`, the action ids) and the server
+    stores `data.feedback_asked` on each experience; answer rate = experiences with `declared` / with `feedback_asked`.
+  - Tests: `tests/test_hook.py` (one line per hinted action with its id, English ids, asked once per round, answered actions not
+    asked, never looping, the switch and the "off" arm respected, both key generations of `zugriff`, `/signal` only for the own session,
+    correction still human-only) and `tests/test_feedback_labels.py` (outcome-free `used`, `used=[]`, `before_id` required, no action of
+    another instance, `feedback_asked` per experience, first ask kept).
+
+- **Codex and Hermes on another machine: the server serves one installer, and Codex gets the hook (`vi-mcp setup --codex-hook`).**
+  `GET /plugins/vi-mcp-setup.pyz` is a zipapp of the package's own setup (`vi_mcp/__init__.py`, `config.py`, `setup.py`, byte for
+  byte) with the hook — the same code as `vi-mcp setup`, not a second implementation; deterministic, its sha256 in a header and on
+  `/plugins`. It copies the hook to `~/.local/share/vi-mcp/hook/vi_hook.py` and takes the server's URL as default. The Codex hook goes
+  to `~/.codex/hooks.json` (`$CODEX_HOME`) in Claude Code's shape — PreToolUse/PostToolUse `*`, UserPromptSubmit, Stop, SessionStart,
+  SessionEnd (≤ 3 s), the hook with `--codex` (client `codex-hook`, family gpt), the Codex instance's token in a file (0600). Codex runs
+  it only after the user trusted it in `/hooks` (learn.chatgpt.com/docs/hooks: "Non-managed hooks must be reviewed and trusted before
+  they run"); setup says so.
+  - Verified 22.11.2026 12:09–12:10 UTC in a throw-away home against the local TLS test server: installer downloaded over https, sha256
+    equal to the header; `python3 vi-mcp-setup.pyz --codex --codex-hook --hermes --token-file -` wrote Codex MCP + hooks.json, Hermes
+    MCP + `pre_llm_call` hook, token files 0600; the installed Codex hook commands, run on Codex-shaped events, booked the action
+    (server log: client codex-hook, family gpt); the Hermes hook gave its context. A real Codex or Hermes model turn was not part of the
+    test (no login in the throw-away home).
+  - Tests: `tests/test_plugins.py` (installer = the package's setup byte for byte, deterministic, no token; sets up Codex and Hermes in
+    a fresh home, URL default from the server; client names), `tests/test_einrichten.py` (Codex hook leaves foreign hooks alone,
+    replaces its own, removes it, token file 0600; installer can name the hook file).
+
+- **A per-conversation test of a hint ranking by the agents' declared use** (`vi_mcp/use_rate.py`, config `use_rate_share`, default 0 =
+  off). In conversations of the arm `use_rate`, while no learned router model is active, the candidates are ranked by a Beta posterior
+  of how often the agents declared a hint used when it was shown with others (`data.declared`), with the kind's rate as prior; the
+  other conversations keep the bandit. Propensities, the ε slot and the random hold-back are unchanged; every decision logs
+  `before.use_rate_arm` and the candidates' `before.use_rate_scores` (both arms). Counters are recomputed on demand and in sleep step
+  7d2. Verified: `tests/test_use_rate.py` (label definition, dropped counters, score, stable arm and share, ranking and logging in
+  `before`, off changes nothing, config bounds).
 
 ### What has changed
+
+- **Changed contracts — additions only, no key renamed or removed** (lesson of `insight:d42495f6`: a renamed response key cost the
+  router its main label source for six days):
+  - MCP `vi_feedback`: new optional parameter `used` (list, with `before_id`); its answer text gains "use recorded for action …".
+  - HTTP `POST /signal`: new `art: "feedback_asked"` with `before_ids` (any instance, own session); `korrektur`/`note` unchanged
+    (human instances only).
+  - HTTP `GET /plugins`, `/plugins/claude/marketplace.json`, `/plugins/claude/vi-mcp-<version>.zip`, `/plugins/vi-mcp-setup.pyz`,
+    `/plugins/hook/vi_hook.py`: new routes, no token.
+  - Stored data: experiences gain `data.declared` from `vi_feedback(used)`, `data.feedback_asked`, `before.use_rate_arm`,
+    `before.use_rate_scores`; nothing existing is renamed.
+  - Configuration: new keys `plugins` (default true), `public_url`, `use_rate_share` (default 0).
+  - Hook: client names `codex-hook` and `hermes-hook` (the Hermes hook was `claude-code-hook`); environment `VI_MCP_HOOK_SCRIPT`.
+  - Setup: new flag `--codex-hook`, menu line "Codex hook"; new file `~/.codex/hooks.json`.
+
+- **The setup menu offers "Codex hook" when Codex is present (ticked like the Claude Code hook).**
+- **`vi_feedback` takes `used` (new, optional) and `/signal` takes `art: feedback_asked` (new).** Both are additions; no existing key
+  of a request or a response changed.
+- **If the hook is installed twice (plugin and `vi-mcp setup --hook`), each event is handled once.** Claude Code runs both copies with
+  the same event; the first claims it (a claim file per event digest, 120 s), the second does nothing. Before, every action would
+  have been reported twice. Evidence: `tests/test_plugins.py::test_a_second_installed_copy_of_the_hook_does_not_report_twice`.
 
 - **The implicit "adopted" signal is no longer a hint label** (user decision 22.11.2026: `scorer.WEIGHT["genutzt"]` = 0). A hint whose
   path, option or file name reappeared in one of the next three successful actions (`intuition.adopted`, 0.59.0, stored as `data.used`)
@@ -25,24 +104,40 @@ Linked from [README.md](README.md).
   `data.used` is still recorded and counted in `vi_stats`. Verified: `tests/test_label.py` (the adoption test now expects the ok label;
   a positive weight brings the branch back).
 
-### What is new
+### What was fixed
 
-- **A per-conversation test of a hint ranking by the agents' declared use** (`vi_mcp/use_rate.py`, config `use_rate_share`, default 0 =
-  off). In conversations of the arm `use_rate`, while no learned router model is active, the candidates are ranked by a Beta posterior
-  of how often the agents declared a hint used when it was shown with others (`data.declared`), with the kind's rate as prior; the
-  other conversations keep the bandit. Propensities, the ε slot and the random hold-back are unchanged; every decision logs
-  `before.use_rate_arm` and the candidates' `before.use_rate_scores` (both arms). Counters are recomputed on demand and in sleep step
-  7d2. Verified: `tests/test_use_rate.py` (label definition, dropped counters, score, stable arm and share, ranking and logging in
-  `before`, off changes nothing, config bounds).
+- **The hook's feedback request saw no hint id coined after 0.67.0.** It parsed ids out of the hint text with a pattern for the German
+  prefixes (`erkenntnis:`, `regel:`, …); `[insight:…]` and `[rule:…]` did not match (checked against the hook of 0.70.12), so the
+  request listed only old ids and skills and rarely reached its minimum. The ids now come from `zugriff.shown` of the `vi_before`
+  answer (fallback `zugriff.gezeigt` of older servers). Evidence: `tests/test_hook.py::test_feedback_request_per_round_names_each_action`.
+
+- **The Hermes prompt hook announced itself as `claude-code-hook` and was counted as model family claude.** It is `hermes-hook` now (no
+  family from the name; Hermes runs any model). Seen in the server log of the test run (12:10 UTC, "client claude-code-hook … family
+  claude" for the Hermes hook); evidence `tests/test_plugins.py::test_the_hook_announces_its_client`.
+
+- **The hold-back comparison (`vi_stats`, `metrics.holdback_effect`) no longer reports an effect that a change of the hold probability
+  created.** It compared actions with shown and held-back hints within (instance, tool). When the probability rose from 0.05 to 0.2
+  (16.11.2026) while the base rate drifted, the held-back arm came mostly from the later period: production copy 22.11.2026,
+  −3.9 ± 1.1 points ("hints lower success"). The hold probability is now part of the stratum: −0.1 ± 1.1, i.e. no measurable effect
+  (Simpson's paradox). Verified: `tests/test_holdback.py::test_a_change_of_the_hold_probability_does_not_fake_an_effect` fails without
+  the change and passes with it.
 
 ### What is missing
 
+- Codex: a failed Bash command arrives as `PostToolUse` (Codex has no `PostToolUseFailure`) and is reported as ok; the Stop status
+  duty reads Claude Code's transcript format and stays silent for Codex.
+- The router does not read `data.declared` yet in production (its reader is on the router branch); the answer rate is measured only
+  after a release.
+- The "Did one of these help…" line under the hints (0.49.0, A/B-tested) still asks for unbound `vi_feedback(helped, wrong)`.
+- The plugin hook runs `python3`; a Windows client without `python3` on PATH is not covered.
+- Plugin and a local MCP entry `vi-mcp` side by side give the tools twice (`mcp__vi-mcp__…` and `mcp__plugin_vi-mcp_vi-mcp__…`).
 - **No valid hint-use label exists in production yet.** The implicit `data.used` (`genutzt`, `intuition.adopted`, token reuse) failed a
   pre-registered placebo check: hints held back at random, never seen by the agent, were "adopted" as often as shown ones (risk
   ratio 0.79, 95 % CI 0.62–1.03; `docs/PREREG_Z7B_WITHIN_ACTION.md`) and no longer counts (above). The
-  use-rate ranking reads only `data.declared`, which the production copy does not contain — it needs the feedback hook first, and an
-  online A/B pre-registration before `use_rate_share` is set above 0.
+  use-rate ranking reads only `data.declared`, which the production copy does not contain — the feedback hook of this release (above) is its first source; an
+  online A/B pre-registration comes before `use_rate_share` is set above 0.
 - One name for two things: `data.used` (the heuristic) and `data.declared.used` (the declaration) — for a later migration.
+
 
 ## 0.70.12 — 2026-11-20
 

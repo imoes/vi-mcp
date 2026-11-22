@@ -193,3 +193,42 @@ def test_config_bounds_the_nudge_share(tmp_path, monkeypatch):
         assert config.load().feedback_nudge_off == want
     p.write_text("{}")
     assert config.load().feedback_nudge_off == 0.2  # an old config without the key: the default
+
+
+def test_feedback_used_bound_to_one_action_is_outcome_free(gd):
+    # 0.71.0: the hook asks per action; vi_feedback(before_id, used) writes data.declared only — used = followed or cited, not "helped",
+    # so a used hint before a FAILED action is no −1 here; a −1 comes only from an explicit wrong (agreed with Z7, 22.11.2026)
+    a = _k("uptime on the build host lies after a suspend", ["tool:Bash", "topic:uptime"])
+    b = _k("uptime -s shows the boot time on the build host", ["tool:Bash", "topic:uptime"])
+    v, _out, _ = _action({"command": "uptime"}, False, ...)
+    bid = v["vorher_id"]
+    text = tools.call_tool("vi_feedback", {"before_id": bid, "used": [a.id], "wrong": [b.id]}, "a", False)
+    assert "used 1, not used 1" in text
+    e = _experience()
+    assert e.data["declared"] == {"used": [a.id], "unused": [b.id], "ignored": []}
+    assert e.data["feedback"] == {b.id: -1}  # only the explicit wrong; the used one gets no label from the outcome
+
+
+def test_feedback_used_empty_is_an_answer_and_needs_a_before_id(gd):
+    import pytest
+    a = _k("uptime on the build host lies after a suspend", ["tool:Bash", "topic:uptime"])
+    v, _out, _ = _action({"command": "uptime"}, True, ...)
+    tools.call_tool("vi_feedback", {"before_id": v["vorher_id"], "used": []}, "a", False)
+    e = _experience()
+    assert e.data["declared"] == {"used": [], "unused": [a.id], "ignored": []} and "feedback" not in e.data
+    with pytest.raises(tools.Rejected, match="before_id"):
+        tools.call_tool("vi_feedback", {"used": [a.id]}, "a", False)
+    with pytest.raises(tools.Rejected, match="no action"):
+        tools.call_tool("vi_feedback", {"before_id": "0000000000000000", "used": []}, "a", False)
+    with pytest.raises(tools.Rejected, match="no action"):  # another instance's action is not found
+        tools.call_tool("vi_feedback", {"before_id": v["vorher_id"], "used": []}, "b", False)
+
+
+def test_feedback_asked_is_marked_per_experience(gd):
+    _k("uptime on the build host lies after a suspend", ["tool:Bash", "topic:uptime"])
+    v, _out, _ = _action({"command": "uptime"}, True, ...)
+    assert intuition.mark_feedback_asked("a", [v["vorher_id"], "nope"]) == 1
+    first = _experience().data["feedback_asked"]
+    intuition.mark_feedback_asked("a", [v["vorher_id"]])
+    assert _experience().data["feedback_asked"] == first  # the first ask counts
+    assert intuition.mark_feedback_asked("b", [v["vorher_id"]]) == 0  # never across instances
