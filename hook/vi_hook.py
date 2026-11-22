@@ -8,9 +8,10 @@ Claude Code calls the script as a hook (event from stdin: `hook_event_name`):
   PostToolUse         → vi_after with ok=true, result, duration.
   PostToolUseFailure  → vi_after with ok=false, error.
   SessionEnd          → end the conversation in vi-mcp (DELETE).
-  Stop                → 0.59.0: once per session, when at least FEEDBACK_MIN hints were shown and no vi_feedback/vi_confirm/vi_refute
-                        came, the turn is held once with a request for one vi_feedback call (the signal the VI learns most from;
-                        52 per 12,332 shown hints on 12.11.2026). Off with VI_MCP_FEEDBACK_NUDGE=0.
+  Stop                → 0.71.0: once per round with actions whose hints were shown, the turn is held once with a request to label
+                        each of them: vi_feedback(before_id, used=[ids followed or cited], wrong=[ids that misled]). Not in the
+                        nudge "off" arm, not when hints were held back; the server is told it asked (/signal feedback_asked).
+                        Off with VI_MCP_FEEDBACK_NUDGE=0. (0.59.0 asked once per session for unbound feedback.)
   UserPromptSubmit    → 0.44.0: vi_prompt_context with the prompt (secrets masked, at most 4,000 characters) — knowledge that
                         fits the question goes to the model as context, for follow-up questions too; the server does not store
                         the prompt. Besides, detects locally a correction ("nein, …", "no, …") or a grade (#gut, #schlecht,
@@ -311,37 +312,78 @@ def notify_signal(claude_session: str, text: str) -> None:
         raise Outage(f"Signal: {type(e).__name__}: {e}") from e
 
 
-#: 0.59.0: the hint ids a session was shown, to ask for feedback once at its end
-FEEDBACK_MIN = 3
-FEEDBACK_IDS = re.compile(r"\[((?:erkenntnis|regel|skill|bild|seite):[^\]\s]+)\]")
+#: 0.71.0 (replaces the session-wide request of 0.59.0): the hook asks for a label PER ACTION — which of the hints shown before that
+#: action the agent followed or cited. Only within-action labels from one labeller at one moment carry signal for the hint router
+#: (Z7, measured on the production copy of 22.11.2026: a per-hint use rate predicts the used hint at 0.82–0.84 within-action AUC).
+#: The ids come from the vi_before answer (zugriff.shown, before 0.67.0 zugriff.gezeigt), never from the hint text — the text regex of
+#: 0.59.0 matched only the German id prefixes and missed every insight:/rule: id after 0.67.0.
+#: No request when hints were held back (nothing shown) or in the "off" arm of the nudge A/B test (zugriff.nudge, intuition.nudge_arm).
+FEEDBACK_ACTIONS = 8  # at most this many actions per request (the newest)
+FEEDBACK_PENDING = 30
 FEEDBACK_TOOLS = ("vi_feedback", "vi_confirm", "vi_refute", "vi_bestaetige", "vi_widerlege")
 #: 0.61.0: before these the hook calls vi_context in its own session (which knows the working directory) — index of the knowledge, project first
 CONTEXT_TOOLS = ("vi_learn", "vi_lerne", "vi_recall", "vi_erinnere")
 
 
-def note_hints(claude_session: str, hint_lines: list[str]) -> None:
-    ids = [m for line in hint_lines for m in FEEDBACK_IDS.findall(line)]
-    if not ids:
+def shown_ids(v: dict) -> list[str]:
+    """The hint ids the vi_before answer says were shown: zugriff.shown, fallback zugriff.gezeigt (keys before 0.67.0). Pure."""
+    z = v.get("zugriff") or v.get("access") or {}
+    ids = z.get("shown") if z.get("shown") is not None else z.get("gezeigt")
+    return [str(x) for x in (ids or []) if x]
+
+
+def note_action(claude_session: str, before_id: str | None, tool: str, shown: list[str]) -> None:
+    """After an action whose hints were shown: it waits for the agent's label at the end of the round."""
+    if not before_id or not shown:
         return
-    st = read("rueckmeldung", claude_session) or {"gezeigt": [], "gegeben": False, "gefragt": False}
-    st["gezeigt"] = list(dict.fromkeys(st["gezeigt"] + ids))[-60:]
-    write("rueckmeldung", claude_session, st)
+    st = read("rueckmeldung", claude_session) or {}
+    pending = [p for p in (st.get("pending") or []) if p.get("before_id") != before_id]
+    pending.append({"before_id": before_id, "tool": tool, "shown": shown[:12]})
+    write("rueckmeldung", claude_session, {**st, "pending": pending[-FEEDBACK_PENDING:]})
+
+
+def answered(claude_session: str, tool_input: dict) -> None:
+    """vi_feedback with before_id answers that action — it is not asked again."""
+    bid = str((tool_input or {}).get("before_id") or "")
+    st = read("rueckmeldung", claude_session)
+    if bid and st and st.get("pending"):
+        write("rueckmeldung", claude_session, {**st, "pending": [p for p in st["pending"] if p.get("before_id") != bid]})
+
+
+def report_asked(claude_session: str, before_ids: list[str]) -> None:
+    """Tell the server the agent was asked about these actions (data.feedback_asked) — the ask rate is measurable, not silent."""
+    z = read("sitzung", claude_session)
+    if not z:
+        return
+    token = _token()
+    req = urllib.request.Request(URL.rsplit("/mcp", 1)[0] + "/signal",
+                                 data=json.dumps({"art": "feedback_asked", "mcp_session_id": z["mcp_session_id"], "before_ids": before_ids}).encode(),
+                                 headers={**({"Authorization": f"Bearer {token}"} if token else {}), "Content-Type": "application/json"},
+                                 method="POST")
+    try:
+        urllib.request.urlopen(req, timeout=TIMEOUT).read()
+    except (urllib.error.URLError, TimeoutError, OSError) as e:  # an older server (403/400) or an outage: the request still goes out
+        log_output(f"feedback_asked: {type(e).__name__}: {e}")
 
 
 def feedback_request(e: dict) -> dict | None:
-    """Stop: ask once for vi_feedback on the hints of this session (decision block holds the turn; Claude Code sets stop_hook_active
-    on the continued turn, so it cannot loop)."""
+    """Stop: once per round with hinted actions — per action the call that labels it. Claude Code sets stop_hook_active on the
+    continued turn, so it cannot loop. Asked regardless of the actions' outcome (asking only after failures would select the label)."""
     if os.environ.get("VI_MCP_FEEDBACK_NUDGE", "1") == "0" or e.get("stop_hook_active"):
         return None
     st = read("rueckmeldung", e["session_id"])
-    if not st or st.get("gegeben") or st.get("gefragt") or len(st.get("gezeigt") or []) < FEEDBACK_MIN:
+    pending = (st or {}).get("pending") or []
+    if not pending:
         return None
-    st["gefragt"] = True
-    write("rueckmeldung", e["session_id"], st)
-    ids = ", ".join(st["gezeigt"][-12:])
-    return {"decision": "block", "reason": ("Before you finish: the VI showed you hints in this session. One call, no reason needed — "
-                                            f"vi_feedback(helped=[ids that helped], wrong=[ids that misled you]) from: {ids}. "
-                                            "If none applied, say so in one line and finish. This is how the VI learns which hint to show.")}
+    ask = pending[-FEEDBACK_ACTIONS:]
+    write("rueckmeldung", e["session_id"], {**st, "pending": [], "asked": int(st.get("asked") or 0) + len(ask)})
+    report_asked(e["session_id"], [p["before_id"] for p in ask])
+    lines = [f"- {p['tool']} · before_id {p['before_id']} · shown: {' '.join(p['shown'])}" for p in ask]
+    first = ask[-1]["before_id"]
+    return {"decision": "block", "reason": (
+        "Before you finish: label the VI hints of this round, one call per action below. used = the shown ids you actually followed or "
+        "cited; [] = none of them (that is a valid answer); wrong = ids that misled you. Shown ids you do not name count as not used — "
+        f"do not list ids you did not use. Example: vi_feedback(before_id=\"{first}\", used=[], wrong=[])\n" + "\n".join(lines))}
 
 
 # 0.70.12 (user decision 20.11.2026): the hints above are passive — after a context compaction the agent forgot to SEARCH the
@@ -429,9 +471,10 @@ def before_tool(e: dict) -> dict | None:
     if read_only is not None:
         notify["read_only"] = read_only
     v = call_tool(e["session_id"], e.get("cwd"), "vi_before", notify)
-    note_hints(e["session_id"], v.get("hinweise") or [])  # 0.59.0
+    shown = shown_ids(v) if v.get("hinweise") and (v.get("zugriff") or {}).get("nudge") != "off" else []  # 0.71.0
     if e.get("tool_use_id"):
-        write("vorher", e["tool_use_id"], {"vorher_id": v.get("vorher_id"), "t0": time.time(), "tool": name, "args": v.get("args", args)})
+        write("vorher", e["tool_use_id"], {"vorher_id": v.get("vorher_id"), "t0": time.time(), "tool": name, "args": v.get("args", args),
+                                           "shown": shown})
     if v.get("antwort") is not None:
         reason = (f"[VI memory] The same request was answered {v.get('antwort_alter_s')} s ago (valid for "
                  f"{v.get('antwort_ttl_s')} s); here is the remembered answer instead of a new call. Force a fresh call: "
@@ -469,8 +512,8 @@ def after_tool(e: dict, ok: bool) -> dict | None:
         error = mask(error) if isinstance(error, str) else error
         notify["error"] = ("[abgebrochen] " if e.get("is_interrupt") else "") + _result_text(error)[:2000]
     n = call_tool(e["session_id"], e.get("cwd"), "vi_after", notify)
+    note_action(e["session_id"], v.get("vorher_id"), name, v.get("shown") or [])  # 0.71.0: waits for its label at the end of the round
     hints = n.get("hinweise") or []
-    note_hints(e["session_id"], hints)  # 0.59.0
     if hints:
         return {"hookSpecificOutput": {"hookEventName": e.get("hook_event_name", "PostToolUse"),
                                        "additionalContext": "[VI memory after " + name + "]\n" + "\n".join(hints)}}
@@ -540,9 +583,8 @@ def process(e: dict) -> dict | None:
                 call_tool(e["session_id"], e.get("cwd"), "vi_context", {}, raw=True)  # plain text, not JSON
             except Exception as ex:  # noqa: BLE001 — an older server without vi_context, an outage: global, never block the call
                 log_output(f"vi_context: {type(ex).__name__}: {ex}")
-        if event == "PostToolUse" and name in FEEDBACK_TOOLS:  # 0.59.0: feedback given — no request at the end
-            st = read("rueckmeldung", e["session_id"]) or {"gezeigt": [], "gefragt": False}
-            write("rueckmeldung", e["session_id"], {**st, "gegeben": True})
+        if event == "PostToolUse" and name in FEEDBACK_TOOLS:  # 0.71.0: an action labelled with its before_id is not asked again
+            answered(e["session_id"], e.get("tool_input") or {})
         return None
     if event == "PreToolUse":
         return before_tool(e)
@@ -554,7 +596,6 @@ def process(e: dict) -> dict | None:
         if from_harness(e.get("prompt") or ""):  # 0.59.2: no search, no signal — the user did not write it
             return None
         ctx = prompt_context(e["session_id"], e.get("cwd"), e.get("prompt") or "")
-        note_hints(e["session_id"], [ctx or ""])  # 0.59.0
         try:
             notify_signal(e["session_id"], e.get("prompt") or "")
         except Outage as ex:  # a missing signal token must not cost the context

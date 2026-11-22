@@ -30,14 +30,44 @@ Linked from [README.md](README.md).
     served file or URL, URLs from `public_url` or forwarded headers, a bad Host refused, switched off → 404, the hook takes URL and token
     from the plugin options, the token not in the hook log, a second installed copy of the hook does not report twice).
 
+- **The hook asks for a label per action — which of the hints shown before it the agent followed — so the hint router gets
+  within-action labels.** Agents rarely gave feedback (Claude Code 1–8 times a day); the router's best label source, CentralStation,
+  stopped on 16.11.2026 (`insight:d42495f6`). On the production copy of 22.11.2026 only labels from one labeller at one moment within
+  one action carry signal (a per-hint use rate predicts the used hint at 0.82–0.84 within-action AUC; agreed with the router work Z7,
+  session of 22.11.2026). At `Stop`, once per round with hinted actions (at most 8, the newest), the hook names each action with its
+  `before_id` and shown ids and asks for `vi_feedback(before_id, used=[ids followed or cited], wrong=[ids that misled])`; `used=[]`
+  (none) is an answer; ids not named count as not used. Asked regardless of the outcome; never in the nudge "off" arm or when hints
+  were held back; off with `VI_MCP_FEEDBACK_NUDGE=0`. It replaces the session-wide request of 0.59.0.
+  - `vi_feedback` has an optional `used` (with `before_id`): it writes `data.declared {used, unused, ignored}` on exactly that action,
+    outcome-free — `used` is "followed or cited", not "helped"; a −1 comes only from an explicit `wrong`. (`vi_after(used)` keeps its
+    0.68.0 mapping, used → ±1 by the outcome.) A `before_id` reaches back 24 h (before: 60 min).
+  - Measurable, not silent: the hook reports each request (`POST /signal`, `art: feedback_asked`, the action ids) and the server
+    stores `data.feedback_asked` on each experience; answer rate = experiences with `declared` / with `feedback_asked`.
+  - Tests: `tests/test_hook.py` (one line per hinted action with its id, English ids, asked once per round, answered actions not
+    asked, never looping, the switch and the "off" arm respected, both key generations of `zugriff`, `/signal` only for the own session,
+    correction still human-only) and `tests/test_feedback_labels.py` (outcome-free `used`, `used=[]`, `before_id` required, no action of
+    another instance, `feedback_asked` per experience, first ask kept).
+
 ### What has changed
 
+- **`vi_feedback` takes `used` (new, optional) and `/signal` takes `art: feedback_asked` (new).** Both are additions; no existing key
+  of a request or a response changed.
 - **If the hook is installed twice (plugin and `vi-mcp setup --hook`), each event is handled once.** Claude Code runs both copies with
   the same event; the first claims it (a claim file per event digest, 120 s), the second does nothing. Before, every action would
   have been reported twice. Evidence: `tests/test_plugins.py::test_a_second_installed_copy_of_the_hook_does_not_report_twice`.
 
+### What was fixed
+
+- **The hook's feedback request saw no hint id coined after 0.67.0.** It parsed ids out of the hint text with a pattern for the German
+  prefixes (`erkenntnis:`, `regel:`, …); `[insight:…]` and `[rule:…]` did not match (checked against the hook of 0.70.12), so the
+  request listed only old ids and skills and rarely reached its minimum. The ids now come from `zugriff.shown` of the `vi_before`
+  answer (fallback `zugriff.gezeigt` of older servers). Evidence: `tests/test_hook.py::test_feedback_request_per_round_names_each_action`.
+
 ### What is missing
 
+- The router does not read `data.declared` yet in production (its reader is on the router branch); the answer rate is measured only
+  after a release.
+- The "Did one of these help…" line under the hints (0.49.0, A/B-tested) still asks for unbound `vi_feedback(helped, wrong)`.
 - Codex and Hermes: the hook file is served, but there is no served installer for them yet (blocks 2 and 3).
 - The plugin hook runs `python3`; a Windows client without `python3` on PATH is not covered.
 - Plugin and a local MCP entry `vi-mcp` side by side give the tools twice (`mcp__vi-mcp__…` and `mcp__plugin_vi-mcp_vi-mcp__…`).

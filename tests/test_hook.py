@@ -113,24 +113,59 @@ def test_result_only_for_mcp(h, monkeypatch):
     assert h.process(ev("PreToolUse", tool_name="mcp__skills__vi_status", tool_input={}, tool_use_id="v2")) is None
 
 
-def test_feedback_request_once_at_stop(tmp_path, monkeypatch):
-    # 0.59.0: ≥ FEEDBACK_MIN hints shown and no feedback → the turn is held once with a request; never twice, never after feedback
-    monkeypatch.setattr(hook, "STATE", tmp_path / "hook")
+def test_feedback_request_per_round_names_each_action(h, monkeypatch):
+    # 0.71.0 (replaces the session-wide request of 0.59.0): the ids come from zugriff.shown, one line per hinted action, asked once per
+    # round, the server told it asked; English ids too (the 0.59.0 text regex missed every insight: id after 0.67.0)
+    from vi_mcp import intuition
+    monkeypatch.setattr(intuition, "NUDGE_OFF", 0.0)
     monkeypatch.delenv("VI_MCP_FEEDBACK_NUDGE", raising=False)
-    hook.note_hints("s1", ["Learned [erkenntnis:aaa111] (from x, unmeasured): …", "Rule [regel:bbb222] …", "Skill \"x\" [skill:ccc333]"])
-    r = hook.process({"hook_event_name": "Stop", "session_id": "s1"})
-    assert r["decision"] == "block" and "erkenntnis:aaa111" in r["reason"] and "vi_feedback" in r["reason"]
-    assert hook.process({"hook_event_name": "Stop", "session_id": "s1"}) is None  # asked once
-    hook.note_hints("s2", ["[erkenntnis:a1] [regel:b2] [skill:c3]"])
-    hook.process({"hook_event_name": "PostToolUse", "session_id": "s2", "tool_name": "mcp__vi-mcp__vi_feedback", "tool_input": {}})
-    assert hook.process({"hook_event_name": "Stop", "session_id": "s2"}) is None  # feedback given
-    hook.note_hints("s3", ["[erkenntnis:a1]"])
-    assert hook.process({"hook_event_name": "Stop", "session_id": "s3"}) is None  # too few hints
-    hook.note_hints("s4", ["[erkenntnis:a1] [regel:b2] [skill:c3]"])
-    assert hook.process({"hook_event_name": "Stop", "session_id": "s4", "stop_hook_active": True}) is None  # never loops
+    k = g.new_object("insight", "web7 needs no proxy variables", ["tool:Bash", "host:web7.example"], {"source": "Test"}, reason="T")
+    out = h.process(ev("PreToolUse", "f1", tool_name="Bash", tool_input={"command": "ssh web7.example uptime"}, tool_use_id="fb1"))
+    assert k.id in out["hookSpecificOutput"]["additionalContext"]
+    bid = h.read("vorher", "fb1")["vorher_id"]
+    assert h.read("vorher", "fb1")["shown"] == [k.id]
+    h.process(ev("PostToolUseFailure", "f1", tool_name="Bash", tool_input={"command": "ssh web7.example uptime"}, tool_use_id="fb1",
+                 error="Exit 255"))  # asked regardless of the outcome
+    h.process(ev("PreToolUse", "f1", tool_name="Glob", tool_input={"pattern": "*"}, tool_use_id="fb2"))  # no hints: not asked
+    h.process(ev("PostToolUse", "f1", tool_name="Glob", tool_input={"pattern": "*"}, tool_use_id="fb2", tool_response="x"))
+    r = h.process(ev("Stop", "f1"))
+    assert r["decision"] == "block" and f"before_id {bid}" in r["reason"] and k.id in r["reason"] and "Glob" not in r["reason"]
+    assert "used=[]" in r["reason"] and "helped" not in r["reason"]
+    e = intuition.experience_for_before("laptop", bid)
+    assert e.data.get("feedback_asked")  # the server knows it asked
+    assert h.process(ev("Stop", "f1")) is None  # once per round
+
+
+def test_feedback_request_respects_answer_arm_and_switch(h, monkeypatch):
+    from vi_mcp import intuition
+    monkeypatch.delenv("VI_MCP_FEEDBACK_NUDGE", raising=False)
+    g.new_object("insight", "web8 needs no proxy variables", ["tool:Bash", "host:web8.example"], {"source": "Test"}, reason="T")
+
+    def hinted(session, uid):
+        h.process(ev("PreToolUse", session, tool_name="Bash", tool_input={"command": "ssh web8.example uptime"}, tool_use_id=uid))
+        h.process(ev("PostToolUse", session, tool_name="Bash", tool_input={"command": "ssh web8.example uptime"}, tool_use_id=uid,
+                     tool_response="x"))
+        return h.read("vorher", uid)
+    monkeypatch.setattr(intuition, "NUDGE_OFF", 0.0)
+    hinted("a1", "x1")
+    bid = h.read("rueckmeldung", "a1")["pending"][0]["before_id"]
+    h.process(ev("PostToolUse", "a1", tool_name="mcp__vi-mcp__vi_feedback", tool_input={"before_id": bid, "used": []}))
+    assert h.process(ev("Stop", "a1")) is None  # answered for that action: not asked
+    hinted("a2", "x2")
+    assert h.process(ev("Stop", "a2", stop_hook_active=True)) is None  # never loops
     monkeypatch.setenv("VI_MCP_FEEDBACK_NUDGE", "0")
-    hook.note_hints("s5", ["[erkenntnis:a1] [regel:b2] [skill:c3]"])
-    assert hook.process({"hook_event_name": "Stop", "session_id": "s5"}) is None
+    hinted("a3", "x3")
+    assert h.process(ev("Stop", "a3")) is None
+    monkeypatch.delenv("VI_MCP_FEEDBACK_NUDGE")
+    monkeypatch.setattr(intuition, "NUDGE_OFF", 1.0)  # the "off" arm of the A/B test: the hook must not ask either
+    hinted("a4", "x4")
+    assert h.read("rueckmeldung", "a4") is None and h.process(ev("Stop", "a4")) is None
+
+
+def test_shown_ids_reads_both_key_generations():
+    assert hook.shown_ids({"zugriff": {"shown": ["insight:a"]}}) == ["insight:a"]
+    assert hook.shown_ids({"zugriff": {"gezeigt": ["erkenntnis:b"]}}) == ["erkenntnis:b"]  # a server before 0.67.0
+    assert hook.shown_ids({"zugriff": {"held_back": True}}) == [] and hook.shown_ids({}) == []
 
 
 def test_before_vi_learn_the_hook_notes_the_project(h, monkeypatch):
@@ -193,8 +228,28 @@ def test_stop_carries_status_duty_and_feedback_request_in_one_block(tmp_path, mo
     monkeypatch.setattr(hook, "STATE", tmp_path / "hook")
     monkeypatch.delenv("VI_MCP_STATUS_DUTY", raising=False)
     monkeypatch.delenv("VI_MCP_FEEDBACK_NUDGE", raising=False)
-    hook.note_hints("b1", ["[erkenntnis:a1] [regel:b2] [skill:c3]"])
+    monkeypatch.setattr(hook, "report_asked", lambda *a: None)
+    hook.note_action("b1", "beef00", "Bash", ["insight:a1", "rule:b2"])
     rows = [{"type": "user", "message": {"content": "q"}}] + [
         {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {}}]}}] * hook.STATUS_MIN
     r = hook.process({"hook_event_name": "Stop", "session_id": "b1", "transcript_path": _transcript(tmp_path / "b.jsonl", rows)})
-    assert r["decision"] == "block" and "status object" in r["reason"] and "vi_feedback" in r["reason"]
+    assert r["decision"] == "block" and "status object" in r["reason"] and "before_id beef00" in r["reason"] and "insight:a1" in r["reason"]
+
+
+def test_signal_feedback_asked_only_for_the_own_session_and_korrektur_still_human_only(h, srv):  # noqa: F811
+    import http.client
+    port, tok, other = srv
+    h.process(ev("PreToolUse", "sg1", tool_name="Glob", tool_input={"pattern": "*"}, tool_use_id="sg"))
+    sid = h.read("sitzung", "sg1")["mcp_session_id"]
+
+    def post(token, body):
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        c.request("POST", "/signal", body=json.dumps(body), headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        r = c.getresponse()
+        r.read()
+        c.close()
+        return r.status
+    assert post(tok, {"art": "feedback_asked", "mcp_session_id": sid, "before_ids": ["0123"]}) == 200
+    assert post(other, {"art": "feedback_asked", "mcp_session_id": sid, "before_ids": ["0123"]}) == 404  # not its session
+    assert post(tok, {"art": "feedback_asked", "mcp_session_id": sid, "before_ids": []}) == 400
+    assert post(tok, {"art": "korrektur", "mcp_session_id": sid}) == 403  # the laptop instance is no human instance

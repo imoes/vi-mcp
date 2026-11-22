@@ -8,7 +8,7 @@ One server process with one memory for many AI sessions over MCP (Streamable HTT
 Before every action the session asks `vi_before` and gets at most four hints from the memory; afterwards it reports `vi_after`.
 Since 0.49.0 a hint before a shell command must share a host, program or error with it — the tool and common words (`intuition.GENERIC_SHELL_WORDS`) do not count —
 and a hint without measured benefit appears at most `DAILY_MAX` times a day per instance. `vi_feedback(helped, wrong)` books which hints
-helped in one call; `metrics.hint_lift_matched` compares within instance and tool (the raw lift mixes base rates: Simpson's paradox).
+helped in one call (0.71.0: the hook asks per action for `vi_feedback(before_id, used, wrong)` → outcome-free `data.declared`, counted as `data.feedback_asked`); `metrics.hint_lift_matched` compares within instance and tool (the raw lift mixes base rates: Simpson's paradox).
 When an AI consults the VI and when it learns is defined in `tools.RULES` and goes to every client with the `instructions` (since 0.20.7); since 0.70.6 `RULES` is a short core under Claude Code's 4,096-character cut, the complete text `RULES_FULL` is the initial skill vi-rules, and `tests/test_instructions_budget.py` holds the budget.
 Sleep (when enough important things have accumulated; at night only after 24 h without sleep) condenses experiences into insights and skills and rates the work (scorer). Router, bandit and vectors
 learn on demand (`on_demand`), about a minute after new experiences or new knowledge. Visibilities: private, shared, internal (only with a token; never an open network, only a company network).
@@ -85,7 +85,7 @@ sudo vi-mcp setup                                    # ANSI menu: Claude Code, C
 
 0.71.0: a client on another machine needs no package — the server serves its own Claude Code plugin (`/plugins/claude/marketplace.json`,
 archive with sha256, URL and token as plugin options; `public_url` behind the reverse proxy, the archive only over https) and the hook
-file (`/plugins/hook/vi_hook.py`). Test an install end to end with an isolated `CLAUDE_CONFIG_DIR`, never against production.
+file (`/plugins/hook/vi_hook.py`). The routes need no token by design — only public code, never instance data, no token in any served file; `plugins: false` switches them off. Test an install end to end with an isolated `CLAUDE_CONFIG_DIR`, never against production.
 
 0.48.0: the package first asks for the server configuration (Debian: debconf, `dpkg-reconfigure vi-mcp`; RPM and everywhere:
 `vi-mcp configure`, ANSI menu; catalogue in `vi_mcp/configure.py`, the Debian build generates `DEBIAN/templates` and `DEBIAN/config`

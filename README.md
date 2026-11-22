@@ -426,7 +426,7 @@ claude plugin marketplace add https://server/vi-mcp/plugins/claude/marketplace.j
 claude plugin install vi-mcp@vi-mcp                       # then /plugin → vi-mcp → configure: token
 ```
 
-`https://server/vi-mcp/plugins` lists what is served. Claude Code downloads the plugin archive only over https and not from a loopback
+`https://server/vi-mcp/plugins` lists what is served. These routes need no token by design: they serve only public code (the plugin and the hook of this version), never instance data, and no token is written into any of them; `"plugins": false` switches them off. Claude Code downloads the plugin archive only over https and not from a loopback
 address, so behind the reverse proxy set `"public_url": "https://server/vi-mcp"` in the configuration (`"plugins": false` switches the
 routes off). Use the plugin or `vi-mcp setup --hook`, not both — if both are installed, the hook handles each event once.
 
@@ -510,7 +510,7 @@ Commands, modes and every rule: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
 
 | Tools | Purpose |
 |---|---|
-| `vi_before` · `vi_after` · `vi_feedback` | report before and after an action; which hints helped |
+| `vi_before` · `vi_after` · `vi_feedback` | report before and after an action; which hints helped, misled or were used in one action (`before_id`, `used`) |
 | `vi_learn` · `vi_recall` · `vi_drilldown` · `vi_object` · `vi_learn_search` | learn (in full, with source — tagged and qualified with question/answer pairs in the same call), search, drill down, read one object completely |
 | `vi_qualify` · `vi_rate` | qualify what you just read (pairs, labels, tags in one call); rate your own conversation (a self-review, half weight) |
 | `vi_tag` · `vi_confirm` · `vi_refute` · `vi_forget` · `vi_set_visibility` | change knowledge — always with a reason; each other instance is a line of its own, a review of your own object counts half |

@@ -118,7 +118,7 @@ ENDPOINTS = [
     ("memory server", "POST", "/mcp", "MCP over Streamable HTTP (JSON-RPC): initialize, tools/list, tools/call. Bearer token = instance."),
     ("memory server", "DELETE", "/mcp", "End the conversation (`Mcp-Session-Id`)."),
     ("memory server", "GET", "/health", "Health: `ok vi-mcp <version>`. Old name `/gesund` still answered."),
-    ("memory server", "POST", "/signal", "User signals from the hook (correction, grade) — token of a human instance."),
+    ("memory server", "POST", "/signal", "User signals from the hook (correction, grade) — token of a human instance. Since 0.71.0 also `feedback_asked` (the hook asked the agent to label these actions, `before_ids`) — any instance, for its own session."),
     ("memory server", "GET", "/web", "Read-only web page of the free and open networks (config `web`)."),
     ("memory server", "GET", "/plugins", "Client integration (0.71.0, config `plugins`): index, `/plugins/claude/marketplace.json`, `/plugins/claude/vi-mcp-<version>.zip` (sha256 in the marketplace), `/plugins/hook/vi_hook.py`. No token."),
     ("network service", "GET", "/netz/health", "Health and version (peers gate new entry types on it). Old name `/netz/gesund` still answered."),

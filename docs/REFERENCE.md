@@ -573,8 +573,9 @@ VI: tell the memory which of the hints shown to you helped and which misled you 
 |---|---|---|---|
 | `helped` | array of string |  | ids of hints that helped |
 | `wrong` | array of string |  | ids of hints that misled |
+| `used` | array of string |  | with before_id: ids of that action's shown hints you followed or cited ([] = none of them); the others count as not used |
 | `note` | string |  | optional |
-| `before_id` | string |  | optional: the vorher_id vi_before returned for the action — books exactly on it (needed when several agents share one instance in parallel) (German: `vorher_id`) |
+| `before_id` | string |  | optional: the vorher_id vi_before returned for the action — books exactly on it (needed when several agents share one instance in parallel, and for used) (German: `vorher_id`) |
 
 ### `vi_confirm`
 
@@ -1181,7 +1182,7 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 | memory server | POST | `/mcp` | MCP over Streamable HTTP (JSON-RPC): initialize, tools/list, tools/call. Bearer token = instance. |
 | memory server | DELETE | `/mcp` | End the conversation (`Mcp-Session-Id`). |
 | memory server | GET | `/health` | Health: `ok vi-mcp <version>`. Old name `/gesund` still answered. |
-| memory server | POST | `/signal` | User signals from the hook (correction, grade) — token of a human instance. |
+| memory server | POST | `/signal` | User signals from the hook (correction, grade) — token of a human instance. Since 0.71.0 also `feedback_asked` (the hook asked the agent to label these actions, `before_ids`) — any instance, for its own session. |
 | memory server | GET | `/web` | Read-only web page of the free and open networks (config `web`). |
 | memory server | GET | `/plugins` | Client integration (0.71.0, config `plugins`): index, `/plugins/claude/marketplace.json`, `/plugins/claude/vi-mcp-<version>.zip` (sha256 in the marketplace), `/plugins/hook/vi_hook.py`. No token. |
 | network service | GET | `/netz/health` | Health and version (peers gate new entry types on it). Old name `/netz/gesund` still answered. |

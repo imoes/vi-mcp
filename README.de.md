@@ -441,7 +441,7 @@ claude plugin marketplace add https://server/vi-mcp/plugins/claude/marketplace.j
 claude plugin install vi-mcp@vi-mcp                       # danach /plugin → vi-mcp → configure: Token
 ```
 
-`https://server/vi-mcp/plugins` zeigt, was ausgeliefert wird. Claude Code lädt das Plugin-Archiv nur über https und nicht von einer
+`https://server/vi-mcp/plugins` zeigt, was ausgeliefert wird. Diese Pfade brauchen absichtlich kein Token: Sie liefern nur öffentlichen Code (Plugin und Hook dieser Version), nie Daten einer Instanz, und in keine Datei wird ein Token geschrieben; `"plugins": false` schaltet sie ab. Claude Code lädt das Plugin-Archiv nur über https und nicht von einer
 Loopback-Adresse; hinter dem Reverse-Proxy deshalb `"public_url": "https://server/vi-mcp"` in die Konfiguration (`"plugins": false`
 schaltet die Pfade ab). Plugin oder `vi-mcp setup --hook`, nicht beides — sind beide installiert, bearbeitet der Hook jedes Ereignis einmal.
 
@@ -525,7 +525,7 @@ Befehle, Betriebsarten und jede Regel: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 
 | Werkzeuge | Zweck |
 |---|---|
-| `vi_before` · `vi_after` · `vi_feedback` | vor und nach einer Handlung melden; welche Hinweise halfen |
+| `vi_before` · `vi_after` · `vi_feedback` | vor und nach einer Handlung melden; welche Hinweise halfen, irreführten oder in einer Handlung genutzt wurden (`before_id`, `used`) |
 | `vi_learn` · `vi_recall` · `vi_drilldown` · `vi_object` · `vi_learn_search` | lernen (vollständig, mit Quelle — im selben Aufruf getaggt und mit Frage-Antwort-Paaren qualifiziert), suchen, vertiefen, ein Objekt ganz lesen |
 | `vi_qualify` · `vi_rate` | Gelesenes qualifizieren (Paare, Labels, Tags in einem Aufruf); das eigene Gespräch bewerten (Selbstprüfung, halbes Gewicht) |
 | `vi_tag` · `vi_confirm` · `vi_refute` · `vi_forget` · `vi_set_visibility` | Wissen ändern — immer mit Begründung; jede andere Instanz ist eine eigene Linie, die Prüfung eines eigenen Objekts zählt halb |

@@ -359,12 +359,12 @@ class Handler(BaseHTTPRequestHandler):
         self._send(204)
 
     def _signal(self):
-        """Signal of the user from the hook: correction or grade, never their text. Deliberately not an MCP tool."""
+        """Signal of the user from the hook: correction or grade, never their text. Deliberately not an MCP tool.
+        0.71.0: art=feedback_asked — the hook reports that it asked the agent to rate the hints of these actions (before_ids), so ask
+        rate and answer rate are measurable per experience (data.feedback_asked). Any instance may report it for its OWN session."""
         inst = self._check()
         if not inst:
             return
-        if not inst.human:
-            return self._send(403, f"instance {inst.name} may not report signals")
         length = int(self.headers.get("Content-Length") or 0)
         if not 0 < length <= 4096:
             return self._send(400, "body missing or too large")
@@ -372,7 +372,19 @@ class Handler(BaseHTTPRequestHandler):
             d = json.loads(self.rfile.read(length))
         except (json.JSONDecodeError, UnicodeDecodeError):
             return self._send(400, "not JSON")
+        if not isinstance(d, dict):
+            return self._send(400, "not a JSON object")
         s = session.find_without_touching(d.get("mcp_session_id") or "")
+        if d.get("art") == "feedback_asked":
+            ids = d.get("before_ids")
+            if not s or s.instance != inst.name:
+                return self._send(404, "session unknown")
+            if not isinstance(ids, list) or not ids or len(ids) > 20 or not all(isinstance(x, str) and 0 < len(x) <= 64 for x in ids):
+                return self._send(400, "before_ids must be 1–20 ids")
+            marked = intuition.mark_feedback_asked(inst.name, ids)
+            return self._send(200, {"marked": marked, "unknown": len(ids) - marked})
+        if not inst.human:
+            return self._send(403, f"instance {inst.name} may not report signals")
         if not s:
             return self._send(404, "session unknown")
         kind, grade = d.get("art"), d.get("note")
