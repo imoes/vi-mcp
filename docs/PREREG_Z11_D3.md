@@ -49,6 +49,19 @@ It was stopped by plan at 22:28:42 UTC (exit 143, SIGTERM). Its 20 finished answ
 remaining questions are answered in 3 round-robin shards (`pod_orch.sh`), and the R answers are merged by question id. A stopped
 process loses only the answer in progress, so no partial answer is kept. Amendment 2 starts only when no answer process runs.
 
+## Addendum 3 (23:20–23:26 UTC, before any secondary answer was read)
+
+The orchestration was changed by memory headroom instead of a fixed rule. `pod_orch.sh` was stopped at 23:20:10 UTC before it acted.
+`wait_a2.sh` replaced it: it starts amendment 2 only when every arm has all 297 question ids answered and no answer process has run for
+60 s. The same reshard routine (`reshard.sh ARM N`) handled both arms below. It stops the arm's running shards with SIGTERM, writes the
+remaining ids round-robin into N new shard files and starts one process with 2 threads per shard.
+
+- L: one shard, 148 of 297 done, stopped at 23:20:19 UTC; the remaining 149 went to 2 shards.
+- R: 20 of 297 done since the planned stop at 22:28:42 UTC; the remaining 277 went to 2 shards at 23:26:14 UTC, after B finished at 23:25:49 UTC.
+
+Further reshards of K and R may follow when KR finishes and frees memory. A merged file must hold each of the 297 ids exactly once.
+If an id was answered twice, the first complete answer is kept and the case is named.
+
 ## Limit
 
 Identity is shown on 9 answers, not on all of them. If any secondary answer is later compared across hosts, a difference is reported
