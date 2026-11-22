@@ -6,7 +6,7 @@ again. The snapshot taken before answers the F questions again (restore). Answer
 
 Usage (Z11_DATA set):
   edit_test.py plan            → edit_F.json (F ids, documents, sources) and the weights hash before
-  edit_test.py forget          → snapshot store_qa → store_snap, forget F's sources in store_qa → edit_forget.json
+  edit_test.py forget          → hardlink snapshot store_qa → store_snap (disk guard), forget F's sources in store_qa → edit_forget.json
   edit_test.py compare         → locality and restore checks → edit_compare.json
   edit_test.py judgepack       → blind pass 2: F's edited answers + as many unedited K answers (seeded) → judge_edit/
   edit_test.py score           → after grades exist: share of F's edited answers graded wrong → edit_SCORE.json
@@ -58,10 +58,24 @@ def plan():
 
 
 def forget():
+    import os
+    import shutil
     rep = json.load(open(D / "edit_F.json"))
     st = Datastore(D / "store_qa")
     before = st.view()["revision"]
-    snap = st.snapshot(D / "store_snap")
+    # Hardlink snapshot (disk guard, 22.11.2026: /home 97 % full). Safe because the datastore never modifies a file in place:
+    # forget unlinks shard files, replace writes new ones, and the manifest is rewritten via a temp file + os.replace
+    # (vi_mcp/knn_lm.py Datastore._write/forget), so the snapshot's links keep the old content. The key cache (*.f32) is
+    # not part of the datastore and is not linked.
+    free = shutil.disk_usage(D).free
+    if free < 3 * 2**30:
+        raise SystemExit(f"disk guard: {free / 2**30:.2f} GiB free < 3 GiB — abort before the snapshot")
+    snap_dir = D / "store_snap"
+    snap_dir.mkdir(mode=0o700)
+    for p in (D / "store_qa").iterdir():
+        if p.is_file() and p.suffix != ".f32" and p.name != ".writer.lock":
+            os.link(p, snap_dir / p.name)
+    snap = Datastore(snap_dir)
     revs = [st.forget(s, REASON) for s in rep["sources"]]
     view = st.view()
     out = {"revision_before": before, "snapshot_revision": snap.view()["revision"], "revision_after": view["revision"],
