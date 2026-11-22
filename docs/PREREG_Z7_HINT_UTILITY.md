@@ -124,4 +124,6 @@ Known fact 2 above named it a hypothesis: a recording artefact. Checked on the s
 in 350/1,072 shown vs 18/62 held-back actions (0.326 vs 0.290); at 0.2 in 0/2,615 vs 0/699. Within each period the arms are balanced;
 the pooled 0.099 vs 0.025 comes from the held-back arm lying mostly in the 0.2 period, in which no risk warning was given at all
 (0 of 3,314 eligible actions since 16.11.2026) — the same Simpson structure as the hold-back difference. The hypothesis "recording
-artefact" is withdrawn. Why the risk warning stopped is not examined here (the router model is in test, not used).
+artefact" is withdrawn. Why the risk warning stopped: by design — `learning.warning` needs the stored model's
+`warnung.zustand == "aktiv"`, and the shared router model on the copy has `{"zustand": "aus", "grund": "holdout AUC 0.5507 ≤ 0.6"}`
+(trained 2026-11-22T10:23 UTC); the keys are still German, so it is not a renamed-key failure (checked).
