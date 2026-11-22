@@ -82,3 +82,29 @@ position bias is weak here (used share by position 0.39 / 0.45 / 0.43 / 0.36). *
   identity adds about 0.14 on top. Whether "skills are used more" is real use or a reporting habit of the one instance is not
   separable from this label.
 - Limits: one instance, 18 holdout conversations, labels by the same agent family that reads the hints.
+
+## Correction (22.11.2026 ~11:35 UTC) — what the label really is
+
+The label above was described as the agent's own report `vi_after(used=[…])`. That is **wrong**. The data key `used` is the stored
+English name (0.67.0, `names.py`) of `genutzt`, written by `intuition.adopted()` (0.59.0): a shown hint counts as adopted when a
+distinctive token of it (path, option, file name with a known extension; `intuition.distinctive_tokens`) that was absent from the
+action it was shown before appears in one of the next `ADOPT_WINDOW` = 3 actions of the conversation that succeeds. The agent's own
+report lands in `data.declared` (`intuition.declare_used`), which does not occur in the production copy. The label is therefore one
+fixed mechanism with both classes within an action (the within-action design holds), but a heuristic of reuse, not a report of use.
+Found by the session that works on the feedback hook (question about `data.used` vs `data.declared`), confirmed in
+`vi_mcp/intuition.py:725` (`adopted`) and `vi_mcp/names.py:628`.
+
+## Amendment — label validity check (written before it ran)
+
+**Question:** does "adopted" measure that the agent used a hint, or only that the hint's tokens are common in the conversation's work?
+**Placebo:** hints held back by the random hold-back (`before.held_back`; the agent never saw them). The same adoption rule applied
+to them can only fire by coincidence.
+**Procedure** (`scripts/z7b_label_placebo.py`): per conversation, actions in time order; for every action with shown hints (shown arm)
+or held-back hints (placebo arm), a hint is adopted when one of its distinctive tokens (text + first 4,000 characters of content, the
+rule of `intuition._hint_tokens`) is absent from that action's arguments and present in the arguments of one of the next 3 actions of
+the same conversation that succeeded. Rate = adopted (action, hint) pairs / all pairs, per arm. Replica check: in the shown arm, the
+agreement of the recomputed label with the stored `data.used`.
+**Decision:** risk ratio shown / placebo with a 95 % bootstrap CI over conversations (2,000, seed 22112026). If the lower bound is
+above 1, adoption carries a causal use signal and Z7b stands as a measure of *which hint is used*. If the CI includes 1, the label
+measures token commonness, Z7b ranks hints by how common their tokens are, and the use-rate arm must not go online on this label —
+only on declared labels (`data.declared`, the feedback hook).
