@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## Unreleased (0.71.1)
+## 0.71.1 — 2026-11-22
 
 ### What has changed
 
