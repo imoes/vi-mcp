@@ -48,7 +48,8 @@ def test_feedback_in_one_call_and_the_nudge(gd, monkeypatch):
     with session.on_behalf(s):
         v = intuition.before("Bash", {"command": "uptime"}, "a", False)
         intuition.after("Bash", {"command": "uptime"}, True, 5, None, None, v["vorher_id"], "a", False)
-    assert any("vi_feedback(helped=[ids], wrong=[ids])" in h for h in v["hinweise"])
+    assert any(f'vi_feedback(before_id="{v["vorher_id"]}", used=[' in h for h in v["hinweise"])  # Z7: the request names this action
+    # the unbound call (helped/wrong without before_id) stays valid for older clients:
     out = tools.call_tool("vi_feedback", {"helped": [k.id], "wrong": ["erkenntnis:nie-gezeigt"]}, "a", False)
     assert "feedback recorded for 1 hint(s)" in out and "erkenntnis:nie-gezeigt" in out
     d = usage_stats.data(1)

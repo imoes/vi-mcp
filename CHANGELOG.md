@@ -25,6 +25,13 @@ Linked from [README.md](README.md).
   `data.used` is still recorded and counted in `vi_stats`. Verified: `tests/test_label.py` (the adoption test now expects the ok label;
   a positive weight brings the branch back).
 
+- **The feedback request under the hints names this action.** It read `vi_feedback(helped=[ids], wrong=[ids])`, which booked on
+  the latest matching action within an hour; it now reads `vi_feedback(before_id="<this vorher_id>", used=[…], wrong=[…])` — the
+  per-action, outcome-free label (`data.declared`) of the feedback hook (branch plugins) and of `use_rate.py`. The A/B arm of the
+  request (`nudge`, 0.68.0) is unchanged: "off" still means no line. Verified: `tests/test_kollektiv.py::test_hint_budget` checks the
+  line carries the returned `vorher_id`. Needs the `used` parameter of `vi_feedback` from the plugins branch (merged in the release
+  candidate).
+
 ### What is new
 
 - **A per-conversation test of a hint ranking by the agents' declared use** (`vi_mcp/use_rate.py`, config `use_rate_share`, default 0 =

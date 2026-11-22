@@ -428,10 +428,14 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
         remaining += len(from_memory) - HINT_BUDGET
         from_memory = from_memory[:HINT_BUDGET]
     nudge = None
+    before_id = secrets.token_hex(8)  # Z7: created before the hint lines, so the feedback request can name this very action
     if shown_obj and any(not h.startswith("Learned search") for h in from_memory):  # 0.49.0: ask for feedback where it costs least
         nudge = nudge_arm(g.current_conversation.get())  # 0.68.0: the request itself is A/B-tested per conversation
         if nudge != "off":
-            from_memory.append("Did one of these help or mislead you? vi_feedback(helped=[ids], wrong=[ids]) — one call, no reason needed")
+            # Z7 (22.11.2026): bound to this action and outcome-free (vi_feedback(before_id, used, wrong) → declare_used → data.declared,
+            # the per-action label of use_rate.py) — unbound helped=[…] landed on the latest matching action within an hour
+            from_memory.append(f'Did one of these help or mislead you? vi_feedback(before_id="{before_id}", used=[ids you followed or cited], '
+                               'wrong=[ids that misled you]) — one call; used=[] if none, the others count as not used')
     if remaining > 0 or only_on_request or repeated or unspecific or capped:
         addendum = f" (of which {len(only_on_request)} disputed or unconfirmed hypothesis, only on request)" if only_on_request else ""
         again = " · ".join(x for x in (f"{len(repeated)} already shown in this conversation within the last hour, not repeated" if repeated else "",
@@ -469,7 +473,6 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
                **({"code_datei": code_file} if code_file else {}),
                "repeat_suppressed": [o.id for o in repeated], **({"nudge": nudge} if nudge else {}),
                **({"archive_shown": archive_shown} if archive_shown else {})})
-    before_id = secrets.token_hex(8)
     if answer is not None:
         experience(tool, args, True, 0, None, answer, access, instance, is_read_only)
     else:
