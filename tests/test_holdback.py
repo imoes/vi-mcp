@@ -78,3 +78,21 @@ def test_verdict_and_lower_bound_never_disagree(gd):
     e = metrics.holdback_effect()
     assert e["lower_95"] > 0 and "hints raise the success" in e["urteil"]
     assert e["lower_95"] <= e["differenz"] <= e["upper_95"]
+
+
+def test_a_change_of_the_hold_probability_does_not_fake_an_effect(gd):
+    """Z7 (22.11.2026): the hold probability rose from 0.05 to 0.2 while the base rate drifted — stratified only by (instance, tool) the
+    comparison showed −3.9 ± 1.1 points on the production copy, with the probability in the stratum −0.1 ± 1.1. Here: no true effect,
+    period 1 (p 0.05, success 0.98) and period 2 (p 0.2, success 0.70); the held-back arm is mostly period 2, so a comparison without
+    the probability in the stratum says hints raise success by about 10 points (expected 0.852 vs 0.756)."""
+    rng = random.Random(11)
+    for period, hp, rate, n in ((1, 0.05, 0.98, 3000), (2, 0.2, 0.70, 3000)):
+        for i in range(n):
+            held = rng.random() < hp
+            ok = rng.random() < rate  # the same in both arms: hints have no effect
+            v = {"gezeigt": [] if held else ["erkenntnis:h"], "zurueckgehalten": ["erkenntnis:h"] if held else [], "haltewahrscheinlichkeit": hp}
+            g.new_object("experience", f"rsync {period} {i}", ["tool:rsync", f"ok:{'ja' if ok else 'nein'}"], {"before": v}, instance="a")
+    metrics._GRADES["db"] = None
+    e = metrics.holdback_effect()
+    assert e["zustand"] == "gemessen"
+    assert abs(e["differenz"]) < 2.5 * e["standardfehler"], e  # no effect found where there is none
