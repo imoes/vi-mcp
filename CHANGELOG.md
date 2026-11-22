@@ -3,6 +3,47 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## Unreleased (branch z7-router)
+
+### What was fixed
+
+- **The hold-back comparison (`vi_stats`, `metrics.holdback_effect`) no longer reports an effect that a change of the hold probability
+  created.** It compared actions with shown and held-back hints within (instance, tool). When the probability rose from 0.05 to 0.2
+  (16.11.2026) while the base rate drifted, the held-back arm came mostly from the later period: production copy 22.11.2026,
+  −3.9 ± 1.1 points ("hints lower success"). The hold probability is now part of the stratum: −0.1 ± 1.1, i.e. no measurable effect
+  (Simpson's paradox). Verified: `tests/test_holdback.py::test_a_change_of_the_hold_probability_does_not_fake_an_effect` fails without
+  the change and passes with it.
+
+### What has changed
+
+- **The implicit "adopted" signal is no longer a hint label** (user decision 22.11.2026: `scorer.WEIGHT["genutzt"]` = 0). A hint whose
+  path, option or file name reappeared in one of the next three successful actions (`intuition.adopted`, 0.59.0, stored as `data.used`)
+  was a positive label with weight 1.5 for router, bandit and metrics. A pre-registered placebo check failed: hints held back at random,
+  never seen by the agent, were "adopted" as often as shown ones (5.8 % vs 4.6 %, risk ratio 0.79, 95 % CI 0.62–1.03; production copy
+  22.11.2026, `docs/PREREG_Z7B_WITHIN_ACTION.md`). On that copy it labelled 607 of 27,508 shown pairs, 19 of them on failed actions
+  (0 → 1), 73 % on ten solution skills. At weight 0 the branch is skipped, so such a pair keeps its other label (judge, grade, ok tag);
+  `data.used` is still recorded and counted in `vi_stats`. Verified: `tests/test_label.py` (the adoption test now expects the ok label;
+  a positive weight brings the branch back).
+
+### What is new
+
+- **A per-conversation test of a hint ranking by the agents' declared use** (`vi_mcp/use_rate.py`, config `use_rate_share`, default 0 =
+  off). In conversations of the arm `use_rate`, while no learned router model is active, the candidates are ranked by a Beta posterior
+  of how often the agents declared a hint used when it was shown with others (`data.declared`), with the kind's rate as prior; the
+  other conversations keep the bandit. Propensities, the ε slot and the random hold-back are unchanged; every decision logs
+  `before.use_rate_arm` and the candidates' `before.use_rate_scores` (both arms). Counters are recomputed on demand and in sleep step
+  7d2. Verified: `tests/test_use_rate.py` (label definition, dropped counters, score, stable arm and share, ranking and logging in
+  `before`, off changes nothing, config bounds).
+
+### What is missing
+
+- **No valid hint-use label exists in production yet.** The implicit `data.used` (`genutzt`, `intuition.adopted`, token reuse) failed a
+  pre-registered placebo check: hints held back at random, never seen by the agent, were "adopted" as often as shown ones (risk
+  ratio 0.79, 95 % CI 0.62–1.03; `docs/PREREG_Z7B_WITHIN_ACTION.md`) and no longer counts (above). The
+  use-rate ranking reads only `data.declared`, which the production copy does not contain — it needs the feedback hook first, and an
+  online A/B pre-registration before `use_rate_share` is set above 0.
+- One name for two things: `data.used` (the heuristic) and `data.declared.used` (the declaration) — for a later migration.
+
 ## 0.70.12 — 2026-11-20
 
 ### What is new

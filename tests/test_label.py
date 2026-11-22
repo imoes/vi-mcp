@@ -51,6 +51,16 @@ def test_adopted_hint_becomes_a_positive_label(gd):
                           instance="a", conversation=s.serial)
     assert intuition.adopted(g.load(e2.id)) == [h.id]
     assert g.load(e1.id).data["used"] == [h.id]
-    assert scorer.label(g.load(e1.id).data, False, None, {}, hint=h.id) == (1, scorer.WEIGHT["genutzt"], "genutzt")
+    # 22.11.2026: weight 0 (placebo check failed) — the pair keeps its other label (here the failed action's ok tag), data.used stays
+    assert scorer.WEIGHT["genutzt"] == 0.0
+    assert scorer.label(g.load(e1.id).data, False, None, {}, hint=h.id) == (0, scorer.WEIGHT["ok"], "ok")
     assert intuition.adopted(g.load(e2.id)) == []  # counted once
     assert intuition.distinctive_tokens("see it-aikb-api docs --verbose /etc/x/y.conf") == frozenset({"--verbose", "/etc/x/y.conf"})
+
+
+def test_adoption_counts_again_only_with_a_positive_weight(gd, monkeypatch):
+    """The branch itself stays: should the heuristic pass a placebo check one day, a positive weight brings it back."""
+    data = {"before": {"shown": ["insight:h"]}, "used": ["insight:h"]}
+    assert scorer.label(data, False, None, {}, hint="insight:h") == (0, scorer.WEIGHT["ok"], "ok")
+    monkeypatch.setitem(scorer.WEIGHT, "genutzt", 1.5)
+    assert scorer.label(data, False, None, {}, hint="insight:h") == (1, 1.5, "genutzt")

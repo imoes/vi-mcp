@@ -315,10 +315,16 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     m = m_idx or learning.active()
     from . import weight_writer
     layer_arm = weight_writer.arm(m) if m is not None else None  # 0.58.0: LLM weight layer — coin flip while it is tested
+    from . import use_rate
+    # Z7: per conversation either the agents' use rate or the bandit ranks — only while no learned model is in charge (use_rate.arm)
+    use_arm = use_rate.arm(g.current_conversation.get()) if m is None else None
     if m is not None and cand:
         rank_pos = dict(learning.ranking(weight_writer.effective(m, layer_arm == "llm"), search_triggers, [o.id for o in cand]))
         cand.sort(key=lambda o: -rank_pos.get(o.id, 0.0))
         router = f"modell@{project_idx}" if m_idx is not None else "modell"
+    elif use_arm == "use_rate" and cand:
+        cand = use_rate.arrange(cand)
+        router = "use_rate"
     elif bandit.has_counter(cand):  # stage 2: Thompson sampling as soon as any candidate has been rated
         cand = bandit.arrange(cand)
         router = "bandit"
@@ -456,6 +462,7 @@ def before(tool: str, args: dict, instance: str | None = None, is_read_only: boo
     access = names.data_keys({"reize": rz, "warnung": bool(warn), "gefunden": found, "gezeigt": [o.id for o in shown_obj], "kandidaten": candidate_ids,
                "router": router, "exploration": exploration, "rest_n": len(rest), "suchen": search, "from_memory": answer is not None,
                "angebot": offer, **({"arm": layer_arm} if layer_arm else {}),
+               **({"use_rate_arm": use_arm, "use_rate_scores": use_rate.scores(regular[:HINT_BUDGET] + rest)} if use_arm else {}),
                **({"haltewahrscheinlichkeit": HOLD_BACK, "zurueckgehalten": held} if eligible else {}),
                **({"idx": project_idx, "idx_priority": sum(1 for o in shown_obj if indexes.first(o, project_idx)),
                   "idx_priority_off": sum(1 for o in shown_obj if o.idx == project_idx and o.data.get("priority_off"))} if project_idx else {}),
@@ -717,8 +724,9 @@ def _hint_tokens(hid: str) -> frozenset:
 
 def adopted(o: g.MemoryObject) -> list[str]:
     """0.59.0: the implicit feedback of a successful action — which hints shown before one of the previous ADOPT_WINDOW actions of this
-    conversation it took a distinctive token from. Marks them on that earlier experience as `genutzt` (scorer.label: a positive label
-    for the pair, weight WEIGHT["genutzt"]). Returns the hint ids."""
+    conversation it took a distinctive token from. Marks them on that earlier experience as `genutzt` (stored as `used`). It is no label
+    since 22.11.2026 (scorer.WEIGHT["genutzt"] = 0: held-back hints were "adopted" as often as shown ones — a placebo check, docs/
+    PREREG_Z7B_WITHIN_ACTION.md); still recorded and counted in vi_stats. Returns the hint ids."""
     if not o.conversation or "ok:yes" not in o.hashtags:
         return []
     here = json.dumps(o.data.get("args") or {}, ensure_ascii=False)

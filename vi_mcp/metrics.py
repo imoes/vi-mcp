@@ -235,8 +235,11 @@ def exploration_effect(hours: float = 168, viewer: str | None = None) -> dict:
 
 def holdback_effect(hours: float = 24 * 30, viewer: str | None = None) -> dict:
     """0.61.0: the total effect of showing hints — over actions that had hints to show, those whose hints were held back by the coin flip
-    (vorher.zurueckgehalten) against those that showed them. Success shown minus held back, Mantel-Haenszel within (instance, tool),
-    with its standard error. Positive = hints raise the success of an action. Causal, because holding back is random."""
+    (vorher.zurueckgehalten) against those that showed them. Success shown minus held back, Mantel-Haenszel within (instance, tool,
+    hold probability), with its standard error. Positive = hints raise the success of an action. Causal, because holding back is random.
+    Z7 (22.11.2026): the hold probability is part of the stratum — it is the randomisation's own parameter. Without it a change of the
+    probability (0.05 → 0.2 on 16.11.2026) lets the period's base rate drift into the comparison: production copy 22.11.2026,
+    (instance, tool) −3.9 ± 1.1 points, (instance, tool, hold probability) −0.1 ± 1.1 (Simpson's paradox)."""
     since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
     strata: dict[tuple, dict] = {}
     for _, o, _g in g.recall("kind:experience (ok:yes OR ok:no)", limit=50000, viewer=viewer):
@@ -245,7 +248,7 @@ def holdback_effect(hours: float = 24 * 30, viewer: str | None = None) -> dict:
             continue
         held = bool(v.get("held_back"))
         t = next((x[5:] for x in o.hashtags if x.startswith("tool:")), "?")
-        c = strata.setdefault((o.instance or "?", t), {True: [0, 0], False: [0, 0]})[not held]
+        c = strata.setdefault((o.instance or "?", t, v.get("hold_probability")), {True: [0, 0], False: [0, 0]})[not held]
         c[0] += _ok(o)
         c[1] += 1
     num = den = var = 0.0

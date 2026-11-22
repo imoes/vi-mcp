@@ -11,6 +11,7 @@ Path: $VI_MCP_CONFIG or ~/.config/vi-mcp/config.json. Content:
     "rerank": {"url": "https://host/rerank/v1/rerank", "token": "", "model": ""},        optional (0.57.0, vi_recall)
     "hold_back": 0.05,                                     share of actions whose hints are held back at random (0.61.0; 0 = off)
     "feedback_nudge_off": 0.2,                             share of conversations without the feedback request under the hints — its A/B test (0.68.0; 0 = always ask)
+    "use_rate_share": 0.0,                                 share of conversations whose hints are ranked by the agents' use rate instead of the bandit — its A/B test (Z7; 0 = off)
     "llm":   {"url": "https://host/qwen/v1/chat/completions", "token": "", "model": ""}  optional (stage 4, during sleep)
   }
 Keys are English since 0.51.0; the German keys of older files (instanzen, offen, …, see normalize) are still read, and every write stores
@@ -156,6 +157,7 @@ class Config:
     rerank: dict | None = None  # 0.57.0: cross-encoder for vi_recall (optional)
     hold_back: float = 0.05  # 0.61.0: hints held back at random to measure their total effect (intuition.HOLD_BACK)
     feedback_nudge_off: float = 0.2  # 0.68.0: conversations without the feedback request (intuition.NUDGE_OFF)
+    use_rate_share: float = 0.0  # Z7: conversations ranked by the agents' use rate instead of the bandit (use_rate.SHARE)
     archive_days: dict[str, int] = field(default_factory=dict)
     p2p: dict = field(default_factory=dict)
     reviewer_prompt: str | None = None
@@ -212,6 +214,10 @@ def load(p: Path | None = None) -> Config:
         k.feedback_nudge_off = min(0.5, max(0.0, float(raw.get("feedback_nudge_off", 0.2))))
     except (TypeError, ValueError):
         k.feedback_nudge_off = 0.2
+    try:  # Z7: at most half — the bandit stays the control arm
+        k.use_rate_share = min(0.5, max(0.0, float(raw.get("use_rate_share", 0.0))))
+    except (TypeError, ValueError):
+        k.use_rate_share = 0.0
     k.p2p = raw.get("p2p") or {}
     k.reviewer_prompt = raw.get("reviewer_prompt")
     k.archive_days = {a: int(t) for a, t in (raw.get("archive_days") or {}).items()}

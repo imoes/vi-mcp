@@ -456,6 +456,8 @@ def build(k: config.Config) -> list[Server]:
     vector.rerank_config = k.rerank
     intuition.HOLD_BACK = k.hold_back  # 0.61.0
     intuition.NUDGE_OFF = k.feedback_nudge_off  # 0.68.0
+    from . import use_rate
+    use_rate.SHARE = k.use_rate_share  # Z7
     reflection.config = k.llm
     handler = type("KHandler", (Handler,), {"k": k})
     srvs = [Server((addr, k.port), handler) for addr in k.bind]
