@@ -1,6 +1,6 @@
 # PREREG Z11-1, deviation 3: the secondary set and amendment 2 run on a rented CPU host
 
-Date: 22.11.2026, written at about 22:10 UTC (`date -u`). The runs started at 22:07:43 UTC. No answer of the secondary set and
+Date: 22.11.2026, committed at 22:08:47 UTC (`date -u`). The runs started at 22:07:43 UTC. No answer of the secondary set and
 no amendment-2 number was known when this was written. It changes no arm, parameter, question, rubric or hypothesis.
 
 ## What differs from the primary
