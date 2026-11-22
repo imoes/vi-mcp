@@ -16,6 +16,7 @@ Where to find what. Start with the [README](../README.md) ([deutsch](../README.d
 | [HOOK](HOOK.md) | client setup | The Claude Code / Hermes hook: what it reports before and after every action and prompt, and why |
 | [PUSH](PUSH.md) | client setup, developers | Can the server tell a connected AI something on its own: what the MCP specification allows (2026-07-28), what Claude Code, Codex and Hermes do with each notification, the channel prototype `vi-mcp stdio --channel` and its measurement |
 | [AGENTS](../AGENTS.md) | AI agents and contributors working on the code | How it works in short, commands, modules, the rules (no internal names in the repository, portable SQL, nothing disappears silently …) |
+| [PREREG_Z7_HINT_UTILITY](PREREG_Z7_HINT_UTILITY.md) · [PREREG_Z7B_WITHIN_ACTION](PREREG_Z7B_WITHIN_ACTION.md) | research | Pre-registered offline tests of the hint router (goal Z7): which label carries hint signal, the label-source artefact, the within-action test — hypotheses, results, post-hoc checks |
 | [CHANGELOG](../CHANGELOG.md) | everyone | What changed in each version, with evidence, and what is still missing |
 | [TRAINING](TRAINING.md) (German) | research | How an AI is trained and how vi-mcp stores its data for that |
 | [CODE_FACTS](CODE_FACTS.md) | developers who import code into an index | Code structure as facts (calls, imports, table writes, raises, tests, history) read by clingo-object; the architecture-rules philosophy `code`; the measurement against plain search |

@@ -194,6 +194,7 @@ def _run(reason: str) -> g.MemoryObject:
         step("7b_naehe", lambda: _proximity())
         step("7c_inhalt", lambda: _content_features())
         step("7d_hinweise", lambda: _hints_new())
+        step("7d2_nutzung", lambda: __import__("vi_mcp.use_rate", fromlist=["recompute"]).recompute())  # Z7: use rate per hint
         step("8_lernen", lambda: _learning())
         step("8b_gewichte_pruefen", lambda: _weight_audit())  # 0.29.0: read the new weights, never write them
         from . import learning, weight_writer

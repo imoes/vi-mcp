@@ -45,7 +45,7 @@ def nudge(reason: str) -> None:
 
 def run(reason: str = "by hand") -> dict:
     """One training run, synchronous. Returns the steps with duration; an error in one step is named, the others continue."""
-    from . import bandit, content, learning, vector
+    from . import bandit, content, learning, use_rate, vector
     steps: dict = {}
     t_total = time.monotonic()
 
@@ -72,6 +72,7 @@ def run(reason: str = "by hand") -> dict:
                 step("inhalt", content.compute)
                 progress["vektoren_seit_kmeans"] = 0
         step("hinweise", bandit.recompute)
+        step("nutzung", use_rate.recompute)  # Z7: the agents' use rate per hint
         step("lernen", lambda: learning.train(f"on demand: {reason}"))
     duration = int((time.monotonic() - t_total) * 1000)
     progress.update({"laeufe": progress["laeufe"] + 1, "zuletzt": g.now(), "grund": reason, "dauer_ms": duration, "schritte": steps,

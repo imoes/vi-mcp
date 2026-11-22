@@ -108,3 +108,22 @@ agreement of the recomputed label with the stored `data.used`.
 above 1, adoption carries a causal use signal and Z7b stands as a measure of *which hint is used*. If the CI includes 1, the label
 measures token commonness, Z7b ranks hints by how common their tokens are, and the use-rate arm must not go online on this label —
 only on declared labels (`data.declared`, the feedback hook).
+
+## Result of the label validity check (run 2026-11-22 11:32 UTC on commit 0e20f71, unchanged script)
+
+2,574 conversations. Shown arm (actions eligible for the hold-back): 584 adopted of 12,725 (hint, action) pairs, 4.59 %. Placebo arm
+(held back, never seen): 149 of 2,567, 5.80 %. Risk ratio 0.79, 95 % CI 0.62–1.03 → **decision: token commonness**. The replica of the
+rule agrees with the stored `data.used` (582 both, 2 replica only, 15 stored only). Not stratified by hold probability (pre-registered
+unstratified); the lower bound is far from exceeding 1. **Z7b therefore does not show which hint is used**; its 0.84 ranks how
+common a hint's tokens are in the work that follows.
+
+## Production finding and proposed change (not applied — the user decides)
+
+`scorer.label` (vi_mcp/scorer.py:317) gives a shown hint the label 1 with weight `WEIGHT["genutzt"]` = 1.5 whenever it is in
+`data.used` — before the judge, the conversation grade and the ok tag. This label feeds the router, the bandit and the metrics.
+On the production copy 22.11.2026: 607 of 27,508 shown pairs (2.2 %) take their label from it (3 more are overridden by direct
+feedback); 19 of them sit on failed actions, where it turns the label from 0 into 1; 73 % of them fall on 10 solution skills
+(52 distinct hints) — exactly the hints whose tokens (paths, commands) recur in the following work anyway.
+**Proposal:** stop using `genutzt` as a label until it passes a placebo check — in `scorer.label` skip the `data.used` branch (the pair
+falls through to judge / grade / ok), or set `WEIGHT["genutzt"]` to 0; keep recording `data.used` for measurement. Check after the
+change: bandit counters of the 10 skills fall back toward their outcome advantage; the router's holdout metrics reported side by side.

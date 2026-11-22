@@ -1062,6 +1062,7 @@ options:
 | `rerank` | — | Cross-encoder `{url, token, model}` (0.57.0): OpenAI/Jina-style `/v1/rerank`; `vi_recall` orders its best 30 hybrid hits by it. Off without it — measured: MRR 0.75 → 0.82, but ~2.3 s per search instead of ~0.65 s. `vi-mcp embed setup` sets it to the own service `vi-rerank` (0.60.0) when 30 documents take ≤ 5 s. |
 | `hold_back` | 0.05 | Share of the actions with hints whose hints are held back at random (0.61.0, at most 0.25; 0 = off) — `vi_stats` C and the daily measurement compare them with the rest: the causal total effect of hints. |
 | `feedback_nudge_off` | 0.2 | Share of conversations in which the feedback request under the hints is left out (0.68.0, at most 0.5; 0 = always ask) — `vi_stats` C compares feedback and success of both arms: the A/B test of asking. |
+| `use_rate_share` | 0.0 | Share of conversations whose hints are ranked by the agents' use rate per hint instead of the bandit (Z7, at most 0.5; 0 = off) — the A/B test of `use_rate.py`; every decision logs `before.use_rate_arm` and the candidates' `before.use_rate_scores`. |
 | `local_models` | — | `auto`/`off` (0.60.0): whether the packages set up the own embedding service and reranker (`vi-mcp embed auto`); configure question `local_models`. |
 | `llm` | — | Language model `{url, token, model}` [`modell`]: OpenAI-compatible chat endpoint for sleep, scorer and reviewer. |
 | `p2p` | `{}` | The memory side of the networks: `networks` [`netze`] `{name: {kind, instance, auto_release, local, start}}` (`start`: the server the network starts from, written by `net wiki on --start`, 0.54.1), `reflexes_from` [`reflexe_von`], `auto_release` [`auto_freigabe`], `public_domains` [`oeffentliche_domains`], `internal_names` [`interne_namen`], `local` [`lokal`] (URL and token of the standard network's local listener). Kinds: `free`, `open`, `company` [`frei`, `offen`, `firma`]. |
@@ -1291,6 +1292,7 @@ First line of each module's docstring.
 | `training_eval` | Independent task judgments and executable program evaluation; no word-overlap adoption gate. |
 | `training_runtime` | Standalone training-kit runtime: audited tokenization, assistant targets and real trainer preflight without weight updates. |
 | `usage_stats` | Usage statistics — is the VI used, and does it work as intended? (0.21.0) |
+| `use_rate` | Z7: which shown hint does the agent use? — a per-hint use rate from the agents' own declarations, tested against the bandit per |
 | `vector` | Vectors — meaning instead of identical words (stage 3, docs/TRAINING.md 4c; Park et al. 2023, section 4.1: relevance |
 | `vector_import` | 0.70.4: vectors of a large external index are computed on another host and imported — the shared embedding service stays free. |
 | `vil` | VIL — the language in which an AI asks the memory and the memory answers (0.62.0, first executable part). |
