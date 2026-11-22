@@ -392,8 +392,10 @@ class Generator:
         finish = "budget"
         with torch.inference_mode():
             for _ in range(budget):
+                # logits_to_keep=1: only the last position's logits (the same numbers; a 3-document RAG prefill would
+                # otherwise hold prompt length x vocab float32 logits and exceed the 6 GB limit — deviation 1, 22.11.2026).
                 o = self.model(input_ids=torch.tensor([step_ids]), past_key_values=past, use_cache=True,
-                               output_hidden_states=True, return_dict=True)
+                               output_hidden_states=True, return_dict=True, logits_to_keep=1)
                 past = o.past_key_values
                 logits = o.logits[0, -1].float().numpy()
                 if mem is not None and weight > 0:
