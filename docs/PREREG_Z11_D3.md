@@ -42,6 +42,13 @@ change floating-point sums. The weight is frozen before any KR\* answer exists, 
 value. KR\* answers the 60 probe questions in shards, like the answer runs. If the 04:00 UTC cost cap comes first, A2 is reported as
 incomplete.
 
+## Addendum 2 (22:28–22:29 UTC, before any secondary answer was read)
+
+The single R shard answered about one question per minute (20 of 297 after 21 min), and the memory peak reached 58.4 of 59.6 GB.
+It was stopped by plan at 22:28:42 UTC (exit 143, SIGTERM). Its 20 finished answers are kept. When B has all 297 answers, R's
+remaining questions are answered in 3 round-robin shards (`pod_orch.sh`), and the R answers are merged by question id. A stopped
+process loses only the answer in progress, so no partial answer is kept. Amendment 2 starts only when no answer process runs.
+
 ## Limit
 
 Identity is shown on 9 answers, not on all of them. If any secondary answer is later compared across hosts, a difference is reported
