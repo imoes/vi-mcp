@@ -3,7 +3,7 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## Unreleased (0.71.0) — release candidate: branch plugins + branch z7-router on 0.70.12
+## 0.71.0 — 2026-11-22
 
 ### What is new
 
@@ -106,10 +106,9 @@ Linked from [README.md](README.md).
 
 - **The feedback request under the hints names this action.** It read `vi_feedback(helped=[ids], wrong=[ids])`, which booked on
   the latest matching action within an hour; it now reads `vi_feedback(before_id="<this vorher_id>", used=[…], wrong=[…])` — the
-  per-action, outcome-free label (`data.declared`) of the feedback hook (branch plugins) and of `use_rate.py`. The A/B arm of the
+  per-action, outcome-free label (`data.declared`) of the feedback hook (above) and of `use_rate.py`. The A/B arm of the
   request (`nudge`, 0.68.0) is unchanged: "off" still means no line. Verified: `tests/test_kollektiv.py::test_hint_budget` checks the
-  line carries the returned `vorher_id`. Needs the `used` parameter of `vi_feedback` from the plugins branch (merged in the release
-  candidate). The rules every client receives (`tools.RULES`, core and full text) now ask for the same bound call; the core stays within
+  line carries the returned `vorher_id`. Uses the `used` parameter of `vi_feedback` (above). The rules every client receives (`tools.RULES`, core and full text) now ask for the same bound call; the core stays within
   Claude Code's 4,096-character cut (`tests/test_instructions_budget.py`).
 
 ### What was fixed
@@ -134,8 +133,8 @@ Linked from [README.md](README.md).
 
 - Codex: a failed Bash command arrives as `PostToolUse` (Codex has no `PostToolUseFailure`) and is reported as ok; the Stop status
   duty reads Claude Code's transcript format and stays silent for Codex.
-- The router does not read `data.declared` yet in production (its reader is on the router branch); the answer rate is measured only
-  after a release.
+- The use-rate ranking (`use_rate.py`) reads `data.declared`, but its A/B arm stays off (`use_rate_share` 0) until declared labels
+  exist and an online test is pre-registered; the hook's answer rate becomes measurable with this release.
 - The plugin hook runs `python3`; a Windows client without `python3` on PATH is not covered.
 - Plugin and a local MCP entry `vi-mcp` side by side give the tools twice (`mcp__vi-mcp__…` and `mcp__plugin_vi-mcp_vi-mcp__…`).
 - **No valid hint-use label exists in production yet.** The implicit `data.used` (`genutzt`, `intuition.adopted`, token reuse) failed a
