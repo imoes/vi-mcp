@@ -141,18 +141,26 @@ class Memory:
         docs = sorted(self.view["documents"].items())
         total = sum(d["entries"] for _, d in docs)
         dim = st.identity["dimension"] if st.identity else 1024
-        keys = np.empty((total, dim), dtype=np.float32)  # one buffer, no list + concatenate copy (6 GB scope limit)
+        # Deviation 2: the key matrix is a memory-mapped file (same float32 values, written once per revision), so its pages
+        # are reclaimable file cache instead of 1.1 GB of anonymous memory under the 6 GB scope limit.
+        cache = Path(store_dir) / f"z11_keys_rev{self.view['revision']}_{total}x{dim}.f32"
+        fresh = not cache.exists()
+        keys = np.memmap(cache, dtype=np.float32, mode="w+" if fresh else "c", shape=(total, dim))
         self.tokens = np.empty(total, dtype=np.int64)
         self.owner = np.empty(total, dtype=np.int64)
         self.sources = []
         at = 0
         for _, d in docs:
-            k, t = st._array(d, "keys"), st._array(d, "tokens")
-            keys[at:at + len(t)] = k
+            t = st._array(d, "tokens")
+            if fresh:
+                keys[at:at + len(t)] = st._array(d, "keys")
             self.tokens[at:at + len(t)] = t
             self.owner[at:at + len(t)] = len(self.sources)
             self.sources.append(d["source"])
             at += len(t)
+        if fresh:
+            keys.flush()
+            keys = np.memmap(cache, dtype=np.float32, mode="c", shape=(total, dim))
         self.keys = torch.from_numpy(keys)
         norms = np.empty(total, dtype=np.float64)
         for s in range(0, total, 65536):
@@ -381,6 +389,10 @@ class Generator:
             from peft import PeftModel
             self.model = PeftModel.from_pretrained(core.model, str(adapter)).eval()
         self.eos = core.tokenizer.convert_tokens_to_ids(EOS_TEXT)
+        # Deviation 2: the key state is taken from the final norm's output by a hook (bitwise equal to hidden_states[-1],
+        # checked 22.11.2026), so the prefill no longer returns the hidden states of all 29 layers.
+        self.state = {}
+        core.model.model.norm.register_forward_hook(lambda mod, inp, out: self.state.__setitem__("last", out))
 
     def run(self, prompt, mem=None, k=32, temperature=1.0, weight=0.0, budget=GEN_BUDGET):
         torch = self.torch
@@ -395,11 +407,11 @@ class Generator:
                 # logits_to_keep=1: only the last position's logits (the same numbers; a 3-document RAG prefill would
                 # otherwise hold prompt length x vocab float32 logits and exceed the 6 GB limit — deviation 1, 22.11.2026).
                 o = self.model(input_ids=torch.tensor([step_ids]), past_key_values=past, use_cache=True,
-                               output_hidden_states=True, return_dict=True, logits_to_keep=1)
+                               output_hidden_states=False, return_dict=True, logits_to_keep=1)
                 past = o.past_key_values
                 logits = o.logits[0, -1].float().numpy()
                 if mem is not None and weight > 0:
-                    state = o.hidden_states[-1][0, -1].float().numpy()
+                    state = self.state["last"][0, -1].float().numpy()
                     dist, ind = mem.topk(state[None], k)
                     pk = mem.distribution(dist[0], ind[0], k, temperature, vocab)
                     mixed, _ = interpolate(logits[:vocab], pk, weight)
