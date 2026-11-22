@@ -378,6 +378,47 @@ def tune_rag(args):
     json.dump(res, open(DATA / "tune_rag.json", "w"), indent=1)
 
 
+A2_WEIGHTS = (0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+
+
+def tune_kr(args):
+    """Amendment 2 (exploratory): the KR mixture weight on the validation rows WITH the BM25 top-3 documents in the prompt (as
+    tune_rag), the row's own source excluded from retrieval (as tune); k and temperature fixed from the primary. Criterion:
+    teacher-forced NLL of the reference answer; ties go to the smaller weight. Writes frozen_params_A2.json."""
+    core = load_core()
+    frozen = json.load(open(DATA / "frozen_params.json"))
+    k, temp, rag_k = frozen["k"], frozen["temperature"], frozen["rag_k"]
+    mem = Memory(DATA / args.store, identity=core.identity)
+    bm25 = load_bm25()
+    val = jl(DATA / "val.jsonl")
+    pb_all, pk_all = [], []
+    t0 = time.time()
+    for n, v in enumerate(val):
+        docs = context_for(bm25, v["question"], rag_k)[0]
+        states, logits, targets = answer_states(core, prompt_text(core, v["question"], docs), v["answer"])
+        dist, ind = mem.topk(states, k, exclude=[v["source"]])
+        w = np.exp(-(dist - dist[:, :1]) / temp)
+        w /= w.sum(1, keepdims=True)
+        pk_all.append((w * (mem.tokens[ind] == targets[:, None])).sum(1))
+        pb_all.append(np.exp(log_softmax(logits.astype(np.float64))[np.arange(len(targets)), targets]))
+        if n % 50 == 0:
+            print(f"{n + 1}/{len(val)} {time.time() - t0:.0f} s", flush=True)
+    pb, pk = np.concatenate(pb_all), np.concatenate(pk_all)
+    curve = [{"weight": wgt, "nll": float(-np.log(np.maximum((1 - wgt) * pb + wgt * pk, np.finfo(float).tiny)).mean())}
+             for wgt in A2_WEIGHTS]
+    best = min(curve, key=lambda c: (c["nll"], c["weight"]))
+    out = {"k": k, "temperature": temp, "weight": best["weight"], "rag_k": rag_k,
+           "source": {"amendment": "PREREG_Z11_A2.md", "criterion": "validation NLL with BM25 top-3 documents in the prompt",
+                      "validation_rows": len(val), "tokens": int(len(pb)), "curve": curve, "store_revision": mem.revision,
+                      "seconds": round(time.time() - t0)},
+           "frozen_utc": time.strftime("%Y-%m-%dT%H:%MZ", time.gmtime())}
+    path = DATA / "frozen_params_A2.json"
+    if path.exists():
+        raise SystemExit("frozen_params_A2.json exists — frozen parameters are never overwritten")
+    json.dump(out, open(path, "w"), indent=1)
+    print(json.dumps(out, indent=1))
+
+
 # ---------------------------------------------------------------- generation (KV cache)
 
 class Generator:
@@ -435,10 +476,12 @@ def answer(args):
     """Answers of one arm to one question set, written per question as soon as it exists (resumable)."""
     core = load_core()
     params = json.load(open(DATA / "frozen_params.json")) if args.arm in ("K", "KR", "KD") else {}
-    rag_k = json.load(open(DATA / "frozen_params.json"))["rag_k"] if args.arm in ("R", "KR") else 0
+    if args.arm == "KRs":  # amendment 2: KR* = KR with the weight tuned on validation prompts with documents
+        params = json.load(open(DATA / "frozen_params_A2.json"))
+    rag_k = json.load(open(DATA / "frozen_params.json"))["rag_k"] if args.arm in ("R", "KR", "KRs") else 0
     gen = Generator(core, adapter=DATA / "kit4/out/sft" if args.arm == "L" else None)
     mem = None
-    if args.arm in ("K", "KR"):
+    if args.arm in ("K", "KR", "KRs"):
         mem = Memory(DATA / (args.store or "store_qa"), identity=core.identity)
     bm25 = load_bm25() if rag_k else None
     qs = jl(DATA / args.questions) if args.questions.endswith(".jsonl") else probe_questions()
@@ -593,7 +636,7 @@ def score(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("cmd", choices=["build", "verify", "valsplit", "tune", "tune_rag", "answer", "nll", "judgepack", "score"])
+    p.add_argument("cmd", choices=["build", "verify", "valsplit", "tune", "tune_rag", "tune_kr", "answer", "nll", "judgepack", "score"])
     p.add_argument("--arms", default="B,L,K,R,KR,B3,L3")
     p.add_argument("--refs", default="judged/references_probe.jsonl")
     p.add_argument("--store", default="store_qa")
