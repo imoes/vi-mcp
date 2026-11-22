@@ -9,7 +9,9 @@ Routes (GET, no token — nothing served here is secret; the token never appears
   /plugins/claude/marketplace.json       Claude Code marketplace with one plugin; its source is the archive below (url + sha256)
   /plugins/claude/vi-mcp-<version>.zip   the Claude Code plugin: .claude-plugin/plugin.json (userConfig url, token — sensitive),
                                          .mcp.json (http server, Authorization from user_config), hooks/hooks.json, hook/vi_hook.py
-  /plugins/hook/vi_hook.py               the hook itself (standard library only), for Codex and Hermes
+  /plugins/vi-mcp-setup.pyz              installer for Codex (MCP + hook) and Hermes (MCP + prompt hook): a zipapp of the package's own
+                                         vi_mcp/setup.py with the hook — the same code as `vi-mcp setup`, deterministic, sha256 in a header
+  /plugins/hook/vi_hook.py               the hook itself (standard library only)
 
 Claude Code fetches an archive source only over https and never from a loopback, link-local or cloud-metadata host
 (code.claude.com/docs/en/plugins/marketplace-reference, "archive"); the marketplace.json itself may come over http. Behind the reverse
@@ -102,6 +104,65 @@ def zip_bytes(files: dict[str, bytes]) -> bytes:
     return buf.getvalue()
 
 
+SETUP_NAME = "vi-mcp-setup.pyz"
+#: what the installer carries: the setup of the package itself (standard library + PyYAML for Hermes), never a second implementation
+SETUP_MODULES = ("__init__.py", "config.py", "setup.py")
+_SETUP_MAIN = '''"""vi-mcp client setup, served by the vi-mcp server at {base} (version {version}).
+
+It is the setup of the vi-mcp package (vi_mcp/setup.py), packed with the hook: it copies the hook to
+~/.local/share/vi-mcp/hook/vi_hook.py and registers what you name — Codex (MCP + hook), Hermes (MCP + prompt hook), Claude Code
+(MCP + hook, if you do not want the plugin). The token is read from a file or standard input, never from the command line.
+
+  python3 vi-mcp-setup.pyz --codex --codex-hook --hermes --token-file -
+  python3 vi-mcp-setup.pyz --status
+"""
+import os
+import sys
+import zipfile
+from pathlib import Path
+
+BASE = {base_repr}
+
+
+def main() -> int:
+    from vi_mcp import setup
+    z = setup.target()
+    dest = z.home / ".local" / "share" / "vi-mcp" / "hook" / "vi_hook.py"
+    data = zipfile.ZipFile(os.path.dirname(os.path.abspath(__file__))).read("hook/vi_hook.py")
+    with setup._as_user(z):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if not dest.exists() or dest.read_bytes() != data:
+            dest.write_bytes(data)
+        dest.chmod(0o755)
+    os.environ.setdefault("VI_MCP_HOOK_SCRIPT", str(dest))
+    os.environ.setdefault("VI_MCP_URL", BASE + "/mcp")
+    return setup.main(sys.argv[1:])
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+'''
+
+
+def setup_files(base: str) -> dict[str, bytes]:
+    pkg = Path(__file__).resolve().parent
+    files = {f"vi_mcp/{m}": (pkg / m).read_bytes() for m in SETUP_MODULES}
+    files["hook/vi_hook.py"] = hook_path().read_bytes()
+    files["__main__.py"] = _SETUP_MAIN.format(base=base, version=__version__, base_repr=repr(base)).encode()
+    return files
+
+
+_setup_cache: dict[str, tuple[bytes, str]] = {}
+
+
+def setup_pyz(base: str) -> tuple[bytes, str]:
+    """0.71.0: the installer for Codex and Hermes (and Claude Code without the plugin) — a zipapp, deterministic like the archive."""
+    if base not in _setup_cache:
+        data = b"#!/usr/bin/env python3\n" + zip_bytes(setup_files(base))
+        _setup_cache[base] = (data, hashlib.sha256(data).hexdigest())
+    return _setup_cache[base]
+
+
 def archive_name() -> str:
     return f"{NAME}-{__version__}.zip"
 
@@ -133,8 +194,12 @@ def index(base: str) -> str:
             f"  claude plugin marketplace add {base}{ROUTE}/claude/marketplace.json\n"
             f"  claude plugin install {NAME}@{NAME}       (then /plugin → {NAME} → configure: token)\n"
             + ("" if https else "  NOTE: Claude Code downloads the plugin archive only over https — set public_url to the https address.\n")
-            + f"\nFiles:\n  {base}{ROUTE}/claude/marketplace.json\n  {base}{ROUTE}/claude/{archive_name()}\n"
-            f"  {base}{ROUTE}/hook/vi_hook.py  (standard library only)\n")
+            + f"\nCodex CLI and Hermes Agent (the setup of the vi-mcp package with the hook; token from standard input, never an argument):\n"
+            f"  curl -fsSO {base}{ROUTE}/{SETUP_NAME}        (sha256: {setup_pyz(base)[1]})\n"
+            f"  python3 {SETUP_NAME} --codex --codex-hook --token-file -     Codex runs the hook only after you trust it: /hooks\n"
+            f"  python3 {SETUP_NAME} --hermes --token-file -                  Hermes needs PyYAML (python3-yaml)\n"
+            f"\nFiles:\n  {base}{ROUTE}/claude/marketplace.json\n  {base}{ROUTE}/claude/{archive_name()}\n"
+            f"  {base}{ROUTE}/{SETUP_NAME}\n  {base}{ROUTE}/hook/vi_hook.py  (standard library only)\n")
 
 
 def handle(path: str, public_url: str | None, headers) -> tuple[int, str, bytes, dict]:
@@ -153,6 +218,9 @@ def handle(path: str, public_url: str | None, headers) -> tuple[int, str, bytes,
     if p == f"{ROUTE}/claude/{archive_name()}":
         data, sha = claude_archive(base)
         return 200, "application/zip", data, {"X-Content-SHA256": sha, "Content-Disposition": f'attachment; filename="{archive_name()}"'}
+    if p == f"{ROUTE}/{SETUP_NAME}":
+        data, sha = setup_pyz(base)
+        return 200, "application/octet-stream", data, {"X-Content-SHA256": sha, "Content-Disposition": f'attachment; filename="{SETUP_NAME}"'}
     if p.startswith(f"{ROUTE}/claude/") and p.endswith(".zip"):
         return 404, "text/plain; charset=utf-8", f"only version {__version__} is served: {archive_name()}\n".encode(), {}
     return 404, "text/plain; charset=utf-8", f"unknown path; see {ROUTE}\n".encode(), {}

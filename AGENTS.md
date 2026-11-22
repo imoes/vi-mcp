@@ -85,7 +85,7 @@ sudo vi-mcp setup                                    # ANSI menu: Claude Code, C
 
 0.71.0: a client on another machine needs no package — the server serves its own Claude Code plugin (`/plugins/claude/marketplace.json`,
 archive with sha256, URL and token as plugin options; `public_url` behind the reverse proxy, the archive only over https) and the hook
-file (`/plugins/hook/vi_hook.py`). The routes need no token by design — only public code, never instance data, no token in any served file; `plugins: false` switches them off. Test an install end to end with an isolated `CLAUDE_CONFIG_DIR`, never against production.
+file (`/plugins/hook/vi_hook.py`); Codex and Hermes get `/plugins/vi-mcp-setup.pyz`, a zipapp of the package's own `setup.py` with the hook (`vi-mcp setup --codex-hook` writes `~/.codex/hooks.json`; Codex runs it only after the user trusts it in `/hooks`). The routes need no token by design — only public code, never instance data, no token in any served file; `plugins: false` switches them off. Test an install end to end with an isolated `CLAUDE_CONFIG_DIR`, never against production.
 
 0.48.0: the package first asks for the server configuration (Debian: debconf, `dpkg-reconfigure vi-mcp`; RPM and everywhere:
 `vi-mcp configure`, ANSI menu; catalogue in `vi_mcp/configure.py`, the Debian build generates `DEBIAN/templates` and `DEBIAN/config`

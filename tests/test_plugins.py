@@ -163,3 +163,51 @@ def test_a_second_installed_copy_of_the_hook_does_not_report_twice(monkeypatch, 
         monkeypatch.setattr("sys.stdin", io.StringIO(other))
         assert h.main() == 0
     assert len(calls) == 1
+
+
+def test_the_installer_is_the_package_setup_with_the_hook(srv):
+    port, tok = srv(public_url="https://vi.example.org")
+    st, hd, data = get(port, "/plugins/vi-mcp-setup.pyz")
+    assert st == 200 and hashlib.sha256(data).hexdigest() == hd["X-Content-SHA256"] and data.startswith(b"#!/usr/bin/env python3\n")
+    assert get(port, "/plugins/vi-mcp-setup.pyz")[2] == data  # deterministic
+    z = zipfile.ZipFile(io.BytesIO(data))
+    pkg = Path(plugins.__file__).parent
+    for m in plugins.SETUP_MODULES:  # the same code as `vi-mcp setup`, not a second implementation
+        assert z.read(f"vi_mcp/{m}") == (pkg / m).read_bytes()
+    assert z.read("hook/vi_hook.py") == HOOK.read_bytes()
+    assert "BASE = 'https://vi.example.org'" in z.read("__main__.py").decode()
+    assert tok.encode() not in data and not any(tok.encode() in z.read(n) for n in z.namelist())
+    assert hd["X-Content-SHA256"] in get(port, "/plugins")[2].decode()  # the index names the sha256 to check
+
+
+def test_the_installer_sets_up_codex_and_hermes_in_a_fresh_home(srv, tmp_path):
+    import subprocess
+    import sys
+    port, tok = srv()
+    pyz = tmp_path / "vi-mcp-setup.pyz"
+    pyz.write_bytes(get(port, "/plugins/vi-mcp-setup.pyz")[2])
+    home = tmp_path / "home"
+    (home / ".codex").mkdir(parents=True)
+    (home / ".hermes").mkdir()
+    (home / ".hermes/config.yaml").write_text("model: x\n")
+    env = {"HOME": str(home), "PATH": "/usr/bin:/bin", "NO_PROXY": "*", "no_proxy": "*"}
+    r = subprocess.run([sys.executable, str(pyz), "--codex", "--codex-hook", "--hermes", "--token-file", "-"], input=tok + "\n",
+                       capture_output=True, text=True, env=env, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
+    hook = home / ".local/share/vi-mcp/hook/vi_hook.py"
+    assert hook.read_bytes() == HOOK.read_bytes()
+    d = json.loads((home / ".codex/hooks.json").read_text())
+    assert f"python3 -I {hook} --codex" in d["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+    assert f"http://127.0.0.1:{port}/mcp" in (home / ".codex/config.toml").read_text()  # URL default from the server
+    assert str(hook) in (home / ".hermes/config.yaml").read_text() and "/hooks" in r.stdout
+    assert tok not in r.stdout + r.stderr and tok not in json.dumps(d)
+
+
+def test_the_hook_announces_its_client(monkeypatch):
+    h = importlib.util.module_from_spec(spec := importlib.util.spec_from_file_location("vi_hook_cn", HOOK))
+    spec.loader.exec_module(h)
+    for argv, name in ((["vi_hook.py"], "claude-code-hook"), (["vi_hook.py", "--codex"], "codex-hook"),
+                       (["vi_hook.py", "--hermes"], "hermes-hook")):
+        monkeypatch.setattr("sys.argv", argv)
+        assert h.client_name() == name
+    assert server.client_family(None, "codex-hook") == ("gpt", "client") and server.client_family(None, "hermes-hook") == (None, None)

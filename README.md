@@ -410,11 +410,11 @@ vi-mcp setup --hermes --uninstall
 | Program | File | Entry |
 |---|---|---|
 | Claude Code | `~/.claude.json`, hook in `~/.claude/settings.json` | `mcpServers.vi-mcp` |
-| Codex CLI | `~/.codex/config.toml` | `[mcp_servers.vi-mcp]` |
+| Codex CLI | `~/.codex/config.toml`, hook in `~/.codex/hooks.json` (0.71.0) | `[mcp_servers.vi-mcp]` |
 | Hermes Agent | `~/.hermes/config.yaml`, token in `~/.hermes/.env` | `mcp_servers.vi-mcp` |
 
-The Claude Code hook reports every action by itself; Hermes gets the prompt hook (knowledge before each question); Codex and other
-clients report what the model calls itself. Rate work
+The Claude Code hook and (0.71.0) the Codex hook report every action by themselves; Hermes gets the prompt hook (knowledge before
+each question); other clients report what the model calls itself. Rate work
 in your prompt: `#gut` (good), `#schlecht` (bad), `#note 0.8`; a prompt starting with "no", "wrong", "nein" or "falsch" counts as a
 correction. Your text never leaves the session, only the result does.
 
@@ -425,6 +425,17 @@ URL and token as plugin options (the token goes to Claude Code's secure credenti
 claude plugin marketplace add https://server/vi-mcp/plugins/claude/marketplace.json
 claude plugin install vi-mcp@vi-mcp                       # then /plugin → vi-mcp → configure: token
 ```
+
+**Codex CLI and Hermes Agent on another machine** get the same from the server as one installer — the setup of this package with the
+hook, nothing else (`--token-file -` reads the token from standard input, never from the command line):
+
+```bash
+curl -fsSO https://server/vi-mcp/plugins/vi-mcp-setup.pyz        # sha256 on https://server/vi-mcp/plugins
+python3 vi-mcp-setup.pyz --codex --codex-hook --hermes --token-file -
+```
+
+Codex runs a hook it did not get from an administrator only after you trusted it: open `/hooks` in Codex once. Hermes asks once for
+consent at its next start. On the server's own machine the same is `vi-mcp setup --codex --codex-hook`.
 
 `https://server/vi-mcp/plugins` lists what is served. These routes need no token by design: they serve only public code (the plugin and the hook of this version), never instance data, and no token is written into any of them; `"plugins": false` switches them off. Claude Code downloads the plugin archive only over https and not from a loopback
 address, so behind the reverse proxy set `"public_url": "https://server/vi-mcp"` in the configuration (`"plugins": false` switches the

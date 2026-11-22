@@ -426,11 +426,11 @@ vi-mcp setup --hermes --uninstall
 | Programm | Datei | Eintrag |
 |---|---|---|
 | Claude Code | `~/.claude.json`, Hook in `~/.claude/settings.json` | `mcpServers.vi-mcp` |
-| Codex CLI | `~/.codex/config.toml` | `[mcp_servers.vi-mcp]` |
+| Codex CLI | `~/.codex/config.toml`, hook in `~/.codex/hooks.json` (0.71.0) | `[mcp_servers.vi-mcp]` |
 | Hermes Agent | `~/.hermes/config.yaml`, Token in `~/.hermes/.env` | `mcp_servers.vi-mcp` |
 
-Der Claude-Code-Hook meldet jede Handlung von selbst; Hermes bekommt den Prompt-Hook (Wissen vor jeder Frage); Codex und andere Clients
-melden, was das Modell selbst aufruft. Arbeit bewertest du im Prompt: `#gut`, `#schlecht`, `#note 0.8`; ein Prompt, der mit „nein“,
+Der Claude-Code-Hook und (0.71.0) der Codex-Hook melden jede Handlung von selbst; Hermes bekommt den Prompt-Hook (Wissen vor jeder Frage);
+andere Clients melden, was das Modell selbst aufruft. Arbeit bewertest du im Prompt: `#gut`, `#schlecht`, `#note 0.8`; ein Prompt, der mit „nein“,
 „falsch“, „no“ oder „wrong“ beginnt, zählt als Korrektur. Dein Text verlässt die Sitzung nie, nur das Ergebnis.
 
 **Ein Client auf einem anderen Rechner** braucht kein Paket (0.71.0): Der Server liefert sein eigenes Claude-Code-Plugin aus — Hooks und die
@@ -440,6 +440,17 @@ MCP-Verbindung, URL und Token als Plugin-Optionen (das Token liegt im sicheren S
 claude plugin marketplace add https://server/vi-mcp/plugins/claude/marketplace.json
 claude plugin install vi-mcp@vi-mcp                       # danach /plugin → vi-mcp → configure: Token
 ```
+
+**Codex CLI und Hermes Agent auf einem anderen Rechner** bekommen dasselbe vom Server als einen Installer — das Setup dieses Pakets mit
+dem Hook, sonst nichts (`--token-file -` liest das Token von der Standardeingabe, nie von der Befehlszeile):
+
+```bash
+curl -fsSO https://server/vi-mcp/plugins/vi-mcp-setup.pyz        # sha256 auf https://server/vi-mcp/plugins
+python3 vi-mcp-setup.pyz --codex --codex-hook --hermes --token-file -
+```
+
+Codex führt einen Hook, der nicht von einem Administrator kommt, erst aus, wenn du ihm vertraust: einmal `/hooks` in Codex öffnen. Hermes
+fragt beim nächsten Start einmal nach Zustimmung. Auf dem Rechner des Servers ist dasselbe `vi-mcp setup --codex --codex-hook`.
 
 `https://server/vi-mcp/plugins` zeigt, was ausgeliefert wird. Diese Pfade brauchen absichtlich kein Token: Sie liefern nur öffentlichen Code (Plugin und Hook dieser Version), nie Daten einer Instanz, und in keine Datei wird ein Token geschrieben; `"plugins": false` schaltet sie ab. Claude Code lädt das Plugin-Archiv nur über https und nicht von einer
 Loopback-Adresse; hinter dem Reverse-Proxy deshalb `"public_url": "https://server/vi-mcp"` in die Konfiguration (`"plugins": false`

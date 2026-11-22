@@ -1154,9 +1154,10 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 | `VI_MCP_CONFIGURE_STATE` | Which configuration questions were answered (default `/etc/vi-mcp/configure.json`). |
 | `VI_MCP_EXPORT_KEY` | Ed25519 key that signs index files (`vi-mcp index export`, 0.62.0; default `export.key` in the network directory `/var/lib/vi-p2p`, made on the first export). |
 | `VI_MCP_EXTRA_PYTHON` | Directory with Python packages that the distribution lacks — clingo for the logic layer (`vi-mcp logic install`, 0.62.0; default `/var/lib/vi-mcp/python` as root, else `~/.local/share/vi-mcp/python`), appended to the import path after the system's packages. |
-| `VI_MCP_FEEDBACK_NUDGE` | Claude Code hook: `0` switches off the one feedback request at the end of a session (event `Stop`, 0.59.0). |
+| `VI_MCP_FEEDBACK_NUDGE` | Hook: `0` switches off the feedback request at `Stop` (0.59.0; since 0.71.0 once per round, per hinted action with its `before_id`). |
 | `VI_MCP_FIRST_TASK` | Claude Code hook: `0` switches off the first task after start, resume and context compaction — search the memory before working (event `SessionStart`, 0.70.12). |
 | `VI_MCP_FREIGABE_TOKEN_FILE` | Token file of `vi-mcp release` (the release right). |
+| `VI_MCP_HOOK_SCRIPT` | Setup: the hook file the client entries point at (0.71.0; the served installer `vi-mcp-setup.pyz` sets it to its copy under `~/.local/share/vi-mcp/hook`). |
 | `VI_MCP_KEIN_DIENST` | Tests and containers: `vi-mcp net …` does not start or stop systemd services. |
 | `VI_MCP_KEIN_MENUE` | Package installation without the interactive menu. |
 | `VI_MCP_KEIN_WIKI` | At installation: do not join the public wiki network (same as `VI_MCP_WIKI=false`). |
@@ -1184,7 +1185,7 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 | memory server | GET | `/health` | Health: `ok vi-mcp <version>`. Old name `/gesund` still answered. |
 | memory server | POST | `/signal` | User signals from the hook (correction, grade) — token of a human instance. Since 0.71.0 also `feedback_asked` (the hook asked the agent to label these actions, `before_ids`) — any instance, for its own session. |
 | memory server | GET | `/web` | Read-only web page of the free and open networks (config `web`). |
-| memory server | GET | `/plugins` | Client integration (0.71.0, config `plugins`): index, `/plugins/claude/marketplace.json`, `/plugins/claude/vi-mcp-<version>.zip` (sha256 in the marketplace), `/plugins/hook/vi_hook.py`. No token. |
+| memory server | GET | `/plugins` | Client integration (0.71.0, config `plugins`): index, `/plugins/claude/marketplace.json`, `/plugins/claude/vi-mcp-<version>.zip` (sha256 in the marketplace), `/plugins/vi-mcp-setup.pyz` (installer for Codex and Hermes: the package's setup with the hook), `/plugins/hook/vi_hook.py`. No token. |
 | network service | GET | `/netz/health` | Health and version (peers gate new entry types on it). Old name `/netz/gesund` still answered. |
 | network service | POST | `/netz/koepfe` | Exchange heads: the highest sequence number per publisher. |
 | network service | GET | `/netz/log/<pub>` | Entries of one publisher from `ab`, at most `max`. |

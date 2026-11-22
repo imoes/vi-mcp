@@ -16,6 +16,9 @@ Claude Code calls the script as a hook (event from stdin: `hook_event_name`):
                         fits the question goes to the model as context, for follow-up questions too; the server does not store
                         the prompt. Besides, detects locally a correction ("nein, …", "no, …") or a grade (#gut, #schlecht,
                         #note 0.8); only that result goes to /signal.
+Codex CLI (0.71.0) calls the same script with `--codex` from ~/.codex/hooks.json (vi-mcp setup --codex-hook): its events have Claude
+Code's shape (learn.chatgpt.com/docs/hooks); the conversation is announced as client codex-hook (family gpt). Codex has no
+PostToolUseFailure — a failed Bash arrives as PostToolUse and is reported as ok (named limit).
 Hermes Agent (0.44.0) calls the same script as a shell hook `pre_llm_call` with `--hermes`: payload {hook_event_name, session_id,
 cwd, extra: {user_message, …}} on stdin, answer {"context": …}. URL and token file come from ~/.config/vi-mcp/hook-hermes.json (Hermes runs hook
 commands without a shell, so no "VAR=value command").
@@ -251,10 +254,16 @@ def _post(req_body: dict | None, sid: str | None = None, method: str = "POST") -
         raise Outage(f"{URL}: {type(e).__name__}: {e}") from e
 
 
+def client_name() -> str:
+    """0.71.0: the client the conversation is announced as — the server derives the model family from it (server.KNOWN_CLIENT_FAMILIES).
+    Before, the Hermes hook announced itself as claude-code-hook and was counted as family claude."""
+    return "codex-hook" if "--codex" in sys.argv else "hermes-hook" if "--hermes" in sys.argv else "claude-code-hook"
+
+
 def _init_session(claude_session: str, cwd: str | None) -> str:
     st, header, a = _post({"jsonrpc": "2.0", "id": 1, "method": "initialize",
                          "params": {"protocolVersion": "2025-06-18", "capabilities": {},
-                                    "clientInfo": {"name": "claude-code-hook", "version": "1",
+                                    "clientInfo": {"name": client_name(), "version": "1",
                                                    "claude_session": claude_session, "cwd": cwd}}})
     sid = next((v for k, v in header.items() if k.lower() == "mcp-session-id"), None)
     if st != 200 or not sid:

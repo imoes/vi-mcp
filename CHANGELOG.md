@@ -48,8 +48,26 @@ Linked from [README.md](README.md).
     correction still human-only) and `tests/test_feedback_labels.py` (outcome-free `used`, `used=[]`, `before_id` required, no action of
     another instance, `feedback_asked` per experience, first ask kept).
 
+- **Codex and Hermes on another machine: the server serves one installer, and Codex gets the hook (`vi-mcp setup --codex-hook`).**
+  `GET /plugins/vi-mcp-setup.pyz` is a zipapp of the package's own setup (`vi_mcp/__init__.py`, `config.py`, `setup.py`, byte for
+  byte) with the hook — the same code as `vi-mcp setup`, not a second implementation; deterministic, its sha256 in a header and on
+  `/plugins`. It copies the hook to `~/.local/share/vi-mcp/hook/vi_hook.py` and takes the server's URL as default. The Codex hook goes
+  to `~/.codex/hooks.json` (`$CODEX_HOME`) in Claude Code's shape — PreToolUse/PostToolUse `*`, UserPromptSubmit, Stop, SessionStart,
+  SessionEnd (≤ 3 s), the hook with `--codex` (client `codex-hook`, family gpt), the Codex instance's token in a file (0600). Codex runs
+  it only after the user trusted it in `/hooks` (learn.chatgpt.com/docs/hooks: "Non-managed hooks must be reviewed and trusted before
+  they run"); setup says so.
+  - Verified 22.11.2026 12:09–12:10 UTC in a throw-away home against the local TLS test server: installer downloaded over https, sha256
+    equal to the header; `python3 vi-mcp-setup.pyz --codex --codex-hook --hermes --token-file -` wrote Codex MCP + hooks.json, Hermes
+    MCP + `pre_llm_call` hook, token files 0600; the installed Codex hook commands, run on Codex-shaped events, booked the action
+    (server log: client codex-hook, family gpt); the Hermes hook gave its context. A real Codex or Hermes model turn was not part of the
+    test (no login in the throw-away home).
+  - Tests: `tests/test_plugins.py` (installer = the package's setup byte for byte, deterministic, no token; sets up Codex and Hermes in
+    a fresh home, URL default from the server; client names), `tests/test_einrichten.py` (Codex hook leaves foreign hooks alone,
+    replaces its own, removes it, token file 0600; installer can name the hook file).
+
 ### What has changed
 
+- **The setup menu offers "Codex hook" when Codex is present (ticked like the Claude Code hook).**
 - **`vi_feedback` takes `used` (new, optional) and `/signal` takes `art: feedback_asked` (new).** Both are additions; no existing key
   of a request or a response changed.
 - **If the hook is installed twice (plugin and `vi-mcp setup --hook`), each event is handled once.** Claude Code runs both copies with
@@ -63,12 +81,17 @@ Linked from [README.md](README.md).
   request listed only old ids and skills and rarely reached its minimum. The ids now come from `zugriff.shown` of the `vi_before`
   answer (fallback `zugriff.gezeigt` of older servers). Evidence: `tests/test_hook.py::test_feedback_request_per_round_names_each_action`.
 
+- **The Hermes prompt hook announced itself as `claude-code-hook` and was counted as model family claude.** It is `hermes-hook` now (no
+  family from the name; Hermes runs any model). Seen in the server log of the test run (12:10 UTC, "client claude-code-hook … family
+  claude" for the Hermes hook); evidence `tests/test_plugins.py::test_the_hook_announces_its_client`.
+
 ### What is missing
 
+- Codex: a failed Bash command arrives as `PostToolUse` (Codex has no `PostToolUseFailure`) and is reported as ok; the Stop status
+  duty reads Claude Code's transcript format and stays silent for Codex.
 - The router does not read `data.declared` yet in production (its reader is on the router branch); the answer rate is measured only
   after a release.
 - The "Did one of these help…" line under the hints (0.49.0, A/B-tested) still asks for unbound `vi_feedback(helped, wrong)`.
-- Codex and Hermes: the hook file is served, but there is no served installer for them yet (blocks 2 and 3).
 - The plugin hook runs `python3`; a Windows client without `python3` on PATH is not covered.
 - Plugin and a local MCP entry `vi-mcp` side by side give the tools twice (`mcp__vi-mcp__…` and `mcp__plugin_vi-mcp_vi-mcp__…`).
 
