@@ -117,3 +117,11 @@ post hoc: actions whose agent reported `used=[…]` with ≥ 2 shown hints — t
 labeller at the same moment: 299 actions, 447 positive / 639 negative (12.–22.11.2026). It needs its own pre-registration
 (within-action ranking, conditional logit), and two caveats: "not reported as used" is weaker than "not used", and only actions with
 at least one used hint carry the field.
+
+## Note (22.11.2026 13:0x UTC) — the `before.warning` imbalance is a period effect, not a recording artefact
+
+Known fact 2 above named it a hypothesis: a recording artefact. Checked on the same copy, split by hold probability: at 0.05 warnings
+in 350/1,072 shown vs 18/62 held-back actions (0.326 vs 0.290); at 0.2 in 0/2,615 vs 0/699. Within each period the arms are balanced;
+the pooled 0.099 vs 0.025 comes from the held-back arm lying mostly in the 0.2 period, in which no risk warning was given at all
+(0 of 3,314 eligible actions since 16.11.2026) — the same Simpson structure as the hold-back difference. The hypothesis "recording
+artefact" is withdrawn. Why the risk warning stopped is not examined here (the router model is in test, not used).
