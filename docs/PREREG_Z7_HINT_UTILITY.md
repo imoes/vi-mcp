@@ -86,3 +86,34 @@ Until the user confirms, this document reports both and decides only H1–H4.
 
 One copy, two weeks of data, about 400 holdout pairs: wide intervals. Labels are not missing at random — agents give feedback and
 the judge runs on selected conversations. A replica (A2, A3) is not the production code; its deviations are listed above.
+
+## Results (run 2026-11-22 10:58 UTC on commit 0985a9e, unchanged script)
+
+1,379 labelled pairs; cutoff 2026-11-18T16:41; train 964 (588 positive), holdout 415 pairs / 206 actions / 89 hints (257 positive).
+Label sources: train feedback 375 / used 373 / judge 216; holdout used 233 / judge 162 / feedback 20.
+
+| model | holdout hint-label AUC | 95 % CI (cluster bootstrap, 2,000) | Δ vs A1, 95 % CI |
+|---|---|---|---|
+| A1 live order | 0.552 | 0.510–0.596 | — |
+| A2 bandit replica | 0.388 | 0.320–0.461 | −0.244 … −0.078 |
+| A3 outcome-router replica | 0.637 | 0.542–0.724 | −0.017 … +0.183 |
+| B Beta posterior (s = 1) | 0.811 | 0.750–0.865 | +0.189 … +0.324 |
+| C0 label logistic (C = 1) | 0.780 | 0.700–0.849 | +0.141 … +0.304 |
+| C1 label logistic + IPS (C = 1) | 0.776 | 0.696–0.846 | +0.138 … +0.301 |
+
+Chosen on the inner validation: C1 (0.962 vs C0 0.961, B 0.917). **H1 holds** (Δ +0.224, CI low +0.138), **H2 holds** (0.776 ≥ 0.65).
+H3: IPS changes nothing (0.776 vs 0.780). H4: the outcome-based bandit ranks hints *against* their labels (0.388); the outcome-router
+replica sits between. Within-action pairwise accuracy on 50 mixed pairs: A1 0.38, A2 0.42, A3 0.64, B 0.64, C0/C1 0.58.
+Recall@4 among logged candidates (mean 6.7): B 0.901, C0 0.902, C1 0.894 — no random baseline was pre-registered, so not interpretable.
+
+### Post-hoc check (not pre-registered) — the pass is a label-source artefact
+
+The label source decides the label almost alone: holdout `used` 233/233 positive, `judge` 16/162 positive, `feedback` 8/20.
+A predictor that knows only the share of a hint's training labels that came from `used` reaches **AUC 0.787** — as high as the models.
+Within one source: judge B 0.577, C0 0.528, source-only 0.559 (16 positives); feedback B 0.417, C0 0.229 (n = 20). Judge-only temporal
+split (one labeller, train 9 positives): B 0.607. So H1/H2 pass formally but measure which mechanism labels a hint, not its use.
+**Consequence for Z7:** "hint-label AUC" is only a valid criterion on a label from **one labeller with both classes**. Candidate found
+post hoc: actions whose agent reported `used=[…]` with ≥ 2 shown hints — the other shown hints are implicit negatives of the same
+labeller at the same moment: 299 actions, 447 positive / 639 negative (12.–22.11.2026). It needs its own pre-registration
+(within-action ranking, conditional logit), and two caveats: "not reported as used" is weaker than "not used", and only actions with
+at least one used hint carry the field.
