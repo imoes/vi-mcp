@@ -410,6 +410,7 @@ def tune_kr(args):
     out = {"k": k, "temperature": temp, "weight": best["weight"], "rag_k": rag_k,
            "source": {"amendment": "PREREG_Z11_A2.md", "criterion": "validation NLL with BM25 top-3 documents in the prompt",
                       "validation_rows": len(val), "tokens": int(len(pb)), "curve": curve, "store_revision": mem.revision,
+                      "threads": int(os.environ.get("OMP_NUM_THREADS", "4")),
                       "seconds": round(time.time() - t0)},
            "frozen_utc": time.strftime("%Y-%m-%dT%H:%MZ", time.gmtime())}
     path = DATA / "frozen_params_A2.json"

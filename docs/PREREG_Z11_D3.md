@@ -33,6 +33,15 @@ on the 60 probe questions) also run on this host.
   the primary answers from the workstation (4 threads), including the 3 that reached the budget. The nearest document is also the same.
 - `tune_kr` ran on 2 validation rows in a separate directory as a smoke test. Its output was discarded.
 
+## Addendum (22:09–22:15 UTC, before any amendment-2 number)
+
+`tune_kr` first started alongside the answer shards with 4 threads. It was stopped at 22:09 UTC after 1 of 374 rows, and nothing was
+frozen. The reasons were the measured 37 s per row (about 3.8 h) and the memory peak of 54.7 of 59.6 GB. It reruns only after every
+answer shard has finished, with the thread count recorded in `frozen_params_A2.json` (`source.threads`). A different thread count can
+change floating-point sums. The weight is frozen before any KR\* answer exists, so it is a documented setting, not a change of a frozen
+value. KR\* answers the 60 probe questions in shards, like the answer runs. If the 04:00 UTC cost cap comes first, A2 is reported as
+incomplete.
+
 ## Limit
 
 Identity is shown on 9 answers, not on all of them. If any secondary answer is later compared across hosts, a difference is reported
