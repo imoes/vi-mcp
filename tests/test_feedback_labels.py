@@ -166,7 +166,7 @@ def test_off_arm_hides_the_request_and_records_the_arm(gd, monkeypatch):
         s = session.begin("a", f"t-{arm}")
         with session.on_behalf(s):
             v = intuition.before("Bash", {"command": "uptime"}, "a", False)
-        asked = any("vi_feedback(helped=[ids], wrong=[ids])" in h for h in v["hinweise"])
+        asked = any(f'vi_feedback(before_id="{v["vorher_id"]}", used=[' in h for h in v["hinweise"])  # Z7: bound to this action
         assert asked == (arm == "on") and v["zugriff"]["nudge"] == arm
 
 

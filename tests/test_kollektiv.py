@@ -221,9 +221,11 @@ def test_reinforcement_only_on_success(gd):
 def test_hint_budget(gd):
     for i in range(7):
         g.new_object("insight", f"Hinweis {i} zu web3", ["host:web3"], {"source": "x"}, reason="T")
-    h = intuition.before("Bash", {"host": "web3"}, "a", False)["hinweise"]
+    v = intuition.before("Bash", {"host": "web3"}, "a", False)
+    h = v["hinweise"]
     assert len(h) == intuition.HINT_BUDGET + 2 and h[-1].startswith("… 3 more hits") and "vi_drilldown" in h[-1]
     assert h[-2].startswith("Did one of these help or mislead you?")  # 0.49.0: the feedback nudge
+    assert f'vi_feedback(before_id="{v["vorher_id"]}", used=[' in h[-2] and "helped=" not in h[-2]  # Z7: bound to this action
 
 
 def test_history_truncation_is_named(gd):

@@ -104,6 +104,14 @@ Linked from [README.md](README.md).
   `data.used` is still recorded and counted in `vi_stats`. Verified: `tests/test_label.py` (the adoption test now expects the ok label;
   a positive weight brings the branch back).
 
+- **The feedback request under the hints names this action.** It read `vi_feedback(helped=[ids], wrong=[ids])`, which booked on
+  the latest matching action within an hour; it now reads `vi_feedback(before_id="<this vorher_id>", used=[…], wrong=[…])` — the
+  per-action, outcome-free label (`data.declared`) of the feedback hook (branch plugins) and of `use_rate.py`. The A/B arm of the
+  request (`nudge`, 0.68.0) is unchanged: "off" still means no line. Verified: `tests/test_kollektiv.py::test_hint_budget` checks the
+  line carries the returned `vorher_id`. Needs the `used` parameter of `vi_feedback` from the plugins branch (merged in the release
+  candidate). The rules every client receives (`tools.RULES`, core and full text) now ask for the same bound call; the core stays within
+  Claude Code's 4,096-character cut (`tests/test_instructions_budget.py`).
+
 ### What was fixed
 
 - **The hook's feedback request saw no hint id coined after 0.67.0.** It parsed ids out of the hint text with a pattern for the German
@@ -128,7 +136,6 @@ Linked from [README.md](README.md).
   duty reads Claude Code's transcript format and stays silent for Codex.
 - The router does not read `data.declared` yet in production (its reader is on the router branch); the answer rate is measured only
   after a release.
-- The "Did one of these help…" line under the hints (0.49.0, A/B-tested) still asks for unbound `vi_feedback(helped, wrong)`.
 - The plugin hook runs `python3`; a Windows client without `python3` on PATH is not covered.
 - Plugin and a local MCP entry `vi-mcp` side by side give the tools twice (`mcp__vi-mcp__…` and `mcp__plugin_vi-mcp_vi-mcp__…`).
 - **No valid hint-use label exists in production yet.** The implicit `data.used` (`genutzt`, `intuition.adopted`, token reuse) failed a
