@@ -463,7 +463,9 @@ def nll(args):
     """Secondary metric: teacher-forced NLL of the 60 probe reference answers per arm (B, L, K, R, KR)."""
     core = load_core()
     params = json.load(open(DATA / "frozen_params.json"))
-    refs = {r["id"]: r["reference"] for r in jl(DATA / "judged/references_probe.jsonl")}
+    # The judge's reference is "answer\n\n--- document ---\n<document>"; the NLL is of the reference ANSWER only (PREREG).
+    refs = {r["id"]: r["reference"].split("\n\n--- document ---\n", 1)[0].strip()
+            for r in jl(DATA / "judged/references_probe.jsonl")}
     qs = probe_questions()
     mem = Memory(DATA / "store_qa", identity=core.identity)
     bm25 = load_bm25()
