@@ -29,7 +29,7 @@ from pathlib import Path
 
 from . import __version__
 from . import memory as g
-from . import anonymize, index, on_demand, intuition, config, reflexes, main_loop, scorer, self_model, session, usage_stats, tools
+from . import anonymize, index, on_demand, intuition, config, plugins, reflexes, main_loop, scorer, self_model, session, usage_stats, tools
 from .log_output import log
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -308,10 +308,24 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
         elif self.k.web_internal and (self.path == "/intern" or self.path.startswith(("/intern/", "/intern?"))):  # 0.62.0
             self._internal("GET", b"")
+        elif self.k.plugins and (self.path == plugins.ROUTE or self.path.startswith((plugins.ROUTE + "/", plugins.ROUTE + "?"))):
+            try:  # 0.71.0: the client integration (hooks, Claude Code plugin) — public files, the token is never read here
+                code, ctype, data, header = plugins.handle(self.path, self.k.public_url, self.headers)
+            except Exception as ex:  # noqa: BLE001 — a missing hook file must not take the server down
+                log(f"plugins {self.path.split('?')[0]}: {type(ex).__name__}: {ex}")
+                code, ctype, data, header = 500, "text/plain; charset=utf-8", b"internal error (named in the server log)", {}
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            for hk, hv in header.items():
+                self.send_header(hk, hv)
+            self.end_headers()
+            self.wfile.write(data)
         elif self.path.rstrip("/") == "/mcp":
             self._send(405, "GET is not supported: the server sends nothing on its own", {"Allow": "POST, DELETE"})
         else:
-            self._send(404, "only /mcp, /health" + (" and /web" if self.k.web else "") + (" and /intern" if self.k.web_internal else ""))
+            self._send(404, "only /mcp, /health" + (" and /web" if self.k.web else "") + (" and /intern" if self.k.web_internal else "")
+                       + (" and /plugins" if self.k.plugins else ""))
 
     def _internal(self, method: str, body: bytes) -> None:
         """0.62.0: the internal knowledge search (web_internal.py) — its own sign-in, never the bearer token of /mcp."""

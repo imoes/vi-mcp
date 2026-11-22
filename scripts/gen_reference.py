@@ -48,6 +48,8 @@ CONFIG_KEYS = {
     "web_base": ("`/web`", "[`web_basis`] Path the browser sees behind the reverse proxy, e.g. `/vi-mcp/web`."),
     "web_internal": ("`false`", "Internal knowledge search in the browser under `/intern` (0.62.0): sign-in with a VI token, shared and internal knowledge, never private."),
     "web_internal_base": ("`/intern`", "Path of the internal search as the browser sees it, e.g. `/vi-mcp/intern`; it scopes the session cookie."),
+    "plugins": ("`true`", "Serve the client integration under `/plugins` (0.71.0): Claude Code marketplace and plugin archive, the hook file. Nothing served there is secret."),
+    "public_url": ("from the request", "The URL clients see in front of `/plugins` and `/mcp`, e.g. `https://host/vi-mcp` behind the reverse proxy (0.71.0). Claude Code takes the plugin archive only over https."),
 }
 
 #: /etc/vi-p2p/<network>.json — the network service; in brackets the German keys of files before 0.51.0
@@ -118,6 +120,7 @@ ENDPOINTS = [
     ("memory server", "GET", "/health", "Health: `ok vi-mcp <version>`. Old name `/gesund` still answered."),
     ("memory server", "POST", "/signal", "User signals from the hook (correction, grade) — token of a human instance."),
     ("memory server", "GET", "/web", "Read-only web page of the free and open networks (config `web`)."),
+    ("memory server", "GET", "/plugins", "Client integration (0.71.0, config `plugins`): index, `/plugins/claude/marketplace.json`, `/plugins/claude/vi-mcp-<version>.zip` (sha256 in the marketplace), `/plugins/hook/vi_hook.py`. No token."),
     ("network service", "GET", "/netz/health", "Health and version (peers gate new entry types on it). Old name `/netz/gesund` still answered."),
     ("network service", "POST", "/netz/koepfe", "Exchange heads: the highest sequence number per publisher."),
     ("network service", "GET", "/netz/log/<pub>", "Entries of one publisher from `ab`, at most `max`."),

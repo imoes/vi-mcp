@@ -62,9 +62,21 @@ def _hook_config() -> None:
     _hook_config_claude()
 
 
+#: 0.71.0: run as the Claude Code plugin the server serves (vi_mcp/plugins.py) — URL and token are plugin options, which Claude Code
+#: hands every hook process as CLAUDE_PLUGIN_OPTION_<KEY> (code.claude.com/docs/en/plugins/manifest-reference, "User configuration");
+#: the token is kept in the client's secure credential store, never in a file of the plugin
+PLUGIN_TOKEN: str | None = None
+
+
 def _hook_config_claude() -> None:
     """0.27.0: without VI_MCP_URL in the environment, take URL and token files from ~/.config/vi-mcp/hook.json (written by vi-mcp setup on
-    Windows, where cmd.exe knows no "VAR=value command"). The environment always wins; an empty token file means: no token."""
+    Windows, where cmd.exe knows no "VAR=value command"). The environment always wins; an empty token file means: no token.
+    0.71.0: inside the plugin (CLAUDE_PLUGIN_ROOT with option url) the plugin options come first."""
+    global PLUGIN_TOKEN
+    if os.environ.get("CLAUDE_PLUGIN_ROOT") and os.environ.get("CLAUDE_PLUGIN_OPTION_URL"):
+        os.environ["VI_MCP_URL"] = os.environ["CLAUDE_PLUGIN_OPTION_URL"]
+        PLUGIN_TOKEN = os.environ.get("CLAUDE_PLUGIN_OPTION_TOKEN", "").strip()
+        return
     if "VI_MCP_URL" in os.environ:
         return
     try:
@@ -183,9 +195,35 @@ def remove_entry(kind: str, key_: str) -> None:
         pass
 
 
+#: 0.71.0: the served plugin and a local `vi-mcp setup --hook` may both be installed — Claude Code then runs both, with the same event on
+#: stdin. The first copy to claim the event handles it; the second does nothing (no doubled experiences). Claims expire after CLAIM_S.
+CLAIM_S = 120
+
+
+def claim(raw: bytes) -> bool:
+    """True when this process is the first to see exactly this event within CLAIM_S seconds."""
+    import hashlib
+    d = STATE / "claim"
+    d.mkdir(mode=0o700, parents=True, exist_ok=True)
+    now = time.time()
+    try:
+        for old in d.iterdir():
+            if now - old.stat().st_mtime > CLAIM_S:
+                old.unlink(missing_ok=True)
+    except OSError:
+        pass
+    try:
+        os.close(os.open(d / hashlib.sha256(raw).hexdigest()[:32], os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+        return True
+    except FileExistsError:
+        return False
+
+
 # ── MCP over HTTP ─────────────────────────────────────────────────────────────
 
 def _token() -> str | None:
+    if PLUGIN_TOKEN is not None:  # 0.71.0: the plugin option; empty = an open server
+        return PLUGIN_TOKEN or None
     if "VI_MCP_TOKEN_FILE" not in os.environ and not TOKEN_FILE.exists():
         return None  # access without a token
     try:
@@ -535,11 +573,17 @@ def process(e: dict) -> dict | None:
 
 
 def main() -> int:
+    raw = sys.stdin.buffer.read() if hasattr(sys.stdin, "buffer") else sys.stdin.read().encode()
     try:
-        e = json.load(sys.stdin)
-    except json.JSONDecodeError as ex:
+        e = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as ex:
         log_output(f"no JSON on stdin: {ex}")
         return 0
+    try:
+        if not claim(raw):  # 0.71.0: a second installed copy of this hook got the same event — the first one handles it
+            return 0
+    except OSError as ex:  # no state directory: rather report twice than not at all
+        log_output(f"claim: {ex}")
     try:
         outputs = hermes(e) if "--hermes" in sys.argv else process(e)
     except Outage as ex:

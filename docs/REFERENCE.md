@@ -1074,6 +1074,8 @@ options:
 | `web_base` | `/web` | [`web_basis`] Path the browser sees behind the reverse proxy, e.g. `/vi-mcp/web`. |
 | `web_internal` | `false` | Internal knowledge search in the browser under `/intern` (0.62.0): sign-in with a VI token, shared and internal knowledge, never private. |
 | `web_internal_base` | `/intern` | Path of the internal search as the browser sees it, e.g. `/vi-mcp/intern`; it scopes the session cookie. |
+| `plugins` | `true` | Serve the client integration under `/plugins` (0.71.0): Claude Code marketplace and plugin archive, the hook file. Nothing served there is secret. |
+| `public_url` | from the request | The URL clients see in front of `/plugins` and `/mcp`, e.g. `https://host/vi-mcp` behind the reverse proxy (0.71.0). Claude Code takes the plugin archive only over https. |
 
 ## Network service configuration (`/etc/vi-p2p/<network>.json`)
 
@@ -1181,6 +1183,7 @@ Besides the `VI_MCP_<KEY>` of the configuration catalogue above.
 | memory server | GET | `/health` | Health: `ok vi-mcp <version>`. Old name `/gesund` still answered. |
 | memory server | POST | `/signal` | User signals from the hook (correction, grade) — token of a human instance. |
 | memory server | GET | `/web` | Read-only web page of the free and open networks (config `web`). |
+| memory server | GET | `/plugins` | Client integration (0.71.0, config `plugins`): index, `/plugins/claude/marketplace.json`, `/plugins/claude/vi-mcp-<version>.zip` (sha256 in the marketplace), `/plugins/hook/vi_hook.py`. No token. |
 | network service | GET | `/netz/health` | Health and version (peers gate new entry types on it). Old name `/netz/gesund` still answered. |
 | network service | POST | `/netz/koepfe` | Exchange heads: the highest sequence number per publisher. |
 | network service | GET | `/netz/log/<pub>` | Entries of one publisher from `ab`, at most `max`. |
@@ -1265,6 +1268,7 @@ First line of each module's docstring.
 | `philosophy` | vi-mcp side of philosophy packages (0.66.0): the command line, installing a checked package into the VI, the tool vi_philosophy. |
 | `philosophy_fit` | Which philosophy fits which situation (0.69.6) — declared by the package, learned from rated use. |
 | `philosophy_provenance` | Provenance adapter: the evidence about a knowledge object as input facts of kollektiv 1.3.0 — shadow mode only (0.67.0). |
+| `plugins` | 0.71.0: the server serves its own client integration — a client that knows only the server's URL and a token installs the hooks. |
 | `qa_pairs` | Grounded question-answer pairs for knowledge — the training form of a VI's knowledge (0.65.0). |
 | `qualify` | Qualification on access (0.69.2): an object that is searched for or read and whose hashtags are incomplete is completed at that |
 | `query_adapter` | Query adapter (0.68.0) — learned embedding weights by scikit-learn instead of fine-tuning the embedding model. |

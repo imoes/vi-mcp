@@ -3,6 +3,45 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## Unreleased (0.71.0)
+
+### What is new
+
+- **A client on another machine installs the hooks from the server itself — the server serves its own Claude Code plugin.** Before,
+  the hooks came only from the local package (`vi-mcp setup` → `/usr/share/vi-mcp/hook/vi_hook.py`); a client elsewhere needed the
+  package or a checkout. An MCP server cannot install hooks, so the vehicle is a client plugin (user decision 22.11.2026, design
+  `insight:848cb1f6`). New routes, GET without a token (nothing served is secret):
+  - `/plugins` — index with the install commands;
+  - `/plugins/claude/marketplace.json` — a Claude Code marketplace whose plugin source is an archive with its sha256;
+  - `/plugins/claude/vi-mcp-<version>.zip` — the plugin: `userConfig` url and token (`sensitive`), `.mcp.json` (http server,
+    `Authorization: Bearer ${user_config.token}`), `hooks/hooks.json` (the same seven events as `vi-mcp setup --hook`), `hook/vi_hook.py`.
+    Built deterministically (fixed timestamps), so the sha256 stays valid between requests;
+  - `/plugins/hook/vi_hook.py` — the hook alone (standard library only).
+  Config: `public_url` (the URL clients see; Claude Code takes the archive only over https and not from loopback), `plugins: false`
+  switches the routes off. The hook reads URL and token from the plugin options (`CLAUDE_PLUGIN_OPTION_URL/_TOKEN`).
+  - Verified end to end on 22.11.2026 11:27–11:28 UTC with Claude Code 2.1.329 in an isolated `CLAUDE_CONFIG_DIR` against a local test
+    server behind TLS: `claude plugin marketplace add https://…/plugins/claude/marketplace.json` → added; `claude plugin install
+    vi-mcp@vi-mcp --config url=…` → installed; token via `claude plugin configure --values-stdin` → stored only in the credential
+    file (0600); `claude mcp list` → `plugin:vi-mcp:vi-mcp … ✔ Connected` (server log: session of instance e2e — the token from the
+    option reached the header); the installed hook commands, run as Claude Code runs them, booked the action as an experience of that
+    instance. The token was in no served file, URL, server log or hook log. The model run itself was not part of the test (the
+    isolated configuration has no login).
+  - Tests: `tests/test_plugins.py` (marketplace ↔ archive sha256, archive contents and options, deterministic bytes, no token in any
+    served file or URL, URLs from `public_url` or forwarded headers, a bad Host refused, switched off → 404, the hook takes URL and token
+    from the plugin options, the token not in the hook log, a second installed copy of the hook does not report twice).
+
+### What has changed
+
+- **If the hook is installed twice (plugin and `vi-mcp setup --hook`), each event is handled once.** Claude Code runs both copies with
+  the same event; the first claims it (a claim file per event digest, 120 s), the second does nothing. Before, every action would
+  have been reported twice. Evidence: `tests/test_plugins.py::test_a_second_installed_copy_of_the_hook_does_not_report_twice`.
+
+### What is missing
+
+- Codex and Hermes: the hook file is served, but there is no served installer for them yet (blocks 2 and 3).
+- The plugin hook runs `python3`; a Windows client without `python3` on PATH is not covered.
+- Plugin and a local MCP entry `vi-mcp` side by side give the tools twice (`mcp__vi-mcp__…` and `mcp__plugin_vi-mcp_vi-mcp__…`).
+
 ## 0.70.12 — 2026-11-20
 
 ### What is new

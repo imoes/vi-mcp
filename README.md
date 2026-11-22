@@ -418,6 +418,18 @@ clients report what the model calls itself. Rate work
 in your prompt: `#gut` (good), `#schlecht` (bad), `#note 0.8`; a prompt starting with "no", "wrong", "nein" or "falsch" counts as a
 correction. Your text never leaves the session, only the result does.
 
+**A client on another machine** needs no package (0.71.0): the server serves its own Claude Code plugin — hooks plus the MCP connection,
+URL and token as plugin options (the token goes to Claude Code's secure credential store, never into a file or a URL):
+
+```bash
+claude plugin marketplace add https://server/vi-mcp/plugins/claude/marketplace.json
+claude plugin install vi-mcp@vi-mcp                       # then /plugin → vi-mcp → configure: token
+```
+
+`https://server/vi-mcp/plugins` lists what is served. Claude Code downloads the plugin archive only over https and not from a loopback
+address, so behind the reverse proxy set `"public_url": "https://server/vi-mcp"` in the configuration (`"plugins": false` switches the
+routes off). Use the plugin or `vi-mcp setup --hook`, not both — if both are installed, the hook handles each event once.
+
 A new instance by hand: `sudo vi-mcp instance NAME [--reflexes] [--human]`, then restart the service; the token is shown once.
 **Over stdio without a token** (on the server host, Linux): the service also listens on a local socket and the kernel tells it which
 user connects — `sudo vi-mcp local anna anna`, then `claude mcp add vi-mcp -- vi-mcp stdio`.

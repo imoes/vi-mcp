@@ -433,6 +433,18 @@ Der Claude-Code-Hook meldet jede Handlung von selbst; Hermes bekommt den Prompt-
 melden, was das Modell selbst aufruft. Arbeit bewertest du im Prompt: `#gut`, `#schlecht`, `#note 0.8`; ein Prompt, der mit „nein“,
 „falsch“, „no“ oder „wrong“ beginnt, zählt als Korrektur. Dein Text verlässt die Sitzung nie, nur das Ergebnis.
 
+**Ein Client auf einem anderen Rechner** braucht kein Paket (0.71.0): Der Server liefert sein eigenes Claude-Code-Plugin aus — Hooks und die
+MCP-Verbindung, URL und Token als Plugin-Optionen (das Token liegt im sicheren Speicher von Claude Code, nie in einer Datei oder URL):
+
+```bash
+claude plugin marketplace add https://server/vi-mcp/plugins/claude/marketplace.json
+claude plugin install vi-mcp@vi-mcp                       # danach /plugin → vi-mcp → configure: Token
+```
+
+`https://server/vi-mcp/plugins` zeigt, was ausgeliefert wird. Claude Code lädt das Plugin-Archiv nur über https und nicht von einer
+Loopback-Adresse; hinter dem Reverse-Proxy deshalb `"public_url": "https://server/vi-mcp"` in die Konfiguration (`"plugins": false`
+schaltet die Pfade ab). Plugin oder `vi-mcp setup --hook`, nicht beides — sind beide installiert, bearbeitet der Hook jedes Ereignis einmal.
+
 Eine neue Instanz von Hand: `sudo vi-mcp instance NAME [--reflexes] [--human]`, dann den Dienst neu starten; das Token wird einmal
 gezeigt. **Über stdio ohne Token** (auf dem Server-Rechner, Linux): Der Dienst lauscht auch auf einem lokalen Socket, und der Kernel sagt
 ihm, welcher Benutzer sich verbindet — `sudo vi-mcp local anna anna`, dann `claude mcp add vi-mcp -- vi-mcp stdio`.

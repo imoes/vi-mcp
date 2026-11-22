@@ -12,6 +12,8 @@ Path: $VI_MCP_CONFIG or ~/.config/vi-mcp/config.json. Content:
     "hold_back": 0.05,                                     share of actions whose hints are held back at random (0.61.0; 0 = off)
     "feedback_nudge_off": 0.2,                             share of conversations without the feedback request under the hints — its A/B test (0.68.0; 0 = always ask)
     "llm":   {"url": "https://host/qwen/v1/chat/completions", "token": "", "model": ""}  optional (stage 4, during sleep)
+    "plugins": true,                                       serve the client integration under /plugins (0.71.0; false = 404)
+    "public_url": "https://host/vi-mcp"                    optional: the URL clients see in front of /plugins and /mcp (0.71.0)
   }
 Keys are English since 0.51.0; the German keys of older files (instanzen, offen, …, see normalize) are still read, and every write stores
 English.
@@ -174,6 +176,10 @@ class Config:
     #: path the browser sees, e.g. /vi-mcp/intern behind the reverse proxy (it scopes the session cookie)
     web_internal: bool = False
     web_internal_base: str = "/intern"
+    #: 0.71.0: the server serves its own client integration under /plugins (plugins.py; on by default — nothing there is secret) and
+    #: the URL clients see in front of /plugins and /mcp (e.g. https://host/vi-mcp behind the reverse proxy; None = from the request)
+    plugins: bool = True
+    public_url: str | None = None
 
     def instance_for(self, token: str | None) -> Instance | None:
         """Instance for the bearer token, or None. Constant-time comparison across all instances."""
@@ -223,6 +229,8 @@ def load(p: Path | None = None) -> Config:
     k.web_base = "/" + str(raw.get("web_base") or "/web").strip("/")
     k.web_internal = bool(raw.get("web_internal", False))
     k.web_internal_base = "/" + str(raw.get("web_internal_base") or "/intern").strip("/")
+    k.plugins = bool(raw.get("plugins", True))
+    k.public_url = (str(raw.get("public_url") or "").strip().rstrip("/") or None)
     for n, d in (raw.get("instances") or {}).items():
         k.instances[n] = Instance(n, d["token_sha256"], bool(d.get("reflexes", False)), bool(d.get("release", False)), bool(d.get("human", False)),
                                   (d.get("family") or None), bool(d.get("import", False)))
