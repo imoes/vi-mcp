@@ -130,7 +130,7 @@ def test_feedback_request_per_round_names_each_action(h, monkeypatch):
     h.process(ev("PostToolUse", "f1", tool_name="Glob", tool_input={"pattern": "*"}, tool_use_id="fb2", tool_response="x"))
     r = h.process(ev("Stop", "f1"))
     assert r["decision"] == "block" and f"before_id {bid}" in r["reason"] and k.id in r["reason"] and "Glob" not in r["reason"]
-    assert "used=[]" in r["reason"] and "helped" not in r["reason"]
+    assert "used=[]" in r["reason"] and "reconnect" in r["reason"] and "do not put used ids into helped" in r["reason"]
     e = intuition.experience_for_before("laptop", bid)
     assert e.data.get("feedback_asked")  # the server knows it asked
     assert h.process(ev("Stop", "f1")) is None  # once per round

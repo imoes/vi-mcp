@@ -3,6 +3,25 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## Unreleased (0.71.1)
+
+### What has changed
+
+- **The hook's feedback request tells a session whose tool list predates 0.71.0 to reconnect.** After the deploy of 0.71.0
+  (22.11.2026 13:40 UTC) a session that had connected before kept the old `vi_feedback` schema (`before_id`, `helped`, `wrong`, `note` —
+  no `used`; seen by the coordinating session at 13:4x UTC) while the request asks for `used`. The request now says: no `used`
+  parameter → reconnect the vi-mcp server, and do not put used ids into `helped`. Evidence: `tests/test_hook.py`
+  (`test_feedback_request_per_round_names_each_action` checks the hint).
+
+### What is missing
+
+- **`helped` with a `before_id` is not turned into a use label — on purpose.** "helped" is narrower than "used" (a hint can be followed
+  without helping), and mapping it would mark used-but-unhelpful hints as unused and mix two label definitions (the label-source
+  artefact of `insight:7141b44e`). Such answers stay identifiable: an experience with `data.feedback_asked` and `data.feedback` but
+  without `data.declared` was answered through the old schema — count them separately when measuring the answer rate.
+- The footer under the hints (`intuition.before`) names `used` too and gets no reconnect hint (router work's decision, 22.11.2026:
+  the stale schema ends with reconnects, while the text would cost characters in every hinted action).
+
 ## 0.71.0 — 2026-11-22
 
 ### What is new

@@ -392,7 +392,9 @@ def feedback_request(e: dict) -> dict | None:
     return {"decision": "block", "reason": (
         "Before you finish: label the VI hints of this round, one call per action below. used = the shown ids you actually followed or "
         "cited; [] = none of them (that is a valid answer); wrong = ids that misled you. Shown ids you do not name count as not used — "
-        f"do not list ids you did not use. Example: vi_feedback(before_id=\"{first}\", used=[], wrong=[])\n" + "\n".join(lines))}
+        f"do not list ids you did not use. Example: vi_feedback(before_id=\"{first}\", used=[], wrong=[]). If your vi_feedback has no "
+        "`used` parameter, your connection to vi-mcp predates 0.71.0: reconnect the vi-mcp server (e.g. /mcp → reconnect) and call it "
+        "then; do not put used ids into helped.\n" + "\n".join(lines))}
 
 
 # 0.70.12 (user decision 20.11.2026): the hints above are passive — after a context compaction the agent forgot to SEARCH the
