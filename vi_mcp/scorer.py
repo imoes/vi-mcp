@@ -274,7 +274,10 @@ def calibration(scorer: str = "model") -> dict:
 #: 0.55.0: the weight of a label by its source (scikit-learn sample_weight). A human grade outweighs everything; direct feedback on a
 #: hint is a direct statement; code-stage and ok tag are the plentiful base. An uncalibrated model grade counts a little instead of not
 #: at all (human grades are optional — the user, 12.11.2026); its certainty scales it.
-WEIGHT = {"human": 3.0, "rueckmeldung": 2.0, "genutzt": 1.5, "model": 1.0, "agent": 1.0, "judge": 1.0, "code": 1.0, "ok": 1.0}
+#: genutzt 0.0 (user decision 22.11.2026): the implicit adoption heuristic (intuition.adopted) failed a pre-registered placebo check — hints
+#: held back at random, never seen by the agent, were "adopted" as often as shown ones (risk ratio 0.79, 95 % CI 0.62–1.03, production
+#: copy 22.11.2026, docs/PREREG_Z7B_WITHIN_ACTION.md). At weight 0 the branch is skipped in label(); data.used is still recorded.
+WEIGHT = {"human": 3.0, "rueckmeldung": 2.0, "genutzt": 0.0, "model": 1.0, "agent": 1.0, "judge": 1.0, "code": 1.0, "ok": 1.0}
 CERTAINTY = {"low": 0.3, "medium": 0.6, "high": 1.0}
 UNCALIBRATED = 0.3
 
@@ -304,7 +307,9 @@ def label(data: dict, ok_tag: bool | None, serial: str | None, grades: dict[str,
     """0.55.0: THE label of an action (or of one shown hint of it) — one definition for router, bandit and metrics (before, the bandit
     and the metrics ignored conversation grades and direct feedback, ARCHITECTURE "the grade"). Order, first that applies:
       rueckmeldung  direct feedback on this hint (vi_feedback / vi_confirm / vi_refute)
-      genutzt       0.59.0: the agent took a distinctive token of the hint into a later successful action (implicit, intuition.adopted)
+      genutzt       0.59.0: the agent took a distinctive token of the hint into a later successful action (implicit, intuition.adopted);
+                    skipped while WEIGHT["genutzt"] is 0 (22.11.2026: failed its placebo check) — a zero-weight label would hide the
+                    pair's other labels and still count as 1 where counters ignore the weight
       judge         0.68.0: a language model judged from the actions that the hint was used (after a success → 1) or misleading (→ 0);
                     weight grades["_judge"] (small until calibrated, hint_judge.weight); not_used is no label
       mensch/modell a bad conversation grade (< BAD_BELOW) makes every action of it a failure, weighted by the grade's source
@@ -314,7 +319,7 @@ def label(data: dict, ok_tag: bool | None, serial: str | None, grades: dict[str,
     rm = (data.get("feedback") or {}) if hint else {}
     if hint in rm:
         return (1 if rm[hint] > 0 else 0), WEIGHT["rueckmeldung"], "rueckmeldung"
-    if hint and hint in (data.get("used") or []):  # 0.59.0: the agent took a command/path/option of it over into a successful action
+    if hint and WEIGHT["genutzt"] > 0 and hint in (data.get("used") or []):  # 0.59.0: the agent took a command/path/option of it over
         return 1, WEIGHT["genutzt"], "genutzt"
     verdict = ((data.get("judge") or {}).get("hints") or {}).get(hint) if hint else None
     if verdict == "misleading" or (verdict == "used" and ok_tag):  # 0.68.0: hint_judge; data without "judge" is labelled as before

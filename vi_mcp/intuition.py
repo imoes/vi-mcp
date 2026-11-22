@@ -724,8 +724,9 @@ def _hint_tokens(hid: str) -> frozenset:
 
 def adopted(o: g.MemoryObject) -> list[str]:
     """0.59.0: the implicit feedback of a successful action — which hints shown before one of the previous ADOPT_WINDOW actions of this
-    conversation it took a distinctive token from. Marks them on that earlier experience as `genutzt` (scorer.label: a positive label
-    for the pair, weight WEIGHT["genutzt"]). Returns the hint ids."""
+    conversation it took a distinctive token from. Marks them on that earlier experience as `genutzt` (stored as `used`). It is no label
+    since 22.11.2026 (scorer.WEIGHT["genutzt"] = 0: held-back hints were "adopted" as often as shown ones — a placebo check, docs/
+    PREREG_Z7B_WITHIN_ACTION.md); still recorded and counted in vi_stats. Returns the hint ids."""
     if not o.conversation or "ok:yes" not in o.hashtags:
         return []
     here = json.dumps(o.data.get("args") or {}, ensure_ascii=False)

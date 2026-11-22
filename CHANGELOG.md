@@ -14,6 +14,17 @@ Linked from [README.md](README.md).
   (Simpson's paradox). Verified: `tests/test_holdback.py::test_a_change_of_the_hold_probability_does_not_fake_an_effect` fails without
   the change and passes with it.
 
+### What has changed
+
+- **The implicit "adopted" signal is no longer a hint label** (user decision 22.11.2026: `scorer.WEIGHT["genutzt"]` = 0). A hint whose
+  path, option or file name reappeared in one of the next three successful actions (`intuition.adopted`, 0.59.0, stored as `data.used`)
+  was a positive label with weight 1.5 for router, bandit and metrics. A pre-registered placebo check failed: hints held back at random,
+  never seen by the agent, were "adopted" as often as shown ones (5.8 % vs 4.6 %, risk ratio 0.79, 95 % CI 0.62–1.03; production copy
+  22.11.2026, `docs/PREREG_Z7B_WITHIN_ACTION.md`). On that copy it labelled 607 of 27,508 shown pairs, 19 of them on failed actions
+  (0 → 1), 73 % on ten solution skills. At weight 0 the branch is skipped, so such a pair keeps its other label (judge, grade, ok tag);
+  `data.used` is still recorded and counted in `vi_stats`. Verified: `tests/test_label.py` (the adoption test now expects the ok label;
+  a positive weight brings the branch back).
+
 ### What is new
 
 - **A per-conversation test of a hint ranking by the agents' declared use** (`vi_mcp/use_rate.py`, config `use_rate_share`, default 0 =
@@ -28,7 +39,7 @@ Linked from [README.md](README.md).
 
 - **No valid hint-use label exists in production yet.** The implicit `data.used` (`genutzt`, `intuition.adopted`, token reuse) failed a
   pre-registered placebo check: hints held back at random, never seen by the agent, were "adopted" as often as shown ones (risk
-  ratio 0.79, 95 % CI 0.62–1.03; `docs/PREREG_Z7B_WITHIN_ACTION.md`). It still enters `scorer.label` as a positive hint label. The
+  ratio 0.79, 95 % CI 0.62–1.03; `docs/PREREG_Z7B_WITHIN_ACTION.md`) and no longer counts (above). The
   use-rate ranking reads only `data.declared`, which the production copy does not contain — it needs the feedback hook first, and an
   online A/B pre-registration before `use_rate_share` is set above 0.
 - One name for two things: `data.used` (the heuristic) and `data.declared.used` (the declaration) — for a later migration.
