@@ -106,6 +106,15 @@ forgotten in one batch, which moved the store from revision 2558 to 2653 and lef
 - **The store carries document knowledge to new questions (H1).** At this scale, it does so about as well as LoRA run 3: 8 vs. 7
   correct, with an equal graded score of 11.0.
 - **Retrieval in the prompt is far ahead of both.** R gets 41/60 correct.
+  - This contradicts the closest prior work. In SILO (arXiv 2308.04430, Table 4), the kNN-LM closes 91 % of the perplexity gap
+    and in-context retrieval only 27 %. Here R leads K in NLL (0.98 vs. 2.37) and in correct answers (41 vs. 8; 161 vs. 44).
+  - Likely differences, all **hypotheses**, none tested here:
+    1. **Measure.** SILO measures language-modelling perplexity on running text. We measure answers to questions, where one
+       retrieved document can hold the whole answer.
+    2. **Scale.** SILO's datastores hold up to 1 billion tokens per domain, and its in-context blocks are 1,024 tokens. Ours holds
+       263,273 entries from 440 documents, and R puts the three best-matching whole documents into the prompt.
+    3. **Model.** SILO uses a 1.3B base language model under domain shift, where in-context use is limited by the parametric
+       model (SILO §5.2). We use a 0.6B instruction-tuned model that reads a prompt and answers.
 - **Mixing the store into a prompt that already has documents hurts.** KR got 1 correct. Its weight of 0.8 was tuned without
   documents. Amendment 2 tests whether this weight is the cause.
 - **The forget is not yet clean, and not local in text.** Restore and frozen weights work exactly as designed.
