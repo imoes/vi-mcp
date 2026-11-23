@@ -48,6 +48,13 @@ Linked from [README.md](README.md).
   - With it, store plus retrieval answers 42 of 60 probe questions correctly, against 1 before and 41 for retrieval alone.
   - Evidence: a separate blind pass with the key kept apart. KR\* vs. R is 1:0 (p 1.0), KR\* vs. KR is 41:0. The same judges'
     strict grades for R and KR equal the primary's on 60/60 questions.
+- **Amendment 4 is complete: on the 297-question secondary set, store plus retrieval at weight 0.1 is level with retrieval
+  alone** (exploratory; [docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Amendment 4").
+  - Store plus retrieval answers 160 of 297 correctly, retrieval alone 165, and store plus retrieval at weight 0.8 answers 18.
+  - Exact sign tests, two-sided: KR\* vs. R 2:7 (p 0.18); KR\* vs. KR 145:3.
+  - 231 of 297 answers are text-identical to retrieval alone. At the tuned weight the store adds nothing measurable.
+  - Evidence: 15 blind judges, with the key opened after all grades were hashed. The same judges' R grades agree with the
+    secondary pass with κ 0.91.
 - **Related work in the results** ([docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Related work"). The section covers SILO
   (2308.04430), Wang et al. 2023 (2305.14625), Geng et al. 2025 (2408.11815) and TOFU (2401.06121). Each paper's finding is quoted
   with its table or section, and each says whether it predicts our results.

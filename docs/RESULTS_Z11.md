@@ -215,6 +215,58 @@ in a seeded order under letters.
   - It contradicts SILO's finding that the kNN-LM and in-context retrieval add up. The hypotheses for that difference are listed
     under "Reading".
 
+## Amendment 4 (KR\* on the 297-question secondary set; exploratory; scored 23.11.2026 16:11 UTC)
+
+Pre-registration: [PREREG_Z11_A4.md](PREREG_Z11_A4.md), sha256 994ac888…, commit a63c2fa. It was frozen at 13:11 UTC, before any
+answer existed.
+
+**Run.** Everything ran on the CPU workstation of the primary, with 4 threads in a 6 GB memory scope.
+- **Cross-host check.** R answered 10 seeded secondary questions on this host. All 10 were text-identical to the answers from the
+  rented host (13:16:36 UTC). The R and KR answers from that host can therefore be compared with KR\* from this one.
+- **Answers.** KR\* answered all 297 questions from 13:16:36 to 16:06:57 UTC.
+  - Median 29.7 s per answer, mean 34.3 s; none reached the decoding budget.
+  - `secondary/answers_KRs.jsonl`, sha256 a8c21ee5….
+- **Judging.** `judgepack --arms KRs,R,KR` produced 15 blocks: 14 of 20 questions and 1 of 17.
+  - The key went to a separate file, `judge_A4_KEY.jsonl`, sha256 a28344b4….
+  - Fifteen fresh subagents each graded one block, with the primary's prompt and rubric verbatim.
+  - The sha256 of every grade file was written to `judge_A4_grades.sha256` before the key was opened.
+  - The key was opened after all 297 questions were graded.
+  - Outputs: `judge_A4_SCORE.json` (sha256 bc19c9ab…) and `judge_A4_EXTRA.json` (sha256 c12c5140…).
+
+| Arm | correct | partial | wrong | graded score | budget hits | abstain | invented host |
+|---|---|---|---|---|---|---|---|
+| R | **165** | 76 | 56 | 203.0 | 0 | 2 | 2 |
+| **KR\*** (weight 0.1) | **160** | 82 | 55 | 201.0 | 0 | 2 | 3 |
+| KR (weight 0.8) | 18 | 59 | 220 | 47.5 | 39 | 1 | 79 |
+
+| Test (exploratory, exact sign test on strict correct, two-sided) | wins:losses | p |
+|---|---|---|
+| KR\* vs. R | 2:7 | 0.18 |
+| KR\* vs. KR | 145:3 | 3.0e-39 |
+
+- **Judge check.** We compared this pass's grades with the grades the secondary pass gave the same answers.
+  - R: 297/297 questions compared, κ = 0.91.
+    - Strict correct agrees on 96.6 % of questions.
+    - All three grades agree on 94.6 %.
+    - Correct count: 161 in the secondary pass, 165 here.
+  - KR: 297/297 questions compared, κ = 0.85.
+    - Strict correct agrees on 98.7 %.
+    - All three grades agree on 93.6 %.
+    - Correct count: 20 in the secondary pass, 18 here.
+  - On the 231 questions where KR\* and R gave text-identical answers, the judges gave identical grades every time.
+  - The judge noise between the two passes, 4 correct for R, is about as large as the KR\* vs. R difference.
+- **Text.** 231 of 297 KR\* answers are text-identical to R's, and none is identical to KR's. All 9 discordant questions lie among
+  the other 66. There KR\* has 23 correct, 27 partial and 16 wrong; R has 28 correct, 21 partial and 17 wrong.
+- **Against the stated expectation.** The pre-registration expected KR\* "about level with R … and far above KR". The result:
+  - KR\* is far above KR: 145:3.
+  - KR\* is not significantly different from R: p = 0.18. That is neither of the two outcomes named as contradicting A2.
+  - The point estimate leans against KR\*: 5 fewer correct, 2:7 on discordant questions. On the probe it was 1:0 in KR\*'s
+    favour.
+  - Together, the two sets show no gain from the store at the tuned weight. On the probe and on this set it changes 9 and 66
+    answers out of 60 and 297, and the changes go both ways.
+- **What it does not show.** With 9 discordant questions, the test can only detect a large difference. Whether the store harms
+  retrieval slightly at weight 0.1 stays open. This is exploratory and changes nothing in the primary.
+
 ## Related work, and whether it predicts these results
 
 The four papers below were read on 23.11.2026, from the arXiv HTML versions; venues are from the arXiv pages or the ACL Anthology.
