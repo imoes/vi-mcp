@@ -3,6 +3,51 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## Unreleased — experiment Z11-1 (virtualised LLM: kNN-LM token store vs. LoRA vs. RAG)
+
+### What is new
+
+- **A pre-registered comparison of an editable token store with fine-tuned weights**, with all its tooling in `scripts/z11/`.
+  - Tools: `z11.py` builds the store, tunes on validation, answers, measures NLL, packs the blind judging and scores it.
+    `edit_test.py` runs forget, locality, restore and the weights hash. `locality_pass.py` runs the exploratory before/after pass.
+    `merge_shards.py` merges sharded answer runs.
+  - The design and every deviation are in `docs/PREREG_Z11*.md`, each with a sha256 file. The results are in
+    [docs/RESULTS_Z11.md](docs/RESULTS_Z11.md).
+  - Evidence, 60 never-trained probe questions (blind judges, exact sign tests):
+
+    | Arm | correct of 60 |
+    |---|---|
+    | base | 0 |
+    | LoRA run 3 | 7 |
+    | kNN-LM store | 8 |
+    | BM25 top-3 in the prompt | 41 |
+    | store + retrieval | 1 |
+
+  - Evidence, the secondary set of 297 questions:
+
+    | Arm | correct of 297 |
+    |---|---|
+    | base | 5 |
+    | LoRA | 42 |
+    | store | 44 |
+    | retrieval | 161 |
+    | store + retrieval | 20 |
+
+  - The store beats the base model (8:0 and 42:3) and matches the LoRA adapter (5:4 and 26:24) without any training.
+
+### What is still missing
+
+- **Forgetting is not yet clean or local.** The pre-registered edit test fails:
+  - forget: 11 of 14 edited answers wrong, 78.6 %, criterion 80 %;
+  - locality: 26 of 46 other answers textually unchanged, 56.5 %, criterion 90 %.
+  - Restore from a snapshot (14/14 identical) and unchanged weights (same hash) pass.
+  - An exploratory blind pass shows the changed answers were wrong before and after. The criterion measured drift among invented
+    answers, not lost knowledge.
+- **Store plus retrieval is worse than retrieval alone** (0:40 and 3:144). The test whether a mixing weight tuned with documents in
+  the prompt fixes this (amendment 2) did not run to the end: the rented host was terminated by its provider when the prepaid balance
+  was used up.
+- Both the store and the adapter invent host names (30 and 26 of 297 answers) and never abstain.
+
 ## 0.70.12 — 2026-11-20
 
 ### What is new

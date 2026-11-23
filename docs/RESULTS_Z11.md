@@ -1,7 +1,7 @@
 # Z11-1 results: kNN-LM token store vs. LoRA vs. RAG on the run-3 knowledge probe
 
-Status: primary and edit test final (22.11.2026). The secondary set (amendment 1) and amendment 2 are still running. Their sections
-are filled in when they are judged.
+Status: final, 23.11.2026. The primary result, the edit test and the secondary set (amendment 1) are complete. Amendment 2 is
+incomplete: the rented host was terminated before its tuning finished.
 
 Pre-registration: [PREREG_Z11.md](PREREG_Z11.md) (frozen 15:41 UTC), amendments [A1](PREREG_Z11_A1.md),
 [A2](PREREG_Z11_A2.md) and [A3](PREREG_Z11_A3.md), deviations [D1](PREREG_Z11_D1.md), [D2](PREREG_Z11_D2.md) and
@@ -114,9 +114,48 @@ forgotten in one batch, which moved the store from revision 2558 to 2653 and lef
   2. Measure locality on questions the store answers correctly outside the forgotten documents.
   3. Mix in the store only when the retrieval is confident.
 
-## Secondary set (amendment 1) and amendment 2
+## Secondary set (amendment 1; scored 23.11.2026 01:01:26)
 
-Pending. They run on a rented CPU host (deviation 3; the cross-host check gave 9/9 identical texts).
+The set has 297 new questions about the trained documents, written and checked as described in A1. All five arms ran on one
+rented CPU host (deviation 3: AMD EPYC 9655P, the same software versions, the identical answer path). Before the run, a cross-host
+check found 9 of 9 texts identical to the workstation's. The questions were split into shards that were stopped and resharded by
+memory headroom (D3 addenda). The merged answer file of each arm holds each of the 297 ids exactly once, with 0 duplicates.
+
+| Arm | correct | partial | wrong | graded score | budget hits | abstain | invented host |
+|---|---|---|---|---|---|---|---|
+| B | 5 | 17 | 275 | 13.5 | 3 | 25 | 4 |
+| L | 42 | 41 | 214 | 62.5 | 2 | 0 | 26 |
+| K | 44 | 41 | 212 | 64.5 | 26 | 0 | 30 |
+| R | 161 | 80 | 56 | 201.0 | 0 | 2 | 2 |
+| KR | 20 | 64 | 213 | 52.0 | 39 | 1 | 23 |
+
+| Test (A1) | wins:losses | p | Verdict |
+|---|---|---|---|
+| H1s K > B | 42:3 | 4.3e-10 one-sided | **holds** |
+| H3s KR > R | 3:144 | 1.0 one-sided | **fails** |
+| K vs. L (two-sided) | 26:24 | 0.89 | no difference shown |
+
+Descriptive comparisons:
+- R > L: 133:14;
+- R > K: 132:15;
+- L > B: 40:3;
+- KR vs. L: 14:36 (p 0.0026, two-sided).
+
+The primary pattern replicates at five times the size. The store and the LoRA adapter carry about the same amount of document
+knowledge. The base model knows almost none of it, and retrieval in the prompt is about four times better than either. The store
+and the adapter invent hosts at about the same rate (30 vs. 26 answers), and neither abstains. Leakage named in A1: the kNN
+parameters were tuned on validation rows from the same 440 documents; these were rows, not these questions. As A1 requires, this set
+is supporting evidence only and is not pooled into the primary test.
+
+## Amendment 2 (KR with a weight tuned with documents in the prompt): incomplete
+
+`tune_kr` started on the rented host at 00:57:45 UTC. The provider terminated the host at 00:59:46 UTC because the prepaid account
+balance was used up (audit log: status TERMINATED; balance −0.06 USD). No weight was frozen and no KR\* answer exists. The
+hypothesis therefore stays open. Two observations point the same way without testing it:
+- KR's NLL on the probe references (1.355) lies between R's (0.982) and K's (2.370);
+- KR loses 0:40 and 3:144 against R in generated answers.
+
+The rented host cost 2.14 USD in total (provider billing per pod).
 
 ## Named limits
 

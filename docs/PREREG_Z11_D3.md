@@ -62,6 +62,18 @@ remaining ids round-robin into N new shard files and starts one process with 2 t
 Further reshards of K and R may follow when KR finishes and frees memory. A merged file must hold each of the 297 ids exactly once.
 If an id was answered twice, the first complete answer is kept and the case is named.
 
+## Addendum 4 (after the run, 23.11.2026)
+
+- Further reshards by memory headroom (`reshard.log`):
+  - R into 4 shards at 23:52:49 and into 8 at 00:05:22;
+  - K into 6 and KR into 6 at 00:28:40.
+- Completion times: B 23:25:49, L 00:05:07, R about 00:28, K about 00:40, KR 00:57 (UTC). The memory guard never fired: oom_kill
+  stayed at 0. Every nonzero exit was a planned SIGTERM (143).
+- Merge (`scripts/z11/merge_shards.py`): each arm holds all 297 ids exactly once, with 0 duplicates. Every shard file was checked by
+  sha256 after the transfer.
+- Amendment 2 did not finish. `tune_kr` started at 00:57:45 UTC. The provider terminated the host at 00:59:46 UTC because the
+  prepaid balance was used up. Nothing was frozen.
+
 ## Limit
 
 Identity is shown on 9 answers, not on all of them. If any secondary answer is later compared across hosts, a difference is reported
