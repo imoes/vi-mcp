@@ -35,3 +35,12 @@ before any question was written. All times are UTC from `date -u`.
     answered.
   - The split would give about 36 per side. That is above the minimum of 30 but below the target of 60.
   - Expected precision from the table above, at n ≈ 36: the locality interval at the Z11-2 rate would reach well below 90 %.
+- **20:33:37.** Batch 0's before answers ended: 200 questions in 12,219 s, 61 s per answer on average. Batch 1 started as 2
+  processes; the other project's workers had ended and at least 16 GB were free.
+- **20:36:24. Pool judging of batch 0 finished:** 30 correct, 30 partial and 140 wrong, so the stop rule is not met.
+  - The judges were 5 fresh subagents, each grading one block of 40 questions with one answer per question.
+  - K was correct on 15.0 %, close to the forecast's 14.6 %.
+  - Judges noted two calls, both outside the pool decision:
+    - A host name that appears only in an answer's source line was flagged as invented.
+    - A subnet was flagged as an invented address.
+  - Grade hashes are in `judge_z11_3_pool_grades.sha256`.
