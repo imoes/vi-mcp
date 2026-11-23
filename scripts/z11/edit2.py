@@ -9,7 +9,7 @@ Usage (Z11_DATA set; answers are produced by `z11.py answer --arm K`):
   edit2.py judgepack   → blind blocks: per question the before, E1 and E2 answers under seeded letters; key apart
   edit2.py score       → after every block is graded: forget and locality per variant, verdicts → z11_2_SCORE.json
   edit2.py weights     → the weights hash now
-  edit2.py cleanup     → delete store_e1 and store_e2 (after scoring)
+  edit2.py cleanup [E1|E2] → delete a store copy as soon as its answers exist, by 23:00 UTC at the latest (addendum 1)
 """
 import glob
 import hashlib
@@ -266,6 +266,17 @@ def score():
                   "F_not_wrong": sorted(i for i in F if g[i][v] != "wrong"),
                   "underpowered": len(F) < POWER_MIN or len(kp) < POWER_MIN,
                   "passes": forget_pass and locality_pass and out["restore"]["pass"] and out["weights"]["pass"]}
+    # Addendum 1 (descriptive, decides nothing): the class "base knows" = F questions arm B got correct in Z11-1.
+    base = {}
+    for name, (key_file, gdir, *_) in SOURCES.items():
+        base.update(grades_of(key_file, gdir, "B"))
+    knows = sorted(i for i in rep["F"] if base.get(i) == "correct")
+    rest = [i for i in rep["F"] if i not in set(knows)]
+    out["base_knows"] = {"F_members": knows}
+    for v in VARIANTS:
+        out["base_knows"][v] = {"member_grades": {i: g[i][v] for i in knows}, "F_without_class": len(rest),
+                                "forget_wrong_share_without_class":
+                                    sum(g[i][v] == "wrong" for i in rest) / len(rest) if rest else None}
     out["H4_E1"] = out["E1"]["passes"]
     out["H5_E2"] = out["E2"]["passes"]
     json.dump(out, open(D / "z11_2_SCORE.json", "w"), indent=1)
@@ -277,19 +288,26 @@ def weights():
     print(json.dumps({"weights_sha256": core.identity["weights_sha256"]}))
 
 
-def cleanup():
-    for v in VARIANTS:
+def cleanup(variants=VARIANTS):
+    """Addendum 1: a copy is deleted as soon as its answers hold every eligible question (or by 23:00 UTC in any case)."""
+    rep = json.load(open(D / "z11_2_eligible.json"))
+    for v in variants:
         p = D / f"store_{v.lower()}"
+        a = D / f"z11_2_answers_{v}.jsonl"
+        done = {r["id"] for r in z11.jl(a)} if a.exists() else set()
+        complete = set(rep["F"] + rep["Kp"]) <= done
         if p.exists():
             shutil.rmtree(p)
-            print(f"deleted {p.name}")
-    print(json.dumps({"free_gib": round(shutil.disk_usage(D).free / 2**30, 2)}))
+        print(json.dumps({"deleted": p.name, "answers_complete": complete, "answers_sha256": sha(a) if a.exists() else None,
+                          "free_bytes": shutil.disk_usage(D).free}))
 
 
 if __name__ == "__main__":
     cmd = sys.argv[1]
     if cmd == "forget":
         forget(sys.argv[2])
+    elif cmd == "cleanup":
+        cleanup(sys.argv[2:] or VARIANTS)
     else:
         {"pool": pool, "eligible": eligible, "compare": compare, "judgepack": judgepack, "score": score,
          "weights": weights, "cleanup": cleanup}[cmd]()
