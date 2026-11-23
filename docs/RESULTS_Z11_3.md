@@ -44,3 +44,12 @@ before any question was written. All times are UTC from `date -u`.
     - A host name that appears only in an answer's source line was flagged as invented.
     - A subnet was flagged as an invented address.
   - Grade hashes are in `judge_z11_3_pool_grades.sha256`.
+- **22:41:06.** Batch 1's before answers ended: 200 questions in 7,649 s with 2 processes, about 76 s per answer per process.
+  Batch 2 (94 questions) started as 2 processes.
+- **22:46:13. Pool judging of batch 1 finished** (blocks 5–9, 5 fresh subagents, the batch-0 prompt with only the block and
+  grades paths changed): 25 correct, 36 partial and 139 wrong, so K is correct on 12.5 %.
+  - Pool so far: 55 correct, 66 partial and 279 wrong of 400 (13.75 %). The stop rule is not met.
+  - **Projection (an estimate):** at 13.75 % the 94 questions of batch 2 add about 13, which gives about 68 K-correct and about 34
+    per side. That is above the minimum of 30 and well below the target of 60.
+  - **Discrepancy, named:** the judge of block 5 reported 6 correct and 9 partial in its reply. Its grade file holds 5 correct
+    and 8 partial. The count uses the file, never a reply.
