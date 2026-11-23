@@ -401,7 +401,7 @@ def tune_kr(args):
         w /= w.sum(1, keepdims=True)
         pk_all.append((w * (mem.tokens[ind] == targets[:, None])).sum(1))
         pb_all.append(np.exp(log_softmax(logits.astype(np.float64))[np.arange(len(targets)), targets]))
-        if n % 50 == 0:
+        if n % 50 == 0 or n + 1 == 10:
             print(f"{n + 1}/{len(val)} {time.time() - t0:.0f} s", flush=True)
     pb, pk = np.concatenate(pb_all), np.concatenate(pk_all)
     curve = [{"weight": wgt, "nll": float(-np.log(np.maximum((1 - wgt) * pb + wgt * pk, np.finfo(float).tiny)).mean())}
