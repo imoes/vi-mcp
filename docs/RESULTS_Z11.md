@@ -157,6 +157,78 @@ hypothesis therefore stays open. Two observations point the same way without tes
 
 The rented host cost 2.14 USD in total (provider billing per pod).
 
+## Related work, and whether it predicts these results
+
+The four papers below were read on 23.11.2026, from the arXiv HTML versions; venues are from the arXiv pages or the ACL Anthology.
+Figures are quoted with their table or section. "Not in the paper" means not found in the parts read.
+
+**SILO** (Min et al., arXiv 2308.04430, ICLR 2024 spotlight)
+- **Setup.** A 1.3B model trained only on permissively licensed text, with a datastore of up to 1 billion tokens per domain.
+  - Two ways to use the datastore: as a kNN-LM, or BM25 blocks of 1,024 tokens put in the context (RIC-LM).
+  - The measure is language-modelling perplexity. The only downstream tasks are zero-shot classification; there is no generation
+    or question answering.
+- **Results.**
+  - The kNN-LM closes 91 % of the perplexity gap to Pythia averaged over 8 out-of-domain sets: 19.0 → 12.0 against 11.3, while
+    RIC-LM closes 27 % (Table 4). The paper concludes that "kNN-LM is more effective than RIC-LM" (§5.2).
+  - Opt-out (§5.3, Table 6) compares a Books3 datastore with and without the Harry Potter books; it does not delete from an
+    existing store. Average perplexity on a held-out book is 12.9 with them, 16.5 without, and 17.4 for the model alone.
+- **Prediction for Z11.**
+  - SILO predicts K ahead of R. The opposite happened here: R was ahead of K in NLL (0.98 vs. 2.37) and in correct answers (41 vs.
+    8, and 161 vs. 44). Hypothesis: our R puts the three most relevant whole documents of a small corpus into the prompt of an
+    instruction-tuned model that answers a question. SILO's RIC-LM serves perplexity under domain shift, where it is limited by
+    the parametric model (§5.2).
+  - On removal, SILO and our edit test agree on two points:
+    - The store's own contribution goes away by construction: "data removed from the datastore is guaranteed not to contribute"
+      (§4.2). Our restore (14/14) and the identical weights fit this.
+    - What other data holds stays: in SILO, 16.5 rather than 17.4 after removal. In Z11-1, the one fact found in 8 other training
+      documents survived the forget. SILO did not measure answers to questions.
+
+**Wang et al., "kNN-LM Does Not Improve Open-ended Text Generation"** (arXiv 2305.14625, EMNLP 2023)
+- **Setup.** GPT-2 small and TRIME, with WikiText-103 datastores, on open-ended continuation. There is no question answering in
+  the paper.
+- **Results.**
+  - Perplexity improves (14.8 → 12.6, §3.4), but generation quality does not: MAUVE 0.773 vs. 0.793, with "no convincing
+    winner" (§4). Human raters preferred the baseline in 51 % of pairs, against 49 % for kNN-LM (§4.1).
+  - The retrieval distribution's entropy grows faster than the base model's as the generated text gets longer (§5.2, Fig. 3).
+    Their hypothesis is that retrieval is "less reliable when using model-generated text as queries".
+- **Prediction for Z11.** Only partly. K's NLL gain did carry over to answers (K > B: 8:0 and 42:3). It is not the null result
+  they found for continuation. Their warning fits two observations, though neither was tested as such:
+  - KR is close to R in NLL (1.36 vs. 0.98), but far behind it in answers (1 vs. 41).
+  - The budget hits of the store arms (K 26, KR 39 of 297, against R 0) point to degenerating long generations.
+
+**Geng, Zhao, Rush, "Great Memory, Shallow Reasoning: Limits of kNN-LMs"** (arXiv 2408.11815, NAACL 2025 short)
+- **Setup.** Llama-2-7B, Llama-3-8B and Mistral-7B, each with token-level datastores built from Wiki-style text or from math text.
+- **Results.**
+  - The datastores help a little on memory-type classification and hurt slightly on knowledge and reasoning tasks. For example,
+    NQ with Llama-2 goes from 23.18 to 22.53 (Table 4).
+  - Oracle retrieval does not always help either. With test items in the store, NQ rises to 46.40 from 23.64, yet "the model does
+    not always derive the correct answer, even when the correct answer is explicitly given as one of the k nearest neighbors"
+    (§7, Table 6).
+  - Tuning the mixture weight on OBQA and HotpotQA gives the lowest loss "when λ is close to 0" (§7).
+  - The paper has no comparison with retrieval in the prompt.
+- **Prediction for Z11.**
+  - Their oracle result matches the ceiling we saw. Our store holds rows of exactly the documents asked about, and K still
+    answered only 44 of 297 correctly.
+  - Their λ ≈ 0 finding on QA predicts that the weight 0.8, tuned without documents, is too high once documents are in the prompt.
+    That is exactly the amendment-2 hypothesis for KR ≪ R; amendment 2 tests it.
+  - Their slight loss against the base model does not match our K > B. Hypothesis: our base model knew almost nothing about these
+    internal documents (B 5/297), unlike NQ for a 7B model.
+
+**TOFU** (Maini et al., arXiv 2401.06121; listed at an ICLR 2024 workshop; no main-conference record found)
+- **Setup.**
+  - 200 fictitious authors, learned by fine-tuning, with forget sets of 1, 5 and 10 % and a retain set. The authors are fictitious
+    to ensure "that no remnants of it exist in the model's pretraining phase" (§2.1).
+  - Forget quality is a KS test on truth ratios against a reference model trained only on the retain set (§2.2.3).
+- **Result.** "none of the baselines we consider show effective unlearning" (abstract).
+- **Prediction for Z11.**
+  - TOFU measures forgetting on facts the model knows, against a retain-only reference. Z11-1 measured locality on questions the
+    store did not answer correctly, which is the flaw A3 found. Z11-2 follows TOFU's design: forget and keep questions that K
+    answered correctly before the edit.
+  - Z11-2 addendum 1 adds TOFU's pretraining argument as the descriptive class "base knows".
+  - TOFU's reference model corresponds to the base model with a store that never held F's documents. A store forget produces
+    exactly this, without gradient steps, which TOFU's methods cannot do. What can stay is knowledge from the weights and from
+    other documents.
+
 ## Named limits
 
 - n = 60. H2 is a point estimate, not an equivalence test.

@@ -34,6 +34,12 @@ Linked from [README.md](README.md).
     | store + retrieval | 20 |
 
   - The store beats the base model (8:0 and 42:3) and matches the LoRA adapter (5:4 and 26:24) without any training.
+- **Related work in the results** ([docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Related work"). The section covers SILO
+  (2308.04430), Wang et al. 2023 (2305.14625), Geng et al. 2025 (2408.11815) and TOFU (2401.06121). Each paper's finding is quoted
+  with its table or section, and each says whether it predicts our results.
+- **Z11-2 pre-registered:** the edit test repeated on questions the store answers correctly
+  ([docs/PREREG_Z11_2.md](docs/PREREG_Z11_2.md), [addendum 1](docs/PREREG_Z11_2_A1.md), `scripts/z11/edit2.py`). It runs
+  only on our own host. Evidence: the sha256 files next to both documents; the split was drawn before any Z11-2 answer.
 
 ### What is still missing
 
