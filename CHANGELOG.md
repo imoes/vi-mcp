@@ -34,6 +34,12 @@ Linked from [README.md](README.md).
     | store + retrieval | 20 |
 
   - The store beats the base model (8:0 and 42:3) and matches the LoRA adapter (5:4 and 26:24) without any training.
+- **Amendment 2 is complete: with the right weight, store plus retrieval no longer hurts** (exploratory;
+  [docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Amendment 2").
+  - The mixing weight was tuned on validation rows with the documents in the prompt and came out at 0.1, not K's 0.8.
+  - With it, store plus retrieval answers 42 of 60 probe questions correctly, against 1 before and 41 for retrieval alone.
+  - Evidence: a separate blind pass with the key kept apart. KR\* vs. R is 1:0 (p 1.0), KR\* vs. KR is 41:0. The same judges'
+    strict grades for R and KR equal the primary's on 60/60 questions.
 - **Related work in the results** ([docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Related work"). The section covers SILO
   (2308.04430), Wang et al. 2023 (2305.14625), Geng et al. 2025 (2408.11815) and TOFU (2401.06121). Each paper's finding is quoted
   with its table or section, and each says whether it predicts our results.
@@ -49,9 +55,11 @@ Linked from [README.md](README.md).
   - Restore from a snapshot (14/14 identical) and unchanged weights (same hash) pass.
   - An exploratory blind pass shows the changed answers were wrong before and after. The criterion measured drift among invented
     answers, not lost knowledge.
-- **Store plus retrieval is worse than retrieval alone** (0:40 and 3:144). The test whether a mixing weight tuned with documents in
-  the prompt fixes this (amendment 2) did not run to the end: the rented host was terminated by its provider when the prepaid balance
-  was used up.
+- **The store adds nothing on top of retrieval.** At the pre-registered weight, store plus retrieval was worse than retrieval
+  alone (0:40 and 3:144).
+  - The tuned weight of amendment 2 removes that harm, but no gain appears: 1:0, and 51 of 60 answers are text-identical to
+    retrieval alone.
+  - The secondary set of 297 questions has not been rerun with the tuned weight.
 - Both the store and the adapter invent host names (30 and 26 of 297 answers) and never abstain.
 
 ## 0.70.12 — 2026-11-20

@@ -1,7 +1,7 @@
 # Z11-1 results: kNN-LM token store vs. LoRA vs. RAG on the run-3 knowledge probe
 
-Status: final, 23.11.2026. The primary result, the edit test and the secondary set (amendment 1) are complete. Amendment 2 is
-incomplete: the rented host was terminated before its tuning finished.
+Status: final, 23.11.2026. The primary result, the edit test, the secondary set (amendment 1) and amendment 2 (exploratory,
+scored 10:16 UTC) are complete. The repeated edit test is a separate experiment, Z11-2 ([PREREG_Z11_2.md](PREREG_Z11_2.md)).
 
 Pre-registration: [PREREG_Z11.md](PREREG_Z11.md) (frozen 15:41 UTC), amendments [A1](PREREG_Z11_A1.md),
 [A2](PREREG_Z11_A2.md) and [A3](PREREG_Z11_A3.md), deviations [D1](PREREG_Z11_D1.md), [D2](PREREG_Z11_D2.md) and
@@ -115,8 +115,11 @@ forgotten in one batch, which moved the store from revision 2558 to 2653 and lef
        263,273 entries from the 2,558 training rows of 500 documents, and R puts the three best-matching whole documents into the prompt.
     3. **Model.** SILO uses a 1.3B base language model under domain shift, where in-context use is limited by the parametric
        model (SILO §5.2). We use a 0.6B instruction-tuned model that reads a prompt and answers.
-- **Mixing the store into a prompt that already has documents hurts.** KR got 1 correct. Its weight of 0.8 was tuned without
-  documents. Amendment 2 tests whether this weight is the cause.
+- **Mixing the store into a prompt that already has documents hurts at the weight tuned without documents.** KR got 1 correct
+  at weight 0.8.
+  - Amendment 2 tuned the weight with documents in the prompt and got 0.1. With it, KR\* has 42 correct, R 41, and the
+    comparison is 1:0.
+  - The weight was the cause. With documents in the prompt, though, the store adds nothing measurable.
 - **The forget is not yet clean, and not local in text.** Restore and frozen weights work exactly as designed.
 - **What the next design needs:**
   1. Forget by fact, not only by source.
@@ -156,15 +159,60 @@ and the adapter invent hosts at about the same rate (30 vs. 26 answers), and nei
 parameters were tuned on validation rows from the same 440 documents; these were rows, not these questions. As A1 requires, this set
 is supporting evidence only and is not pooled into the primary test.
 
-## Amendment 2 (KR with a weight tuned with documents in the prompt): incomplete
+## Amendment 2 (KR with a weight tuned with documents in the prompt; exploratory; scored 23.11.2026 10:16 UTC)
 
-`tune_kr` started on the rented host at 00:57:45 UTC. The provider terminated the host at 00:59:46 UTC because the prepaid account
-balance was used up (audit log: status TERMINATED; balance −0.06 USD). No weight was frozen and no KR\* answer exists. The
-hypothesis therefore stays open. Two observations point the same way without testing it:
-- KR's NLL on the probe references (1.355) lies between R's (0.982) and K's (2.370);
-- KR loses 0:40 and 3:144 against R in generated answers.
+**First attempt.** `tune_kr` started on a rented host at 00:57:45 UTC (22.→23.11.). The provider terminated the host at
+00:59:46 UTC because the prepaid balance was used up (audit log: status TERMINATED; balance −0.06 USD). No weight was frozen. The
+rented host cost 2.14 USD in total (provider billing per pod).
 
-The rented host cost 2.14 USD in total (provider billing per pod).
+**Run.** Every A2 step then ran on the CPU workstation of the primary, with 4 threads in a 6 GB memory scope.
+- **Tuning:** 08:11:45–09:42:33 UTC, 5,432 s. It used the 374 validation rows with BM25 top-3 documents in the prompt and excluded
+  each row's own source, as in `tune_rag`. The frozen weight was written to `frozen_params_A2.json` (sha256 7a36e183…, frozen
+  09:42Z) before any KR\* answer existed.
+- **Answers:** KR\* answered the 60 probe questions from 09:42:52 to 10:13:03 UTC.
+  - The median was 27.2 s per answer, and none reached the decoding budget.
+  - `answers_KRs.jsonl`, sha256 d05a1522….
+
+| Weight | 0 | 0.05 | **0.1** | 0.2 | 0.3 | 0.4 | 0.5 | 0.6 | 0.7 | 0.8 | 0.9 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| validation NLL (39,561 tokens) | 0.740 | 0.506 | **0.490** | 0.491 | 0.512 | 0.544 | 0.587 | 0.642 | 0.716 | 0.818 | 0.983 |
+
+- The tuned weight is **0.1**. At K's weight of 0.8, the store makes the validation NLL worse than no store at all (0.818 against
+  0.740).
+
+**Judging.** The pass was blind and separate. Each question showed the KR\* answer next to the R answer and the original KR answer,
+in a seeded order under letters.
+- The key was kept in `judge_A2_KEY.jsonl` (sha256 ef370b1c…).
+- Three fresh subagents each graded one block of 20 questions, with the primary's prompt and rubric verbatim.
+- The key was opened after all 60 questions were graded.
+
+| Arm | correct | partial | wrong | graded score | invented host |
+|---|---|---|---|---|---|
+| R | 41 | 11 | 8 | 46.5 | 3 |
+| **KR\*** (weight 0.1) | **42** | 9 | 9 | 46.5 | 3 |
+| KR (weight 0.8) | 1 | 13 | 46 | 7.5 | 11 |
+
+| Test (exploratory, exact sign test, two-sided) | wins:losses | p |
+|---|---|---|
+| KR\* vs. R | 1:0 | 1.0 |
+| KR\* vs. KR | 41:0 | 9.1e-13 |
+
+- **Judge check.** On strict correct, the R and KR grades of this pass equal the primary's on 60 of 60 questions each.
+  - R's full grades are identical 60/60.
+  - KR differs on 4 questions, each partial in the primary and wrong here.
+- **Text.** 51 of the 60 KR\* answers are text-identical to R's. The one question that KR\* answers correctly and R does not is
+  among the other 9.
+- **Verdict on the A2 hypothesis: supported.** A2 named two outcomes that would refute it, and neither happened:
+  - the tuned weight is 0.1, below 0.5;
+  - KR\* has 42 correct, not fewer than 30.
+
+  KR's failure in the primary came from the weight tuned without documents. This is exploratory and changes nothing in the primary:
+  H3 failed as pre-registered and stays failed.
+- **What it does not show.** Even with its weight tuned, the store adds nothing measurable to retrieval in the prompt: 1:0, with
+  51 of 60 answers unchanged. At weight 0.1 the store mostly leaves R's greedy answers as they are.
+  - This matches Geng et al.'s finding that λ ≈ 0 is best on QA (below).
+  - It contradicts SILO's finding that the kNN-LM and in-context retrieval add up. The hypotheses for that difference are listed
+    under "Reading".
 
 ## Related work, and whether it predicts these results
 
@@ -219,7 +267,8 @@ Figures are quoted with their table or section. "Not in the paper" means not fou
   - Their oracle result matches the ceiling we saw. Our store holds rows of exactly the documents asked about, and K still
     answered only 44 of 297 correctly.
   - Their λ ≈ 0 finding on QA predicts that the weight 0.8, tuned without documents, is too high once documents are in the prompt.
-    That is exactly the amendment-2 hypothesis for KR ≪ R; amendment 2 tests it.
+    That is exactly the amendment-2 hypothesis for KR ≪ R. Amendment 2 confirmed it: the tuned weight is 0.1, and KR\* then
+    matches R (42 vs. 41 correct).
   - Their slight loss against the base model does not match our K > B. Hypothesis: our base model knew almost nothing about these
     internal documents (B 5/297), unlike NQ for a 7B model.
 
