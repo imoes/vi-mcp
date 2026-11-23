@@ -607,7 +607,8 @@ def score(args):
     value = {"correct": 1.0, "partial": 0.5, "wrong": 0.0}
     graded = {a: sum(value[g] for g in v.values()) for a, v in per.items()}
     tests = {}
-    for x, y in (("K", "B"), ("K", "L"), ("KR", "R"), ("R", "L"), ("R", "K"), ("L", "B"), ("KR", "L")):
+    for x, y in (("K", "B"), ("K", "L"), ("KR", "R"), ("R", "L"), ("R", "K"), ("L", "B"), ("KR", "L"),
+                 ("KRs", "R"), ("KRs", "KR")):  # the last two: amendment 2, exploratory, reported two-sided
         if x in per and y in per:
             ids = set(per[x]) & set(per[y])
             w = sum(1 for i in ids if per[x][i] == "correct" and per[y][i] != "correct")
