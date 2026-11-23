@@ -34,6 +34,14 @@ Linked from [README.md](README.md).
     | store + retrieval | 20 |
 
   - The store beats the base model (8:0 and 42:3) and matches the LoRA adapter (5:4 and 26:24) without any training.
+- **Z11-2 is complete: on knowledge the store holds, forgetting by document is clean and local**
+  ([docs/RESULTS_Z11_2.md](docs/RESULTS_Z11_2.md)). The test ran on 52 questions the store answered correctly, split by document
+  into a forget side and a keep side.
+  - Variant E1 forgets the asked documents: 25 of 26 forgotten answers are wrong afterwards (criterion 80 %), and 24 of 26 kept
+    answers are kept (criterion 90 %). The weights hash is unchanged and the snapshot restores 26 of 26, so H4 holds.
+  - Variant E2 also forgets the neighbour documents: 26 of 26 are forgotten, but only 20 of 24 are kept (83.3 %), so H5 fails.
+  - Evidence: blind judges with the key kept apart, every hash in the results. 95 % intervals are given, and they are wide at
+    n = 26.
 - **Amendment 2 is complete: with the right weight, store plus retrieval no longer hurts** (exploratory;
   [docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Amendment 2").
   - The mixing weight was tuned on validation rows with the documents in the prompt and came out at 0.1, not K's 0.8.
@@ -49,7 +57,9 @@ Linked from [README.md](README.md).
 
 ### What is still missing
 
-- **Forgetting is not yet clean or local.** The pre-registered edit test fails:
+- **Forgetting by fact.** Z11-2 shows that a fact survives in another document's entries (one E1 answer), and removing all
+  neighbour documents costs locality. No forget by fact exists yet.
+- **Z11-1's edit test failed** (Z11-2 above repeats it on questions the store answers correctly):
   - forget: 11 of 14 edited answers wrong, 78.6 %, criterion 80 %;
   - locality: 26 of 46 other answers textually unchanged, 56.5 %, criterion 90 %.
   - Restore from a snapshot (14/14 identical) and unchanged weights (same hash) pass.

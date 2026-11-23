@@ -1,7 +1,8 @@
 # Z11-1 results: kNN-LM token store vs. LoRA vs. RAG on the run-3 knowledge probe
 
 Status: final, 23.11.2026. The primary result, the edit test, the secondary set (amendment 1) and amendment 2 (exploratory,
-scored 10:16 UTC) are complete. The repeated edit test is a separate experiment, Z11-2 ([PREREG_Z11_2.md](PREREG_Z11_2.md)).
+scored 10:16 UTC) are complete. The repeated edit test is a separate experiment, Z11-2 ([PREREG_Z11_2.md](PREREG_Z11_2.md),
+results in [RESULTS_Z11_2.md](RESULTS_Z11_2.md): H4 holds, H5 fails).
 
 Pre-registration: [PREREG_Z11.md](PREREG_Z11.md) (frozen 15:41 UTC), amendments [A1](PREREG_Z11_A1.md),
 [A2](PREREG_Z11_A2.md) and [A3](PREREG_Z11_A3.md), deviations [D1](PREREG_Z11_D1.md), [D2](PREREG_Z11_D2.md) and
