@@ -16,3 +16,22 @@ before any question was written. All times are UTC from `date -u`.
 - **16:00:16.** The writer started as a client with 2 workers. The guard probes the server's health every 60 s. Every probe so far
   answered in 0.01 s, and the server's restart count and start time have not changed. At 16:10:25, after 175 of 500 documents in
   pass 1, 86 questions had been kept.
+- **17:09:50. The writer ended normally (exit 0); the guard never stopped it.** Every probe answered in 0.01 s, and the restart
+  state stayed at count 0 with the start time of 06:50:00 UTC.
+  - **Yield:** 494 questions from 3 passes in 4,172 s. Of the 500 documents, 168 have 2 questions, 158 have 1 and 174 have none.
+  - **Prompt:** the prompt sha256 is 92cb18b7…, identical to amendment 1. `synth_qa.py` sha256 b78258af….
+  - **Rejected candidates:** 2,019 not grounded in the document; 1,311 too close to an existing question (Jaccard ≥ 0.5); 36
+    whose document already had 2; 27 that refer to the document instead of its subject.
+  - 35 requests failed with a JSON decode error. A failed request does not count as an attempt; its document was asked again in
+    the next pass.
+  - `z11_3_questions.jsonl` sha256 2ded7bef…, `z11_3_refs.jsonl` sha256 d2455b7f….
+  - **Limit, named:** the 174 documents without a question are not in the test, so the set leans towards documents from which
+    the writer could draw grounded new questions.
+- **17:09:58.** The order put the questions into batches of 200, 200 and 94. The weights hash before was 18353784…. K started
+  batch 0 as 1 process: the other project's workers were still running.
+- **Forecast before any pool grade (an estimate, not a result).** In Z11-1, K was correct on 8 of 60 probe and 44 of 297
+  secondary questions: 52 of 357, 14.6 %.
+  - At that rate the 494 questions give about 72 K-correct. The stop rule at 124 would then never trigger, and every batch is
+    answered.
+  - The split would give about 36 per side. That is above the minimum of 30 but below the target of 60.
+  - Expected precision from the table above, at n ≈ 36: the locality interval at the Z11-2 rate would reach well below 90 %.
