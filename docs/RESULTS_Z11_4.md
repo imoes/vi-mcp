@@ -151,7 +151,7 @@ correct keys.
 | Deviation-2 check, then KR resumed (22.11, ~18:02) | `store_qa` 2558 | built by the check | the check's K and KR processes | only inside the check | the check regenerated 2 K and 3 KR answers identical to the pre-cache ones (5/5); KR resumed with the cache complete | no |
 | Z11-1 edit test (22.11, 20:45–21:46) | `store_qa` 2653, then `store_snap` 2558 | built by the one answering process | 1 (the chain runs forget → answers → restore in turn) | no | chain script | no |
 | Secondary set on the rented host (22.11 evening) | `store_qa` 2558, uploaded without `*.f32` | built at 21:53:31 by one process, before the shards started | 3 K + 8 KR shards + `tune_kr` | no: the cache was complete | transcript: "build the key cache on the pod", 21:53:31 UTC; `pod_run.sh` launched afterwards | no |
-| A2 `tune_kr` → KR\* (23.11, 08:11–10:13) | `store_qa` 2558 | built 08:11:51 by `tune_kr` (file birth time) | 1 (sequential chain) | no | `run_times_hal.log` | no |
+| A2 `tune_kr` → KR\* (23.11, 08:11–10:13) | `store_qa` 2558 | built 08:11:51 by `tune_kr` (file birth time) | 1 (sequential chain) | no | `run_times_<host>.log` | no |
 | Z11-2 before, E1, E2, restore (23.11, 10:13–11:15) | `store_qa`; `store_e1` 2728 and `store_e2` 2982 fresh | built by the one answering process | 1 per step | no | `run_times_z11_2.log`; preview 104/104 | no |
 | A4 KR\* secondary (23.11, 13:16–16:06) | `store_qa` 2558 | complete | 1 | no | `run_times_a4.log` | no |
 | Z11-3 before answers, batches 0–2 (23.11 17:09 – 24.11 00:23) | `store_qa` 2558 | complete (since 08:11:51) | 1, then 2 | no | Z11-4 replayed all 65 pool-correct answers exactly | no |

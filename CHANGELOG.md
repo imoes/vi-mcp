@@ -3375,7 +3375,7 @@ The user (12./13.11.2026):
   - `vi-mcp index list|describe|move|rename|backfill [--apply]|train`, the MCP tool `vi_indexes` (list, or describe an index).
   - `vi_stats` C lists the indexes; the daily measurement reports MRR per index from 20 queries on.
   - `backfill` puts existing data into the project its conversation recorded. *Production copy:* 3,659 experiences into 12 projects,
-    for example vi-mcp 2,367, centralstation 696, ansible03 245.
+    for example vi-mcp 2,367, centralstation 696, an Ansible project 245.
 - **The total effect of hints, measured at random.** On a random 5 % of the actions with hints, the hints are held back.
   - The risk warning stays; config `hold_back`, `0` = off.
   - `metrics.holdback_effect` compares these actions with the others (Mantel-Haenszel, verdict only beyond 2 SE), in `vi_stats` C and
