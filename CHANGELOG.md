@@ -11,6 +11,22 @@ Linked from [README.md](README.md).
   vi-mcp@vi-mcp`, token via `/plugin` → configure) or run `vi-mcp-setup.pyz` for Codex/Hermes, then the checks and the undo.
   Before, AGENTS.md only described the mechanism and the commands were in README.md alone. Documentation only.
 
+## 0.71.3 — 2026-11-24 — memory glibc keeps back goes back every five minutes
+
+### What was fixed: RSS no longer creeps upward
+
+- **The loop gives back the memory glibc keeps** (`malloc_trim(0)` every `main_loop.TRIM_S` = 300 s; counted in the loop's progress
+  as `trim_laeufe`, `trim_mb`; a no-op named `trim_verfuegbar: false` where there is no glibc). 0.71.2 in production grew from
+  1.31 GB to 2.73 GB in four hours, slower and slower (1.4 → 0.29 → 0.17 GB/h).
+- **No leak in vi-mcp:** on a copy of the production database under the same churn (20 sessions a minute, 75 minutes) Python's own
+  memory stayed flat at ~645 MB (tracemalloc snapshots at 10, 40 and 70 minutes) while RSS grew 0.23 GB/h — glibc keeps freed memory
+  in its arenas, one per thread and up to eight per core, and every request has its own thread.
+- Measured, 46 minutes each under the same churn:
+  - `malloc_trim(0)` every 300 s: the first call gave back 924 MB, each later one 120–270 MB, in 28–83 ms; RSS stayed at 1.0–1.3 GB
+    (1.12 GB at the end).
+  - `MALLOC_ARENA_MAX=2` instead: RSS levelled at 1.80 GB.
+  - Tests: `tests/test_memory_trim.py`. Full suite with Python 3.12.3: 1,450 passed, 8 skipped (24.11.2026).
+
 ## 0.71.2 — 2026-11-24 — under session churn: fast search and initialize, one vector matrix, read connections
 
 Production 0.71.1 jammed and grew to 11–15 GB under about 15 new sessions a minute from one client that never ends its sessions

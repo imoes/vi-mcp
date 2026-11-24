@@ -4,11 +4,14 @@ Every LOOP_S seconds: delete expired answers, condense repeated errors into rule
 across all instances; if the error occurred at ≥ 2 instances, the rule carries `collective:yes` —, unanswered
 questions become `abgelaufen` after 7 days,
 save open conversations, close idle conversations as `abgelaufen`, checkpoint the WAL.
+Every TRIM_S seconds (0.71.3): give the memory glibc keeps back to the system (`trim_memory`).
 Errors of a run are counted and named in the status — nothing vanishes silently.
 """
 from __future__ import annotations
 
+import os
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 from . import memory as g
@@ -16,8 +19,53 @@ from .log_output import log
 
 LOOP_S = 60
 ERROR_RULE_MIN = 3
-progress = {"laeufe": 0, "zuletzt": None, "regeln_neu": 0, "fehler": 0, "last_error": None, "schlaf_zuletzt": None}
+progress = {"laeufe": 0, "zuletzt": None, "regeln_neu": 0, "fehler": 0, "last_error": None, "schlaf_zuletzt": None,
+            "trim_laeufe": 0, "trim_mb": 0, "trim_zuletzt_mb": None, "trim_verfuegbar": None}
 _halt = threading.Event()
+
+#: 0.71.3: glibc keeps freed memory in its arenas (one per thread, up to 8 per core; every request has its own thread) and gives
+#: little of it back. Measured 24.11.2026 on a production copy under session churn (20 a minute, 46 min): Python's own memory
+#: stayed flat at ~645 MB (tracemalloc) while RSS grew ~0.23 GB/h; malloc_trim(0) every 300 s gave back 924 MB the first time and
+#: 120–270 MB each time after, in 28–83 ms, and kept RSS at 1.0–1.3 GB (MALLOC_ARENA_MAX=2 instead: flat at 1.8 GB).
+TRIM_S = 300
+_last_trim = [0.0]
+
+
+def _rss_mb() -> int | None:
+    try:
+        with open("/proc/self/statm") as f:
+            return int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") // 2**20
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def trim_memory() -> int | None:
+    """malloc_trim(0): the memory glibc keeps back goes back to the system. Returns the MB freed (RSS before minus after), or None
+    where there is no glibc (named in progress["trim_verfuegbar"], never an error)."""
+    if progress["trim_verfuegbar"] is False:
+        return None
+    try:
+        import ctypes
+        fn = ctypes.CDLL("libc.so.6").malloc_trim
+    except (OSError, AttributeError):
+        progress["trim_verfuegbar"] = False
+        return None
+    progress["trim_verfuegbar"] = True
+    before = _rss_mb()
+    fn(0)
+    after = _rss_mb()
+    freed = before - after if before is not None and after is not None else 0
+    progress.update(trim_laeufe=progress["trim_laeufe"] + 1, trim_mb=progress["trim_mb"] + max(0, freed), trim_zuletzt_mb=freed)
+    return freed
+
+
+def maybe_trim(now: float | None = None) -> int | None:
+    """trim_memory() when TRIM_S have passed since the last one; else nothing (None)."""
+    now = time.monotonic() if now is None else now
+    if now - _last_trim[0] < TRIM_S:
+        return None
+    _last_trim[0] = now
+    return trim_memory()
 
 
 def step() -> int:
@@ -93,6 +141,9 @@ def _run() -> None:
             progress["regeln_neu"] += n
             if n:
                 log(f"Loop: {n} new rule(s) from experience")
+            freed = maybe_trim()
+            if freed is not None and freed >= 256:
+                log(f"Loop: {freed} MB of memory glibc kept back returned to the system (malloc_trim)")
         except Exception as exc:  # noqa: BLE001 — counted and named in the status
             progress["fehler"] += 1
             progress["last_error"] = f"{g.now()} {type(exc).__name__}: {exc}"[:300]
