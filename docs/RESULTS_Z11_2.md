@@ -4,10 +4,16 @@ Status: final, scored 23.11.2026 11:18:45 UTC. Pre-registration: [PREREG_Z11_2.m
 [addendum 1](PREREG_Z11_2_A1.md) (sha256 d68633b1…). Both were frozen before any Z11-2 answer existed. All times are UTC from
 `date -u`. Nothing here changes a Z11-1 result ([RESULTS_Z11.md](RESULTS_Z11.md)).
 
-> **Correction, 24.11.2026.** This document says E1 is "clean and local". The larger pre-registered repeat, Z11-3
+> **Correction, 24.11.2026 (03:21 UTC).** This document says E1 is "clean and local". The larger pre-registered repeat, Z11-3
 > ([RESULTS_Z11_3.md](RESULTS_Z11_3.md)), did not replicate the locality: 17 of 33 kept, 51.5 % (95 % CI 33.5–69.2), against
 > 24 of 26 here. The numbers below stand as measured, but "local" holds only for these 26 questions. The forget result
 > replicated: 31 of 32.
+>
+> **That correction is withdrawn (24.11.2026, 09:45 UTC).** Z11-4 ([RESULTS_Z11_4.md](RESULTS_Z11_4.md)) found that every Z11-3
+> answer counted as not kept came from one of two parallel processes, and that this process had a corrupted neighbour search
+> (a race on the key cache). On Z11-3's clean half, 17 of 17 kept answers are kept and 16 of 16 forgotten answers are wrong.
+> Nothing in Z11-3 contradicts this document's locality. Its own limits (n = 26) stand. Z11-2's runs used one process per edit,
+> and an exact preview agrees with them on 104 of 104 pairs.
 
 ## Question
 

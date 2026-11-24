@@ -42,9 +42,16 @@ Linked from [README.md](README.md).
   - Variant E2 also forgets the neighbour documents: 26 of 26 are forgotten, but only 20 of 24 are kept (83.3 %), so H5 fails.
   - Evidence: blind judges with the key kept apart, every hash in the results. 95 % intervals are given, and they are wide at
     n = 26.
-  - **Correction (24.11.2026):** the larger Z11-3 test did not replicate E1's locality (17/33, entry below). "Local" holds only
-    for Z11-2's 26 questions.
+  - **Correction (24.11.2026, 03:21 UTC):** the larger Z11-3 test did not replicate E1's locality (17/33, entry below). "Local"
+    holds only for Z11-2's 26 questions.
+  - **That correction is withdrawn (24.11.2026, 09:45 UTC).** Z11-4 found that Z11-3's 17/33 came from a defective answer
+    process. On Z11-3's clean half, 17 of 17 kept answers are kept (entries below). Z11-2's locality is not contradicted.
 - **Z11-3 is complete: forgetting by document forgets, but on new questions it is not local**
+  - **Correction (24.11.2026, 09:45 UTC): half of Z11-3's after answers came from a process with a corrupted neighbour search.
+    The locality figure below is not a property of the store.** Found by Z11-4 (entry below). All 16 answers counted as not
+    kept, and the one forgotten answer that stayed correct, came from that process. On the clean half, 16 of 16 forgotten answers
+    are wrong and 17 of 17 kept answers are kept. H6 stays "fails" as scored, but its measurement is invalid for half the questions.
+    A clean re-run of that half has not been made yet.
   ([docs/RESULTS_Z11_3.md](docs/RESULTS_Z11_3.md), pre-registered in [docs/PREREG_Z11_3.md](docs/PREREG_Z11_3.md)).
   - 494 new questions were written about the trained documents. The store answered 65 of them correctly, and these were split by
     document into 32 to forget and 33 to keep.
@@ -55,6 +62,26 @@ Linked from [README.md](README.md).
     follow-up test are in the results.
   - **Evidence:** blind judges, with the grade files hashed before the key was opened (`judge_z11_3_grades.sha256`, score sha256
     7f8db16b…).
+- **Z11-4 is complete: the store's provenance can be read, and an edit can be previewed exactly**
+  ([docs/RESULTS_Z11_4.md](docs/RESULTS_Z11_4.md), pre-registered in [docs/PREREG_Z11_4.md](docs/PREREG_Z11_4.md),
+  `scripts/z11/read4.py`). This is the read half of the user's weight-space-programming idea: can an AI read, from the store
+  entries behind an answer, which document the answer came from?
+  - **Provenance (H7 holds).** For 117 answers the store answered correctly, the document with the largest share of the
+    generated tokens' probability is the question's own document in 110 cases, 94.0 % (95 % CI 88.1–97.6). Chance is 0.5 %.
+    - A blind AI reader that saw only the token strings and per-document shares under opaque labels also got 110 of 117.
+    - Its top 3 contains the own document in 116 of 117.
+  - **Edit preview (H8 fails as pre-registered, and the failure exposed a defect).** Masking a forget's sources in the
+    neighbour search predicts the after answer.
+    - It agrees with the real one on whether the text stays identical in 155 of 169 pairs (91.7 %; criterion 95 %).
+    - All 14 misses come from one of Z11-3's two parallel after processes.
+    - On every pair from a correctly working process the preview is exact: 137 of 137 on identity, and 96 of 97 on the first
+      divergent character.
+  - **Defect found and fixed.** `Memory` in `scripts/z11/z11.py` wrote its key cache in place. A second process that started 1–3 s
+    later read a half-written file and silently computed zero norms for up to 159,109 of 263,273 entries (reproduced).
+    - The cache is now written to a temporary file and published by an atomic rename.
+    - Verified: 8 processes started 0–3 s apart all get the reference norms.
+  - **Evidence:** the readout reproduced all 117 generations exactly. Grade files were hashed before the key was opened
+    (`judge_z11_4_grades.sha256`, score sha256 28e17b18…).
 - **Amendment 2 is complete: with the right weight, store plus retrieval no longer hurts** (exploratory;
   [docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Amendment 2").
   - The mixing weight was tuned on validation rows with the documents in the prompt and came out at 0.1, not K's 0.8.
@@ -77,8 +104,14 @@ Linked from [README.md](README.md).
 
 ### What is still missing
 
-- **A local forget at weight 0.8.** Z11-3 keeps only half of the answers it should leave alone. The cause is not known: either
-  the kNN share of generic tokens, or longer answers. Not yet tested: the first divergence step, and E1 at weight 0.1.
+- **A clean re-run of Z11-3's defective half.** 32 after answers (16 forget, 16 keep) came from the corrupted process.
+  - The preview says 14 of its 16 keep answers stay identical. That would put locality at 31–33 of 33, but it is a preview,
+    not a measured and judged answer.
+  - The earlier entry "a local forget at weight 0.8 is missing" rested on this defective half and is withdrawn.
+- **Other runs that started two store processes at once on a fresh store revision** have not all been checked for the cache
+  defect. Unaffected by construction or by evidence:
+  - the 117 before answers Z11-4 reproduced exactly;
+  - Z11-2's after answers, which ran one process per edit and match the preview 104 of 104.
 - **Forgetting by fact.** Z11-2 shows that a fact survives in another document's entries (one E1 answer), and removing all
   neighbour documents costs locality. No forget by fact exists yet.
 - **Z11-1's edit test failed** (Z11-2 above repeats it on questions the store answers correctly):

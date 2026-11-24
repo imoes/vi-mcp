@@ -1,6 +1,26 @@
 # Z11-3 results: a larger forget-by-document test (E1)
 
 Status: **scored 24.11.2026 03:21:01 UTC — H6 fails on locality** (forget 31/32, locality 17/33). Pre-registration: [PREREG_Z11_3.md](PREREG_Z11_3.md), sha256 0ec74f07…, frozen 23.11.2026 13:20:08 UTC
+
+> **Correction, 24.11.2026 09:45 UTC: half of this measurement is invalid.** Z11-4 ([RESULTS_Z11_4.md](RESULTS_Z11_4.md))
+> found a defect in the two parallel after processes of 00:26:59.
+> - **Cause.** `z11.Memory` wrote its key cache for the fresh store revision 2747 in place. A process that opens the file while
+>   another is still writing it silently computes zero norms for the unwritten entries. Z11-4 reproduced this: 159,109 / 92,155 /
+>   28,265 zero norms at a 1 / 2 / 3 s offset.
+> - **What it explains.** All 16 Kp answers counted as not kept, and the one F answer graded not wrong, came from the second
+>   process (`z11_3_answers_E1_b.jsonl`).
+>   - On the 33 questions of the first process, an exact preview of E1 (masking the forgotten sources) agrees with the real after
+>     answers 33 of 33 times. On the second process's 32 it fails 14 times on identity and 7 times on the divergence point.
+>   - Against Z11-2's single-process runs, the preview is exact on 104 of 104 pairs.
+> - **The clean half** (first process): forget 16/16 wrong (95 % CI 79.4–100), locality 17/17 kept (95 % CI 80.5–100).
+> - **The defective half.** The preview says 14 of its 16 Kp answers would stay text-identical, which would put locality at 31 to
+>   33 of 33. That is a preview, not a measured and judged answer. A clean re-run has not been made.
+> - **The verdict as scored stays on record:** H6 fails on locality, 17/33. It is a verdict on a defective measurement, not on
+>   the store.
+>   - The reading below ("on new questions it is not local"), the exploratory loop finding (17/65 budget hits) and hypotheses
+>     (a)–(c) all rest on the defective half. They are withdrawn as statements about the store.
+>   - The fix is atomic publication of the cache: a temporary file and `os.replace`. Verified with 8 processes started 0–3 s
+>     apart.
 before any question was written. All times are UTC from `date -u`.
 
 ## Diary

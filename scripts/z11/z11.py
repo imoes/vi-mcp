@@ -143,9 +143,15 @@ class Memory:
         dim = st.identity["dimension"] if st.identity else 1024
         # Deviation 2: the key matrix is a memory-mapped file (same float32 values, written once per revision), so its pages
         # are reclaimable file cache instead of 1.1 GB of anonymous memory under the 6 GB scope limit.
+        # Fixed 24.11.2026 (found by Z11-4): the cache used to be written in place, so a second process starting while the
+        # first was still writing saw a full-size but partly written file and computed zero norms for the unwritten entries,
+        # silently (reproduced: 159,109 / 92,155 / 28,265 zero norms at 1 / 2 / 3 s offset). Now each builder writes its own
+        # temporary file and publishes it with an atomic rename; readers only ever open a complete file.
         cache = Path(store_dir) / f"z11_keys_rev{self.view['revision']}_{total}x{dim}.f32"
         fresh = not cache.exists()
-        keys = np.memmap(cache, dtype=np.float32, mode="w+" if fresh else "c", shape=(total, dim))
+        if fresh:
+            tmp = cache.with_name(f"{cache.name}.tmp{os.getpid()}")
+            build = np.memmap(tmp, dtype=np.float32, mode="w+", shape=(total, dim))
         self.tokens = np.empty(total, dtype=np.int64)
         self.owner = np.empty(total, dtype=np.int64)
         self.sources = []
@@ -153,14 +159,16 @@ class Memory:
         for _, d in docs:
             t = st._array(d, "tokens")
             if fresh:
-                keys[at:at + len(t)] = st._array(d, "keys")
+                build[at:at + len(t)] = st._array(d, "keys")
             self.tokens[at:at + len(t)] = t
             self.owner[at:at + len(t)] = len(self.sources)
             self.sources.append(d["source"])
             at += len(t)
         if fresh:
-            keys.flush()
-            keys = np.memmap(cache, dtype=np.float32, mode="c", shape=(total, dim))
+            build.flush()
+            del build
+            os.replace(tmp, cache)
+        keys = np.memmap(cache, dtype=np.float32, mode="c", shape=(total, dim))
         self.keys = torch.from_numpy(keys)
         norms = np.empty(total, dtype=np.float64)
         for s in range(0, total, 65536):
