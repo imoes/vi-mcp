@@ -70,3 +70,16 @@ before any question was written. All times are UTC from `date -u`.
   reason "Z11-3 E1", 2,369 live sources and 244,991 live entries left. `store_qa`'s manifest is unchanged.
 - **00:26:59.** The after answers started as 2 processes (65 questions, from `store_z3e1`). The restore answers follow them as one
   process, because the coordinator allows at most 2 of my K processes at a time. `df -B1 /home`: 73 %.
+- **03:06:17. The after answers ended:** 65 questions in 9,558 s with 2 processes. 17 of the 65 reached the decoding budget of
+  2048 tokens (48 stopped), which explains most of the time.
+  - The copy `store_z3e1` was deleted at once (`edit3.py cleanup`: answers complete, answers sha256 2ecbd5f4…). `df -B1 /home`:
+    74 % before and 73 % after the deletion.
+- **03:06:17–03:16:59. Restore:** K answered the 32 F questions from the unedited `store_qa` (revision 2558).
+- **03:17:05. Weights after:** 18353784… — identical to the hash before.
+- **Compare** (`edit3.py compare`):
+  - Restore: **32 of 32** F answers are text-identical to the before answers, so the restore criterion holds.
+  - E1: 0 of 32 F answers and 14 of 33 Kp answers are text-identical to the before answers. Locality therefore depends on the
+    judging for 19 Kp questions.
+- **Judgepack:** 4 blocks (20, 20, 20, 5), the before and E1 answers under seeded letters; key sha256 8f5d3fe1…. Four fresh
+  subagents grade them with the Z11-2 final prompt. Only the path, the letters (two answers instead of three) and the file size
+  were changed.
