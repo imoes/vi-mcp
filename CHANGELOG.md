@@ -84,6 +84,8 @@ Linked from [README.md](README.md).
     - All 14 misses come from one of Z11-3's two parallel after processes.
     - On every pair from a correctly working process the preview is exact: 137 of 137 on identity, and 96 of 97 on the first
       divergent character.
+    - Against the clean re-measured after answers (R1, exploratory) it is exact on 169 of 169 on identity, and 114 of 115 on the
+      first divergent character.
   - **Defect found and fixed.** `Memory` in `scripts/z11/z11.py` wrote its key cache in place. A second process that started 1–3 s
     later read a half-written file and silently computed zero norms for up to 159,109 of 263,273 entries (reproduced).
     - The cache is now written to a temporary file and published by an atomic rename.

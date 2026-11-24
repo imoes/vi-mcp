@@ -175,3 +175,11 @@ correct keys.
   "Re-measurement R1".
 - With the fixed cache and one process, the after answers agree with this document's preview on 65 of 65 (identity).
 - H6-R1 holds: forget 30/32, locality 33/33.
+
+**H8 against clean after answers (exploratory, 24.11.2026 10:18 UTC, from existing files, no new run).** The H8 criteria are
+applied to the readouts above, with Z11-3's after answers replaced by R1's clean ones.
+- **Identity:** 169/169 (95 % CI 97.8–100). Z11-2 E1 52/52, Z11-2 E2 52/52, R1 65/65.
+- **First divergence exact:** 114/115 (95 % CI 95.3–99.98). R1 37/37; the one miss is in Z11-2 E2, off by two characters.
+- Both clear the pre-registered thresholds (95 % and 90 %) and their lower bounds.
+- This does not turn H8 into a pass: H8 was pre-registered against the after answers that existed then, and it failed there. It
+  shows that the preview is exact wherever the run it predicts worked correctly.
