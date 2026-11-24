@@ -53,3 +53,20 @@ before any question was written. All times are UTC from `date -u`.
     per side. That is above the minimum of 30 and well below the target of 60.
   - **Discrepancy, named:** the judge of block 5 reported 6 correct and 9 partial in its reply. Its grade file holds 5 correct
     and 8 partial. The count uses the file, never a reply.
+- **00:23:01 (24.11.).** Batch 2's before answers ended: 94 questions in 6,115 s with 2 processes, about 130 s per answer per
+  process. **Correction:** I had estimated the end at about 23:45 UTC; it came 38 minutes later.
+- **00:26:19. Pool judging finished** (blocks 10–12, 3 fresh subagents, the same prompt). Batch 2: 10 correct, 21 partial and
+  63 wrong.
+  - **Whole pool: 65 correct, 87 partial and 342 wrong of 494 (13.2 %).** The stop rule (124) was never met, so every question
+    was answered and judged. The forecast before any grade had been about 72.
+  - The judge of block 10 named one call: for n 407 the reference lists a team that the document's table does not mark. It
+    followed the document and graded the answer correct. The rubric allows that ("matches the reference or the document").
+  - The judge of block 11 corrected its own count in its reply; the file is what counts.
+  - Grade hashes are in `judge_z11_3_pool_grades.sha256`.
+- **00:26:29. Split** (`edit3.py split`, seeded by document): 65 pool questions from 60 documents. **F = 32 questions, Kp = 33**,
+  so both sides reach the minimum of 30 and the edit runs. The target of 60 per side is not met.
+  - 189 store sources belong to F's documents. Store revision 2558. `z11_3_split.json` sha256 0a99b348….
+- **00:26:56. E1 forget** on the hardlink copy `store_z3e1`: revision 2558 → 2747, 189 sources forgotten, 189 tombstones with
+  reason "Z11-3 E1", 2,369 live sources and 244,991 live entries left. `store_qa`'s manifest is unchanged.
+- **00:26:59.** The after answers started as 2 processes (65 questions, from `store_z3e1`). The restore answers follow them as one
+  process, because the coordinator allows at most 2 of my K processes at a time. `df -B1 /home`: 73 %.
