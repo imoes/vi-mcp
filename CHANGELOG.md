@@ -64,6 +64,8 @@ measured on a copy of the production database of 23.11.2026 (280,570 objects, 10
   column, and the next row's cell became `<geheimnis>`. A column header now names the credential in at most three words
   (`tests/test_anonym.py`).
 
+- Test record: the full suite on 72bcb15 with Python 3.12.3 — 1,447 passed, 8 skipped (24.11.2026).
+
 ### What is still missing
 
 - **The client behaviour stays:** one client opens about 15 sessions a minute and never ends them (sessions expire after 4 h), and
