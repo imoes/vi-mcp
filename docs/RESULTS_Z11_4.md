@@ -116,7 +116,8 @@ document holds 4–45 %. None has an alternative document by the 6-gram count.
 - **Reading the store found a defect in our own measurement.** The preview disagreed with Z11-3, and the disagreement led to a
   race in the key cache. Every answer Z11-3 counted as not kept came from the process the race can have corrupted.
   - On the clean half of Z11-3, forget is 16/16 and locality 17/17. That agrees with Z11-2.
-  - A clean re-run of the defective half is needed before H6 can be re-scored. It is not approved yet.
+  - A clean re-run of the defective half is needed before H6 can be re-scored. It is not approved yet. *(Superseded at
+    24.11.2026 ~10:15 UTC: the user approved it, and R1 ran and holds. See the section "Re-measurement R1" below.)*
 - **What it does not show.**
   - Provenance was read only for correct answers.
   - "Source" means the document whose training rows wrote the entries, not a fact-level attribution.

@@ -7,6 +7,12 @@ Linked from [README.md](README.md).
 
 ### What is new
 
+- **Z11 is closed (24.11.2026); the summary of all parts is in [docs/SUMMARY_Z11.md](docs/SUMMARY_Z11.md).**
+  - The store holds about as much knowledge as LoRA, and RAG is far ahead (44 vs. 42 vs. 161 of 297).
+  - A forget by document is local (H6-R1: 30/32 and 33/33).
+  - The source document can be read from the store (94 %).
+  - An edit's effect can be previewed exactly against clean answers.
+  - Evidence: the results files linked there.
 - **A pre-registered comparison of an editable token store with fine-tuned weights**, with all its tooling in `scripts/z11/`.
   - Tools: `z11.py` builds the store, tunes on validation, answers, measures NLL, packs the blind judging and scores it.
     `edit_test.py` runs forget, locality, restore and the weights hash. `locality_pass.py` runs the exploratory before/after pass.
