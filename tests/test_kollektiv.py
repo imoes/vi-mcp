@@ -169,6 +169,9 @@ def test_collective_rule(gd):
     assert main_loop.step() == 1
     r = g.recall("kind:rule collective:yes", viewer=None)[0][1]
     assert r.instance == g.SERVER_INSTANCE and r.data["instances"] == ["a", "b"] and "at 2 instances" in r.text
+    # stored English, not only found: the filter translates collective:yes, so a stored collective:ja passed the line above
+    # (24.11.2026: the loop wrote ja/nein, and every start's migration renamed it again)
+    assert "collective:yes" in r.hashtags and not any(t in r.hashtags for t in ("collective:ja", "collective:nein"))
 
 
 def test_foreign_conversation_history_stays_private(from_seq):

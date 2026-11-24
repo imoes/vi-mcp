@@ -229,7 +229,9 @@ def _migrate(con: Any) -> None:
         log("migration: column vi_index.explicit added (every index searched by default, as before)")
     con.execute("INSERT OR IGNORE INTO vi_index (name, kind, description, created, source) VALUES "
                 "('global', 'global', 'shared knowledge of all projects', ?, 'system')", (now(),))
-    con.execute("INSERT OR IGNORE INTO vi_index (name, created) SELECT DISTINCT idx, ? FROM object WHERE idx <> 'global'", (now(),))
+    # kind and source named: a database migrated from 0.66 keeps the German column defaults 'projekt' / 'automatisch' (24.11.2026)
+    con.execute("INSERT OR IGNORE INTO vi_index (name, kind, created, source) SELECT DISTINCT idx, 'project', ?, 'automatic' FROM object "
+                "WHERE idx <> 'global'", (now(),))
     # 0.37.0: an image is its own kind (bild); 0.35.x stored it as an insight with medium:bild. The id stays (edges, history, hints
     # refer to it); kind, art: hashtag and the now redundant medium:bild change.
     old = [r[0] for r in con.execute("SELECT id FROM object WHERE kind = 'insight' AND json_extract(data, '$.image') IS NOT NULL")]
@@ -594,8 +596,8 @@ def save(o: MemoryObject, *, commit: bool = True) -> MemoryObject:
     tags = sorted(set(o.hashtags) | {f"kind:{o.kind}", f"instance:{o.instance}"})
     if o.idx not in _known_indexes:  # 0.61.0: every index an object refers to has its row (the primary key of vi_index)
         with lock:
-            db().execute("INSERT OR IGNORE INTO vi_index (name, kind, created) VALUES (?, ?, ?)",
-                         (o.idx, "global" if o.idx == "global" else "project", now()))
+            db().execute("INSERT OR IGNORE INTO vi_index (name, kind, created, source) VALUES (?, ?, ?, ?)",  # source named: see _migrate
+                         (o.idx, "global" if o.idx == "global" else "project", now(), "system" if o.idx == "global" else "automatic"))
         _known_indexes.add(o.idx)
     with lock:
         if o.kind in BUILT_FOR_KINDS:

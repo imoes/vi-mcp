@@ -188,8 +188,11 @@ def new_serial() -> str:
                                    (len(p) + 1, f"{p}%")).fetchone()[0] or 0 for p in prefixes)
             serial = f"{tag}{n + 1:03d}"
             try:
-                g.db().execute("INSERT INTO object (id, kind, ts, last_at) VALUES (?, 'conversation', ?, ?)",
-                               (names.new_id("conversation", serial), g.now(), g.now()))
+                # every value named: a database migrated from 0.66 keeps its German column defaults (mode 'aktiv', visibility
+                # 'geteilt' — SQLite's RENAME COLUMN does not change them), and a stub left by a process that died before begin()
+                # saved the object stayed German until the next start renamed it (24.11.2026, 22 + 22 values after a hang)
+                g.db().execute("INSERT INTO object (id, kind, ts, last_at, mode, visibility) VALUES (?, 'conversation', ?, ?, 'active', ?)",
+                               (names.new_id("conversation", serial), g.now(), g.now(), g.VISIBILITY_PER_KIND["conversation"]))
                 g.db().commit()
                 return serial
             except sqlite3.IntegrityError:

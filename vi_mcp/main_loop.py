@@ -44,13 +44,13 @@ def step() -> int:
                                         + (f", at {n_inst} instances" if collective else "")
                                         + " — check arguments or reachability before the next call",
                                [tool_tag, f"skill:{tool_tag[5:].split('_')[0]}", error_tag, "rule_kind:repeated-error", "mode:test",
-                                f"collective:{'ja' if collective else 'nein'}"],
+                                f"collective:{'yes' if collective else 'no'}"],  # 24.11.2026: was ja/nein, renamed at every start
                                data, importance=2, oid=rid, mode="test",
                                reason=f"{n} identical errors in 24 h")  # author: the server (instance vi), no conversation
                 new += 1
             elif o.data.get("hits") != n or o.data.get("instances") != data["instances"]:
                 o.data.update(data)
-                o.hashtags = [t for t in o.hashtags if not t.startswith("collective:")] + [f"collective:{'ja' if collective else 'nein'}"]
+                o.hashtags = [t for t in o.hashtags if not t.startswith("collective:")] + [f"collective:{'yes' if collective else 'no'}"]
                 g.save(o)
     expired_questions = questions.let_expire()
     from . import usage_stats

@@ -302,3 +302,47 @@ def test_old_and_new_ids_are_found_alike(gd):
     s = session.begin("anna", "test")
     assert g.load_keyed("conversation", s.serial).id == f"conversation:{s.serial}"
     session.finish(s.id)
+
+
+def test_a_migrated_memory_stays_english_after_new_writes(tmp_path):
+    """24.11.2026, production 0.71.1: every start renamed German values again (22 object.mode + 22 visibility, index sources, a tag).
+    A database migrated from 0.66 keeps its German column DEFAULTs (SQLite's RENAME COLUMN does not touch them), so an INSERT that
+    leaves a column out writes German; and the main loop wrote collective:ja/nein. After writes on every such path, nothing is German."""
+    from vi_mcp import intuition, main_loop, session
+    p = tmp_path / "vi.db"
+    _load("memory_0_66_1.sql", p)
+    g.open_db(p)
+    try:
+        with g.lock:  # the defaults are still the old ones — the reason the writes below must name their values
+            ddl = g.db().execute("SELECT sql FROM sqlite_master WHERE name = 'object'").fetchone()[0]
+        assert "DEFAULT 'aktiv'" in ddl and "DEFAULT 'geteilt'" in ddl
+        serial = session.new_serial()  # the stub a process leaves when it dies before begin() saves the conversation
+        o = g.new_object("insight", "an object in an index nobody created yet", ["topic:x"], {}, instance="a")
+        o.idx = "fresh-index"
+        g.save(o)  # memory.save creates the vi_index row
+        with g.lock:
+            g.db().execute("UPDATE object SET idx = 'orphan-index' WHERE id = ?", (o.id,))  # an index row missing at the next start
+            g.db().execute("DELETE FROM vi_index WHERE name = 'orphan-index'")
+            g.db().commit()
+        for inst in ("a", "a", "b"):  # the loop's repeated-error rule, collective
+            v = intuition.before("graylog_search", {"q": inst}, inst)
+            intuition.after("graylog_search", {"q": inst}, False, 1, "ConnectionError: refused 10.0.0.1", None, v["vorher_id"], inst)
+        assert main_loop.step() >= 1  # creates the rule (new_object writes its hashtags English)
+        v = intuition.before("graylog_search", {"q": "c"}, "c")  # one more failure: the rule's hits change ...
+        intuition.after("graylog_search", {"q": "c"}, False, 1, "ConnectionError: refused 10.0.0.1", None, v["vorher_id"], "c")
+        main_loop.step()  # ... so the loop updates it (o.hashtags set directly, then save — the path that wrote collective:ja)
+        with g.lock:  # checked now, before the next start's migration would rename what was written German
+            stub = g.db().execute("SELECT mode, visibility FROM object WHERE id = ?", (names.new_id("conversation", serial),)).fetchone()
+            assert stub == ("active", "shared")
+            assert g.db().execute("SELECT source FROM vi_index WHERE name = 'fresh-index'").fetchone() == ("automatic",)
+            assert not names._tags_pending(g.db()) and not names._value_pending(g.db(), names.VALUE_COLUMNS)
+            _assert_no_german_values(g.db())
+    finally:
+        g.close_db()
+    g.open_db(p)  # the next start: _migrate adds the missing index row (after the names migration has run)
+    try:
+        with g.lock:
+            assert g.db().execute("SELECT kind, source FROM vi_index WHERE name = 'orphan-index'").fetchone() == ("project", "automatic")
+            _assert_no_german_values(g.db())
+    finally:
+        g.close_db()
