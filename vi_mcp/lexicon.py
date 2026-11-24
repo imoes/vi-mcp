@@ -10,6 +10,7 @@ the question is about — in the search note, and for the collect mode, which ga
 from __future__ import annotations
 
 import re
+import threading
 import time
 
 from . import memory as g
@@ -49,8 +50,8 @@ def normalize(s: str) -> str:
 def _load() -> dict:
     data: dict = {"values": {}, "hosts": {}, "first_label": {}, "rejected": {}}
     for kind in KINDS:
-        with g.lock:
-            rows = g.db().execute("SELECT tag, COUNT(*) FROM tag WHERE tag LIKE ? GROUP BY tag", (f"{kind}:%",)).fetchall()
+        with g.reading() as con:  # 24.11.2026: a read connection beside the writer
+            rows = con.execute("SELECT tag, COUNT(*) FROM tag WHERE tag LIKE ? GROUP BY tag", (f"{kind}:%",)).fetchall()
         for tag, n in rows:
             value = tag.split(":", 1)[1]
             if kind == "host":
@@ -75,13 +76,27 @@ def _load() -> dict:
     return data
 
 
+#: 24.11.2026: one rebuild at a time; while it runs, the other searches use the lexicon they had (same database) instead of waiting —
+#: on expiry every concurrent vi_recall rebuilt it with full GROUP BY scans of the tag table (14 threads at once on a production copy)
+_build = threading.Lock()
+
+
 def lexicon() -> dict:
     """The lexicon of the open memory, rebuilt after TTL_S seconds or when another database is open."""
     # keyed by the database itself, not by id(): Python reuses the address of a closed connection, so a new database looked like the
     # old one and the cache answered with its words (found by the test suite, 16.11.2026)
     db = (str(getattr(g, "fpath_active", "") or ""), id(g.db()))
-    if _cache["data"] is None or _cache["db"] != db or time.monotonic() - _cache["at"] > TTL_S:
-        _cache.update(at=time.monotonic(), db=db, data=_load())
+    fresh = lambda: _cache["data"] is not None and _cache["db"] == db and time.monotonic() - _cache["at"] <= TTL_S  # noqa: E731
+    if fresh():
+        return _cache["data"]
+    same_db = _cache["data"] is not None and _cache["db"] == db
+    if not _build.acquire(blocking=not same_db):
+        return _cache["data"]  # another search is rebuilding it: the previous lexicon of this database meanwhile
+    try:
+        if not fresh():
+            _cache.update(at=time.monotonic(), db=db, data=_load())
+    finally:
+        _build.release()
     return _cache["data"]
 
 

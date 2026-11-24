@@ -23,12 +23,17 @@ from . import memory as g
 from .log_output import log
 
 INTERVAL_S = 60
+#: 24.11.2026: the router is retrained on demand at most every LEARN_MIN_S (a run by hand always trains). Under session churn every
+#: new experience nudged a run, so the full retraining ran almost without pause — 12.8 s, 26 s, then 284 s per run on a production
+#: copy while 60 requests waited, holding the GIL most of the time. Vectors, proximity, hint counters and use rates stay per run.
+LEARN_MIN_S = 900
 VECTOR_MAX_S = 120
 KMEANS_MIN_NEW = 200
 TRAINING = threading.Lock()
 
 progress: dict = {"laeufe": 0, "zuletzt": None, "grund": None, "dauer_ms": None, "schritte": {}, "fehler": None, "angestossen": 0,
-               "vektoren_seit_kmeans": 0}
+               "vektoren_seit_kmeans": 0, "lernen_ausgelassen": 0}
+_last_learn = [float("-inf")]
 _event = threading.Event()
 _halt = threading.Event()
 _reasons: list[str] = []
@@ -73,7 +78,14 @@ def run(reason: str = "by hand") -> dict:
                 progress["vektoren_seit_kmeans"] = 0
         step("hinweise", bandit.recompute)
         step("nutzung", use_rate.recompute)  # Z7: the agents' use rate per hint
-        step("lernen", lambda: learning.train(f"on demand: {reason}"))
+        since = time.monotonic() - _last_learn[0]
+        if reason == "by hand" or since >= LEARN_MIN_S:
+            step("lernen", lambda: learning.train(f"on demand: {reason}"))
+            _last_learn[0] = time.monotonic()
+        else:  # named, never silent: the step is listed with its reason and counted
+            progress["lernen_ausgelassen"] += 1
+            step("lernen", lambda: {"zustand": "uebersprungen",
+                                    "grund": f"last training {int(since)} s ago, on demand at most every {LEARN_MIN_S} s"})
     duration = int((time.monotonic() - t_total) * 1000)
     progress.update({"laeufe": progress["laeufe"] + 1, "zuletzt": g.now(), "grund": reason, "dauer_ms": duration, "schritte": steps,
                   "fehler": next((f"{k}: {s['grund']}" for k, s in steps.items() if s.get("zustand") == "fehler"), None)})
