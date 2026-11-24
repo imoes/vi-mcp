@@ -323,6 +323,7 @@ def test_code_examples_stay_locally_readable(gd):
     ("Das Passwort lautet Sommer2026!", "Sommer2026!"), ("Kennwort: hallo123", "hallo123"), ("PW = Geheim#1", "Geheim#1"), ("root-Passwort ist Xy7kLm9q", "Xy7kLm9q"),
     ("Login: admin / Passwort: Start123", "Start123"), ("| Host | User | Passwort |\n|---|---|---|\n| web1 | admin | Ab12cd34 |\n| web2 | root | Zz99yy88 |", "Ab12cd34"),
     ("Passwort:\n   9fK2mPq7", "9fK2mPq7"), ("SNMP community string: publicXYZ", "publicXYZ"), ("Der PSK = WlanKey2026", "WlanKey2026"),
+    ("Host | Passwort\nweb1 | Ab12cd34", "Ab12cd34"), ("| Host | Kennwort / PIN |\n| web1 | Xk9pQ2zz |", "Xk9pQ2zz"),  # 24.11.2026: short headers
 ])
 def test_strip_credentials_finds(text, remains):
     outputs, n = anonymize.strip_credentials(text)
@@ -332,6 +333,9 @@ def test_strip_credentials_finds(text, remains):
 @pytest.mark.parametrize("text", [
     "Das Passwort steht im Password Depot unter IT/Server.", "Passwort: siehe Tresor", "Das Passwort muss alle 90 Tage geändert werden.", "token = lese_token()",
     "password: ${DB_PASSWORD}", "Kennwort zurücksetzen über das Portal", "Passwort: ***", "Die Spalte Passwort bleibt leer", "Bei Login-Fehlern das Passwort prüfen",
+    # 24.11.2026: a changelog row that mentions a password change is no column header — its next row was masked
+    "Datum | Was wurde geändert\n28. August 2020 | Migration auf den neuen Server\n22. Mai 2024 | Passwort geändert für obs Benutzer "
+    "example.org (läuft nun wieder 2 Jahre)\n22. Mai 2024 | Zertifikat erneuert",
 ])
 def test_strip_credentials_leaves_alone(text):
     outputs, n = anonymize.strip_credentials(text)

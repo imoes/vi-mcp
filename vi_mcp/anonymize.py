@@ -248,6 +248,15 @@ _ANSWER = re.compile(r"\b(?:antwort|answer)\s*[:=]\s*", re.I)
 _ACCOUNT_WORDS = re.compile(r"\b(?:zugang\w*|login|logon|anmeldung|benutzer(?:name)?|user(?:name)?|konto|account)\b", re.I)
 
 
+#: 24.11.2026: a column header names the credential in a few words ("Passwort", "Kennwort / PIN"); a cell that says more is a sentence —
+#: a changelog row "22. Mai 2024 | Passwort geändert für obs Benutzer …" was taken for a header, and the next row's cell was masked
+HEADER_WORDS_MAX = 3
+
+
+def _header_cell(cell: str) -> bool:
+    return bool(_SECRET_KEY_WORDS.search(cell)) and len(cell.split()) <= HEADER_WORDS_MAX
+
+
 def strip_credentials(text: str) -> tuple[str, int]:
     """For knowledge from documents and transcripts: values after password words, password columns in tables and the value in the line
     after "Passwort:" become <geheimnis>. Returns (text, count). Pure. Code expressions like `lese_token()` or ${PW} stay.
@@ -263,8 +272,8 @@ def strip_credentials(text: str) -> tuple[str, int]:
     lines, column, upcoming = text.split("\n"), None, False
     for i, z in enumerate(lines):
         cells = z.split("|") if z.count("|") >= 1 and len([c for c in z.split("|") if c.strip()]) >= 2 else None
-        if cells and column is None and any(_SECRET_KEY_WORDS.search(c) for c in cells) and not any(_SEPARATOR.fullmatch(c.strip() or "x") for c in cells):
-            column = next(j for j, c in enumerate(cells) if _SECRET_KEY_WORDS.search(c))
+        if cells and column is None and any(_header_cell(c) for c in cells) and not any(_SEPARATOR.fullmatch(c.strip() or "x") for c in cells):
+            column = next(j for j, c in enumerate(cells) if _header_cell(c))
             continue
         if cells is None:
             column = None
