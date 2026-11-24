@@ -82,6 +82,9 @@ Linked from [README.md](README.md).
     - Verified: 8 processes started 0–3 s apart all get the reference norms.
   - **Evidence:** the readout reproduced all 117 generations exactly. Grade files were hashed before the key was opened
     (`judge_z11_4_grades.sha256`, score sha256 28e17b18…).
+  - **Audit (user decision, 24.11.2026).** Every Z11 run since the key cache was introduced was checked against the run logs,
+    the cache's file birth time and the run scripts ([docs/RESULTS_Z11_4.md](docs/RESULTS_Z11_4.md), "Audit"). Only Z11-3's E1
+    after answers started two processes on a fresh revision. No other result is affected.
 - **Amendment 2 is complete: with the right weight, store plus retrieval no longer hurts** (exploratory;
   [docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Amendment 2").
   - The mixing weight was tuned on validation rows with the documents in the prompt and came out at 0.1, not K's 0.8.
@@ -108,10 +111,6 @@ Linked from [README.md](README.md).
   - The preview says 14 of its 16 keep answers stay identical. That would put locality at 31–33 of 33, but it is a preview,
     not a measured and judged answer.
   - The earlier entry "a local forget at weight 0.8 is missing" rested on this defective half and is withdrawn.
-- **Other runs that started two store processes at once on a fresh store revision** have not all been checked for the cache
-  defect. Unaffected by construction or by evidence:
-  - the 117 before answers Z11-4 reproduced exactly;
-  - Z11-2's after answers, which ran one process per edit and match the preview 104 of 104.
 - **Forgetting by fact.** Z11-2 shows that a fact survives in another document's entries (one E1 answer), and removing all
   neighbour documents costs locality. No forget by fact exists yet.
 - **Z11-1's edit test failed** (Z11-2 above repeats it on questions the store answers correctly):
