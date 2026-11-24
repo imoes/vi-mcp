@@ -3,9 +3,69 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## Unreleased — experiment Z11-1 (virtualised LLM: kNN-LM token store vs. LoRA vs. RAG)
+## 0.71.2 — 2026-11-24 — under session churn: fast search and initialize, one vector matrix, read connections
 
-### What is new
+Production 0.71.1 jammed and grew to 11–15 GB under about 15 new sessions a minute from one client that never ends its sessions
+(MCP initialize did not answer within 90 s while /health answered in 17 ms; 180 threads). Everything below was reproduced and
+measured on a copy of the production database of 23.11.2026 (280,570 objects, 109,077 vectors), with a load like that client's
+(initialize, vi_before, vi_recall, vi_after, no DELETE) and a local stand-in for the embedding service.
+
+### What was fixed: searching and starting a session no longer wait for each other
+
+- **A hybrid `vi_recall` takes 0.19 s instead of 3.05 s** (cProfile, one warm call). It used to list every visible object first
+  (197,036 ids per query) and to build the full list of all objects of the asked kinds for every check of a few hundred ids. Now the
+  nearest vectors come first and only they are checked against the filter (`vector.nearest`, `memory.admitted`), and checks of a few
+  ids test each object (`EXISTS`) instead of building lists. **The hits are the same:** 67 queries gave identical top-10 lists to
+  0.71.1 when both ran back to back (the 67 took 20.6 s instead of 405.7 s); tests compare both paths
+  (`tests/test_vector_memory.py`).
+- **`initialize` no longer rebuilds the memory index each time**: cached 60 s per instance, one build at a time, refreshed at once when
+  knowledge is learned. The skill table and the lexicon are built once at a time too; while the lexicon is rebuilt, other searches
+  use the previous one (`tests/test_initialize_cost.py`, `tests/test_churn_background.py`).
+- **Reads run beside the writer**: searches, the memory index and object loads use `memory.READERS` (4) read connections of the
+  same process (SQLite WAL), outside the global lock. A read uses the writing connection when it holds an uncommitted change, and
+  every result is read whole, so no read keeps an old snapshot (`tests/test_read_pool.py`, which fails without that).
+- **The router is retrained on demand at most every 15 minutes** (`on_demand.LEARN_MIN_S`). Every new experience had triggered a full
+  retraining: 12.8 s, 26 s, then 284 s per run under load, and requests piled up again behind it. A skipped training is listed with
+  its reason and counted; a run started by hand always trains.
+- Measured, 20 new sessions a minute (the production rate), 0.71.1 → 0.71.2: FINAL_NUMBERS
+- Measured, 60 new sessions a minute (three times the production rate), 0.71.2 without → with read connections: completed sessions
+  191 → 650 of ~700, `vi_recall` median 94.2 s → 11.6 s, timeouts 107 → 0. At this rate searches still wait several seconds.
+
+### What was fixed: memory
+
+- **One vector matrix instead of two, built without three copies.** The content groups (router features) and the proximity edges kept
+  or rebuilt a second full matrix of every vector — including the external index, whose objects are never a hint — and the search
+  matrix was built from one object per stored vector plus two full copies. Now one matrix, read in chunks into its final array;
+  content and proximity use its rows of active objects outside search-scoped indexes (97 MB instead of 426 MB on the copy).
+- **A search no longer copies the candidate vectors** (445 MiB per hybrid `vi_recall` on the copy, measured with tracemalloc; concurrent
+  searches added up). Tests check the peak memory of the build and of a search (`tests/test_vector_memory.py`).
+- glibc kept much of the freed memory: `malloc_trim(0)` on a 0.71.1 test process under load took its RSS from 4.38 to 2.11 GB.
+
+### What was fixed: German names came back after every start
+
+- A database migrated from 0.66 keeps its German column defaults (SQLite's RENAME COLUMN does not change them), so every insert that
+  left a column out wrote German, and each start renamed it again (production 24.11.2026: 22 mode and 22 visibility values, index
+  sources, a tag). The inserts now name their values; the repeated-error rule writes `collective:yes/no` instead of `ja/nein`.
+  `tests/test_names.py::test_a_migrated_memory_stays_english_after_new_writes` fails on each of the three writers without its fix.
+
+### What was fixed: secret masking hid a changelog line
+
+- A table row that mentions a password change ("22. Mai 2024 | Passwort geändert für …") was taken for the header of a password
+  column, and the next row's cell became `<geheimnis>`. A column header now names the credential in at most three words
+  (`tests/test_anonym.py`).
+
+### What is still missing
+
+- **The client behaviour stays:** one client opens about 15 sessions a minute and never ends them (sessions expire after 4 h), and
+  bursts of requests with session ids the server no longer knows (404). Fixing that is the client's side.
+- Pages already imported with the over-masked line keep `<geheimnis>` until they are imported again.
+- The production vector count was not measured for this release; the numbers above are from the copy of 23.11.2026.
+- `MALLOC_ARENA_MAX=2` (an operating setting, no code) lowered RSS on 0.71.1 under load as much as the memory fixes did
+  (RSS max 3.38 vs. 5.55 GB); whether to set it is an operator's decision.
+
+### Research shipped with it: experiment Z11-1 (virtualised LLM: kNN-LM token store vs. LoRA vs. RAG)
+
+#### What is new
 
 - **Z11 is closed (24.11.2026); the summary of all parts is in [docs/SUMMARY_Z11.md](docs/SUMMARY_Z11.md).**
   - The store holds about as much knowledge as LoRA, and RAG is far ahead (44 vs. 42 vs. 161 of 297).
@@ -121,7 +181,7 @@ Linked from [README.md](README.md).
   ([docs/PREREG_Z11_2.md](docs/PREREG_Z11_2.md), [addendum 1](docs/PREREG_Z11_2_A1.md), `scripts/z11/edit2.py`). It runs
   only on our own host. Evidence: the sha256 files next to both documents; the split was drawn before any Z11-2 answer.
 
-### What is still missing
+#### What is still missing
 
 - **Robustness of the forget.** Z11-2 and Z11-3 R1 forget answers to questions written from the forgotten documents, with
   greedy decoding. Not tested: paraphrased or format-shifted probes (Thaker et al.), sampling, forgetting by fact. (The earlier

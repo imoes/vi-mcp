@@ -510,8 +510,27 @@ def finish(srvs) -> None:
     log(f"stopped; {n} open conversation(s) saved as unterbrochen")
 
 
+#: 0.71.2: BLAS threads per call. Many requests run at once and numpy releases the GIL in a matrix product, so the parallelism comes
+#: from the requests; a multi-threaded BLAS (OpenBLAS in pip's numpy) split every search over all cores and its idle workers spun —
+#: measured 24.11.2026, 8 concurrent callers, 1,600 products over a 109,077 x 1024 matrix on 32 cores: 32 threads 17.5 s and 482 CPU
+#: seconds, 1 thread 5.0 s and 39 CPU seconds. Debian's numpy uses the single-threaded reference BLAS, where this changes nothing.
+BLAS_THREADS = 1
+
+
+def limit_blas() -> str:
+    """Limit the BLAS of this process to BLAS_THREADS (threadpoolctl, a dependency of scikit-learn). Returns what was done, for the log."""
+    try:
+        from threadpoolctl import threadpool_info, threadpool_limits
+    except ImportError as e:
+        return f"BLAS threads not limited: {e.name} missing"
+    before = sorted({(i["internal_api"], i["num_threads"]) for i in threadpool_info() if i.get("user_api") == "blas"})
+    threadpool_limits(limits=BLAS_THREADS, user_api="blas")
+    return f"BLAS threads limited to {BLAS_THREADS}" + (f" (was {', '.join(f'{a} {n}' for a, n in before)})" if before else " (no BLAS pool found)")
+
+
 def main() -> None:
     k = config.load()
+    log(limit_blas())
     srvs = build(k)
     main_loop.launch()
     on_demand.launch()

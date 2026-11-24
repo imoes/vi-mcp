@@ -42,7 +42,11 @@ loop. Consequences: N-fold maintenance work, locks only within one process (`thr
 updates through read-modify-write across process boundaries, races for conversation numbers. Eight independent reviews
 (peer sessions, 08.11.) reached the same conclusion: *the problem is the N processes, not the database.*
 
-With one process: one writer, one loop, one connection, one lock (`memory.lock`, RLock).
+With one process: one writer, one loop, one writing connection, one lock (`memory.lock`, RLock).
+Since 0.71.2 the same process also keeps `memory.READERS` read connections (SQLite WAL, `query_only`): searches, the memory
+index and object loads read committed state on them, beside the writer and outside the lock (`memory.reading`). A read falls
+back to the writing connection when it holds an uncommitted change. Measured on a production copy under session churn at
+60 new sessions a minute: without them 107 timeouts and vi_recall median 94 s, with them 0 timeouts and 11.6 s.
 
 *How you would notice that the assumption is wrong:* when a second process opens the same `vi.db`. Observation point:
 `fuser ~/.local/share/vi-mcp/vi.db` must show exactly one process.

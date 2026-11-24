@@ -7,9 +7,10 @@ every change with reason and history. Every object carries hashtags kind:value; 
 Retrieval weighted by relevance + recency (decay) + importance — after Park et al. 2023
 "Generative Agents" (arXiv 2304.03442). Objects with shared hashtags are linked (Zettelkasten, A-Mem).
 
-One process, one connection: all accesses run under `lock` (threading.RLock). Because vi-mcp is the only
+One process, one writing connection: every write runs under `lock` (threading.RLock). Because vi-mcp is the only
 writer, this lock suffices — several processes on the same file are not intended (see
-docs/ARCHITECTURE.md, "One process").
+docs/ARCHITECTURE.md, "One process"). 0.71.2: reads of committed state may use one of READERS read connections of the
+same process (`reading()`, SQLite WAL), beside the writer and outside the lock.
 """
 from __future__ import annotations
 
