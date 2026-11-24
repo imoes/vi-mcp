@@ -3,6 +3,144 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## Unreleased — experiment Z11-1 (virtualised LLM: kNN-LM token store vs. LoRA vs. RAG)
+
+### What is new
+
+- **Z11 is closed (24.11.2026); the summary of all parts is in [docs/SUMMARY_Z11.md](docs/SUMMARY_Z11.md).**
+  - The store holds about as much knowledge as LoRA, and RAG is far ahead (44 vs. 42 vs. 161 of 297).
+  - A forget by document is local (H6-R1: 30/32 and 33/33).
+  - The source document can be read from the store (94 %).
+  - An edit's effect can be previewed exactly against clean answers.
+  - Evidence: the results files linked there.
+- **A pre-registered comparison of an editable token store with fine-tuned weights**, with all its tooling in `scripts/z11/`.
+  - Tools: `z11.py` builds the store, tunes on validation, answers, measures NLL, packs the blind judging and scores it.
+    `edit_test.py` runs forget, locality, restore and the weights hash. `locality_pass.py` runs the exploratory before/after pass.
+    `merge_shards.py` merges sharded answer runs.
+  - The design and every deviation are in `docs/PREREG_Z11*.md`, each with a sha256 file. The results are in
+    [docs/RESULTS_Z11.md](docs/RESULTS_Z11.md).
+  - Evidence, 60 never-trained probe questions (blind judges, exact sign tests):
+
+    | Arm | correct of 60 |
+    |---|---|
+    | base | 0 |
+    | LoRA run 3 | 7 |
+    | kNN-LM store | 8 |
+    | BM25 top-3 in the prompt | 41 |
+    | store + retrieval | 1 |
+
+  - Evidence, the secondary set of 297 questions:
+
+    | Arm | correct of 297 |
+    |---|---|
+    | base | 5 |
+    | LoRA | 42 |
+    | store | 44 |
+    | retrieval | 161 |
+    | store + retrieval | 20 |
+
+  - The store beats the base model (8:0 and 42:3) and matches the LoRA adapter (5:4 and 26:24) without any training.
+- **Z11-2 is complete: on knowledge the store holds, forgetting by document is clean and local**
+  ([docs/RESULTS_Z11_2.md](docs/RESULTS_Z11_2.md)). The test ran on 52 questions the store answered correctly, split by document
+  into a forget side and a keep side.
+  - Variant E1 forgets the asked documents: 25 of 26 forgotten answers are wrong afterwards (criterion 80 %), and 24 of 26 kept
+    answers are kept (criterion 90 %). The weights hash is unchanged and the snapshot restores 26 of 26, so H4 holds.
+  - Variant E2 also forgets the neighbour documents: 26 of 26 are forgotten, but only 20 of 24 are kept (83.3 %), so H5 fails.
+  - Evidence: blind judges with the key kept apart, every hash in the results. 95 % intervals are given, and they are wide at
+    n = 26.
+  - **Correction (24.11.2026, 03:21 UTC):** the larger Z11-3 test did not replicate E1's locality (17/33, entry below). "Local"
+    holds only for Z11-2's 26 questions.
+  - **That correction is withdrawn (24.11.2026, 09:45 UTC).** Z11-4 found that Z11-3's 17/33 came from a defective answer
+    process. On Z11-3's clean half, 17 of 17 kept answers are kept (entries below). Z11-2's locality is not contradicted.
+- **Z11-3 is complete: forgetting by document forgets, but on new questions it is not local**
+  - **Correction (24.11.2026, 09:45 UTC): half of Z11-3's after answers came from a process with a corrupted neighbour search.
+    The locality figure below is not a property of the store.** Found by Z11-4 (entry below). All 16 answers counted as not
+    kept, and the one forgotten answer that stayed correct, came from that process. On the clean half, 16 of 16 forgotten answers
+    are wrong and 17 of 17 kept answers are kept. H6 stays "fails" as scored, but its measurement is invalid for half the questions.
+  - **Re-measured (R1, user decision, pre-registered amendment [docs/PREREG_Z11_3_R1.md](docs/PREREG_Z11_3_R1.md)): H6-R1
+    holds.** E1 was repeated and all 65 after answers came from one process with the fixed cache.
+    - Forget: 30 of 32, 93.8 % (95 % CI 79.2–99.2).
+    - Locality: 33 of 33, 100 % (95 % CI 89.4–100).
+    - Restore and weights pass.
+    - No answer loops; Z11-3 had 17.
+    - The control half reproduced Z11-3's answers 33 of 33.
+    - Evidence: two fresh blind judges, grades hashed before the key was opened (`judge_z11_3r1_grades.sha256`, score sha256
+      09fda972…).
+  ([docs/RESULTS_Z11_3.md](docs/RESULTS_Z11_3.md), pre-registered in [docs/PREREG_Z11_3.md](docs/PREREG_Z11_3.md)).
+  - 494 new questions were written about the trained documents. The store answered 65 of them correctly, and these were split by
+    document into 32 to forget and 33 to keep.
+  - **Forget:** 31 of 32 forgotten answers are wrong afterwards, 96.9 % (95 % CI 83.8–99.9; criterion 80 %).
+  - **Locality:** only 17 of 33 kept answers are kept, 51.5 % (95 % CI 33.5–69.2; criterion 90 %). So H6 fails.
+  - **Restore and weights:** restore is 32 of 32 text-identical, and the weights hash is unchanged.
+  - **Exploratory:** after the edit, 17 of 65 answers loop into the token budget, against none in Z11-2. Hypotheses and a
+    follow-up test are in the results.
+  - **Evidence:** blind judges, with the grade files hashed before the key was opened (`judge_z11_3_grades.sha256`, score sha256
+    7f8db16b…).
+- **Z11-4 is complete: the store's provenance can be read, and an edit can be previewed exactly**
+  ([docs/RESULTS_Z11_4.md](docs/RESULTS_Z11_4.md), pre-registered in [docs/PREREG_Z11_4.md](docs/PREREG_Z11_4.md),
+  `scripts/z11/read4.py`). This is the read half of the user's weight-space-programming idea: can an AI read, from the store
+  entries behind an answer, which document the answer came from?
+  - **Provenance (H7 holds).** For 117 answers the store answered correctly, the document with the largest share of the
+    generated tokens' probability is the question's own document in 110 cases, 94.0 % (95 % CI 88.1–97.6). Chance is 0.5 %.
+    - A blind AI reader that saw only the token strings and per-document shares under opaque labels also got 110 of 117.
+    - Its top 3 contains the own document in 116 of 117.
+  - **Edit preview (H8 fails as pre-registered, and the failure exposed a defect).** Masking a forget's sources in the
+    neighbour search predicts the after answer.
+    - It agrees with the real one on whether the text stays identical in 155 of 169 pairs (91.7 %; criterion 95 %).
+    - All 14 misses come from one of Z11-3's two parallel after processes.
+    - On every pair from a correctly working process the preview is exact: 137 of 137 on identity, and 96 of 97 on the first
+      divergent character.
+    - Against the clean re-measured after answers (R1, exploratory) it is exact on 169 of 169 on identity, and 114 of 115 on the
+      first divergent character.
+  - **Defect found and fixed.** `Memory` in `scripts/z11/z11.py` wrote its key cache in place. A second process that started 1–3 s
+    later read a half-written file and silently computed zero norms for up to 159,109 of 263,273 entries (reproduced).
+    - The cache is now written to a temporary file and published by an atomic rename.
+    - Verified: 8 processes started 0–3 s apart all get the reference norms.
+  - **Evidence:** the readout reproduced all 117 generations exactly. Grade files were hashed before the key was opened
+    (`judge_z11_4_grades.sha256`, score sha256 28e17b18…).
+  - **Audit (user decision, 24.11.2026).** Every Z11 run since the key cache was introduced was checked against the run logs,
+    the cache's file birth time and the run scripts ([docs/RESULTS_Z11_4.md](docs/RESULTS_Z11_4.md), "Audit"). Only Z11-3's E1
+    after answers started two processes on a fresh revision. No other result is affected.
+- **Amendment 2 is complete: with the right weight, store plus retrieval no longer hurts** (exploratory;
+  [docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Amendment 2").
+  - The mixing weight was tuned on validation rows with the documents in the prompt and came out at 0.1, not K's 0.8.
+  - With it, store plus retrieval answers 42 of 60 probe questions correctly, against 1 before and 41 for retrieval alone.
+  - Evidence: a separate blind pass with the key kept apart. KR\* vs. R is 1:0 (p 1.0), KR\* vs. KR is 41:0. The same judges'
+    strict grades for R and KR equal the primary's on 60/60 questions.
+- **Amendment 4 is complete: on the 297-question secondary set, store plus retrieval at weight 0.1 is level with retrieval
+  alone** (exploratory; [docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Amendment 4").
+  - Store plus retrieval answers 160 of 297 correctly, retrieval alone 165, and store plus retrieval at weight 0.8 answers 18.
+  - Exact sign tests, two-sided: KR\* vs. R 2:7 (p 0.18); KR\* vs. KR 145:3.
+  - 231 of 297 answers are text-identical to retrieval alone. At the tuned weight the store adds nothing measurable.
+  - Evidence: 15 blind judges, with the key opened after all grades were hashed. The same judges' R grades agree with the
+    secondary pass with κ 0.91.
+- **Related work in the results** ([docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Related work"). The section covers SILO
+  (2308.04430), Wang et al. 2023 (2305.14625), Geng et al. 2025 (2408.11815) and TOFU (2401.06121). Each paper's finding is quoted
+  with its table or section, and each says whether it predicts our results.
+- **Z11-2 pre-registered:** the edit test repeated on questions the store answers correctly
+  ([docs/PREREG_Z11_2.md](docs/PREREG_Z11_2.md), [addendum 1](docs/PREREG_Z11_2_A1.md), `scripts/z11/edit2.py`). It runs
+  only on our own host. Evidence: the sha256 files next to both documents; the split was drawn before any Z11-2 answer.
+
+### What is still missing
+
+- **Robustness of the forget.** Z11-2 and Z11-3 R1 forget answers to questions written from the forgotten documents, with
+  greedy decoding. Not tested: paraphrased or format-shifted probes (Thaker et al.), sampling, forgetting by fact. (The earlier
+  entry "a local forget at weight 0.8 is missing" rested on Z11-3's defective half and is withdrawn: R1 is local.)
+- **Forgetting by fact.** Z11-2 shows that a fact survives in another document's entries (one E1 answer), and removing all
+  neighbour documents costs locality. No forget by fact exists yet.
+- **Z11-1's edit test failed** (Z11-2 above repeats it on questions the store answers correctly):
+  - forget: 11 of 14 edited answers wrong, 78.6 %, criterion 80 %;
+  - locality: 26 of 46 other answers textually unchanged, 56.5 %, criterion 90 %.
+  - Restore from a snapshot (14/14 identical) and unchanged weights (same hash) pass.
+  - An exploratory blind pass shows the changed answers were wrong before and after. The criterion measured drift among invented
+    answers, not lost knowledge.
+- **The store adds nothing on top of retrieval.** At the pre-registered weight, store plus retrieval was worse than retrieval
+  alone (0:40 and 3:144).
+  - The tuned weight of amendment 2 removes that harm, but no gain appears: 1:0, and 51 of 60 answers are text-identical to
+    retrieval alone.
+  - The secondary set of 297 questions has not been rerun with the tuned weight.
+- Both the store and the adapter invent host names (30 and 26 of 297 answers) and never abstain.
+
 ## 0.71.1 — 2026-11-22
 
 ### What has changed
@@ -162,7 +300,6 @@ Linked from [README.md](README.md).
   use-rate ranking reads only `data.declared`, which the production copy does not contain — the feedback hook of this release (above) is its first source; an
   online A/B pre-registration comes before `use_rate_share` is set above 0.
 - One name for two things: `data.used` (the heuristic) and `data.declared.used` (the declaration) — for a later migration.
-
 
 ## 0.70.12 — 2026-11-20
 

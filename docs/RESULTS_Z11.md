@@ -1,0 +1,349 @@
+# Z11-1 results: kNN-LM token store vs. LoRA vs. RAG on the run-3 knowledge probe
+
+Status: final, 23.11.2026. The primary result, the edit test, the secondary set (amendment 1) and amendment 2 (exploratory,
+scored 10:16 UTC) are complete. The repeated edit test is a separate experiment, Z11-2 ([PREREG_Z11_2.md](PREREG_Z11_2.md),
+results in [RESULTS_Z11_2.md](RESULTS_Z11_2.md): H4 holds, H5 fails).
+
+Pre-registration: [PREREG_Z11.md](PREREG_Z11.md) (frozen 15:41 UTC), amendments [A1](PREREG_Z11_A1.md),
+[A2](PREREG_Z11_A2.md) and [A3](PREREG_Z11_A3.md), deviations [D1](PREREG_Z11_D1.md), [D2](PREREG_Z11_D2.md) and
+[D3](PREREG_Z11_D3.md). Each has a sha256 file next to it. All times are UTC from `date -u`.
+
+## Question
+
+Can the knowledge that LoRA run 3 put into the weights instead live in an editable token store next to frozen weights (kNN-LM,
+Khandelwal et al. 2019, arXiv:1911.00172), so that it can be forgotten and restored without training?
+
+## Setup
+
+- **Base model:** Qwen/Qwen3-0.6B at a pinned revision, float32, greedy decoding, decoding budget 2,048 tokens (as in run 3). The
+  same system instruction is used for every arm.
+- **Store:** `vi_mcp.knn_lm.Datastore` built from the 2,558 training rows of run 3: 263,273 entries, 1.08 GB of float32 keys, at
+  revision 2558.
+- **Arms:**
+  - B: the base model.
+  - L: LoRA run 3, rank 64, 4 epochs.
+  - K: kNN-LM.
+  - R: BM25 top-3 documents in the prompt.
+  - KR: K and R together.
+- **Frozen parameters**, chosen on 374 validation rows from documents outside the probe (`frozen_params.json`, sha256 1242b7bc…):
+  - k = 32;
+  - temperature 476.74 (a factor of 0.1 on the median nearest squared L2 distance);
+  - weight 0.8;
+  - RAG top-3.
+- **Questions:** the 60 never-trained knowledge-probe questions about trained documents (run 3).
+- **Judging:** a blind pointwise grade against the reference and the source document: correct, partial or wrong.
+  - The letter order is seeded per question, and the key is kept in a separate file.
+  - The judges are fresh subagents that read only the block file.
+  - Exact sign tests.
+- **Judge check:** the base and LoRA answers are identical to run 3's, 60/60 each. The judges agree with the run-3 grades on
+  98.3 % (κ 0.88 for B, κ 0.96 for L).
+
+## Primary result (scored 22.11.2026 20:12:55)
+
+| Arm | correct | partial | wrong | graded score (1 / 0.5) |
+|---|---|---|---|---|
+| B | 0 | 4 | 56 | 2.0 |
+| L | 7 | 8 | 45 | 11.0 |
+| K | 8 | 6 | 46 | 11.0 |
+| R | 41 | 11 | 8 | 46.5 |
+| KR | 1 | 17 | 42 | 9.5 |
+
+| Hypothesis | Test (wins:losses, exact sign test) | Verdict |
+|---|---|---|
+| H1 K > B | 8:0, p = 0.0039 one-sided | **holds** |
+| H2 K ≥ L (point estimate) **and** edit test passes | 8 ≥ 7 (5:4, p = 1.0 two-sided); edit test below | **fails** (edit test) |
+| H3 KR > R | 0:40 | **fails** |
+
+Descriptive comparisons:
+- R > L: 35:1;
+- R > K: 35:2;
+- L > B: 7:0;
+- KR vs. L: 0:6.
+
+### Secondary measures on the probe
+
+| Arm | NLL of the reference answers (2,464 tokens) | perplexity | median s per answer (CPU, 4 threads) | budget hits |
+|---|---|---|---|---|
+| B | 3.019 | 20.5 | 6.2 | 1 |
+| L | 3.172 | 23.9 | 16.8 | 0 |
+| K | 2.370 | 10.7 | 19.9 | 4 |
+| R | 0.982 | 2.67 | 24.2 | 0 |
+| KR | 1.355 | 3.88 | 43.1 | 9 |
+
+- L has a higher NLL than B even though L answers more questions correctly. The references were written by run 3's generator
+  model. Hypothesis: the adapter learned its own answer style and is penalised on text worded by another model.
+- KR is close to R in NLL but far below R in generated answers (1 vs. 41 correct). NLL measures how likely the model finds a given
+  answer, not what it generates.
+
+## Edit test (pre-registered; run 20:45–21:46, blind pass 2 scored 21:48:40)
+
+F is the set of 14 probe questions on which K was graded correct or partial. All 95 store sources of their 14 documents were
+forgotten in one batch, which moved the store from revision 2558 to 2653 and left 253,207 entries.
+
+| Part | Criterion | Result | Verdict |
+|---|---|---|---|
+| Forget | ≥ 80 % of F's edited answers graded wrong | 11/14 = 78.6 % (11 wrong, 2 partial, 1 correct) | **fail** (by one answer) |
+| Locality | ≥ 90 % of the answers outside F textually identical | 26/46 = 56.5 % | **fail** |
+| Restore | every F answer from the snapshot identical | 14/14 | pass |
+| Weights | weights hash identical before and after | identical | pass |
+
+- **Forget.** Two of the three edited answers that were not graded wrong are about facts the base model or general knowledge also
+  supplies; in the primary, the base model was partial on one of them. The fact asked by the third occurs in 8 of the 500 training
+  documents, and only F's documents were forgotten.
+  - Hypothesis: the fact survives through the other documents' entries. A per-source forget is then working as designed, and the
+    test should forget by fact, not by document.
+- **Controls.** The 14 unedited control answers came back 13 wrong and 1 partial. By construction they are questions K did not get
+  right, so they check that the judge is stable. They are not a contrast.
+- **Locality, exploratory (amendment 3; scored 21:49:31).** The 20 changed answers outside F were judged blind as before/after
+  pairs.
+  - Before: 19 wrong, 1 partial. After: 20 wrong.
+  - Pair verdicts: 9 same facts, 10 different (but equally wrong) facts, 1 after worse.
+  - Outside F the store had no knowledge to lose, so the textual-identity criterion measured drift among invented answers.
+    Removing 3.8 % of the entries changes the neighbour sets, and greedy decoding amplifies small shifts in probability.
+  - This cannot rescue H2.
+
+## Reading
+
+- **The store carries document knowledge to new questions (H1).** At this scale, it does so about as well as LoRA run 3: 8 vs. 7
+  correct, with an equal graded score of 11.0.
+- **Retrieval in the prompt is far ahead of both.** R gets 41/60 correct.
+  - This contradicts the closest prior work. In SILO (arXiv 2308.04430, Table 4), the kNN-LM closes 91 % of the perplexity gap
+    and in-context retrieval only 27 %. Here R leads K in NLL (0.98 vs. 2.37) and in correct answers (41 vs. 8; 161 vs. 44).
+  - Likely differences, all **hypotheses**, none tested here:
+    1. **Measure.** SILO measures language-modelling perplexity on running text. We measure answers to questions, where one
+       retrieved document can hold the whole answer.
+    2. **Scale.** SILO's datastores hold up to 1 billion tokens per domain, and its in-context blocks are 1,024 tokens. Ours holds
+       263,273 entries from the 2,558 training rows of 500 documents, and R puts the three best-matching whole documents into the prompt.
+    3. **Model.** SILO uses a 1.3B base language model under domain shift, where in-context use is limited by the parametric
+       model (SILO §5.2). We use a 0.6B instruction-tuned model that reads a prompt and answers.
+- **Mixing the store into a prompt that already has documents hurts at the weight tuned without documents.** KR got 1 correct
+  at weight 0.8.
+  - Amendment 2 tuned the weight with documents in the prompt and got 0.1. With it, KR\* has 42 correct, R 41, and the
+    comparison is 1:0.
+  - The weight was the cause. With documents in the prompt, though, the store adds nothing measurable.
+- **The forget is not yet clean, and not local in text.** Restore and frozen weights work exactly as designed.
+- **What the next design needs:**
+  1. Forget by fact, not only by source.
+  2. Measure locality on questions the store answers correctly outside the forgotten documents.
+  3. Mix in the store only when the retrieval is confident.
+
+## Secondary set (amendment 1; scored 23.11.2026 01:01:26)
+
+The set has 297 new questions about the trained documents, written and checked as described in A1. All five arms ran on one
+rented CPU host (deviation 3: AMD EPYC 9655P, the same software versions, the identical answer path). Before the run, a cross-host
+check found 9 of 9 texts identical to the workstation's. The questions were split into shards that were stopped and resharded by
+memory headroom (D3 addenda). The merged answer file of each arm holds each of the 297 ids exactly once, with 0 duplicates.
+
+| Arm | correct | partial | wrong | graded score | budget hits | abstain | invented host |
+|---|---|---|---|---|---|---|---|
+| B | 5 | 17 | 275 | 13.5 | 3 | 25 | 4 |
+| L | 42 | 41 | 214 | 62.5 | 2 | 0 | 26 |
+| K | 44 | 41 | 212 | 64.5 | 26 | 0 | 30 |
+| R | 161 | 80 | 56 | 201.0 | 0 | 2 | 2 |
+| KR | 20 | 64 | 213 | 52.0 | 39 | 1 | 23 |
+
+| Test (A1) | wins:losses | p | Verdict |
+|---|---|---|---|
+| H1s K > B | 42:3 | 4.3e-10 one-sided | **holds** |
+| H3s KR > R | 3:144 | 1.0 one-sided | **fails** |
+| K vs. L (two-sided) | 26:24 | 0.89 | no difference shown |
+
+Descriptive comparisons:
+- R > L: 133:14;
+- R > K: 132:15;
+- L > B: 40:3;
+- KR vs. L: 14:36 (p 0.0026, two-sided).
+
+The primary pattern replicates at five times the size. The store and the LoRA adapter carry about the same amount of document
+knowledge. The base model knows almost none of it, and retrieval in the prompt is about four times better than either. The store
+and the adapter invent hosts at about the same rate (30 vs. 26 answers), and neither abstains. Leakage named in A1: the kNN
+parameters were tuned on validation rows from the same 440 documents; these were rows, not these questions. As A1 requires, this set
+is supporting evidence only and is not pooled into the primary test.
+
+## Amendment 2 (KR with a weight tuned with documents in the prompt; exploratory; scored 23.11.2026 10:16 UTC)
+
+**First attempt.** `tune_kr` started on a rented host at 00:57:45 UTC (22.→23.11.). The provider terminated the host at
+00:59:46 UTC because the prepaid balance was used up (audit log: status TERMINATED; balance −0.06 USD). No weight was frozen. The
+rented host cost 2.14 USD in total (provider billing per pod).
+
+**Run.** Every A2 step then ran on the CPU workstation of the primary, with 4 threads in a 6 GB memory scope.
+- **Tuning:** 08:11:45–09:42:33 UTC, 5,432 s. It used the 374 validation rows with BM25 top-3 documents in the prompt and excluded
+  each row's own source, as in `tune_rag`. The frozen weight was written to `frozen_params_A2.json` (sha256 7a36e183…, frozen
+  09:42Z) before any KR\* answer existed.
+- **Answers:** KR\* answered the 60 probe questions from 09:42:52 to 10:13:03 UTC.
+  - The median was 27.2 s per answer, and none reached the decoding budget.
+  - `answers_KRs.jsonl`, sha256 d05a1522….
+
+| Weight | 0 | 0.05 | **0.1** | 0.2 | 0.3 | 0.4 | 0.5 | 0.6 | 0.7 | 0.8 | 0.9 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| validation NLL (39,561 tokens) | 0.740 | 0.506 | **0.490** | 0.491 | 0.512 | 0.544 | 0.587 | 0.642 | 0.716 | 0.818 | 0.983 |
+
+- The tuned weight is **0.1**. At K's weight of 0.8, the store makes the validation NLL worse than no store at all (0.818 against
+  0.740).
+
+**Judging.** The pass was blind and separate. Each question showed the KR\* answer next to the R answer and the original KR answer,
+in a seeded order under letters.
+- The key was kept in `judge_A2_KEY.jsonl` (sha256 ef370b1c…).
+- Three fresh subagents each graded one block of 20 questions, with the primary's prompt and rubric verbatim.
+- The key was opened after all 60 questions were graded.
+
+| Arm | correct | partial | wrong | graded score | invented host |
+|---|---|---|---|---|---|
+| R | 41 | 11 | 8 | 46.5 | 3 |
+| **KR\*** (weight 0.1) | **42** | 9 | 9 | 46.5 | 3 |
+| KR (weight 0.8) | 1 | 13 | 46 | 7.5 | 11 |
+
+| Test (exploratory, exact sign test, two-sided) | wins:losses | p |
+|---|---|---|
+| KR\* vs. R | 1:0 | 1.0 |
+| KR\* vs. KR | 41:0 | 9.1e-13 |
+
+- **Judge check.** On strict correct, the R and KR grades of this pass equal the primary's on 60 of 60 questions each.
+  - R's full grades are identical 60/60.
+  - KR differs on 4 questions, each partial in the primary and wrong here.
+- **Text.** 51 of the 60 KR\* answers are text-identical to R's. The one question that KR\* answers correctly and R does not is
+  among the other 9.
+- **Verdict on the A2 hypothesis: supported.** A2 named two outcomes that would refute it, and neither happened:
+  - the tuned weight is 0.1, below 0.5;
+  - KR\* has 42 correct, not fewer than 30.
+
+  KR's failure in the primary came from the weight tuned without documents. This is exploratory and changes nothing in the primary:
+  H3 failed as pre-registered and stays failed.
+- **What it does not show.** Even with its weight tuned, the store adds nothing measurable to retrieval in the prompt: 1:0, with
+  51 of 60 answers unchanged. At weight 0.1 the store mostly leaves R's greedy answers as they are.
+  - This matches Geng et al.'s finding that λ ≈ 0 is best on QA (below).
+  - It contradicts SILO's finding that the kNN-LM and in-context retrieval add up. The hypotheses for that difference are listed
+    under "Reading".
+
+## Amendment 4 (KR\* on the 297-question secondary set; exploratory; scored 23.11.2026 16:11 UTC)
+
+Pre-registration: [PREREG_Z11_A4.md](PREREG_Z11_A4.md), sha256 994ac888…, commit a63c2fa. It was frozen at 13:11 UTC, before any
+answer existed.
+
+**Run.** Everything ran on the CPU workstation of the primary, with 4 threads in a 6 GB memory scope.
+- **Cross-host check.** R answered 10 seeded secondary questions on this host. All 10 were text-identical to the answers from the
+  rented host (13:16:36 UTC). The R and KR answers from that host can therefore be compared with KR\* from this one.
+- **Answers.** KR\* answered all 297 questions from 13:16:36 to 16:06:57 UTC.
+  - Median 29.7 s per answer, mean 34.3 s; none reached the decoding budget.
+  - `secondary/answers_KRs.jsonl`, sha256 a8c21ee5….
+- **Judging.** `judgepack --arms KRs,R,KR` produced 15 blocks: 14 of 20 questions and 1 of 17.
+  - The key went to a separate file, `judge_A4_KEY.jsonl`, sha256 a28344b4….
+  - Fifteen fresh subagents each graded one block, with the primary's prompt and rubric verbatim.
+  - The sha256 of every grade file was written to `judge_A4_grades.sha256` before the key was opened.
+  - The key was opened after all 297 questions were graded.
+  - Outputs: `judge_A4_SCORE.json` (sha256 bc19c9ab…) and `judge_A4_EXTRA.json` (sha256 c12c5140…).
+
+| Arm | correct | partial | wrong | graded score | budget hits | abstain | invented host |
+|---|---|---|---|---|---|---|---|
+| R | **165** | 76 | 56 | 203.0 | 0 | 2 | 2 |
+| **KR\*** (weight 0.1) | **160** | 82 | 55 | 201.0 | 0 | 2 | 3 |
+| KR (weight 0.8) | 18 | 59 | 220 | 47.5 | 39 | 1 | 79 |
+
+| Test (exploratory, exact sign test on strict correct, two-sided) | wins:losses | p |
+|---|---|---|
+| KR\* vs. R | 2:7 | 0.18 |
+| KR\* vs. KR | 145:3 | 3.0e-39 |
+
+- **Judge check.** We compared this pass's grades with the grades the secondary pass gave the same answers.
+  - R: 297/297 questions compared, κ = 0.91.
+    - Strict correct agrees on 96.6 % of questions.
+    - All three grades agree on 94.6 %.
+    - Correct count: 161 in the secondary pass, 165 here.
+  - KR: 297/297 questions compared, κ = 0.85.
+    - Strict correct agrees on 98.7 %.
+    - All three grades agree on 93.6 %.
+    - Correct count: 20 in the secondary pass, 18 here.
+  - On the 231 questions where KR\* and R gave text-identical answers, the judges gave identical grades every time.
+  - The judge noise between the two passes, 4 correct for R, is about as large as the KR\* vs. R difference.
+- **Text.** 231 of 297 KR\* answers are text-identical to R's, and none is identical to KR's. All 9 discordant questions lie among
+  the other 66. There KR\* has 23 correct, 27 partial and 16 wrong; R has 28 correct, 21 partial and 17 wrong.
+- **Against the stated expectation.** The pre-registration expected KR\* "about level with R … and far above KR". The result:
+  - KR\* is far above KR: 145:3.
+  - KR\* is not significantly different from R: p = 0.18. That is neither of the two outcomes named as contradicting A2.
+  - The point estimate leans against KR\*: 5 fewer correct, 2:7 on discordant questions. On the probe it was 1:0 in KR\*'s
+    favour.
+  - Together, the two sets show no gain from the store at the tuned weight. On the probe and on this set it changes 9 and 66
+    answers out of 60 and 297, and the changes go both ways.
+- **What it does not show.** With 9 discordant questions, the test can only detect a large difference. Whether the store harms
+  retrieval slightly at weight 0.1 stays open. This is exploratory and changes nothing in the primary.
+
+## Related work, and whether it predicts these results
+
+The four papers below were read on 23.11.2026, from the arXiv HTML versions; venues are from the arXiv pages or the ACL Anthology.
+Figures are quoted with their table or section. "Not in the paper" means not found in the parts read.
+
+**SILO** (Min et al., arXiv 2308.04430, ICLR 2024 spotlight)
+- **Setup.** A 1.3B model trained only on permissively licensed text, with a datastore of up to 1 billion tokens per domain.
+  - Two ways to use the datastore: as a kNN-LM, or BM25 blocks of 1,024 tokens put in the context (RIC-LM).
+  - The measure is language-modelling perplexity. The only downstream tasks are zero-shot classification; there is no generation
+    or question answering.
+- **Results.**
+  - The kNN-LM closes 91 % of the perplexity gap to Pythia averaged over 8 out-of-domain sets: 19.0 → 12.0 against 11.3, while
+    RIC-LM closes 27 % (Table 4). The paper concludes that "kNN-LM is more effective than RIC-LM" (§5.2).
+  - Opt-out (§5.3, Table 6) compares a Books3 datastore with and without the Harry Potter books; it does not delete from an
+    existing store. Average perplexity on a held-out book is 12.9 with them, 16.5 without, and 17.4 for the model alone.
+- **Prediction for Z11.**
+  - SILO predicts K ahead of R. The opposite happened here: R was ahead of K in NLL (0.98 vs. 2.37) and in correct answers (41 vs.
+    8, and 161 vs. 44). Hypothesis: our R puts the three most relevant whole documents of a small corpus into the prompt of an
+    instruction-tuned model that answers a question. SILO's RIC-LM serves perplexity under domain shift, where it is limited by
+    the parametric model (§5.2).
+  - On removal, SILO and our edit test agree on two points:
+    - The store's own contribution goes away by construction: "data removed from the datastore is guaranteed not to contribute"
+      (§4.2). Our restore (14/14) and the identical weights fit this.
+    - What other data holds stays: in SILO, 16.5 rather than 17.4 after removal. In Z11-1, the one fact found in 8 other training
+      documents survived the forget. SILO did not measure answers to questions.
+
+**Wang et al., "kNN-LM Does Not Improve Open-ended Text Generation"** (arXiv 2305.14625, EMNLP 2023)
+- **Setup.** GPT-2 small and TRIME, with WikiText-103 datastores, on open-ended continuation. There is no question answering in
+  the paper.
+- **Results.**
+  - Perplexity improves (14.8 → 12.6, §3.4), but generation quality does not: MAUVE 0.773 vs. 0.793, with "no convincing
+    winner" (§4). Human raters preferred the baseline in 51 % of pairs, against 49 % for kNN-LM (§4.1).
+  - The retrieval distribution's entropy grows faster than the base model's as the generated text gets longer (§5.2, Fig. 3).
+    Their hypothesis is that retrieval is "less reliable when using model-generated text as queries".
+- **Prediction for Z11.** Only partly. K's NLL gain did carry over to answers (K > B: 8:0 and 42:3). It is not the null result
+  they found for continuation. Their warning fits two observations, though neither was tested as such:
+  - KR is close to R in NLL (1.36 vs. 0.98), but far behind it in answers (1 vs. 41).
+  - The budget hits of the store arms (K 26, KR 39 of 297, against R 0) point to degenerating long generations.
+
+**Geng, Zhao, Rush, "Great Memory, Shallow Reasoning: Limits of kNN-LMs"** (arXiv 2408.11815, NAACL 2025 short)
+- **Setup.** Llama-2-7B, Llama-3-8B and Mistral-7B, each with token-level datastores built from Wiki-style text or from math text.
+- **Results.**
+  - The datastores help a little on memory-type classification and hurt slightly on knowledge and reasoning tasks. For example,
+    NQ with Llama-2 goes from 23.18 to 22.53 (Table 4).
+  - Oracle retrieval does not always help either. With test items in the store, NQ rises to 46.40 from 23.64, yet "the model does
+    not always derive the correct answer, even when the correct answer is explicitly given as one of the k nearest neighbors"
+    (§7, Table 6).
+  - Tuning the mixture weight on OBQA and HotpotQA gives the lowest loss "when λ is close to 0" (§7).
+  - The paper has no comparison with retrieval in the prompt.
+- **Prediction for Z11.**
+  - Their oracle result matches the ceiling we saw. Our store holds rows of exactly the documents asked about, and K still
+    answered only 44 of 297 correctly.
+  - Their λ ≈ 0 finding on QA predicts that the weight 0.8, tuned without documents, is too high once documents are in the prompt.
+    That is exactly the amendment-2 hypothesis for KR ≪ R. Amendment 2 confirmed it: the tuned weight is 0.1, and KR\* then
+    matches R (42 vs. 41 correct).
+  - Their slight loss against the base model does not match our K > B. Hypothesis: our base model knew almost nothing about these
+    internal documents (B 5/297), unlike NQ for a 7B model.
+
+**TOFU** (Maini et al., arXiv 2401.06121; listed at an ICLR 2024 workshop; no main-conference record found)
+- **Setup.**
+  - 200 fictitious authors, learned by fine-tuning, with forget sets of 1, 5 and 10 % and a retain set. The authors are fictitious
+    to ensure "that no remnants of it exist in the model's pretraining phase" (§2.1).
+  - Forget quality is a KS test on truth ratios against a reference model trained only on the retain set (§2.2.3).
+- **Result.** "none of the baselines we consider show effective unlearning" (abstract).
+- **Prediction for Z11.**
+  - TOFU measures forgetting on facts the model knows, against a retain-only reference. Z11-1 measured locality on questions the
+    store did not answer correctly, which is the flaw A3 found. Z11-2 follows TOFU's design: forget and keep questions that K
+    answered correctly before the edit.
+  - Z11-2 addendum 1 adds TOFU's pretraining argument as the descriptive class "base knows".
+  - TOFU's reference model corresponds to the base model with a store that never held F's documents. A store forget produces
+    exactly this, without gradient steps, which TOFU's methods cannot do. What can stay is knowledge from the weights and from
+    other documents.
+
+## Named limits
+
+- n = 60. H2 is a point estimate, not an equivalence test.
+- One model family judges: Claude subagents, the same family as the session that ran the experiment. Each judge saw only the
+  blinded block.
+- Duplicate question pairs occur in each primary block.
+- The decoding budget was reached in 4 K answers and 9 KR answers. Those answers count as at most partial.
