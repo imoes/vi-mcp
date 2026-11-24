@@ -27,7 +27,17 @@ measured on a copy of the production database of 23.11.2026 (280,570 objects, 10
 - **The router is retrained on demand at most every 15 minutes** (`on_demand.LEARN_MIN_S`). Every new experience had triggered a full
   retraining: 12.8 s, 26 s, then 284 s per run under load, and requests piled up again behind it. A skipped training is listed with
   its reason and counted; a run started by hand always trains.
-- Measured, 20 new sessions a minute (the production rate), 0.71.1 → 0.71.2: FINAL_NUMBERS
+- Measured, 20 new sessions a minute (the production rate):
+  - 0.71.1, 22 minutes: 252 of 388 `initialize` and 47 of 83 `vi_recall` ran into the client's 120 s timeout; RSS up to 5.9 GB,
+    357 threads.
+  - 0.71.2, all fixes, first 6.5 minutes of a 12-minute run: `initialize` median 0.44 s (p90 2.2 s), `vi_recall` median 0.55 s
+    (p90 2.8 s), no timeout; RSS up to 1.76 GB, about one CPU core.
+  - The same fixes without the BLAS limit (below), 22 minutes: no jam, but the process used about 18 cores and `vi_recall` slowed to
+    a median of 17.7 s with 16 timeouts after 20 minutes.
+- **The server limits BLAS to one thread per call** (`server.BLAS_THREADS`, threadpoolctl). With numpy from pip (OpenBLAS) every
+  search split its matrix product over all cores and the idle workers spun: 8 concurrent callers, 1,600 products over a
+  109,077 × 1024 matrix on 32 cores took 17.5 s and 482 CPU seconds with 32 threads, 5.0 s and 39 CPU seconds with 1
+  (`tests/test_blas_threads.py`). Debian's numpy uses the single-threaded reference BLAS; there nothing changes.
 - Measured, 60 new sessions a minute (three times the production rate), 0.71.2 without → with read connections: completed sessions
   191 → 650 of ~700, `vi_recall` median 94.2 s → 11.6 s, timeouts 107 → 0. At this rate searches still wait several seconds.
 
