@@ -4,6 +4,11 @@ Status: final, scored 23.11.2026 11:18:45 UTC. Pre-registration: [PREREG_Z11_2.m
 [addendum 1](PREREG_Z11_2_A1.md) (sha256 d68633b1…). Both were frozen before any Z11-2 answer existed. All times are UTC from
 `date -u`. Nothing here changes a Z11-1 result ([RESULTS_Z11.md](RESULTS_Z11.md)).
 
+> **Correction, 24.11.2026.** This document says E1 is "clean and local". The larger pre-registered repeat, Z11-3
+> ([RESULTS_Z11_3.md](RESULTS_Z11_3.md)), did not replicate the locality: 17 of 33 kept, 51.5 % (95 % CI 33.5–69.2), against
+> 24 of 26 here. The numbers below stand as measured, but "local" holds only for these 26 questions. The forget result
+> replicated: 31 of 32.
+
 ## Question
 
 Z11-1's edit test measured locality on questions the store did not answer correctly, so it measured drift among invented answers.

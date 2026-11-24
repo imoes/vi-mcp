@@ -1,6 +1,6 @@
 # Z11-3 results: a larger forget-by-document test (E1)
 
-Status: **running**. Pre-registration: [PREREG_Z11_3.md](PREREG_Z11_3.md), sha256 0ec74f07…, frozen 23.11.2026 13:20:08 UTC
+Status: **scored 24.11.2026 03:21:01 UTC — H6 fails on locality** (forget 31/32, locality 17/33). Pre-registration: [PREREG_Z11_3.md](PREREG_Z11_3.md), sha256 0ec74f07…, frozen 23.11.2026 13:20:08 UTC
 before any question was written. All times are UTC from `date -u`.
 
 ## Diary
@@ -83,3 +83,77 @@ before any question was written. All times are UTC from `date -u`.
 - **Judgepack:** 4 blocks (20, 20, 20, 5), the before and E1 answers under seeded letters; key sha256 8f5d3fe1…. Four fresh
   subagents grade them with the Z11-2 final prompt. Only the path, the letters (two answers instead of three) and the file size
   were changed.
+- **03:21:01. Score.** All 65 questions were graded. The four grade files were hashed into `judge_z11_3_grades.sha256` before the
+  key was opened, and then `edit3.py score` was run. `z11_3_SCORE.json` sha256 7f8db16b….
+  - Judges named three calls:
+    - n 47 (final) = n 407 (pool): the answer matched the document, which lists fewer teams than the reference, and was graded
+      correct. The rubric allows that.
+    - The judge of block 2 ran one `grep` on its block file to find section markers, against the instruction "do not run code on
+      the data". It says no grade depended on it. **Named deviation.**
+    - The judges flagged `invented_host` inconsistently: some flagged host names that appear only in source lines, others did
+      not. `invented_host` decides nothing.
+
+## Result
+
+| Criterion (PREREG_Z11_3) | Measured | 95 % CI (Clopper–Pearson) | Threshold | Holds |
+|---|---|---|---|---|
+| Forget: F graded wrong after E1 | 31/32 = **96.9 %** | 83.8–99.9 | ≥ 80 % | yes (lower bound clears too) |
+| Locality: Kp kept | 17/33 = **51.5 %** | 33.5–69.2 | ≥ 90 % | **no** (upper bound below 90 %) |
+| Restore: F text-identical from `store_qa` | 32/32 | — | 100 % | yes |
+| Weights hash before = after | 18353784… = 18353784… | — | equal | yes |
+
+**H6 fails.** Forgetting by document removes the answers it should remove, but on these new questions it also changes about
+half of the answers it should leave alone. Even the upper bound of the locality interval, 69.2 %, lies far below 90 %.
+
+This **does not replicate Z11-2's E1 locality** of 24/26 = 92.3 %. The two 95 % intervals do not overlap: Z11-2 is 74.9–99.1
+and Z11-3 is 33.5–69.2. Z11-2's statement "forgetting by document is
+clean and local" therefore holds only for its 26 questions. See the correction in CHANGELOG.md.
+
+Reported, deciding nothing (as pre-registered):
+- **Lenient locality** (kept if the after grade is not below the before grade of this pass): 17/33, the same.
+- **Judge agreement:** the before answers in the final pass were graded 61 correct and 4 partial. In the pool pass all 65 were
+  correct, so the two passes agree on 61 of 65 (93.8 %).
+  - The 4 differences can inflate forget: a "correct" question that is not really answered looks forgotten. At most 4 of the 31
+    count that way, and 27/32 would still clear 80 %.
+  - Of the 16 Kp questions not kept, the before answer was graded correct in 15 of them and partial in 1. Judge noise does not
+    explain the locality failure.
+- **Forget among changed F answers:** 31/32. No F answer is text-identical after E1.
+- **F answer not wrong after E1:** one, graded partial. Its nearest store documents after E1 are three documents outside F
+  (1,438, 488 and 15 neighbours).
+- **Clustering:** each side has 30 documents. The 16 Kp questions not kept come from 15 documents, so the failure does not
+  cluster in a few documents.
+
+### Exploratory, after the key was opened (`z11_3_EXPLORE.json`; not pre-registered, decides nothing)
+
+- **Retrieval plays no part.** Arm K retrieves nothing (`retrieved` is empty in every answer). The change comes from the kNN
+  store alone.
+- **Nearest documents do not predict loss.** Whether an F document was among a Kp answer's nearest documents before E1 is not
+  associated with keeping: 2 kept and 1 not kept with, 15 and 15 without.
+- **Loops at the budget.** Before E1, all 65 answers stopped normally. After E1, 17 of 65 ran into the 2,048-token budget: 8 on
+  F and 9 on Kp. All 9 Kp budget hits are among the 16 not kept: 8 graded wrong and 1 partial. The other 7 not kept stopped
+  normally: 6 graded wrong and 1 partial. In Z11-2, none of the 52 E1 answers reached the budget.
+- **Changed Kp answers rarely stay correct.** In Z11-2, 10 Kp answers changed and 8 of them were still correct. Here 19 changed
+  and 3 of them were still correct.
+- **The size of the edit is similar.** Z11-2 forgot 170 sources and left 247,275 live entries. Z11-3 forgot 189 sources and left
+  244,991.
+- **Hypotheses, not tested.**
+  - (a) With weight 0.8, the kNN part decides most tokens, including generic ones. Removing about 7 % of the entries changes the
+    neighbours of tokens far from F's subject. Greedy decoding then carries the first changed token through the rest of the
+    answer, and sometimes into a loop.
+  - (b) The new questions may need longer answers than Z11-2's, giving more steps at which a changed neighbour can tip the
+    answer.
+  - (c) Z11-2's 26 Kp questions may simply have been a lucky sample. Its interval reached down to 74.9 %.
+  - A test would measure the token step of the first divergence and its kNN share. It would repeat E1 at a lower weight, such
+    as 0.1 from amendment 2, where K adds little.
+
+### What this does not show
+
+- It does not show that forgetting by document is never local. It shows that, at weight 0.8 on these 33 questions, locality is
+  about 50 %, not 90 %.
+- **Selection.** The pool kept 65 of 494 questions, about 13 %: those K happened to answer correctly. These may be the answers
+  that depend most on a few store neighbours.
+- All limits named in the pre-registration still apply:
+  - one writer, one model, one store and one host;
+  - greedy decoding only;
+  - queries written from the forget data;
+  - questions per document not independent.

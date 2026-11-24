@@ -42,6 +42,19 @@ Linked from [README.md](README.md).
   - Variant E2 also forgets the neighbour documents: 26 of 26 are forgotten, but only 20 of 24 are kept (83.3 %), so H5 fails.
   - Evidence: blind judges with the key kept apart, every hash in the results. 95 % intervals are given, and they are wide at
     n = 26.
+  - **Correction (24.11.2026):** the larger Z11-3 test did not replicate E1's locality (17/33, entry below). "Local" holds only
+    for Z11-2's 26 questions.
+- **Z11-3 is complete: forgetting by document forgets, but on new questions it is not local**
+  ([docs/RESULTS_Z11_3.md](docs/RESULTS_Z11_3.md), pre-registered in [docs/PREREG_Z11_3.md](docs/PREREG_Z11_3.md)).
+  - 494 new questions were written about the trained documents. The store answered 65 of them correctly, and these were split by
+    document into 32 to forget and 33 to keep.
+  - **Forget:** 31 of 32 forgotten answers are wrong afterwards, 96.9 % (95 % CI 83.8–99.9; criterion 80 %).
+  - **Locality:** only 17 of 33 kept answers are kept, 51.5 % (95 % CI 33.5–69.2; criterion 90 %). So H6 fails.
+  - **Restore and weights:** restore is 32 of 32 text-identical, and the weights hash is unchanged.
+  - **Exploratory:** after the edit, 17 of 65 answers loop into the token budget, against none in Z11-2. Hypotheses and a
+    follow-up test are in the results.
+  - **Evidence:** blind judges, with the grade files hashed before the key was opened (`judge_z11_3_grades.sha256`, score sha256
+    7f8db16b…).
 - **Amendment 2 is complete: with the right weight, store plus retrieval no longer hurts** (exploratory;
   [docs/RESULTS_Z11.md](docs/RESULTS_Z11.md), "Amendment 2").
   - The mixing weight was tuned on validation rows with the documents in the prompt and came out at 0.1, not K's 0.8.
@@ -64,6 +77,8 @@ Linked from [README.md](README.md).
 
 ### What is still missing
 
+- **A local forget at weight 0.8.** Z11-3 keeps only half of the answers it should leave alone. The cause is not known: either
+  the kNN share of generic tokens, or longer answers. Not yet tested: the first divergence step, and E1 at weight 0.1.
 - **Forgetting by fact.** Z11-2 shows that a fact survives in another document's entries (one E1 answer), and removing all
   neighbour documents costs locality. No forget by fact exists yet.
 - **Z11-1's edit test failed** (Z11-2 above repeats it on questions the store answers correctly):
