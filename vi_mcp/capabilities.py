@@ -11,6 +11,7 @@ it at any time.
 from __future__ import annotations
 
 import re
+import threading
 import time
 
 from . import memory as g
@@ -21,6 +22,9 @@ DESCRIPTION_CHARS = 90
 EXTERNAL_TAG = "knowledge_kind:external-docs"
 CACHE_S = 600
 _cache: dict = {}
+#: 24.11.2026: one build at a time — on a cache miss every concurrent initialize built the table itself (84 threads at once on a
+#: production copy under session churn, all queuing for the database lock)
+_build = threading.Lock()
 
 
 def _description(text: str, doc: str) -> str:
@@ -114,6 +118,14 @@ def table(instance: str | None) -> list[dict]:
     hit = _cache.get(instance)
     if hit and time.monotonic() - hit[0] < CACHE_S:
         return hit[1]
+    with _build:
+        hit = _cache.get(instance)
+        if hit and time.monotonic() - hit[0] < CACHE_S:
+            return hit[1]
+        return _table_now(instance)
+
+
+def _table_now(instance: str | None) -> list[dict]:
     rows: dict[str, dict] = {}
     with g.lock:
         ids = list(dict.fromkeys(r[0] for r in g.db().execute(  # DISTINCT with ORDER BY needs the sort column selected (PostgreSQL)

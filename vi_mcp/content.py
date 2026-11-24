@@ -41,7 +41,9 @@ def _tables() -> None:
 
 
 def _normalized() -> tuple[list[str], np.ndarray]:
-    return vector._matrix(vector.all_())
+    # 24.11.2026: the search matrix's rows of active objects outside search-scoped indexes, not a second full matrix of every vector
+    # (production 0.71.1: 77 % of the vectors were an external index whose objects are never a hint)
+    return vector.active_matrix()
 
 
 def _tags(ids: list[str]) -> dict[str, list[str]]:

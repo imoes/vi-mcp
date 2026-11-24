@@ -13,11 +13,13 @@ docs/ARCHITECTURE.md, "One process").
 """
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import hashlib
 import json
 import math
 import os
+import queue
 import re
 import secrets
 import sqlite3
@@ -119,14 +121,90 @@ def db() -> Any:
     return _db
 
 
+#: 24.11.2026: read connections beside the one writing connection (SQLite, WAL). Under session churn every read waited for the global
+#: lock while one ran (production 0.71.1: 180 threads); SQLite releases the GIL while it works, so reads on their own connections run
+#: side by side and beside the writer. Measured on a production copy: 92 % of a hybrid vi_recall is SQLite time.
+READERS = 4
+_readers: queue.Queue | None = None
+
+
+@contextlib.contextmanager
+def reading():
+    """A connection for a read of committed state. SQLite: one of READERS read connections (query_only), outside the global lock.
+    The one connection under the lock, as before, when there is no pool (PostgreSQL, tests that never opened one) or when the writing
+    connection holds an uncommitted change — a read must never miss what its own flow has written and not committed yet."""
+    pool = _readers
+    if pool is None or (_db is not None and _db.in_transaction):
+        with lock:
+            yield db()
+        return
+    con = pool.get()
+    try:
+        yield _Reader(con)
+    finally:
+        pool.put(con)
+
+
+class _Rows:
+    """A finished result: every row read, the statement closed. A statement left open (fetchone() on a pooled connection) keeps
+    SQLite's read snapshot open, and every later read on that connection would see the old state."""
+
+    def __init__(self, cur):
+        try:
+            self._rows = cur.fetchall()
+        finally:
+            cur.close()
+        self._i = 0
+
+    def fetchone(self):
+        if self._i >= len(self._rows):
+            return None
+        self._i += 1
+        return self._rows[self._i - 1]
+
+    def fetchall(self):
+        out, self._i = self._rows[self._i:], len(self._rows)
+        return out
+
+    def __iter__(self):
+        return iter(self.fetchall())
+
+
+class _Reader:
+    def __init__(self, con):
+        self._con = con
+
+    def execute(self, sql: str, params=()):
+        return _Rows(self._con.execute(sql, params))
+
+
+def _open_readers(fpath) -> queue.Queue:
+    pool: queue.Queue = queue.Queue()
+    for _ in range(READERS):
+        r = sqlite3.connect(str(fpath), check_same_thread=False, timeout=30)
+        r.execute("PRAGMA busy_timeout=30000")
+        r.execute("PRAGMA query_only=ON")
+        pool.put(r)
+    return pool
+
+
+def _close_readers() -> None:
+    global _readers
+    pool, _readers = _readers, None
+    while pool is not None and not pool.empty():
+        pool.get_nowait().close()
+
+
 def open_db(fpath: Path | str) -> None:
     """Open or create the database. A file path: SQLite, file and companion files readable only by the owner (0600):
     the memory contains conversation histories and tool results, which may contain credentials.
     A postgresql:// URL (0.50.0, optional, psycopg 3): the tables in the URL's schema (search_path, default public), the long-term
     archive in the schema <schema>_lager of the same database (vi_mcp/db.py translates the SQLite SQL)."""
-    global _db, fts, fpath_active, archive_path, archive_schema
+    global _db, _readers, fts, fpath_active, archive_path, archive_schema
     from . import db as dbmod
     _known_indexes.clear()  # 0.61.0: another database, other indexes
+    from . import index
+    index.forget()  # 24.11.2026: and another memory index
     _KINDS_CACHE.update(t=float("-inf"), kinds=frozenset())  # another database: other kinds
     _EXPLICIT_CACHE.update(t=float("-inf"), v={})  # 0.70.4: another database, other index scopes (a stale one leaked across)
     if dbmod.is_url(fpath):
@@ -173,8 +251,11 @@ def open_db(fpath: Path | str) -> None:
     with lock:
         if _db is not None:
             _db.close()
+        _close_readers()
         _db = con
         fpath_active, archive_path, archive_schema = target, archive_target, archive_schema_
+        if not dbmod.is_url(fpath) and READERS > 0:  # READERS = 0: no pool, every read under the lock as before 24.11.2026
+            _readers = _open_readers(fpath)
 
 
 def backend() -> str:
@@ -305,6 +386,7 @@ def close_db() -> None:
     from . import archive
     archive.close_db()
     with lock:
+        _close_readers()
         if _db is not None:
             _db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             _db.close()
@@ -537,14 +619,14 @@ def keyed_id(kind: str, key: str) -> str:
 def load_many(oids: list[str]) -> dict[str, MemoryObject]:
     """Several objects in two queries instead of two per object."""
     outputs: dict[str, MemoryObject] = {}
-    with lock:
+    with reading() as con:  # 24.11.2026: a read connection beside the writer (see reading)
         for i in range(0, len(oids), 900):
             part = oids[i:i + 900]
             markers = ",".join("?" * len(part))
             tags: dict[str, list[str]] = {}
-            for oid, tag in db().execute(f"SELECT object_id, tag FROM tag WHERE object_id IN ({markers}) ORDER BY tag", part):
+            for oid, tag in con.execute(f"SELECT object_id, tag FROM tag WHERE object_id IN ({markers}) ORDER BY tag", part):
                 tags.setdefault(oid, []).append(tag)
-            for row in db().execute(f"SELECT {', '.join(COLUMNS)} FROM object WHERE id IN ({markers})", part):
+            for row in con.execute(f"SELECT {', '.join(COLUMNS)} FROM object WHERE id IN ({markers})", part):
                 d = _fields_from_row(row)
                 outputs[d["id"]] = MemoryObject(**d, hashtags=tags.get(d["id"], []))
     return outputs
@@ -584,6 +666,10 @@ def _keep_built_for(o: MemoryObject, tags) -> None:
         o.data["built_for"] = built_for_of(tags, o.instance, o.idx, o.ts)
 
 
+#: kinds the instructions' memory index lists (index.KINDS — not imported: index imports memory)
+_INDEX_KINDS = frozenset(("insight", "rule", "skill", "image"))
+
+
 def save(o: MemoryObject, *, commit: bool = True) -> MemoryObject:
     # 0.67.0: one form of stored data — the English keys of names.DATA_KEYS, whatever the caller wrote (and the history keys likewise);
     # the reports of sleep and model objects keep their keys until step 4b (names.REPORT_KINDS)
@@ -615,6 +701,9 @@ def save(o: MemoryObject, *, commit: bool = True) -> MemoryObject:
         if commit:
             db().commit()
     o.hashtags = tags
+    if o.kind in _INDEX_KINDS:  # 24.11.2026: the instructions' memory index is cached (index.CACHE_S); new knowledge is listed at once
+        from . import index
+        index.forget()
     if _KINDS_CACHE["t"] != float("-inf"):  # cache loaded: a new kind counts at once, not only after KINDS_TTL_S
         new = {t.split(":", 1)[0] for t in tags} - _KINDS_CACHE["kinds"]
         if new:
@@ -927,8 +1016,10 @@ def invalidate_explicit() -> None:
     _EXPLICIT_CACHE["t"] = float("-inf")
 
 
-def _filter_sql(groups: list, remove: list, viewer: str | None, indexes_: list[str] | None = None) -> tuple[str, list]:
-    """SQL for mode, visibility and hashtag conditions (without free text) — one source for recall() and ids_for_filter()."""
+def _filter_sql(groups: list, remove: list, viewer: str | None, indexes_: list[str] | None = None, per_id: bool = False) -> tuple[str, list]:
+    """SQL for mode, visibility and hashtag conditions (without free text) — one source for recall(), ids_for_filter() and admitted().
+    per_id (24.11.2026, admitted): the hashtag conditions as EXISTS per object instead of IN (list) — the same rows; for a few hundred
+    ids the list form built the whole list first (kind:insight OR …: ~200,000 ids, 0.49 s per 900 ids on a production copy)."""
     sql, par = f"SELECT id FROM object WHERE mode NOT IN {GONE_SQL}", []
     named = ([search_index.get()] if search_index.get() else []) + list(indexes_ or [])
     for ix in named:
@@ -949,12 +1040,15 @@ def _filter_sql(groups: list, remove: list, viewer: str | None, indexes_: list[s
         par.append(viewer)
     for g in groups:
         parts = [_tag_condition(t) for t in g]
-        sql += " AND id IN (SELECT object_id FROM tag WHERE " + " OR ".join(b for b, _ in parts) + ")"
+        cond = " OR ".join(b for b, _ in parts)
+        sql += (f" AND EXISTS (SELECT 1 FROM tag WHERE tag.object_id = object.id AND ({cond}))" if per_id
+                else f" AND id IN (SELECT object_id FROM tag WHERE {cond})")
         for _, p in parts:
             par += list(p)
     for t in remove:
         b, p = _tag_condition(t)
-        sql += f" AND id NOT IN (SELECT object_id FROM tag WHERE {b})"
+        sql += (f" AND NOT EXISTS (SELECT 1 FROM tag WHERE tag.object_id = object.id AND {b})" if per_id
+                else f" AND id NOT IN (SELECT object_id FROM tag WHERE {b})")
         par += list(p)
     return sql, par
 
@@ -968,8 +1062,27 @@ def ids_for_filter(filter_text: str, kinds: tuple[str, ...] = (), viewer: str | 
     if kinds:
         groups.append([f"kind:{names.english(names.KINDS, a)}" for a in kinds])
     sql, par = _filter_sql(groups, remove, viewer, idx_only)
-    with lock:
-        return [r[0] for r in db().execute(sql, par)]
+    with reading() as con:
+        return [r[0] for r in con.execute(sql, par)]
+
+
+def admitted(ids: list[str], filter_text: str, kinds: tuple[str, ...] = (), viewer: str | None = "aktuell") -> set[str]:
+    """Which of these ids ids_for_filter() would return — the same conditions, checked for these ids only (in chunks of
+    VISIBLE_CHUNK). 24.11.2026: the meaning search asks for its nearest vectors this way instead of listing every visible id first
+    (197,036 ids, 1.46 s of a 3.05 s hybrid vi_recall on a production copy)."""
+    if viewer == "aktuell":
+        viewer = current_instance.get()
+    filter_text, idx_only = split_index(filter_text)
+    groups, remove, _w = parse_filter(filter_text, known_kinds())
+    if kinds:
+        groups.append([f"kind:{names.english(names.KINDS, a)}" for a in kinds])
+    sql, par = _filter_sql(groups, remove, viewer, idx_only, per_id=True)
+    out: set[str] = set()
+    with reading() as con:
+        for i in range(0, len(ids), VISIBLE_CHUNK):
+            part = ids[i:i + VISIBLE_CHUNK]
+            out.update(r[0] for r in con.execute(f"{sql} AND id IN ({','.join('?' * len(part))})", [*par, *part]))
+    return out
 
 
 #: full-text hits fetched before the visibility filter (search-top4): enough to keep 500 visible ones in the usual case
@@ -1003,9 +1116,13 @@ def recall(filter_text: str, limit: int = 10, kinds: tuple[str, ...] = (), viewe
     if kinds:
         groups.append([f"kind:{names.english(names.KINDS, a)}" for a in kinds])
     sql, par = _filter_sql(groups, remove, viewer, idx_only)
+    # 24.11.2026: the same conditions per object (EXISTS) for the queries that check a few hundred ids only — the pool's visibility
+    # and the final query; the list form built every matching id of the hashtag conditions first (0.47 + 0.49 s of a hybrid vi_recall
+    # on a production copy, under the database lock)
+    sql_id, par_id = _filter_sql(groups, remove, viewer, idx_only, per_id=True)
     word_hits: dict[str, float] = {}
     search_kind = None
-    with lock:
+    with reading() as con:  # 24.11.2026: a read connection beside the writer (see reading)
         if words:
             if fts:
                 terms = ['"' + w.replace('"', '') + '"' for w in words]
@@ -1013,25 +1130,25 @@ def recall(filter_text: str, limit: int = 10, kinds: tuple[str, ...] = (), viewe
 
                 def _fts(q: str) -> dict[str, float]:
                     if backend() == "postgres":  # 0.50.0: tsvector ('simple': no stemming, like FTS5 unicode61); ts_rank instead of bm25
-                        return {oid: float(rank) for oid, rank in db().execute(
+                        return {oid: float(rank) for oid, rank in con.execute(
                             f"SELECT id, ts_rank(tsv, q) AS r FROM object_fts, websearch_to_tsquery('simple', ?) q WHERE tsv @@ q AND id IN ({sql}) "
                             "ORDER BY r DESC LIMIT 500", (q, *par))}
                     # search-top4 (15.11.2026): the full-text index first, then the visibility filter on its hits only. Matching inside
                     # "id IN (all visible ids)" took 1,826 ms on a 500,310-object copy; MATCH alone 80 ms plus the filter on 2,000 ids
                     # 10 ms. When invisible or filtered rows exhaust the pool, the exact query runs — the ranking is the same either way.
-                    pool = db().execute("SELECT id, rank FROM object_fts WHERE object_fts MATCH ? ORDER BY rank LIMIT ?", (q, FTS_POOL)).fetchall()
+                    pool = con.execute("SELECT id, rank FROM object_fts WHERE object_fts MATCH ? ORDER BY rank LIMIT ?", (q, FTS_POOL)).fetchall()
                     if pool:
                         visible = set()
                         ids = [r[0] for r in pool]
                         for i in range(0, len(ids), VISIBLE_CHUNK):  # chunks: SQLite's variable limit (999 in older builds)
                             part = ids[i:i + VISIBLE_CHUNK]
-                            visible |= {r[0] for r in db().execute(f"{sql} AND id IN ({','.join('?' * len(part))})", (*par, *part))}
+                            visible |= {r[0] for r in con.execute(f"{sql_id} AND id IN ({','.join('?' * len(part))})", (*par_id, *part))}
                         hits = [(oid, rank) for oid, rank in pool if oid in visible][:500]
                         if len(hits) >= 500 or len(pool) < FTS_POOL:
                             return {oid: -float(rank) for oid, rank in hits}
                     else:
                         return {}
-                    return {oid: -float(rank) for oid, rank in db().execute(
+                    return {oid: -float(rank) for oid, rank in con.execute(
                         f"SELECT id, rank FROM object_fts WHERE object_fts MATCH ? AND id IN ({sql}) ORDER BY rank LIMIT 500", (q, *par))}
                 word_hits = _fts(" ".join(terms))
                 if or_fallback and len(terms) > 1 and len(word_hits) < limit:
@@ -1041,8 +1158,8 @@ def recall(filter_text: str, limit: int = 10, kinds: tuple[str, ...] = (), viewe
                         upper = max(or_hits.values(), default=0.0)
                         word_hits = {**or_hits, **{k: v + abs(upper) + 1 for k, v in word_hits.items()}}
                         search_kind = "or"
-                sql += f" AND id IN ({','.join('?' * len(word_hits))})" if word_hits else " AND 1 = 0"
-                par += list(word_hits)
+                sql = sql_id + (f" AND id IN ({','.join('?' * len(word_hits))})" if word_hits else " AND 1 = 0")
+                par = par_id + list(word_hits)
             else:
                 for w in words:
                     sql += " AND text LIKE ?"
@@ -1050,10 +1167,10 @@ def recall(filter_text: str, limit: int = 10, kinds: tuple[str, ...] = (), viewe
         if word_hits:
             # 0.57.0: with words, the candidates are the best by full-text rank, not the most recently used — before, of the 500 best
             # BM25 hits the 400 most recently touched were kept, so an old exact hit could drop out before it was rated
-            matching = [r[0] for r in db().execute(sql, par)]
+            matching = [r[0] for r in con.execute(sql, par)]
             ids = sorted(matching, key=lambda i: -word_hits.get(i, 0.0))[:max(400, int(limit))]
         else:
-            ids = [r[0] for r in db().execute(sql + f" ORDER BY last_at DESC LIMIT {max(400, int(limit))}", par)]
+            ids = [r[0] for r in con.execute(sql + f" ORDER BY last_at DESC LIMIT {max(400, int(limit))}", par)]
     word_search.set(search_kind)
     now_dt = datetime.now(timezone.utc)
     rated = []

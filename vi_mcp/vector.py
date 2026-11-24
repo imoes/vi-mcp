@@ -16,6 +16,7 @@ Without the `embed` configuration nothing happens; sleep reports the step as ski
 from __future__ import annotations
 
 import json
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -195,12 +196,12 @@ def proximity_edges() -> dict:
     with g.lock:
         # 0.70.4: objects of an index with a search scope (named only, external) get no proximity edges, neither as new vectors nor as
         # partners — a large external corpus would add O(new × all) comparisons and an edge flood; they are marked compared, counted
-        outside = {r[0] for r in g.db().execute(
-            "SELECT v.id FROM vector v JOIN object o ON o.id = v.id WHERE o.idx IN (SELECT name FROM vi_index WHERE explicit <> 0)")}
         skipped = g.db().execute("UPDATE vector SET compared = 1 WHERE compared = 0 AND id IN "
                                  "(SELECT o.id FROM object o WHERE o.idx IN (SELECT name FROM vi_index WHERE explicit <> 0))").rowcount
         g.db().commit()
-    ids, m = _matrix({k: v for k, v in all_().items() if k not in outside})
+    # 24.11.2026: the rows of the cached search matrix (active objects, scoped indexes left out), not a second full load of every
+    # vector — all_() read each BLOB as its own object on every on-demand run, about a minute apart under load
+    ids, m = active_matrix()
     with g.lock:
         new_ids = {r[0] for r in g.db().execute("SELECT id FROM vector WHERE compared = 0")}
     pos = {oid: i for i, oid in enumerate(ids)}
@@ -266,8 +267,12 @@ def cap(per_object: int | None = None) -> int:
 #: The normalized vector matrix, kept between queries (search-top4 branch, 15.11.2026). Before, every query loaded and unpacked every
 #: vector from SQLite (all_()): 2.5 s median per hybrid query on a production copy with 24,811 vectors. The ranking is unchanged —
 #: only where the vectors come from. Invalidated by save/remove in this process and by the table's (count, newest time) signature,
-#: which another process (sleep, CLI) changes when it writes vectors.
-_cache: dict = {"sig": None, "ids": [], "pos": {}, "m": np.zeros((0, 0), dtype=np.float32)}
+#: which another process (sleep, CLI) changes when it writes vectors. 24.11.2026: one state tuple (sig, ids, pos, m), replaced at once,
+#: so a reader never mixes the ids of one build with the matrix of another; one build at a time (_build).
+_cache: dict = {"state": (None, [], {}, np.zeros((0, 0), dtype=np.float32))}
+_build = threading.Lock()
+#: rows read per step while building the matrix
+BUILD_CHUNK = 4096
 
 
 def _signature() -> tuple:
@@ -276,19 +281,66 @@ def _signature() -> tuple:
         return tuple(g.db().execute("SELECT COUNT(*), MAX(ts) FROM vector").fetchone())
 
 
+def _load_matrix() -> tuple[list[str], np.ndarray]:
+    """Every stored vector of the most common dimension, normalized — the same rows and values as _matrix over all vectors, built in
+    one preallocated float32 array. 24.11.2026 (production 0.71.1 grew to 11–15 GB): fetchall() held every BLOB as its own 4-KiB
+    bytes object, then np.stack copied them and the normalisation copied again — about three matrices at once, most of it kept by
+    the allocator afterwards. Now the matrix and one chunk of rows."""
+    with g.lock:
+        top = g.db().execute("SELECT dim, COUNT(*) FROM vector GROUP BY dim ORDER BY COUNT(*) DESC, dim LIMIT 1").fetchone()
+        if not top:
+            return [], np.zeros((0, 0), dtype=np.float32)
+        dim, n = int(top[0]), int(top[1])
+        m = np.empty((n, dim), dtype=np.float32)
+        ids: list[str] = []
+        cur = g.db().execute("SELECT id, raw FROM vector WHERE dim = ?", (dim,))
+        while rows := cur.fetchmany(BUILD_CHUNK):
+            for oid, raw in rows:
+                m[len(ids)] = np.frombuffer(raw, dtype=np.float32, count=dim)
+                ids.append(oid)
+    m = m[:len(ids)]
+    for i in range(0, len(ids), BUILD_CHUNK):  # the norms exactly as _matrix computes them, row block by row block, divided in place
+        part = m[i:i + BUILD_CHUNK]
+        norms = np.linalg.norm(part, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        part /= norms
+    return ids, m
+
+
 def matrix() -> tuple[list[str], dict[str, int], np.ndarray]:
     """(ids, id -> row, normalized matrix) of every stored vector of the most common dimension — cached (see _cache)."""
     sig = _signature()
-    if _cache["sig"] != sig:
-        with g.lock:
-            rows = g.db().execute("SELECT id, dim, raw FROM vector").fetchall()
-        ids, m = _matrix({oid: _unpack(raw, dim) for oid, dim, raw in rows})
-        _cache.update(sig=sig, ids=ids, pos={oid: i for i, oid in enumerate(ids)}, m=m)
-    return _cache["ids"], _cache["pos"], _cache["m"]
+    state = _cache["state"]
+    if state[0] != sig:
+        with _build:  # a second thread waits for this build instead of building its own copy beside it
+            state = _cache["state"]
+            sig = _signature()
+            if state[0] != sig:
+                ids, m = _load_matrix()
+                state = (sig, ids, {oid: i for i, oid in enumerate(ids)}, m)
+                _cache["state"] = state
+    return state[1], state[2], state[3]
+
+
+def active_matrix() -> tuple[list[str], np.ndarray]:
+    """The rows of the cached matrix for vectors of active objects outside indexes with a search scope (named only, external): what
+    the proximity edges and the content groups (router features, content.py) work on. 24.11.2026: both loaded every vector themselves
+    (all_(), a second full matrix), the external index included although its objects are never a hint. A copy of only these rows; the
+    cached matrix itself when nothing is left out."""
+    ids, pos, m = matrix()
+    with g.lock:
+        inside = [r[0] for r in g.db().execute(
+            "SELECT v.id FROM vector v JOIN object o ON o.id = v.id WHERE o.mode NOT IN ('refuted', 'withdrawn', 'archived', 'quarantine') "
+            "AND o.idx NOT IN (SELECT name FROM vi_index WHERE explicit <> 0)")]
+    keep = sorted(pos[i] for i in inside if i in pos)
+    if len(keep) == len(ids):
+        return ids, m
+    return [ids[k] for k in keep], m[keep]
 
 
 def _invalidate() -> None:
-    _cache["sig"] = None
+    sig, ids, pos, m = _cache["state"]
+    _cache["state"] = (None, ids, pos, m)
 
 
 def similar(text: str, candidates: list[str], limit: int = 10, timeout: float | None = None) -> list[tuple[str, float]]:
@@ -297,15 +349,48 @@ def similar(text: str, candidates: list[str], limit: int = 10, timeout: float | 
     q = np.asarray(embed_texts([text], timeout=timeout)[0], dtype=np.float32)
     n = float(np.linalg.norm(q)) or 1.0
     ids, pos, m = matrix()
-    rows = [pos[k] for k in dict.fromkeys(candidates) if k in pos]
-    if not rows or m.shape[1] != len(q):
+    rows = np.fromiter((pos[k] for k in dict.fromkeys(candidates) if k in pos), dtype=np.int64)
+    if not len(rows) or m.shape[1] != len(q):
         return []
     qn = q / n
-    proximity = m[rows] @ qn
+    # 24.11.2026: (m @ q)[rows], not m[rows] @ q — the same cosines, without copying every candidate row first (445 MiB per hybrid
+    # vi_recall on a production copy with 108,809 candidate vectors; concurrent searches added up). Costs one float per stored vector.
+    proximity = (m @ qn)[rows]
     from . import query_adapter  # 0.68.0: learned weights on the query vector (scikit-learn), only while its offline gate says on
     qa = query_adapter.transform(qn)  # the same object while off
-    order = np.argsort(-(proximity if qa is qn else m[rows] @ qa))[:limit]
+    order = np.argsort(-(proximity if qa is qn else (m @ qa)[rows]), kind="stable")[:limit]
     return [(ids[rows[i]], float(proximity[i])) for i in order]  # the cosine is reported, the order may come from the adapter
+
+
+def nearest(text: str, admit, limit: int = 10, timeout: float | None = None) -> tuple[list[tuple[str, float]], int]:
+    """The `limit` nearest vectors that `admit` lets through — the answer of similar(text, <every admitted id>, limit) without listing
+    the admitted ids first. All stored vectors are ordered by closeness (one product with the cached matrix, no row copy), then
+    admitted in blocks of memory.VISIBLE_CHUNK in that order until `limit` are found. admit(ids) -> the admitted subset (memory.admitted
+    with the search's filter and viewer). Returns (hits as (id, cosine), how many vectors were checked).
+    24.11.2026: the hybrid vi_recall listed 197,036 visible ids for every query (1.46 s of 3.05 s on a production copy, under the
+    database lock); usually the first block of nearest vectors holds enough admitted ones."""
+    q = np.asarray(embed_texts([text], timeout=timeout)[0], dtype=np.float32)
+    n = float(np.linalg.norm(q)) or 1.0
+    ids, _pos, m = matrix()
+    if not ids or m.shape[1] != len(q):
+        return [], 0
+    qn = q / n
+    proximity = m @ qn
+    from . import query_adapter  # the order may come from the learned query adapter, as in similar(); the cosine is reported
+    qa = query_adapter.transform(qn)
+    order = np.argsort(-(proximity if qa is qn else m @ qa), kind="stable")
+    out: list[tuple[str, float]] = []
+    checked = 0
+    for start in range(0, len(order), g.VISIBLE_CHUNK):
+        block = order[start:start + g.VISIBLE_CHUNK]
+        ok = admit([ids[i] for i in block])
+        checked += len(block)
+        for i in block:
+            if ids[i] in ok:
+                out.append((ids[i], float(proximity[i])))
+                if len(out) >= limit:
+                    return out, checked
+    return out, checked
 
 
 # ── 0.57.0: cross-encoder reranker (optional) ──────────────────────────────────────────────────────────────────────────────────────

@@ -942,13 +942,15 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
             raise Rejected("semantic needs free text in the filter (words without kind:)")
         # candidates: only the hashtag conditions (without free text), then order by closeness of meaning
         tags_only = " ".join(["(" + " OR ".join(gr) + ")" if len(gr) > 1 else gr[0] for gr in groups] + [f"!{w}" for w in remove])
-        # all visible objects for the filter, no upper limit: the cosine over a few thousand vectors costs milliseconds
-        cand = g.ids_for_filter(tags_only, kinds=() if groups else ("insight", "rule", "search", "image", "page"))
+        kinds_ = () if groups else ("insight", "rule", "search", "image", "page")
         bound = min(int(args.get("limit") or 10), 50)
         pool = max(bound, vector.RERANK_TOP if vector.rerank_available() else bound)
         t0 = time.monotonic()
         try:
-            near = vector.similar(" ".join(words), cand, limit=pool * 3, timeout=None if explicit else vector.QUERY_TIMEOUT_S)
+            # 24.11.2026: the nearest vectors first, then the filter and visibility for them only — the same hits as listing every
+            # visible id first (197,036 per query on a production copy, 1.46 s of 3.05 s under the database lock)
+            near, checked = vector.nearest(" ".join(words), lambda ids: g.admitted(ids, tags_only, kinds=kinds_), limit=pool * 3,
+                                           timeout=None if explicit else vector.QUERY_TIMEOUT_S)
         except Exception as ex:  # noqa: BLE001 — the default must never cost the search: full text, named
             if explicit:
                 raise Rejected(f"semantic: embedding service failed ({type(ex).__name__}: {str(ex)[:120]})") from None
@@ -979,11 +981,12 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
                     note = f"; reranker unavailable ({type(ex).__name__}), order by rank fusion"
             ranked = ranked[:bound]
             hits = [(rrf[i], by[i], {"relevanz": round(cos[i], 2) if i in cos else "–(full text)", "aktualitaet": 0, "wichtigkeit": 0}) for i in ranked]
-            with_vector = vector.present(cand)
             text_only = sum(1 for i in ranked if i not in cos)
             from . import query_adapter
-            adapter = "; order of meaning by the learned query adapter" if query_adapter.scale(vector.matrix()[2].shape[1]) is not None else ""
-            f += (f" · {'semantic' if explicit else 'default'} hybrid (embedding {ms} ms, {with_vector} of {len(cand)} candidates with a vector{adapter}; "
+            _ids, _pos, mat = vector.matrix()
+            adapter = "; order of meaning by the learned query adapter" if query_adapter.scale(mat.shape[1]) is not None else ""
+            f += (f" · {'semantic' if explicit else 'default'} hybrid (embedding {ms} ms, the {checked} nearest of {len(_ids)} vectors "
+                  f"checked against the filter{adapter}; "
                   "meaning and full text by rank fusion" + (f"; {text_only} hits via full text only" if text_only else "") + note + ")")
             # 0.63.0: whether the reranker ran is part of the search kind — the relevance grades (UMBRELA) of searches before and after
             # it was switched on were mixed in one number (found on production, 13.11.2026)

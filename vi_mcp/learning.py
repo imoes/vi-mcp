@@ -61,8 +61,8 @@ def _born(hid: str, cache: dict | None) -> str | None:
     """Creation time of a hint (fixed field, so a cache per run is safe)."""
     if cache is not None and hid in cache:
         return cache[hid]
-    with g.lock:
-        r = g.db().execute("SELECT ts FROM object WHERE id = ?", (hid,)).fetchone()
+    with g.reading() as con:  # 24.11.2026: a read connection beside the writer (19 threads waited here under churn)
+        r = con.execute("SELECT ts FROM object WHERE id = ?", (hid,)).fetchone()
     if cache is not None:
         cache[hid] = r[0] if r else None
     return r[0] if r else None

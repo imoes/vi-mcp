@@ -14,6 +14,9 @@ nothing disputed, refuted, archived or in quarantine.
 """
 from __future__ import annotations
 
+import threading
+import time
+
 from . import doc_triggers, memory as g
 
 MAX_CHARS = 2000
@@ -37,8 +40,8 @@ def _imported(o) -> bool:
 
 
 def _ids(sql: str, params: tuple) -> list[str]:
-    with g.lock:
-        return [r[0] for r in g.db().execute(sql, params)]
+    with g.reading() as con:  # 24.11.2026: a read connection beside the writer
+        return [r[0] for r in con.execute(sql, params)]
 
 
 def _pick(ids: list[str], instance: str, n: int, taken: set[str], imports_ok: bool = False, keep=None) -> list:
@@ -75,9 +78,36 @@ def _line(o) -> str:
     return f"- [{o.id}] {'image: ' if o.kind == 'image' else ''}{text}"
 
 
+#: 24.11.2026: the index is built once per instance and budget, then kept CACHE_S. Production 0.71.1 started ~15 sessions a minute
+#: (one client without DELETE); each initialize rebuilt the index under the global database lock (0.35 s of 0.67 s on a production
+#: copy), and the waiting requests piled up to 180 threads. Cleared when a database is opened and when an object of an index kind is
+#: saved (memory.save), so new knowledge is listed at once; changes made by SQL alone (accesses, refutes) show within CACHE_S.
+CACHE_S = 60.0
+_cache: dict[tuple[str, int], tuple[float, str]] = {}
+_build = threading.Lock()
+
+
+def forget() -> None:
+    _cache.clear()
+
+
 def text(instance: str, max_chars: int | None = None) -> str:
-    """The index as it goes into the instructions; '' if there is nothing to list. max_chars: the budget left (0.70.6), default MAX_CHARS."""
-    max_chars = MAX_CHARS if max_chars is None else max_chars
+    """The index as it goes into the instructions; '' if there is nothing to list. max_chars: the budget left (0.70.6), default MAX_CHARS.
+    Cached (CACHE_S); one build at a time — concurrent initializes wait for it instead of each building their own."""
+    key = (instance, MAX_CHARS if max_chars is None else max_chars)
+    hit = _cache.get(key)
+    if hit and time.monotonic() - hit[0] < CACHE_S:
+        return hit[1]
+    with _build:
+        hit = _cache.get(key)
+        if hit and time.monotonic() - hit[0] < CACHE_S:
+            return hit[1]
+        out = _text(instance, key[1])
+        _cache[key] = (time.monotonic(), out)
+        return out
+
+
+def _text(instance: str, max_chars: int) -> str:
     try:
         sec = sections(instance)
     except Exception:  # noqa: BLE001 — an index must never break initialize

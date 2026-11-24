@@ -90,7 +90,7 @@ def test_semantic_search_checks_all_vectors_not_only_newest(fake):
     vector.catch_up(max_s=600)
     r = tools.call_tool("vi_erinnere", {"filter": "proxy netz", "semantisch": True, "limit": 3}, "a", True)
     assert r.splitlines()[1].strip().startswith(f"[{old.id}]"), r
-    assert "261 of 261 candidates with a vector" in r
+    assert "the 261 nearest of 261 vectors checked against the filter" in r  # 24.11.2026: nearest first, then the filter
 
 
 def test_semantic_search_names_objects_without_vector(fake):
@@ -98,7 +98,8 @@ def test_semantic_search_names_objects_without_vector(fake):
     vector.catch_up(max_s=600)
     g.new_object("insight", "proxy disk", ["host:b"], {"source": "y"}, reason="T")  # no vector yet
     r = tools.call_tool("vi_erinnere", {"filter": "proxy", "semantisch": True}, "a", True)
-    assert "1 of 2 candidates with a vector" in r
+    # 24.11.2026: the candidates are no longer listed (and counted) first; an object without a vector is named where it is found
+    assert "the 1 nearest of 1 vectors checked against the filter" in r and "1 hits via full text only" in r
 
 
 def test_hybrid_search_finds_fresh_learning_without_vector(fake):
