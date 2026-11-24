@@ -62,9 +62,14 @@ before any readout of a test item existed. All times are UTC from `date -u`.
 
 **The seven M1 misses (exploratory).** In each, the own document ranks 2nd to 9th and holds 1–18 % of the credit; the top
 document holds 4–45 %. None has an alternative document by the 6-gram count.
-- One of the seven is the Z11-3 F answer that stayed not wrong after E1 (`probe3:…af4db8288889542218009275:1`): its own document
-  ranks 7th with 4 % of the credit. The readout explains why forgetting its document did not remove the answer: the answer was
-  carried by other documents. That is the same mechanism Z11-2 observed for its one surviving answer.
+- One of the seven is the Z11-3 F answer that stayed not wrong after E1 (`probe3:…af4db8288889542218009275:1`). Its own
+  document ranks 7th, with 4 % of the credit.
+  - This sentence, written at 09:45 UTC, then said: "The readout explains why forgetting its document did not remove the
+    answer."
+  - **Corrected at 10:16 UTC:** that answer came from Z11-3's defective after process. In the clean re-measurement R1 it is
+    graded wrong, so there was no survival to explain.
+  - R1's two surviving F answers have their own document at rank 3 (10 % of the credit) and rank 1 (43 %). Of the four F answers
+    whose own document ranks 3rd or lower, one survived. A low own share does not predict survival here.
 - The reader disagreed with M1 on 3 of the 7: it got one right and two still wrong. Its top 3 contains the own document in 116
   of 117.
 - How the readers ranked (from their reports): first place to the document carrying the content tokens (marked S); places 2 and
@@ -163,3 +168,10 @@ correct keys.
 - **Limit.** The rented host's logs were not kept locally. Its order rests on the session transcript (the cache-build call at
   21:53:31 UTC precedes the launch call). The cross-host checks support it: 9/9 and 10/10 texts identical with the workstation,
   and the 44 correct secondary K answers reproduced on the workstation (Z11-2 host check).
+
+## Re-measurement R1 of Z11-3 (user decision a, 24.11.2026)
+
+- Pre-registered in [PREREG_Z11_3_R1.md](PREREG_Z11_3_R1.md), commit a727ebc; scored in [RESULTS_Z11_3.md](RESULTS_Z11_3.md),
+  "Re-measurement R1".
+- With the fixed cache and one process, the after answers agree with this document's preview on 65 of 65 (identity).
+- H6-R1 holds: forget 30/32, locality 33/33.

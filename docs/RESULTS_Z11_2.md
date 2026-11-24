@@ -14,6 +14,9 @@ Status: final, scored 23.11.2026 11:18:45 UTC. Pre-registration: [PREREG_Z11_2.m
 > (a race on the key cache). On Z11-3's clean half, 17 of 17 kept answers are kept and 16 of 16 forgotten answers are wrong.
 > Nothing in Z11-3 contradicts this document's locality. Its own limits (n = 26) stand. Z11-2's runs used one process per edit,
 > and an exact preview agrees with them on 104 of 104 pairs.
+>
+> **Replicated (24.11.2026, 10:15 UTC).** The clean re-measurement of Z11-3 (R1, one process) gives forget 30/32 and locality
+> 33/33. H6-R1 holds ([RESULTS_Z11_3.md](RESULTS_Z11_3.md), "Re-measurement R1").
 
 ## Question
 

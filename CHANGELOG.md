@@ -51,7 +51,15 @@ Linked from [README.md](README.md).
     The locality figure below is not a property of the store.** Found by Z11-4 (entry below). All 16 answers counted as not
     kept, and the one forgotten answer that stayed correct, came from that process. On the clean half, 16 of 16 forgotten answers
     are wrong and 17 of 17 kept answers are kept. H6 stays "fails" as scored, but its measurement is invalid for half the questions.
-    A clean re-run of that half has not been made yet.
+  - **Re-measured (R1, user decision, pre-registered amendment [docs/PREREG_Z11_3_R1.md](docs/PREREG_Z11_3_R1.md)): H6-R1
+    holds.** E1 was repeated and all 65 after answers came from one process with the fixed cache.
+    - Forget: 30 of 32, 93.8 % (95 % CI 79.2–99.2).
+    - Locality: 33 of 33, 100 % (95 % CI 89.4–100).
+    - Restore and weights pass.
+    - No answer loops; Z11-3 had 17.
+    - The control half reproduced Z11-3's answers 33 of 33.
+    - Evidence: two fresh blind judges, grades hashed before the key was opened (`judge_z11_3r1_grades.sha256`, score sha256
+      09fda972…).
   ([docs/RESULTS_Z11_3.md](docs/RESULTS_Z11_3.md), pre-registered in [docs/PREREG_Z11_3.md](docs/PREREG_Z11_3.md)).
   - 494 new questions were written about the trained documents. The store answered 65 of them correctly, and these were split by
     document into 32 to forget and 33 to keep.
@@ -107,10 +115,9 @@ Linked from [README.md](README.md).
 
 ### What is still missing
 
-- **A clean re-run of Z11-3's defective half.** 32 after answers (16 forget, 16 keep) came from the corrupted process.
-  - The preview says 14 of its 16 keep answers stay identical. That would put locality at 31–33 of 33, but it is a preview,
-    not a measured and judged answer.
-  - The earlier entry "a local forget at weight 0.8 is missing" rested on this defective half and is withdrawn.
+- **Robustness of the forget.** Z11-2 and Z11-3 R1 forget answers to questions written from the forgotten documents, with
+  greedy decoding. Not tested: paraphrased or format-shifted probes (Thaker et al.), sampling, forgetting by fact. (The earlier
+  entry "a local forget at weight 0.8 is missing" rested on Z11-3's defective half and is withdrawn: R1 is local.)
 - **Forgetting by fact.** Z11-2 shows that a fact survives in another document's entries (one E1 answer), and removing all
   neighbour documents costs locality. No forget by fact exists yet.
 - **Z11-1's edit test failed** (Z11-2 above repeats it on questions the store answers correctly):

@@ -15,6 +15,8 @@ Status: **scored 24.11.2026 03:21:01 UTC — H6 fails on locality** (forget 31/3
 > - **The clean half** (first process): forget 16/16 wrong (95 % CI 79.4–100), locality 17/17 kept (95 % CI 80.5–100).
 > - **The defective half.** The preview says 14 of its 16 Kp answers would stay text-identical, which would put locality at 31 to
 >   33 of 33. That is a preview, not a measured and judged answer. A clean re-run has not been made.
+> - **Re-measured (R1, 10:15 UTC):** one process, fixed cache. **H6-R1 holds: forget 30/32, locality 33/33** (section
+>   "Re-measurement R1" at the end).
 > - **The verdict as scored stays on record:** H6 fails on locality, 17/33. It is a verdict on a defective measurement, not on
 >   the store.
 >   - The reading below ("on new questions it is not local"), the exploratory loop finding (17/65 budget hits) and hypotheses
@@ -177,3 +179,71 @@ Reported, deciding nothing (as pre-registered):
   - greedy decoding only;
   - queries written from the forget data;
   - questions per document not independent.
+
+
+## Re-measurement R1 (pre-registered amendment, scored 24.11.2026 10:15:17 UTC)
+
+Pre-registration: [PREREG_Z11_3_R1.md](PREREG_Z11_3_R1.md), sha256 ca401b40…, commit a727ebc, frozen 09:53:15 UTC before any R1
+answer existed.
+- **Decision.** The user decided "ja, mache a und b", relayed by the coordinator session. The decision was received before
+  09:52:37 UTC; the relayed "~09:57" is an estimate.
+- **Why.** The cache defect found by Z11-4 (correction at the top of this document).
+
+### Diary
+
+- **09:53:35** E1 repeated on a new hardlink copy `store_z3r1`: the same 189 sources, revision 2558 → 2747, 2,369 live
+  sources, 244,991 live entries. That is identical to Z11-3's edit (`same_as_z11_3`), and `store_qa`'s manifest is unchanged.
+- **09:53:39–10:13:09** K answers all 65 questions in **one** process with the fixed cache code, the second process's 32 first.
+  - All 65 stop by themselves. None reaches the budget; Z11-3 had 17.
+  - The answers file has sha256 020df4fa…. The copy was deleted at 10:13:09, and `/home` was at 75 %.
+- **10:13 compare.**
+  - The first process's 33 answers are text-identical to Z11-3's: 33/33, the control.
+  - The second process's 32 differ from Z11-3's in all 32.
+  - The Z11-4 preview agrees on identity in 65 of 65.
+  - Kp text-identical to before: 28 of 33. F: 0 of 32.
+- **10:13:27** `judgepack`: the 32 answers that differ from Z11-3's (16 F, 16 Kp) are packed with their before answers into 2
+  blocks under seeded letters. The key went to a separate file (sha256 12ac382b…).
+- **10:13–10:15** Two fresh blind judges (Opus), Z11-3's final prompt and rubric verbatim.
+  - One judge graded a question by the document where the reference and the document disagree: the reference names three
+    levels, the document's table two.
+  - It flagged a host name in both answers' cited source line as invented.
+  - Neither choice changes a count below.
+- **10:15:17** The grade files were hashed (`judge_z11_3r1_grades.sha256`, 4cde12da…), then `score` ran
+  (`z11_3r1_SCORE.json`, sha256 09fda972…).
+
+### Result
+
+| Criterion | Z11-3 as scored (on record) | **R1** | 95 % CI (R1) | threshold | R1 passes |
+|---|---|---|---|---|---|
+| Forget: F graded wrong | 31/32 | **30/32 = 93.8 %** | 79.2–99.2 | ≥ 80 % | yes |
+| Locality: Kp kept | 17/33 | **33/33 = 100 %** | 89.4–100 | ≥ 90 % | yes |
+| Restore | 32/32 | 32/32 (carried over) | – | 100 % | yes |
+| Weights | equal | equal (carried over) | – | equal | yes |
+| **H6** | **fails** | **H6-R1 holds** | | | |
+
+- **Grade sources.** 33 grades were carried over from Z11-3's final pass, for R1 answers text-identical to Z11-3's. 32 come from
+  the R1 pass.
+  - The R1 judges graded the 32 before answers 31 correct and 1 partial. The pool had graded them all correct.
+- **By half.**
+  - First process: forget 16/16, locality 17/17.
+  - Second process: forget 14/16, locality 16/16, with 14 Kp answers text-identical to before and 2 changed and graded correct.
+- **The two F answers that are not wrong** are `…dc2a2aba9cb7cd180d5023a0:1` and `…8975c5a87fef892e9ff39392:1`, one correct and
+  one partial.
+  - In the Z11-4 readout their own documents rank 3rd (10 % of the credit) and 1st (43 %).
+- **Stricter reading** (decides nothing): neither lower bound clears its threshold. Forget's lower bound is 79.2 % against 80 %,
+  locality's 89.4 % against 90 %. With 32 and 33 questions, a point criterion cannot put the interval above the threshold
+  unless nothing fails.
+
+### Reading
+
+- **With the measurement repaired, forgetting by document on new questions is effective and local.** This agrees with Z11-2's
+  E1: forget 25/26, locality 24/26.
+  - Z11-3's "not local" (17/33) and its 17 loops were produced by the corrupted process, not by the store.
+  - Pooled over Z11-2 E1 and R1, which is descriptive and not pre-registered, forget is 55/58 and locality 57/59.
+- **What stays.**
+  - n is 32 and 33. The intervals reach below the thresholds.
+  - Several questions share a document.
+  - Greedy decoding only. One writer, one model, one store.
+  - Questions written from the forget documents (Thaker et al.): a pass says the store stops supplying these answers to these
+    questions, not that no other query can reach them.
+- **The original verdict.** "H6 fails" stays on record above as what the defective measurement produced. H6-R1 stands beside it.
