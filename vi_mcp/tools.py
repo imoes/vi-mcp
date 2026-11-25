@@ -979,9 +979,33 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
                     reranked = True
                 except Exception as ex:  # noqa: BLE001
                     note = f"; reranker unavailable ({type(ex).__name__}), order by rank fusion"
+            # 0.72.0 (goal Z6, switch search_anchor): the page titled with a host the question names, and the pages of the hosts that
+            # page mentions, in front of the list — admitted by the same filter and visibility as every candidate (anchor.py)
+            from . import anchor
+            anchored, arm = anchor.active(g.current_conversation.get())
+            planned = []
+            if anchored or anchor.CAPTURE is not None:
+                planned = anchor.plan(" ".join(words), lambda ids: g.admitted(ids, tags_only, kinds=kinds_))
+            if anchor.CAPTURE is not None:  # the development and gate measurement: the list before the anchor and the plan, per search
+                anchor.CAPTURE.append({"query": query, "ranked": list(ranked), "plan": planned})
+            roles: dict[str, str] = {}
+            if anchored and planned:
+                for p in planned:
+                    roles.setdefault(p["anchor"], "anchor")
+                    for h in p["hops"][:anchor.HOPS]:
+                        roles.setdefault(h, "hop")
+                ranked = anchor.place(ranked, planned)
+                by.update(g.load_many([i for i in ranked[:bound] if i not in by]))
+                ranked = [i for i in ranked if i in by]
             ranked = ranked[:bound]
-            hits = [(rrf[i], by[i], {"relevanz": round(cos[i], 2) if i in cos else "–(full text)", "aktualitaet": 0, "wichtigkeit": 0}) for i in ranked]
-            text_only = sum(1 for i in ranked if i not in cos)
+            hits = [(rrf.get(i, 0.0), by[i], {"relevanz": roles.get(i) or (round(cos[i], 2) if i in cos else "–(full text)"),
+                                              "aktualitaet": 0, "wichtigkeit": 0}) for i in ranked]
+            text_only = sum(1 for i in ranked if i not in cos and i not in roles)
+            if anchor.MODE != "off":  # the trace, named in the search note (Leibniz: why a page stands first)
+                shown = [p for p in planned if p["anchor"] in roles]
+                note += (f"; anchor {arm}: " + ", ".join(f"{p['word']} → {p['anchor']}" + (f" (+{min(len(p['hops']), anchor.HOPS)} hop)"
+                                                                                           if p["hops"][:anchor.HOPS] else "") for p in shown)
+                         if shown else f"; anchor {arm}" + (": no host page named" if anchored else ""))
             from . import query_adapter
             _ids, _pos, mat = vector.matrix()
             adapter = "; order of meaning by the learned query adapter" if query_adapter.scale(mat.shape[1]) is not None else ""
@@ -990,7 +1014,7 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
                   "meaning and full text by rank fusion" + (f"; {text_only} hits via full text only" if text_only else "") + note + ")")
             # 0.63.0: whether the reranker ran is part of the search kind — the relevance grades (UMBRELA) of searches before and after
             # it was switched on were mixed in one number (found on production, 13.11.2026)
-            kind_used = "hybrid+rerank" if reranked else "hybrid"
+            kind_used = ("hybrid+rerank" if reranked else "hybrid") + ("+anchor" if roles else "")
     if hits is None:  # full text alone: no meaning search requested, or it failed (named in f)
         hits = g.recall(query, limit=min(int(args.get("limit") or 10), 50), or_fallback=True)
         kind_used = g.word_search.get() or kind_used

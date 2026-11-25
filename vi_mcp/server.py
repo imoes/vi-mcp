@@ -481,6 +481,8 @@ def build(k: config.Config) -> list[Server]:
     vector.config = k.embed
     vector.rerank_config = k.rerank
     intuition.HOLD_BACK = k.hold_back  # 0.61.0
+    from . import anchor
+    anchor.MODE, anchor.SHARE = k.search_anchor, k.search_anchor_share  # 0.72.0
     intuition.NUDGE_OFF = k.feedback_nudge_off  # 0.68.0
     from . import use_rate
     use_rate.SHARE = k.use_rate_share  # Z7
