@@ -87,6 +87,23 @@ sudo vi-mcp setup                                    # ANSI menu: Claude Code, C
 archive with sha256, URL and token as plugin options; `public_url` behind the reverse proxy, the archive only over https) and the hook
 file (`/plugins/hook/vi_hook.py`); Codex and Hermes get `/plugins/vi-mcp-setup.pyz`, a zipapp of the package's own `setup.py` with the hook (`vi-mcp setup --codex-hook` writes `~/.codex/hooks.json`; Codex runs it only after the user trusts it in `/hooks`). The routes need no token by design — only public code, never instance data, no token in any served file; `plugins: false` switches them off. Test an install end to end with an isolated `CLAUDE_CONFIG_DIR`, never against production.
 
+Connecting a client on another machine (`https://server/vi-mcp/plugins` lists what this server serves, with sha256):
+
+```bash
+# 1. On the server, an administrator creates one instance per client (the token is shown once), then restarts the service:
+sudo vi-mcp instance NAME [--reflexes] [--human] && sudo systemctl restart vi-mcp
+# 2a. Claude Code: the plugin brings the MCP connection and the hooks
+claude plugin marketplace add https://server/vi-mcp/plugins/claude/marketplace.json
+claude plugin install vi-mcp@vi-mcp        # then /plugin → vi-mcp → configure: enter the token (stored as a secret)
+# 2b. Codex CLI / Hermes Agent: the setup of this package with the hook; the token comes from standard input, never an argument
+curl -fsSO https://server/vi-mcp/plugins/vi-mcp-setup.pyz && python3 vi-mcp-setup.pyz --codex --codex-hook --hermes --token-file -
+```
+
+Then reconnect the client (`/mcp` → vi-mcp → reconnect, or restart it) and check: `/mcp` shows vi-mcp connected, the server
+instructions name the new instance, a `vi_recall` answers, and a shell command triggers the "[VI memory before …]" hook lines. Use
+the plugin OR `vi-mcp setup --hook`, never both (the hook would handle each event once, the other copy is dead weight). Undo:
+`claude plugin uninstall vi-mcp@vi-mcp` and `claude plugin marketplace remove vi-mcp`.
+
 0.48.0: the package first asks for the server configuration (Debian: debconf, `dpkg-reconfigure vi-mcp`; RPM and everywhere:
 `vi-mcp configure`, ANSI menu; catalogue in `vi_mcp/configure.py`, the Debian build generates `DEBIAN/templates` and `DEBIAN/config`
 from it). Unattended: `VI_MCP_<KEY>` environment variables (e.g. `VI_MCP_PORT`, `VI_MCP_WIKI`, `VI_MCP_INSTANCE`). Then the client

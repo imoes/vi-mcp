@@ -3,6 +3,14 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## Unreleased
+
+### What has changed
+- AGENTS.md now lists the exact commands to connect a client on another machine: create the instance on the server, install the
+  served Claude Code plugin (`claude plugin marketplace add …/plugins/claude/marketplace.json`, `claude plugin install
+  vi-mcp@vi-mcp`, token via `/plugin` → configure) or run `vi-mcp-setup.pyz` for Codex/Hermes, then the checks and the undo.
+  Before, AGENTS.md only described the mechanism and the commands were in README.md alone. Documentation only.
+
 ## 0.71.2 — 2026-11-24 — under session churn: fast search and initialize, one vector matrix, read connections
 
 Production 0.71.1 jammed and grew to 11–15 GB under about 15 new sessions a minute from one client that never ends its sessions
