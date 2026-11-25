@@ -58,6 +58,31 @@
    "original_sha256": "d154eed97636b9a899ffde212e268c036191c12a7ec0a4e2b73e1826fbc52306",
    "repo_sha256": "21e6626d86c4f4dcd331014e5bc85d92f58c43e5971e9fab9cfb6d4c3df6b921",
    "why": "instance name replaced (19.11.2026)"
+  },
+  {
+   "file": "symbolic_regression/g8d/gp2_log.py",
+   "original_sha256": "7457fb0d5f80984b121a3547bd1f3a47b65a06813c518413a02985e64f677b82",
+   "repo_sha256": "aef5f82252248f6deb07cfdd7ee360abd9798bf508a7b4a6e1f70ebb3b0b3db2"
+  },
+  {
+   "file": "symbolic_regression/g8d/gp2_arms.py",
+   "original_sha256": "32e33a053035dd29793d0c301d6263adbabe52250249ec38855c24a8e7d1730b",
+   "repo_sha256": "2869ed97eabfc57cd7f85dd0239346162ff2a3a8e6d0ff3ea9e87963635cd69e"
+  },
+  {
+   "file": "symbolic_regression/g8d/g8d0.py",
+   "original_sha256": "5dcf25dbd3fa5fdae90acc429bde18bdd40e6e26d48408c9701879f580752e30",
+   "repo_sha256": "db954b0b0458795d476cd568da830902064d425ead54cb14b6d185747f45c7d9"
+  },
+  {
+   "file": "symbolic_regression/g8d/replay_check.py",
+   "original_sha256": "5f34959dfe621c416866131f57e9bde95569337beb7c9548f85ca25bdfbc0682",
+   "repo_sha256": "cfc2b96efa2683bac4d413b9f6a779be9a5da458a1eebf3a87f27ea411cd08e0"
+  },
+  {
+   "file": "symbolic_regression/g8d/PLAN_G8d.md",
+   "original_sha256": "5bc96bc997460b2707d65e3298ecefc39731e89441cc2bc056d8308e0347235c",
+   "repo_sha256": "05d4c46c9d5b5eb07953f749ab477f436b7475457c3c384c9c669c6766fd548a"
   }
  ],
  "log": []

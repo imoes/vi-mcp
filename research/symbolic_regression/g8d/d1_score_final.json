@@ -1,0 +1,357 @@
+{
+ "tasks": 40,
+ "eligible": 30,
+ "hard": 16,
+ "missing_runs": 0,
+ "H1_C_lt_Cs": {
+  "n": 30,
+  "statistic": 131.0,
+  "p_one_sided": 0.7049680987711305,
+  "median_ratio_other_over_C": 1.0,
+  "C_better": 12,
+  "C_worse": 9
+ },
+ "H2_C_lt_P": {
+  "n": 30,
+  "statistic": 42.0,
+  "p_one_sided": 0.009332294733459373,
+  "median_ratio_other_over_C": 1.0469034683735763,
+  "C_better": 16,
+  "C_worse": 4
+ },
+ "H3_C_lt_U": {
+  "n": 30,
+  "statistic": 118.0,
+  "p_one_sided": 0.6862769833392494,
+  "median_ratio_other_over_C": 1.0,
+  "C_better": 11,
+  "C_worse": 9
+ },
+ "hard_C_lt_Cs": {
+  "n": 16,
+  "statistic": 29.0,
+  "p_one_sided": 0.9382573639277255,
+  "median_ratio_other_over_C": 1.0,
+  "C_better": 2,
+  "C_worse": 6
+ },
+ "hard_C_lt_P": {
+  "n": 16,
+  "statistic": 7.0,
+  "p_one_sided": 0.11836178531892866,
+  "median_ratio_other_over_C": 1.0,
+  "C_better": 5,
+  "C_worse": 2
+ },
+ "hard_C_lt_U": {
+  "n": 16,
+  "statistic": 29.0,
+  "p_one_sided": 0.9382573639277255,
+  "median_ratio_other_over_C": 1.0,
+  "C_better": 2,
+  "C_worse": 6
+ },
+ "no_harm_easy_median_U_over_C": 1.524561403508772,
+ "solved_share": {
+  "C": "310/400",
+  "Cs": "317/400",
+  "O1": "48/80",
+  "P": "300/400",
+  "U": "315/400"
+ },
+ "wall_seconds_mean": {
+  "C": 745.8,
+  "Cs": 549.8,
+  "O1": 2622.5,
+  "P": 185.9,
+  "U": 168.6
+ },
+ "by_kind": {
+  "b": {
+   "U": 23.5,
+   "P": 29.0,
+   "C": 15.0,
+   "Cs": 25.5
+  },
+  "c": {
+   "U": 11712.0,
+   "P": 15000.0,
+   "C": 13972.0,
+   "Cs": 13460.5
+  }
+ },
+ "O1_over_U_hard": 0.7066273409537005,
+ "per_task": {
+  "connection": {
+   "U": 193.0,
+   "P": 181.5,
+   "C": 201.0,
+   "Cs": 190.5,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "skipped_stop": {
+   "U": 4.0,
+   "P": 3.5,
+   "C": 2.5,
+   "Cs": 7.5,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "wine_color": {
+   "U": 51.0,
+   "P": 91.0,
+   "C": 32.5,
+   "Cs": 91.0,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "unrequited_follow": {
+   "U": 5.0,
+   "P": 4.0,
+   "C": 2.5,
+   "Cs": 4.5,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "verdict_changed": {
+   "U": 3.0,
+   "P": 4.5,
+   "C": 3.0,
+   "Cs": 4.0,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "multi_homed": {
+   "U": 15000.0,
+   "P": 15000.0,
+   "C": 15000.0,
+   "Cs": 15000.0,
+   "O1": 15000,
+   "kind": "b",
+   "hard": true
+  },
+  "unpaid_departure": {
+   "U": 2.0,
+   "P": 2.5,
+   "C": 2.5,
+   "Cs": 2.5,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "unsupervised_worker": {
+   "U": 4.0,
+   "P": 3.5,
+   "C": 4.0,
+   "Cs": 2.5,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "overdue_fire_door": {
+   "U": 21.0,
+   "P": 25.5,
+   "C": 10.0,
+   "Cs": 25.5,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "misshelved": {
+   "U": 13.5,
+   "P": 12.0,
+   "C": 8.0,
+   "Cs": 13.5,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "rehab_status": {
+   "U": 103.0,
+   "P": 97.0,
+   "C": 63.5,
+   "Cs": 110.0,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "split_ticket": {
+   "U": 3856.5,
+   "P": 2158.0,
+   "C": 2563.0,
+   "Cs": 2587.0,
+   "O1": 534,
+   "kind": "b",
+   "hard": true
+  },
+  "claim_decision": {
+   "U": 193.0,
+   "P": 176.5,
+   "C": 173.0,
+   "Cs": 210.0,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "non_standard_finish": {
+   "U": 23.5,
+   "P": 29.0,
+   "C": 15.0,
+   "Cs": 24.0,
+   "O1": null,
+   "kind": "b",
+   "hard": false
+  },
+  "sighting_confirmation": {
+   "U": 15000.0,
+   "P": 15000.0,
+   "C": 15000.0,
+   "Cs": 15000.0,
+   "O1": 15000,
+   "kind": "b",
+   "hard": true
+  },
+  "needs_transfer": {
+   "U": 376.0,
+   "P": 541.5,
+   "C": 414.5,
+   "Cs": 347.0,
+   "O1": 219,
+   "kind": "c",
+   "hard": true
+  },
+  "vulnerable_dependency": {
+   "U": 120.0,
+   "P": 581.5,
+   "C": 238.0,
+   "Cs": 90.0,
+   "O1": null,
+   "kind": "c",
+   "hard": false
+  },
+  "dead_bus": {
+   "U": 15000.0,
+   "P": 15000.0,
+   "C": 15000.0,
+   "Cs": 15000.0,
+   "O1": 11062,
+   "kind": "c",
+   "hard": true
+  },
+  "needs_coach": {
+   "U": 15000.0,
+   "P": 15000.0,
+   "C": 15000.0,
+   "Cs": 15000.0,
+   "O1": 15000,
+   "kind": "c",
+   "hard": true
+  },
+  "recommendation_loop": {
+   "U": 84.5,
+   "P": 1395.5,
+   "C": 57.0,
+   "Cs": 61.5,
+   "O1": null,
+   "kind": "c",
+   "hard": false
+  },
+  "gateway_reach": {
+   "U": 600.5,
+   "P": 5538.0,
+   "C": 4609.5,
+   "Cs": 3500.0,
+   "O1": 296,
+   "kind": "c",
+   "hard": true
+  },
+  "pen_exposure": {
+   "U": 14052.5,
+   "P": 15000.0,
+   "C": 9380.5,
+   "Cs": 13460.5,
+   "O1": 4329,
+   "kind": "c",
+   "hard": true
+  },
+  "same_rank": {
+   "U": 15000.0,
+   "P": 15000.0,
+   "C": 15000.0,
+   "Cs": 15000.0,
+   "O1": 15000,
+   "kind": "c",
+   "hard": true
+  },
+  "final_delegate": {
+   "U": 4102.5,
+   "P": 5266.5,
+   "C": 9856.5,
+   "Cs": 4233.0,
+   "O1": 2134,
+   "kind": "c",
+   "hard": true
+  },
+  "faction_ally": {
+   "U": 2887.0,
+   "P": 15000.0,
+   "C": 8544.0,
+   "Cs": 3491.0,
+   "O1": 1951,
+   "kind": "c",
+   "hard": true
+  },
+  "trapped_room": {
+   "U": 15000.0,
+   "P": 15000.0,
+   "C": 15000.0,
+   "Cs": 15000.0,
+   "O1": 15000,
+   "kind": "c",
+   "hard": true
+  },
+  "safe_cabinet": {
+   "U": 9561.0,
+   "P": 15000.0,
+   "C": 15000.0,
+   "Cs": 13703.5,
+   "O1": 8326,
+   "kind": "c",
+   "hard": true
+  },
+  "unassignable_case": {
+   "U": 15000.0,
+   "P": 15000.0,
+   "C": 15000.0,
+   "Cs": 15000.0,
+   "O1": 15000,
+   "kind": "c",
+   "hard": true
+  },
+  "task_readiness": {
+   "U": 15000.0,
+   "P": 15000.0,
+   "C": 15000.0,
+   "Cs": 15000.0,
+   "O1": 6205,
+   "kind": "c",
+   "hard": true
+  },
+  "reachable_port": {
+   "U": 11712.0,
+   "P": 15000.0,
+   "C": 13972.0,
+   "Cs": 12441.5,
+   "O1": 2395,
+   "kind": "c",
+   "hard": true
+  }
+ },
+ "missing": []
+}

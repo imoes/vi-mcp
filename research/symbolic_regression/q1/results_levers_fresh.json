@@ -1,0 +1,283 @@
+{
+ "source": "PREREG_Q1_levers.md (frozen 953dde4/b2396a1); fresh 400 2Wiki dev questions (ids sha 38f398a5...), union reads R1-full + base 2-shot (q1_read_v2.py 5c6e9c6d), official_score.py 7f9170e9, mcnemar_levers.py 75b84ea4; scored on the AMD CPU 21.11.2026 ~16:10 UTC",
+ "reads_sha256": [
+  "54e97345afe163d27fd0d256e3c80da21de19ab6a7162d59fd28a9529d48033f",
+  "<scratchpad>/q1fresh/read_fresh_base2shot.jsonl",
+  "8c5f093f91ad49b124a5ac8553a180bbe3f6217fcde2e370db955e804139eec5",
+  "<scratchpad>/q1fresh/read_fresh_r1full.jsonl",
+  "0717964790b76dd65aafc7693fa5623696eefbb6564a70d7c65c95522e9f30b3",
+  "<scratchpad>/q1fresh/read_fresh_union.jsonl"
+ ],
+ "mcnemar": {
+  "H_L1_both_vs_none": {
+   "lever_only": 14,
+   "baseline_only": 1,
+   "p_one_sided": 0.000488,
+   "em_lever": 283.0,
+   "em_baseline": 270.0,
+   "n": 400
+  },
+  "H_L2_tie_vs_none": {
+   "lever_only": 14,
+   "baseline_only": 0,
+   "p_one_sided": 6.1e-05,
+   "em_lever": 284.0,
+   "em_baseline": 270.0,
+   "n": 400
+  },
+  "desc_anchor_vs_none": {
+   "lever_only": 0,
+   "baseline_only": 1,
+   "p_one_sided": 1.0,
+   "em_lever": 269.0,
+   "em_baseline": 270.0,
+   "n": 400
+  },
+  "by_type:bridge_comparison": {
+   "both_vs_none": {
+    "lever_only": 0,
+    "baseline_only": 0,
+    "p_one_sided": 1.0,
+    "em_lever": 95.0,
+    "em_baseline": 95.0,
+    "n": 100
+   },
+   "tie_vs_none": {
+    "lever_only": 0,
+    "baseline_only": 0,
+    "p_one_sided": 1.0,
+    "em_lever": 95.0,
+    "em_baseline": 95.0,
+    "n": 100
+   }
+  },
+  "by_type:comparison": {
+   "both_vs_none": {
+    "lever_only": 0,
+    "baseline_only": 0,
+    "p_one_sided": 1.0,
+    "em_lever": 91.0,
+    "em_baseline": 91.0,
+    "n": 100
+   },
+   "tie_vs_none": {
+    "lever_only": 0,
+    "baseline_only": 0,
+    "p_one_sided": 1.0,
+    "em_lever": 91.0,
+    "em_baseline": 91.0,
+    "n": 100
+   }
+  },
+  "by_type:compositional": {
+   "both_vs_none": {
+    "lever_only": 14,
+    "baseline_only": 0,
+    "p_one_sided": 6.1e-05,
+    "em_lever": 55.0,
+    "em_baseline": 41.0,
+    "n": 100
+   },
+   "tie_vs_none": {
+    "lever_only": 14,
+    "baseline_only": 0,
+    "p_one_sided": 6.1e-05,
+    "em_lever": 55.0,
+    "em_baseline": 41.0,
+    "n": 100
+   }
+  },
+  "by_type:inference": {
+   "both_vs_none": {
+    "lever_only": 0,
+    "baseline_only": 1,
+    "p_one_sided": 1.0,
+    "em_lever": 42.0,
+    "em_baseline": 43.0,
+    "n": 100
+   },
+   "tie_vs_none": {
+    "lever_only": 0,
+    "baseline_only": 0,
+    "p_one_sided": 1.0,
+    "em_lever": 43.0,
+    "em_baseline": 43.0,
+    "n": 100
+   }
+  },
+  "H_L1_holds": true,
+  "H_L2_holds": true
+ },
+ "scores_ALL": {
+  "none": {
+   "n": 400,
+   "ours_em": 0.6625,
+   "official_em_gold": 0.6625,
+   "official_em_alias": 0.675,
+   "official_f1_gold": 0.6987,
+   "official_f1_alias": 0.7072
+  },
+  "tie": {
+   "n": 400,
+   "ours_em": 0.6875,
+   "official_em_gold": 0.6875,
+   "official_em_alias": 0.71,
+   "official_f1_gold": 0.732,
+   "official_f1_alias": 0.7435
+  },
+  "anchor": {
+   "n": 400,
+   "ours_em": 0.66,
+   "official_em_gold": 0.66,
+   "official_em_alias": 0.6725,
+   "official_f1_gold": 0.6962,
+   "official_f1_alias": 0.7047
+  },
+  "both": {
+   "n": 400,
+   "ours_em": 0.685,
+   "official_em_gold": 0.685,
+   "official_em_alias": 0.7075,
+   "official_f1_gold": 0.7295,
+   "official_f1_alias": 0.741
+  }
+ },
+ "scores_by_type": {
+  "none": {
+   "bridge_comparison": {
+    "n": 100,
+    "ours_em": 0.95,
+    "official_em_gold": 0.95,
+    "official_em_alias": 0.95,
+    "official_f1_gold": 0.95,
+    "official_f1_alias": 0.95
+   },
+   "comparison": {
+    "n": 100,
+    "ours_em": 0.91,
+    "official_em_gold": 0.91,
+    "official_em_alias": 0.91,
+    "official_f1_gold": 0.91,
+    "official_f1_alias": 0.91
+   },
+   "compositional": {
+    "n": 100,
+    "ours_em": 0.39,
+    "official_em_gold": 0.39,
+    "official_em_alias": 0.41,
+    "official_f1_gold": 0.41,
+    "official_f1_alias": 0.4283
+   },
+   "inference": {
+    "n": 100,
+    "ours_em": 0.4,
+    "official_em_gold": 0.4,
+    "official_em_alias": 0.43,
+    "official_f1_gold": 0.5249,
+    "official_f1_alias": 0.5407
+   }
+  },
+  "tie": {
+   "bridge_comparison": {
+    "n": 100,
+    "ours_em": 0.95,
+    "official_em_gold": 0.95,
+    "official_em_alias": 0.95,
+    "official_f1_gold": 0.95,
+    "official_f1_alias": 0.95
+   },
+   "comparison": {
+    "n": 100,
+    "ours_em": 0.91,
+    "official_em_gold": 0.91,
+    "official_em_alias": 0.91,
+    "official_f1_gold": 0.91,
+    "official_f1_alias": 0.91
+   },
+   "compositional": {
+    "n": 100,
+    "ours_em": 0.49,
+    "official_em_gold": 0.49,
+    "official_em_alias": 0.55,
+    "official_f1_gold": 0.543,
+    "official_f1_alias": 0.5733
+   },
+   "inference": {
+    "n": 100,
+    "ours_em": 0.4,
+    "official_em_gold": 0.4,
+    "official_em_alias": 0.43,
+    "official_f1_gold": 0.5249,
+    "official_f1_alias": 0.5407
+   }
+  },
+  "anchor": {
+   "bridge_comparison": {
+    "n": 100,
+    "ours_em": 0.95,
+    "official_em_gold": 0.95,
+    "official_em_alias": 0.95,
+    "official_f1_gold": 0.95,
+    "official_f1_alias": 0.95
+   },
+   "comparison": {
+    "n": 100,
+    "ours_em": 0.91,
+    "official_em_gold": 0.91,
+    "official_em_alias": 0.91,
+    "official_f1_gold": 0.91,
+    "official_f1_alias": 0.91
+   },
+   "compositional": {
+    "n": 100,
+    "ours_em": 0.39,
+    "official_em_gold": 0.39,
+    "official_em_alias": 0.41,
+    "official_f1_gold": 0.41,
+    "official_f1_alias": 0.4283
+   },
+   "inference": {
+    "n": 100,
+    "ours_em": 0.39,
+    "official_em_gold": 0.39,
+    "official_em_alias": 0.42,
+    "official_f1_gold": 0.5149,
+    "official_f1_alias": 0.5307
+   }
+  },
+  "both": {
+   "bridge_comparison": {
+    "n": 100,
+    "ours_em": 0.95,
+    "official_em_gold": 0.95,
+    "official_em_alias": 0.95,
+    "official_f1_gold": 0.95,
+    "official_f1_alias": 0.95
+   },
+   "comparison": {
+    "n": 100,
+    "ours_em": 0.91,
+    "official_em_gold": 0.91,
+    "official_em_alias": 0.91,
+    "official_f1_gold": 0.91,
+    "official_f1_alias": 0.91
+   },
+   "compositional": {
+    "n": 100,
+    "ours_em": 0.49,
+    "official_em_gold": 0.49,
+    "official_em_alias": 0.55,
+    "official_f1_gold": 0.543,
+    "official_f1_alias": 0.5733
+   },
+   "inference": {
+    "n": 100,
+    "ours_em": 0.39,
+    "official_em_gold": 0.39,
+    "official_em_alias": 0.42,
+    "official_f1_gold": 0.5149,
+    "official_f1_alias": 0.5307
+   }
+  }
+ }
+}

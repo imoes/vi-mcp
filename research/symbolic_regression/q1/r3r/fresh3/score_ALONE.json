@@ -1,0 +1,97 @@
+{
+ "tiebreak": true,
+ "title_anchor": true,
+ "scores": {
+  "ALL": {
+   "n": 400,
+   "ours_em": 0.67,
+   "official_em_gold": 0.67,
+   "official_em_alias": 0.7025,
+   "official_f1_gold": 0.7131,
+   "official_f1_alias": 0.7333
+  },
+  "bridge_comparison": {
+   "n": 100,
+   "ours_em": 0.95,
+   "official_em_gold": 0.95,
+   "official_em_alias": 0.95,
+   "official_f1_gold": 0.95,
+   "official_f1_alias": 0.95
+  },
+  "comparison": {
+   "n": 100,
+   "ours_em": 0.95,
+   "official_em_gold": 0.95,
+   "official_em_alias": 0.95,
+   "official_f1_gold": 0.95,
+   "official_f1_alias": 0.95
+  },
+  "compositional": {
+   "n": 100,
+   "ours_em": 0.3,
+   "official_em_gold": 0.3,
+   "official_em_alias": 0.4,
+   "official_f1_gold": 0.361,
+   "official_f1_alias": 0.4225
+  },
+  "inference": {
+   "n": 100,
+   "ours_em": 0.48,
+   "official_em_gold": 0.48,
+   "official_em_alias": 0.51,
+   "official_f1_gold": 0.5913,
+   "official_f1_alias": 0.6106
+  }
+ },
+ "examples": {
+  "compositional": [
+   {
+    "q": "What nationality is the director of film The Wrecking Crew (2000 Film)?",
+    "gold": "America",
+    "pred": "American"
+   },
+   {
+    "q": "What nationality is the performer of song The Ballad Of The Lonesome Cowboy?",
+    "gold": "America",
+    "pred": "the US"
+   },
+   {
+    "q": "What nationality is the composer of film Four Women (1975 Film)?",
+    "gold": "American",
+    "pred": "United States"
+   },
+   {
+    "q": "Where was the director of film Politics Of Love born?",
+    "gold": "Toronto, Ontario",
+    "pred": "Toronto"
+   },
+   {
+    "q": "Where was the director of film The Hanging Judge (Film) born?",
+    "gold": "Weston-super-Mare, Somerset",
+    "pred": "Weston-super-Mare"
+   },
+   {
+    "q": "What is the place of birth of the director of film Boys And Girls (2000 Film)?",
+    "gold": "Toronto, Ontario",
+    "pred": "Toronto"
+   }
+  ],
+  "inference": [
+   {
+    "q": "Who is the father-in-law of Princess Amalia Of Nassau-Dietz?",
+    "gold": "Charles III William",
+    "pred": "Charles III William, Margrave of Baden-Durlach"
+   },
+   {
+    "q": "Who is the maternal grandfather of Margaret Of Holland, Countess Of Henneberg?",
+    "gold": "Henry I",
+    "pred": "Henry I, Duke of Brabant"
+   },
+   {
+    "q": "Who is the maternal grandfather of Princess Amalie Of Saxony?",
+    "gold": "Ferdinand",
+    "pred": "Ferdinand, Duke of Parma"
+   }
+  ]
+ }
+}

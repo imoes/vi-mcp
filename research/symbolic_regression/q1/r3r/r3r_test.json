@@ -1,0 +1,31 @@
+{
+ "H_R3r1": {
+  "new_only": 30,
+  "old_only": 11,
+  "p_one_sided": 0.002162,
+  "holds": true,
+  "em_old": 0.66,
+  "em_new": 0.7075
+ },
+ "em_single_r1full": 0.56,
+ "em_single_base": 0.5625,
+ "em_single_r3r": 0.73,
+ "by_type": {
+  "bridge_comparison": {
+   "old": 83.0,
+   "new": 86.0
+  },
+  "comparison": {
+   "old": 89.0,
+   "new": 95.0
+  },
+  "compositional": {
+   "old": 49.0,
+   "new": 49.0
+  },
+  "inference": {
+   "old": 43.0,
+   "new": 53.0
+  }
+ }
+}

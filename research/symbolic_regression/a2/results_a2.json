@@ -1,0 +1,644 @@
+{
+ "per_task": {
+  "andersen": {
+   "flag_few_negatives": true,
+   "pos": 7,
+   "neg": 0,
+   "gp": {
+    "solved": "5/5",
+    "resource_limit": 0,
+    "size_median": 11,
+    "ba_median": 1.0,
+    "t_first_median_s": 3.35
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 11,
+    "ba_median": 1.0,
+    "t_first_median_s": 1.3
+   }
+  },
+  "iggp-attrition-next-score": {
+   "flag_few_negatives": false,
+   "pos": 6,
+   "neg": 650,
+   "gp": {
+    "solved": "4/5",
+    "resource_limit": 0,
+    "size_median": 14.5,
+    "ba_median": 1.0,
+    "t_first_median_s": 118.8
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 14,
+    "ba_median": 1.0,
+    "t_first_median_s": 1.8
+   }
+  },
+  "iggp-buttons-goal": {
+   "flag_few_negatives": false,
+   "pos": 22,
+   "neg": 22,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.977,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 13,
+    "ba_median": 1.0,
+    "t_first_median_s": 2.0
+   }
+  },
+  "iggp-buttons-next": {
+   "flag_few_negatives": false,
+   "pos": 98,
+   "neg": 432,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.91,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 52,
+    "ba_median": 1.0,
+    "t_first_median_s": 1.5
+   }
+  },
+  "iggp-coins-next-cell": {
+   "flag_few_negatives": false,
+   "pos": 576,
+   "neg": 1968,
+   "gp": {
+    "solved": "5/5",
+    "resource_limit": 0,
+    "size_median": 11,
+    "ba_median": 1.0,
+    "t_first_median_s": 6.65
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 11,
+    "ba_median": 1.0,
+    "t_first_median_s": 2.0
+   }
+  },
+  "iggp-connect4team-next-control": {
+   "flag_few_negatives": false,
+   "pos": 500,
+   "neg": 1500,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.745,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 16,
+    "ba_median": 1.0,
+    "t_first_median_s": 3.1
+   }
+  },
+  "iggp-dont-touch-next-control": {
+   "flag_few_negatives": false,
+   "pos": 356,
+   "neg": 356,
+   "gp": {
+    "solved": "5/5",
+    "resource_limit": 0,
+    "size_median": 4,
+    "ba_median": 1.0,
+    "t_first_median_s": 223.38
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 8,
+    "ba_median": 1.0,
+    "t_first_median_s": 2.3
+   }
+  },
+  "iggp-eight-puzzle-legal-move": {
+   "flag_few_negatives": false,
+   "pos": 1383,
+   "neg": 3117,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.58,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 20,
+    "ba_median": 1.0,
+    "t_first_median_s": 2.8
+   }
+  },
+  "iggp-farming-next-has-arson": {
+   "flag_few_negatives": false,
+   "pos": 125,
+   "neg": 875,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.861,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 10,
+    "ba_median": 1.0,
+    "t_first_median_s": 4.1
+   }
+  },
+  "iggp-gt-chicken-goal": {
+   "flag_few_negatives": false,
+   "pos": 1000,
+   "neg": 100000,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 4,
+    "size_median": null,
+    "ba_median": 0.521,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 6,
+    "ba_median": 1.0,
+    "t_first_median_s": 3.4
+   }
+  },
+  "iggp-gt_centipede-goal": {
+   "flag_few_negatives": false,
+   "pos": 20,
+   "neg": 400,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.916,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 40,
+    "ba_median": 1.0,
+    "t_first_median_s": 2.0
+   }
+  },
+  "iggp-hextforthree-next-control": {
+   "flag_few_negatives": false,
+   "pos": 500,
+   "neg": 1000,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.757,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 12,
+    "ba_median": 1.0,
+    "t_first_median_s": 8.2
+   }
+  },
+  "iggp-horseshoe-next-cell": {
+   "flag_few_negatives": false,
+   "pos": 660,
+   "neg": 1620,
+   "gp": {
+    "solved": "5/5",
+    "resource_limit": 0,
+    "size_median": 10,
+    "ba_median": 1.0,
+    "t_first_median_s": 24.03
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 71,
+    "ba_median": 1.0,
+    "t_first_median_s": 2.4
+   }
+  },
+  "iggp-minimal-decay-next-value": {
+   "flag_few_negatives": false,
+   "pos": 8,
+   "neg": 46,
+   "gp": {
+    "solved": "5/5",
+    "resource_limit": 0,
+    "size_median": 9,
+    "ba_median": 1.0,
+    "t_first_median_s": 7.96
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 9,
+    "ba_median": 1.0,
+    "t_first_median_s": 1.4
+   }
+  },
+  "iggp-polgrimage-goal": {
+   "flag_few_negatives": false,
+   "pos": 1000,
+   "neg": 25000,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 1.0,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 18,
+    "ba_median": 1.0,
+    "t_first_median_s": 6.5
+   }
+  },
+  "iggp-rps-next-score": {
+   "flag_few_negatives": false,
+   "pos": 108,
+   "neg": 356,
+   "gp": {
+    "solved": "3/5",
+    "resource_limit": 0,
+    "size_median": 19,
+    "ba_median": 1.0,
+    "t_first_median_s": 140.23
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 16,
+    "ba_median": 1.0,
+    "t_first_median_s": 1.5
+   }
+  },
+  "iggp-sokoban-goal": {
+   "flag_few_negatives": false,
+   "pos": 1,
+   "neg": 999,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 1,
+    "size_median": null,
+    "ba_median": 0.5,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 8,
+    "ba_median": 1.0,
+    "t_first_median_s": 3.4
+   }
+  },
+  "iggp-ultimatium-goal": {
+   "flag_few_negatives": false,
+   "pos": 1000,
+   "neg": 100000,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 1,
+    "size_median": null,
+    "ba_median": 0.616,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 6,
+    "ba_median": 1.0,
+    "t_first_median_s": 3.4
+   }
+  },
+  "imdb3": {
+   "flag_few_negatives": false,
+   "pos": 4075,
+   "neg": 117726,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 1,
+    "size_median": null,
+    "ba_median": 0.973,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 10,
+    "ba_median": 1.0,
+    "t_first_median_s": 3.2
+   }
+  },
+  "kinship-ancestor": {
+   "flag_few_negatives": true,
+   "pos": 3,
+   "neg": 0,
+   "gp": {
+    "solved": "5/5",
+    "resource_limit": 0,
+    "size_median": 7,
+    "ba_median": 1.0,
+    "t_first_median_s": 0.43
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 6,
+    "ba_median": 1.0,
+    "t_first_median_s": 1.4
+   }
+  },
+  "kinship-pi": {
+   "flag_few_negatives": true,
+   "pos": 5,
+   "neg": 1,
+   "gp": {
+    "solved": "5/5",
+    "resource_limit": 0,
+    "size_median": 8,
+    "ba_median": 1.0,
+    "t_first_median_s": 0.94
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 7,
+    "ba_median": 1.0,
+    "t_first_median_s": 1.3
+   }
+  },
+  "noisy-drugdrug": {
+   "flag_few_negatives": false,
+   "pos": 1975,
+   "neg": 2232,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.667,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "0/3",
+    "timeouts": 3,
+    "size_median": null,
+    "ba_median": 0.743,
+    "t_first_median_s": null
+   }
+  },
+  "noisy-wn18rr1": {
+   "flag_few_negatives": false,
+   "pos": 923,
+   "neg": 923,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 2,
+    "size_median": null,
+    "ba_median": 0.544,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "0/3",
+    "timeouts": 0,
+    "size_median": null,
+    "ba_median": 0.942,
+    "t_first_median_s": null
+   }
+  },
+  "noisy-wn18rr3": {
+   "flag_few_negatives": false,
+   "pos": 1138,
+   "neg": 1138,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 3,
+    "size_median": null,
+    "ba_median": 0.515,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "0/3",
+    "timeouts": 3,
+    "size_median": null,
+    "ba_median": 0.877,
+    "t_first_median_s": null
+   }
+  },
+  "noisy-zendo2-10": {
+   "flag_few_negatives": false,
+   "pos": 99,
+   "neg": 101,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.791,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "0/3",
+    "timeouts": 0,
+    "size_median": null,
+    "ba_median": 0.905,
+    "t_first_median_s": null
+   }
+  },
+  "trains1": {
+   "flag_few_negatives": false,
+   "pos": 394,
+   "neg": 606,
+   "gp": {
+    "solved": "4/5",
+    "resource_limit": 0,
+    "size_median": 8.0,
+    "ba_median": 1.0,
+    "t_first_median_s": 313.895
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 6,
+    "ba_median": 1.0,
+    "t_first_median_s": 2.1
+   }
+  },
+  "trains2": {
+   "flag_few_negatives": false,
+   "pos": 20,
+   "neg": 81,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.926,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 11,
+    "ba_median": 1.0,
+    "t_first_median_s": 2.0
+   }
+  },
+  "trains3": {
+   "flag_few_negatives": false,
+   "pos": 792,
+   "neg": 208,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.879,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 17,
+    "ba_median": 1.0,
+    "t_first_median_s": 3.4
+   }
+  },
+  "trains4": {
+   "flag_few_negatives": false,
+   "pos": 321,
+   "neg": 679,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.731,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 26,
+    "ba_median": 1.0,
+    "t_first_median_s": 3.6
+   }
+  },
+  "zendo1": {
+   "flag_few_negatives": false,
+   "pos": 20,
+   "neg": 20,
+   "gp": {
+    "solved": "5/5",
+    "resource_limit": 0,
+    "size_median": 7,
+    "ba_median": 1.0,
+    "t_first_median_s": 1.66
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 6,
+    "ba_median": 1.0,
+    "t_first_median_s": 1.6
+   }
+  },
+  "zendo2": {
+   "flag_few_negatives": false,
+   "pos": 100,
+   "neg": 100,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.95,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 14,
+    "ba_median": 1.0,
+    "t_first_median_s": 24.4
+   }
+  },
+  "zendo3": {
+   "flag_few_negatives": false,
+   "pos": 50,
+   "neg": 50,
+   "gp": {
+    "solved": "0/5",
+    "resource_limit": 0,
+    "size_median": null,
+    "ba_median": 0.9,
+    "t_first_median_s": null
+   },
+   "popper": {
+    "solved": "3/3",
+    "timeouts": 0,
+    "size_median": 19,
+    "ba_median": 1.0,
+    "t_first_median_s": 23.6
+   }
+  }
+ },
+ "summary_all": {
+  "tasks": 32,
+  "gp_any": 11,
+  "gp_majority": 11,
+  "popper_any": 28,
+  "popper_majority": 28,
+  "both_solved_size_gp_le_popper": 5,
+  "both_solved": 11
+ },
+ "summary_neg_ge_5": {
+  "tasks": 29,
+  "gp_any": 8,
+  "gp_majority": 8,
+  "popper_any": 25,
+  "popper_majority": 25,
+  "both_solved_size_gp_le_popper": 4,
+  "both_solved": 8
+ },
+ "summary_flagged_neg_lt_5": {
+  "tasks": 3,
+  "gp_any": 3,
+  "gp_majority": 3,
+  "popper_any": 3,
+  "popper_majority": 3,
+  "both_solved_size_gp_le_popper": 1,
+  "both_solved": 3
+ },
+ "flagged": [
+  "andersen",
+  "kinship-ancestor",
+  "kinship-pi"
+ ]
+}

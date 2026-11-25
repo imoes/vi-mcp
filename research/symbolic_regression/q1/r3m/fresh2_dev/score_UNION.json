@@ -1,0 +1,109 @@
+{
+ "tiebreak": true,
+ "title_anchor": true,
+ "scores": {
+  "ALL": {
+   "n": 400,
+   "ours_em": 0.675,
+   "official_em_gold": 0.67,
+   "official_em_alias": 0.7075,
+   "official_f1_gold": 0.7242,
+   "official_f1_alias": 0.7464
+  },
+  "bridge_comparison": {
+   "n": 100,
+   "ours_em": 0.86,
+   "official_em_gold": 0.86,
+   "official_em_alias": 0.86,
+   "official_f1_gold": 0.8625,
+   "official_f1_alias": 0.8625
+  },
+  "comparison": {
+   "n": 100,
+   "ours_em": 0.95,
+   "official_em_gold": 0.94,
+   "official_em_alias": 0.95,
+   "official_f1_gold": 0.944,
+   "official_f1_alias": 0.95
+  },
+  "compositional": {
+   "n": 100,
+   "ours_em": 0.4,
+   "official_em_gold": 0.39,
+   "official_em_alias": 0.49,
+   "official_f1_gold": 0.4757,
+   "official_f1_alias": 0.541
+  },
+  "inference": {
+   "n": 100,
+   "ours_em": 0.49,
+   "official_em_gold": 0.49,
+   "official_em_alias": 0.53,
+   "official_f1_gold": 0.6145,
+   "official_f1_alias": 0.6321
+  }
+ },
+ "examples": {
+  "compositional": [
+   {
+    "q": "What is the place of birth of the director of film Encino Man?",
+    "gold": "Albuquerque, New Mexico",
+    "pred": "Albuquerque"
+   },
+   {
+    "q": "What is the cause of death of director of film Disgraced!?",
+    "gold": "Parkinson",
+    "pred": "Parkinson's disease"
+   },
+   {
+    "q": "Where was the director of film The Half-Way Girl born?",
+    "gold": "New York",
+    "pred": "New York, New York"
+   },
+   {
+    "q": "Who is the father of the director of film Manasuku Nachindi?",
+    "gold": "Krishna",
+    "pred": "Krishna Ghattamaneni"
+   },
+   {
+    "q": "Where was the director of film The Devil (1972 Film) born?",
+    "gold": "Lwów",
+    "pred": "Lviv"
+   },
+   {
+    "q": "What is the place of birth of the director of film Side Sho?",
+    "gold": "Nashville, Tennessee",
+    "pred": "Nashville"
+   }
+  ],
+  "lost:compositional": [
+   {
+    "q": "Where does Babe Paley's husband work at?",
+    "gold": "Columbia Broadcasting System",
+    "pred": "Columbia Broadcasting System (CBS)"
+   }
+  ],
+  "inference": [
+   {
+    "q": "Who is Louis I, Cardinal Of Guise's father?",
+    "gold": "Claude of Lorraine, duke of Guise",
+    "pred": "Claude, Duke of Guise"
+   },
+   {
+    "q": "Who is the father-in-law of Sophia Of Wittelsbach?",
+    "gold": "Louis II",
+    "pred": "Louis II, Landgrave of Thuringia"
+   },
+   {
+    "q": "Who is Edward Watson, Viscount Sondes's paternal grandfather?",
+    "gold": "Edward Watson",
+    "pred": "Edward Watson, 2nd Baron Rockingham"
+   },
+   {
+    "q": "Who is Geoffrey Russell, 4Th Baron Ampthill's paternal grandfather?",
+    "gold": "Oliver Russell",
+    "pred": "Oliver Russell, 2nd Baron Ampthill"
+   }
+  ]
+ }
+}

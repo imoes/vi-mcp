@@ -1,0 +1,400 @@
+{"id": "7e32dd080bda11eba7f7acde48001122", "type": "compositional", "pred": "Madrid", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c7d040e80bdc11eba7f7acde48001122", "type": "compositional", "pred": "4 January 1578", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "17037c1a0bde11eba7f7acde48001122", "type": "compositional", "pred": "Satyajit Ray Film And Television Institute of India", "ours": false, "em_alias": 0.0, "f1_alias": 0.8571}
+{"id": "2c43f3d40bde11eba7f7acde48001122", "type": "compositional", "pred": "Ischia", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "869a8d9c0bda11eba7f7acde48001122", "type": "compositional", "pred": "2010", "ours": false, "em_alias": 0.0, "f1_alias": 0.5}
+{"id": "e6af07300bda11eba7f7acde48001122", "type": "compositional", "pred": "Mülheim", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f8684dee0bdd11eba7f7acde48001122", "type": "compositional", "pred": "March 15, 1873", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "2dabcfee0bde11eba7f7acde48001122", "type": "compositional", "pred": "Sis, now 'Kozan' in Turkey", "ours": false, "em_alias": 0.0, "f1_alias": 0.3333}
+{"id": "abc451060bdb11eba7f7acde48001122", "type": "compositional", "pred": "assassination", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "821858b00bdc11eba7f7acde48001122", "type": "compositional", "pred": "Columbus, Ohio", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "dd9e17e60bdd11eba7f7acde48001122", "type": "compositional", "pred": "Billung", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "e084363c0bda11eba7f7acde48001122", "type": "compositional", "pred": "January 26, 1955", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "50bd90820bdc11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "d1065ffa0bda11eba7f7acde48001122", "type": "compositional", "pred": "London", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5deff9420bdd11eba7f7acde48001122", "type": "compositional", "pred": "25 July 1182", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "2b6616e00bde11eba7f7acde48001122", "type": "compositional", "pred": "Krujë", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "6d504b8e0bde11eba7f7acde48001122", "type": "compositional", "pred": "Kamal Sadanah", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "45df5d7c0bdb11eba7f7acde48001122", "type": "compositional", "pred": "Liévin", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "78f3ba520bd911eba7f7acde48001122", "type": "compositional", "pred": "India", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "71d871960bdd11eba7f7acde48001122", "type": "compositional", "pred": "United States", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "fb9d9ba40bdd11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "e9bc48940bd911eba7f7acde48001122", "type": "compositional", "pred": "28 August 1473", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "437b71d80bdb11eba7f7acde48001122", "type": "compositional", "pred": "23 December 1544", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c76afeea0bdc11eba7f7acde48001122", "type": "compositional", "pred": "unknown", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "e115506c0bdb11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "2ec178a00bdb11eba7f7acde48001122", "type": "compositional", "pred": "Paris", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5eb3d5400bda11eba7f7acde48001122", "type": "compositional", "pred": "Víctor Bó", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "642aef8a0bdb11eba7f7acde48001122", "type": "compositional", "pred": "unknown", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "b87790aa0bdd11eba7f7acde48001122", "type": "compositional", "pred": "Vienna", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "65bc8d580bdc11eba7f7acde48001122", "type": "compositional", "pred": "Weston-super-Mare", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "7620acb80bde11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "3ae059580bdb11eba7f7acde48001122", "type": "compositional", "pred": "Albuquerque", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6c7f03240bdb11eba7f7acde48001122", "type": "compositional", "pred": "Évreux", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3630fd780bda11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "1b336cb60bdc11eba7f7acde48001122", "type": "compositional", "pred": "Antioch", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "1bb538ec0bda11eba7f7acde48001122", "type": "compositional", "pred": "Leningrad", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "35fc19ce0bde11eba7f7acde48001122", "type": "compositional", "pred": "Mumbai", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "3d1200fc0bde11eba7f7acde48001122", "type": "compositional", "pred": "Krishna Ghattamaneni", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "645e86920bdb11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "e4a24a6e0bdb11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "fe092eee0bdd11eba7f7acde48001122", "type": "compositional", "pred": "September 1887", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "5826634c0bde11eba7f7acde48001122", "type": "compositional", "pred": "17 February 1831", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "0404d0e40bdb11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "7d638c340bd911eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "fd25d7100bd911eba7f7acde48001122", "type": "compositional", "pred": "Pelham", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8031698e0bdb11eba7f7acde48001122", "type": "compositional", "pred": "Leiningen", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "9feabb260bdc11eba7f7acde48001122", "type": "compositional", "pred": "Columbia Broadcasting System (CBS)", "ours": true, "em_alias": 0.0, "f1_alias": 0.8571}
+{"id": "171e51c60bdd11eba7f7acde48001122", "type": "compositional", "pred": "unknown", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "aeee33600bdb11eba7f7acde48001122", "type": "compositional", "pred": "Cedofeita", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "b3939df20bda11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "9f4d8f080bdd11eba7f7acde48001122", "type": "compositional", "pred": "21 December 1828", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5cf45e6a0bde11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "f06815680bdb11eba7f7acde48001122", "type": "compositional", "pred": "unknown", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "b94fd2500bdb11eba7f7acde48001122", "type": "compositional", "pred": "998", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "43c8e38e0bde11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "edaa049c0bdd11eba7f7acde48001122", "type": "compositional", "pred": "22 April 1812", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "1d8fc19c0bde11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "782f0c160bd911eba7f7acde48001122", "type": "compositional", "pred": "Trivandrum", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "e0a3d1860bda11eba7f7acde48001122", "type": "compositional", "pred": "Barcelona", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8a6ab1d80bdd11eba7f7acde48001122", "type": "compositional", "pred": "Nashville", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "188ee61e0bde11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "d0976c960bdd11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "fa5c2aa80bdd11eba7f7acde48001122", "type": "compositional", "pred": "Vidya Vikas Institute of Engineering & Technology", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "965aebbc0bdc11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "8a07d2d60bdb11eba7f7acde48001122", "type": "compositional", "pred": "Helsinki", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c33d0d5c0bd911eba7f7acde48001122", "type": "compositional", "pred": "Pegau", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a8cbc4c40bdc11eba7f7acde48001122", "type": "compositional", "pred": "New York, New York", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c6ac8fcc0bdd11eba7f7acde48001122", "type": "compositional", "pred": "Brisbane", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "47f733600bda11eba7f7acde48001122", "type": "compositional", "pred": "3 August 1995", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "cbdda6fa0bda11eba7f7acde48001122", "type": "compositional", "pred": "Cahiers du Cinéma", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "e86a03a60bdd11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "f9e134740bdd11eba7f7acde48001122", "type": "compositional", "pred": "3 December 1322", "ours": false, "em_alias": 0.0, "f1_alias": 0.5}
+{"id": "209bf0000bdd11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "0d485fb00bde11eba7f7acde48001122", "type": "compositional", "pred": "6 April 1362", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "bac294180bdd11eba7f7acde48001122", "type": "compositional", "pred": "India", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "0745c7f20bdd11eba7f7acde48001122", "type": "compositional", "pred": "Mohsen Makhmalbaf", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "405499140bde11eba7f7acde48001122", "type": "compositional", "pred": "St. Thomas College", "ours": false, "em_alias": 0.0, "f1_alias": 0.8571}
+{"id": "0ae33a4a0bdb11eba7f7acde48001122", "type": "compositional", "pred": "Víctor Bó", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "80befae80bda11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "03e822b00bda11eba7f7acde48001122", "type": "compositional", "pred": "19 March 1857", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8dfa054a0bda11eba7f7acde48001122", "type": "compositional", "pred": "28 November 1993", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "0e5661da0bda11eba7f7acde48001122", "type": "compositional", "pred": "San Miniato", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f629d1220bda11eba7f7acde48001122", "type": "compositional", "pred": "Parkinson's disease", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6bace3800bdb11eba7f7acde48001122", "type": "compositional", "pred": "Kol", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "56a8541e0bdc11eba7f7acde48001122", "type": "compositional", "pred": "Eindhoven", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a6d861000bdb11eba7f7acde48001122", "type": "compositional", "pred": "India", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "adadfff40bda11eba7f7acde48001122", "type": "compositional", "pred": "Mallingapuram", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "43bcac040bde11eba7f7acde48001122", "type": "compositional", "pred": "English", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "a3fec82e0bdc11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "82fbc7500bda11eba7f7acde48001122", "type": "compositional", "pred": "Hollywood", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "e5c51aa80bda11eba7f7acde48001122", "type": "compositional", "pred": "Panthéon in Paris", "ours": false, "em_alias": 0.0, "f1_alias": 0.8}
+{"id": "911f95e40bdc11eba7f7acde48001122", "type": "compositional", "pred": "France", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a79d3abe0bdd11eba7f7acde48001122", "type": "compositional", "pred": "Ohio State University", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "74d3e7e60bdc11eba7f7acde48001122", "type": "compositional", "pred": "Lviv", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "75fd9bea0bdb11eba7f7acde48001122", "type": "compositional", "pred": "Hungary", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a802de8e0bdb11eba7f7acde48001122", "type": "compositional", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "6a925b440bde11eba7f7acde48001122", "type": "compositional", "pred": "Rusk", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b61962480bdd11eba7f7acde48001122", "type": "compositional", "pred": "Vienna", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "703a61f00bdd11eba7f7acde48001122", "type": "compositional", "pred": "1167", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "fbf8fd9e0bda11eba7f7acde48001122", "type": "compositional", "pred": "Ohio State University", "ours": false, "em_alias": 0.0, "f1_alias": 0.4}
+{"id": "30f74592085b11ebbd5cac1f6bf848b6", "type": "comparison", "pred": "Zara Long", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c30b9f8108b211ebbd85ac1f6bf848b6", "type": "comparison", "pred": "Charlotte Spurkeland", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "cff8f6da08b811ebbd88ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c27b592008b411ebbd88ac1f6bf848b6", "type": "comparison", "pred": "Mattia Trianni", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "ce82a5d8093a11ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Walking a Tightrope", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f5836c51085211ebbd58ac1f6bf848b6", "type": "comparison", "pred": "João de Aquino", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "2a06ac6808b311ebbd86ac1f6bf848b6", "type": "comparison", "pred": "Tiny Times 3", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b41c5e6a098d11ebbdb0ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "900c696108f911ebbdaaac1f6bf848b6", "type": "comparison", "pred": "Expert Gamer", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "28c8c38f08cc11ebbd93ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "9864ffab08ef11ebbda8ac1f6bf848b6", "type": "comparison", "pred": "City Across the River", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b045a6bd085711ebbd5aac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "52255c88098211ebbdb0ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a458e6be088a11ebbd6fac1f6bf848b6", "type": "comparison", "pred": "Willem van Haecht", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f9051cdb093711ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Poeten og Lillemor i forårshumør", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "74832e97084e11ebbd56ac1f6bf848b6", "type": "comparison", "pred": "Adam Richman", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "bf67b3e7089e11ebbd78ac1f6bf848b6", "type": "comparison", "pred": "Hasanaga Sadigov", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "67a8b039092711ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Baker's Hawk", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "528f7ff9093c11ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Tonight the Stars Revolt!", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "0e9d917308c911ebbd92ac1f6bf848b6", "type": "comparison", "pred": "Johannes Falkenberg", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "51b810a6089011ebbd72ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "c0db4939084c11ebbd56ac1f6bf848b6", "type": "comparison", "pred": "Evan Noel", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a6651e4c089e11ebbd78ac1f6bf848b6", "type": "comparison", "pred": "no", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3bd57460084d11ebbd56ac1f6bf848b6", "type": "comparison", "pred": "A Wicked Tale", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b2094022092811ebbdaeac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "7c490349090311ebbdadac1f6bf848b6", "type": "comparison", "pred": "Placer sangriento", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c97532fb08cb11ebbd93ac1f6bf848b6", "type": "comparison", "pred": "Le Donk & Scor-zay-zee", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6bb749ce08ed11ebbda7ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3afba9de094f11ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Beyond the Trail", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "480ca2c0084e11ebbd56ac1f6bf848b6", "type": "comparison", "pred": "Brackin Karauria-Henry", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b60a9798089211ebbd74ac1f6bf848b6", "type": "comparison", "pred": "A. V. Aryan", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "29842f67088611ebbd6dac1f6bf848b6", "type": "comparison", "pred": "Ernesto Tamariz", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8752358a097711ebbdb0ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "70e944c0095211ebbdaeac1f6bf848b6", "type": "comparison", "pred": "no", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "83cf4607089a11ebbd77ac1f6bf848b6", "type": "comparison", "pred": "The Bear and the Doll", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "9a895430085d11ebbd5cac1f6bf848b6", "type": "comparison", "pred": "Janga Augustus Kowo", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f7a3d98a08ab11ebbd82ac1f6bf848b6", "type": "comparison", "pred": "Mangaldas Nathubhoy", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "dae5e83c08a711ebbd7fac1f6bf848b6", "type": "comparison", "pred": "Léopold de Saussure", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8e67b86908ee11ebbda8ac1f6bf848b6", "type": "comparison", "pred": "no", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "86b7e74808e211ebbda4ac1f6bf848b6", "type": "comparison", "pred": "Dis-moi qui tuer", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6257a86b08cf11ebbd95ac1f6bf848b6", "type": "comparison", "pred": "no", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "ef133a9b097f11ebbdb0ac1f6bf848b6", "type": "comparison", "pred": "Soft Shoes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "7a51380a093211ebbdaeac1f6bf848b6", "type": "comparison", "pred": "The Child's Eye", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "1407903b089d11ebbd78ac1f6bf848b6", "type": "comparison", "pred": "Hamlet Gonashvili", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f97e734c087011ebbd63ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6b8d5a5409b911ebbdb0ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "70ac87dc08e511ebbda4ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5e7f9165094211ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Suddenly Seventeen", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "2ad0448f088811ebbd6eac1f6bf848b6", "type": "comparison", "pred": "no", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8cca23e5091611ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Febbre da cavallo - La mandrakata", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "ac972319085e11ebbd5cac1f6bf848b6", "type": "comparison", "pred": "Lucien Kroll", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "dc4c7573087211ebbd66ac1f6bf848b6", "type": "comparison", "pred": "no", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "2fa5c12e091711ebbdaeac1f6bf848b6", "type": "comparison", "pred": "The Man in Grey", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "39e5fd3308ea11ebbda7ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5ba83f9a08af11ebbd83ac1f6bf848b6", "type": "comparison", "pred": "A. K. M. Nurul Islam", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5a64e06e08d411ebbd96ac1f6bf848b6", "type": "comparison", "pred": "Richard Cory-Wright", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c8a466da08a711ebbd7fac1f6bf848b6", "type": "comparison", "pred": "Gabriel Esparza", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "2f10177608d911ebbd9cac1f6bf848b6", "type": "comparison", "pred": "Xu Yulan", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "bc01802408ad11ebbd83ac1f6bf848b6", "type": "comparison", "pred": "no", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "55ec1fca087c11ebbd6aac1f6bf848b6", "type": "comparison", "pred": "Guillermo Capetillo", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c213141e08e411ebbda4ac1f6bf848b6", "type": "comparison", "pred": "Flash Gordon Conquers the Universe", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b2a1b19e096e11ebbdb0ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6b0c5a6008c911ebbd92ac1f6bf848b6", "type": "comparison", "pred": "Judge Hardy's Children", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3dafdc26089f11ebbd78ac1f6bf848b6", "type": "comparison", "pred": "P.K.P.", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c45543a6089f11ebbd78ac1f6bf848b6", "type": "comparison", "pred": "Li Lu", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "33e0136a08ce11ebbd94ac1f6bf848b6", "type": "comparison", "pred": "no", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "2f94c3ee086c11ebbd60ac1f6bf848b6", "type": "comparison", "pred": "no", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c47e899108d011ebbd95ac1f6bf848b6", "type": "comparison", "pred": "Rebecca West", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b963389a092911ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Freaked", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5bb944fa094b11ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Bidesiya", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "18be7d3d08b111ebbd85ac1f6bf848b6", "type": "comparison", "pred": "Yan Yan Chan", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "164eea47095a11ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Nothing like the Holidays", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f6ac1b13089e11ebbd78ac1f6bf848b6", "type": "comparison", "pred": "no", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "ef956f73097a11ebbdb0ac1f6bf848b6", "type": "comparison", "pred": "Love Before Breakfast", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "da622640090e11ebbdadac1f6bf848b6", "type": "comparison", "pred": "Gutta-percha Boy", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c711b91008c411ebbd8eac1f6bf848b6", "type": "comparison", "pred": "La Procesión", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a4721ae4092f11ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Robotech: The Movie", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a469ea08084b11ebbd56ac1f6bf848b6", "type": "comparison", "pred": "Robert von Zimmermann", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "47c32ef1089511ebbd75ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "13162f53099611ebbdb0ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c133ea70090511ebbdadac1f6bf848b6", "type": "comparison", "pred": "Chinna Gounder", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "bd7d269908b611ebbd88ac1f6bf848b6", "type": "comparison", "pred": "Tiago Jonas", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f7c153ce092e11ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Celine: Through the Eyes of the World", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3803e25f08d411ebbd96ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "4aae6955095d11ebbdaeac1f6bf848b6", "type": "comparison", "pred": "no", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "27d8ec30091f11ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Guilty?", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "4f35e79e08cd11ebbd93ac1f6bf848b6", "type": "comparison", "pred": "Vasantha Raagam", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "672e556408de11ebbd9eac1f6bf848b6", "type": "comparison", "pred": "Friedrich Paschen", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "4aa79a4008ca11ebbd92ac1f6bf848b6", "type": "comparison", "pred": "Tsui Hark", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "4d3ab509099c11ebbdb0ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "843ef89008fa11ebbdacac1f6bf848b6", "type": "comparison", "pred": "Bruce Robinson", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8df789f4088b11ebbd6fac1f6bf848b6", "type": "comparison", "pred": "no", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a3ecc622095911ebbdaeac1f6bf848b6", "type": "comparison", "pred": "Bad Man's River", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "06af462b08f011ebbda8ac1f6bf848b6", "type": "comparison", "pred": "Mako: The Jaws of Death", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "69e42c9e087e11ebbd6bac1f6bf848b6", "type": "comparison", "pred": "Beauty and the Bastard", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "d3bdac7508d011ebbd95ac1f6bf848b6", "type": "comparison", "pred": "George Bailey Sansom", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "08b13d9208db11ebbd9cac1f6bf848b6", "type": "comparison", "pred": "Digby Tatham-Warter", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "1ca95b8a084b11ebbd56ac1f6bf848b6", "type": "comparison", "pred": "Oskar Drobne", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "02323884085611ebbd59ac1f6bf848b6", "type": "comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "2cd17cce087111ebbd63ac1f6bf848b6", "type": "comparison", "pred": "no", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3ffd55240bb011ebab90acde48001122", "type": "inference", "pred": "Casimir I of Oświęcim", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6185c5d20bb011ebab90acde48001122", "type": "inference", "pred": "Jacob Pleydell-Bouverie, 6th Earl of Radnor", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "796ee8ae0bb011ebab90acde48001122", "type": "inference", "pred": "Gilbert Kennedy, 3rd Earl of Cassilis", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6a0a17b80baf11ebab90acde48001122", "type": "inference", "pred": "Maria Louisa Kissam", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "12231fea0baf11ebab90acde48001122", "type": "inference", "pred": "Frederick V of Denmark", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "dc90618e0baf11ebab90acde48001122", "type": "inference", "pred": "Anastasia Mikhailovna of Russia", "ours": false, "em_alias": 0.0, "f1_alias": 0.8}
+{"id": "8ccbfd8e0baf11ebab90acde48001122", "type": "inference", "pred": "Eze Ukwu", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6b713cc60baf11ebab90acde48001122", "type": "inference", "pred": "Saint Arnulf", "ours": false, "em_alias": 0.0, "f1_alias": 0.6667}
+{"id": "122b64480baf11ebab90acde48001122", "type": "inference", "pred": "Gerberge of Lorraine", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "d7d277720baf11ebab90acde48001122", "type": "inference", "pred": "Oliver Russell, 2nd Baron Ampthill", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "534cb9fe0baf11ebab90acde48001122", "type": "inference", "pred": "Louis Philippe II, Duke of Orléans", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "54a7772a0bb011ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "f96ad5460baf11ebab90acde48001122", "type": "inference", "pred": "John of Artois, Count of Eu", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6b6ef0280bb011ebab90acde48001122", "type": "inference", "pred": "Alfonso I of Asturias", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "549212ae0bb011ebab90acde48001122", "type": "inference", "pred": "Yolande Palaeologina of Montferrat", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "847d34540baf11ebab90acde48001122", "type": "inference", "pred": "Alfonso IX of León", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6503f3ce0baf11ebab90acde48001122", "type": "inference", "pred": "Anna Pavlovna of Russia", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "59364e060bb011ebab90acde48001122", "type": "inference", "pred": "Anna Amalia of Baden-Durlach", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "32e50df00bb011ebab90acde48001122", "type": "inference", "pred": "Louis II, Landgrave of Thuringia", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "03f16b880bb011ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "6080c3080bb011ebab90acde48001122", "type": "inference", "pred": "Marie Casimire Louise de La Grange d'Arquien", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "e3d2e2b00bae11ebab90acde48001122", "type": "inference", "pred": "Sarah Foley", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "1350c21e0baf11ebab90acde48001122", "type": "inference", "pred": "Sanjay Gandhi", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3e1323ac0baf11ebab90acde48001122", "type": "inference", "pred": "Aregund", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6c8013de0bb011ebab90acde48001122", "type": "inference", "pred": "Louis IV, Grand Duke of Hesse", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "fc53093c0bae11ebab90acde48001122", "type": "inference", "pred": "Ethel Havelock-Allan", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6a701bca0bb011ebab90acde48001122", "type": "inference", "pred": "Joanna of Hainaut", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6b6f51940bb011ebab90acde48001122", "type": "inference", "pred": "Thomas Bruce, 7th Earl of Kincardine", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "d727cfa20baf11ebab90acde48001122", "type": "inference", "pred": "Louis X of France", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "024207d40bb011ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "1ffb1be40bb011ebab90acde48001122", "type": "inference", "pred": "Theodore", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "e6688a7e0baf11ebab90acde48001122", "type": "inference", "pred": "Charles I of Naples", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "48b29e2c0bb011ebab90acde48001122", "type": "inference", "pred": "Thomas Robinson", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "67d898240bb011ebab90acde48001122", "type": "inference", "pred": "Isabelle of Luxembourg", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5df2969e0baf11ebab90acde48001122", "type": "inference", "pred": "John", "ours": false, "em_alias": 0.0, "f1_alias": 0.6667}
+{"id": "1f38945c0bb011ebab90acde48001122", "type": "inference", "pred": "George III, Count of Erbach-Breuberg", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "74c6f7200baf11ebab90acde48001122", "type": "inference", "pred": "William Sidney", "ours": false, "em_alias": 0.0, "f1_alias": 0.8}
+{"id": "e1d7b56c0bae11ebab90acde48001122", "type": "inference", "pred": "Clarice Orsini", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5c8c93ae0baf11ebab90acde48001122", "type": "inference", "pred": "Claude, Duke of Guise", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "bc702d440baf11ebab90acde48001122", "type": "inference", "pred": "Senakhtenre Ahmose", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f16f2e820baf11ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "6a7725140bb011ebab90acde48001122", "type": "inference", "pred": "Princess Louise of Denmark", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "fec934980bae11ebab90acde48001122", "type": "inference", "pred": "Lady Mary Henrietta Powlett", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "624078f00bb011ebab90acde48001122", "type": "inference", "pred": "Siemowit III, Duke of Masovia", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "29b5eaf60bb011ebab90acde48001122", "type": "inference", "pred": "Börte", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6a7061c00bb011ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "09bf63b20bb011ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "f78d85300bae11ebab90acde48001122", "type": "inference", "pred": "James Butler, 3rd Earl of Ormond", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c818d9480baf11ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "6086a7fa0bb011ebab90acde48001122", "type": "inference", "pred": "Maria Amalia of Saxony", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "ad6dc5540baf11ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "796dbfc40bb011ebab90acde48001122", "type": "inference", "pred": "Siemowit III, Duke of Masovia", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b3c149300baf11ebab90acde48001122", "type": "inference", "pred": "Ankhesenpepi II", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "efb1aca00baf11ebab90acde48001122", "type": "inference", "pred": "Luisa de Guzmán", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "941b72e40bb011ebab90acde48001122", "type": "inference", "pred": "George Tuchet, 9th Baron Audley", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "897c96240bb011ebab90acde48001122", "type": "inference", "pred": "Auisle", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "4c17bba60bb011ebab90acde48001122", "type": "inference", "pred": "Artavasdes I of Media Atropatene", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "fbbf3bb20bae11ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "049fcfb60bb011ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "8d91d1b60bb011ebab90acde48001122", "type": "inference", "pred": "Ramon Berenguer IV of Barcelona", "ours": false, "em_alias": 0.0, "f1_alias": 0.9091}
+{"id": "0d836ca60baf11ebab90acde48001122", "type": "inference", "pred": "Peta Nocona", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3085824c0bb011ebab90acde48001122", "type": "inference", "pred": "Mongkut", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f96bdeb40baf11ebab90acde48001122", "type": "inference", "pred": "Jacob De la Gardie", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "897bcb4a0bb011ebab90acde48001122", "type": "inference", "pred": "Jan I the Scholastic", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5498821a0bb011ebab90acde48001122", "type": "inference", "pred": "Harold Nicolson", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f364ff4c0bae11ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "57e10b360bb011ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "4a053eb00bb011ebab90acde48001122", "type": "inference", "pred": "Anne Campbell", "ours": false, "em_alias": 0.0, "f1_alias": 0.8}
+{"id": "8762e83a0baf11ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "2f013d4a0baf11ebab90acde48001122", "type": "inference", "pred": "Henry de Percy, 2nd Baron Percy", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "181e87c20baf11ebab90acde48001122", "type": "inference", "pred": "Kingkitsarat", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "48ad0aca0bb011ebab90acde48001122", "type": "inference", "pred": "Roger Mortimer, 1st Earl of March", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "57e0ae020bb011ebab90acde48001122", "type": "inference", "pred": "Princess Luisa Carlotta of Naples", "ours": false, "em_alias": 0.0, "f1_alias": 0.8333}
+{"id": "d09a3e680baf11ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "391edf020bb011ebab90acde48001122", "type": "inference", "pred": "Domhnall mac Raghnaill", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "1818a4600baf11ebab90acde48001122", "type": "inference", "pred": "Joan de Geneville", "ours": false, "em_alias": 0.0, "f1_alias": 0.6667}
+{"id": "2f064e5c0baf11ebab90acde48001122", "type": "inference", "pred": "William Berkeley", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "73ac161c0bb011ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "5b63d40a0bb011ebab90acde48001122", "type": "inference", "pred": "Sir Francis Darwin", "ours": false, "em_alias": 0.0, "f1_alias": 0.8}
+{"id": "c511cef80baf11ebab90acde48001122", "type": "inference", "pred": "Empress Theophano", "ours": false, "em_alias": 0.0, "f1_alias": 0.6667}
+{"id": "3f4a39800bb011ebab90acde48001122", "type": "inference", "pred": "Margaret of Baux", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "27efedf20bb011ebab90acde48001122", "type": "inference", "pred": "James Butler, 9th Earl of Ormond", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6a94f9180bb011ebab90acde48001122", "type": "inference", "pred": "Charlotte Bradstreet", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "0ade3c6a0baf11ebab90acde48001122", "type": "inference", "pred": "Henry Vernon", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "36a3fe2a0baf11ebab90acde48001122", "type": "inference", "pred": "Richard Burke, 2nd Earl of Clanricarde", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "307a3d240bb011ebab90acde48001122", "type": "inference", "pred": "Andronikos Doukas Angelos", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "4c1364d40bb011ebab90acde48001122", "type": "inference", "pred": "John George I", "ours": false, "em_alias": 0.0, "f1_alias": 0.75}
+{"id": "9884af040baf11ebab90acde48001122", "type": "inference", "pred": "Bolesław III Wrymouth of Poland", "ours": false, "em_alias": 0.0, "f1_alias": 0.75}
+{"id": "384a387e0bb011ebab90acde48001122", "type": "inference", "pred": "Archduke Leopold Salvator", "ours": false, "em_alias": 0.0, "f1_alias": 0.75}
+{"id": "60b814940baf11ebab90acde48001122", "type": "inference", "pred": "Birutė", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b597a2a40baf11ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "2c0c5d6c0bb011ebab90acde48001122", "type": "inference", "pred": "Archduke Karl Salvator of Austria", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8ad1defe0baf11ebab90acde48001122", "type": "inference", "pred": "Edward Watson, 2nd Baron Rockingham", "ours": false, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5b5f44080bb011ebab90acde48001122", "type": "inference", "pred": "Prince Charles Louis of Hohenlohe-Langenburg", "ours": false, "em_alias": 0.0, "f1_alias": 0.6}
+{"id": "77f562320bb011ebab90acde48001122", "type": "inference", "pred": "Joscelin II of Courtenay", "ours": false, "em_alias": 0.0, "f1_alias": 0.6667}
+{"id": "05be3f1e0baf11ebab90acde48001122", "type": "inference", "pred": "Lü Guang", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3208f9100baf11ebab90acde48001122", "type": "inference", "pred": "Ernst Ulrich von Weizsäcker", "ours": false, "em_alias": 0.0, "f1_alias": 0.8571}
+{"id": "9ccb85e20baf11ebab90acde48001122", "type": "inference", "pred": "Lorenzo Lamas", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f65727520bae11ebab90acde48001122", "type": "inference", "pred": "", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "84ca26320bb011ebab90acde48001122", "type": "inference", "pred": "Yakmeni", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a246875408d211ebbd96ac1f6bf848b6", "type": "bridge_comparison", "pred": "Fatma Bacı", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3ef1dc1e08c611ebbd90ac1f6bf848b6", "type": "bridge_comparison", "pred": "Lithivm", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "88cc034008c211ebbd8cac1f6bf848b6", "type": "bridge_comparison", "pred": "no", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c34ebefd08ab11ebbd82ac1f6bf848b6", "type": "bridge_comparison", "pred": "Hombisilu", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b6b543ba08c811ebbd92ac1f6bf848b6", "type": "bridge_comparison", "pred": "In the Country Fell a Star", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "ad193b1808b411ebbd88ac1f6bf848b6", "type": "bridge_comparison", "pred": "Held einer Nacht", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "753a0edb087c11ebbd6aac1f6bf848b6", "type": "bridge_comparison", "pred": "The Wife of General Ling", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a4d7a95c086511ebbd5eac1f6bf848b6", "type": "bridge_comparison", "pred": "The Dog and the Diamonds", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "d6ab480b08c211ebbd8cac1f6bf848b6", "type": "bridge_comparison", "pred": "Ruggles of Red Gap", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "03d7dadb087f11ebbd6bac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "a9e07fe308e111ebbda3ac1f6bf848b6", "type": "bridge_comparison", "pred": "A Fistful of Fingers", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "85b18e2208a011ebbd78ac1f6bf848b6", "type": "bridge_comparison", "pred": "To Live and Die in Tsimshatsui", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "2a0b919a087211ebbd64ac1f6bf848b6", "type": "bridge_comparison", "pred": "Terror of the Garrison", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "62d2deea087f11ebbd6bac1f6bf848b6", "type": "bridge_comparison", "pred": "The Rug Maker's Daughter", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a7ca20b008ae11ebbd83ac1f6bf848b6", "type": "bridge_comparison", "pred": "London Melody", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "631ed032089a11ebbd77ac1f6bf848b6", "type": "bridge_comparison", "pred": "Ghost of the China Sea", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "22be69d808b511ebbd88ac1f6bf848b6", "type": "bridge_comparison", "pred": "Rani Mera Naam", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "edced8f6089c11ebbd78ac1f6bf848b6", "type": "bridge_comparison", "pred": "The Belle of the Season", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "ec01166e087011ebbd63ac1f6bf848b6", "type": "bridge_comparison", "pred": "The Pocket-knife", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a4138ac3087911ebbd67ac1f6bf848b6", "type": "bridge_comparison", "pred": "Trouble with Jolanthe", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "beee5432088611ebbd6dac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b09dfa3a087811ebbd67ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "bff878b0089c11ebbd78ac1f6bf848b6", "type": "bridge_comparison", "pred": "It's All True: Based on an Unfinished Film by Orson Welles", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "1029efd6089211ebbd73ac1f6bf848b6", "type": "bridge_comparison", "pred": "The Babe", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "7d94852a08cb11ebbd92ac1f6bf848b6", "type": "bridge_comparison", "pred": "Mr. Reeder in Room 13", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "1f39310608df11ebbd9fac1f6bf848b6", "type": "bridge_comparison", "pred": "Gentlemen Prefer Blondes", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "26b866e6085c11ebbd5cac1f6bf848b6", "type": "bridge_comparison", "pred": "Jesse James' Women", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "eabef3cc08c311ebbd8dac1f6bf848b6", "type": "bridge_comparison", "pred": "Dos basuras", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "31700bce08b711ebbd88ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "e5b7206408d411ebbd98ac1f6bf848b6", "type": "bridge_comparison", "pred": "Son of d'Artagnan", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "7747dafa08d011ebbd95ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "ad2a6f74088611ebbd6dac1f6bf848b6", "type": "bridge_comparison", "pred": "How I Won the War", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6a6bc12208a611ebbd7fac1f6bf848b6", "type": "bridge_comparison", "pred": "Pacific Rendezvous", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "20e8ac0c08c111ebbd8bac1f6bf848b6", "type": "bridge_comparison", "pred": "Adventures of a Taxi Driver", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3fb9bf12089a11ebbd77ac1f6bf848b6", "type": "bridge_comparison", "pred": "Life's Greatest Game", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8cbad32c08d711ebbd9aac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "0188e46808e511ebbda4ac1f6bf848b6", "type": "bridge_comparison", "pred": "Crooks and Coronets", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "0cde5033087011ebbd62ac1f6bf848b6", "type": "bridge_comparison", "pred": "Snapshot of a Crime", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "2a1d94ce08b511ebbd88ac1f6bf848b6", "type": "bridge_comparison", "pred": "To See or Not to See", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f66aecd208bc11ebbd89ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a7b97b0908cb11ebbd92ac1f6bf848b6", "type": "bridge_comparison", "pred": "The Dominant Sex", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "78af1d0508b711ebbd88ac1f6bf848b6", "type": "bridge_comparison", "pred": "Temptations of a Shop Girl", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "f23ede46085f11ebbd5dac1f6bf848b6", "type": "bridge_comparison", "pred": "Let's Make Money", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "117e6944089b11ebbd78ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "599d95f808a811ebbd7fac1f6bf848b6", "type": "bridge_comparison", "pred": "Sherman's Way", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "ab42b5c0085111ebbd58ac1f6bf848b6", "type": "bridge_comparison", "pred": "Shootin' for Love", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "33d4446c087511ebbd67ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "122f9dce084e11ebbd56ac1f6bf848b6", "type": "bridge_comparison", "pred": "Pirate Treasure", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "97216cff08aa11ebbd80ac1f6bf848b6", "type": "bridge_comparison", "pred": "Saawariya", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6718770a087311ebbd66ac1f6bf848b6", "type": "bridge_comparison", "pred": "The Heart of Doreon", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "ffe22f5b08c111ebbd8bac1f6bf848b6", "type": "bridge_comparison", "pred": "Mr. Perrin and Mr. Traill", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "200e7a01087611ebbd67ac1f6bf848b6", "type": "bridge_comparison", "pred": "Buffet froid", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "9b3d9fa4089d11ebbd78ac1f6bf848b6", "type": "bridge_comparison", "pred": "My Cousin from Warsaw", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a12eeeac089511ebbd75ac1f6bf848b6", "type": "bridge_comparison", "pred": "Voltati Eugenio", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "39240f9a08b811ebbd88ac1f6bf848b6", "type": "bridge_comparison", "pred": "Let's Live Again", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c4835786085d11ebbd5cac1f6bf848b6", "type": "bridge_comparison", "pred": "Daughters of the Night", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "e6f90c9d08c711ebbd91ac1f6bf848b6", "type": "bridge_comparison", "pred": "Getting Mary Married", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "cfb486e208b311ebbd86ac1f6bf848b6", "type": "bridge_comparison", "pred": "Mister Scarface", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "dd07d1e4088311ebbd6dac1f6bf848b6", "type": "bridge_comparison", "pred": "Capulina Speedy González", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "b8fc068408b111ebbd85ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "13c15658087311ebbd66ac1f6bf848b6", "type": "bridge_comparison", "pred": "Mine Own Executioner", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a917110f089911ebbd77ac1f6bf848b6", "type": "bridge_comparison", "pred": "Before Winter Comes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "c0489142088d11ebbd70ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "8a481ea008a611ebbd7fac1f6bf848b6", "type": "bridge_comparison", "pred": "Jacknife", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "ce93c4a408cb11ebbd93ac1f6bf848b6", "type": "bridge_comparison", "pred": "Bhajantrilu", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "6761174d08b111ebbd85ac1f6bf848b6", "type": "bridge_comparison", "pred": "Golden Shackles", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "614e250f087311ebbd66ac1f6bf848b6", "type": "bridge_comparison", "pred": "Voice of the City", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8a85285308c611ebbd90ac1f6bf848b6", "type": "bridge_comparison", "pred": "Metalstorm: The Destruction of Jared-Syn", "ours": false, "em_alias": 0.0, "f1_alias": 0.25}
+{"id": "2bece30e088f11ebbd72ac1f6bf848b6", "type": "bridge_comparison", "pred": "Song of Mexico", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "16c78416087411ebbd67ac1f6bf848b6", "type": "bridge_comparison", "pred": "Night of the Living Dead", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "0e9a333e08e611ebbda4ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "ed0a255408d011ebbd95ac1f6bf848b6", "type": "bridge_comparison", "pred": "Emperor of the North Pole", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8c68615008cd11ebbd93ac1f6bf848b6", "type": "bridge_comparison", "pred": "Aces Go Places IV", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "68ce437408df11ebbda0ac1f6bf848b6", "type": "bridge_comparison", "pred": "The Blackmailers", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "050fa39608df11ebbd9fac1f6bf848b6", "type": "bridge_comparison", "pred": "A Song Is Born", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a4a88027089411ebbd75ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "b259e058088911ebbd6eac1f6bf848b6", "type": "bridge_comparison", "pred": "The Lass from the Stormy Croft", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "9615640608e011ebbda1ac1f6bf848b6", "type": "bridge_comparison", "pred": "Prairie Thunder", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "60465ce0085411ebbd59ac1f6bf848b6", "type": "bridge_comparison", "pred": "Valerie Inside Outside", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "2e612b41089c11ebbd78ac1f6bf848b6", "type": "bridge_comparison", "pred": "The Savage Is Loose", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "498dc8a2089111ebbd72ac1f6bf848b6", "type": "bridge_comparison", "pred": "Dahleez", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5b6b8c02089711ebbd77ac1f6bf848b6", "type": "bridge_comparison", "pred": "45 Fathers", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "7d636b62087011ebbd63ac1f6bf848b6", "type": "bridge_comparison", "pred": "In the Belly of the Dragon", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "805d68d608d911ebbd9cac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "cc2fd612088f11ebbd72ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "a346f150089811ebbd77ac1f6bf848b6", "type": "bridge_comparison", "pred": "The Incredibly Strange Creatures Who Stopped Living and Became Mixed-Up Zombies", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "5a7b4936088d11ebbd70ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "8d4352a7089111ebbd73ac1f6bf848b6", "type": "bridge_comparison", "pred": "Její pastorkyně", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "85cc412008b611ebbd88ac1f6bf848b6", "type": "bridge_comparison", "pred": "yes", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "81dd3a9a08a911ebbd80ac1f6bf848b6", "type": "bridge_comparison", "pred": "The Company's in Love", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "45eb6a5408b611ebbd88ac1f6bf848b6", "type": "bridge_comparison", "pred": "Claretta", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "63240f22089d11ebbd78ac1f6bf848b6", "type": "bridge_comparison", "pred": "Malabimba – The Malicious Whore", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "cfec856608a311ebbd7cac1f6bf848b6", "type": "bridge_comparison", "pred": "Thought Moments", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "0e91112508d111ebbd95ac1f6bf848b6", "type": "bridge_comparison", "pred": "Road to Istanbul", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "e6ced01e08ac11ebbd83ac1f6bf848b6", "type": "bridge_comparison", "pred": "Last of the Renegades", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "801b0d7a089211ebbd73ac1f6bf848b6", "type": "bridge_comparison", "pred": "Cidade Ameaçada", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "3c3204c8084d11ebbd56ac1f6bf848b6", "type": "bridge_comparison", "pred": "I Enjoy the World with You", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "d2c7402008bf11ebbd8aac1f6bf848b6", "type": "bridge_comparison", "pred": "no", "ours": false, "em_alias": 0.0, "f1_alias": 0.0}
+{"id": "783b1724087611ebbd67ac1f6bf848b6", "type": "bridge_comparison", "pred": "Night and Dawn", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}
+{"id": "17850408089911ebbd77ac1f6bf848b6", "type": "bridge_comparison", "pred": "Whirl of Youth", "ours": true, "em_alias": 1.0, "f1_alias": 1.0}

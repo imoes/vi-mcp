@@ -1,0 +1,102 @@
+{
+ "tiebreak": true,
+ "title_anchor": true,
+ "scores": {
+  "ALL": {
+   "n": 400,
+   "ours_em": 0.6725,
+   "official_em_gold": 0.6725,
+   "official_em_alias": 0.7,
+   "official_f1_gold": 0.721,
+   "official_f1_alias": 0.7345
+  },
+  "bridge_comparison": {
+   "n": 100,
+   "ours_em": 0.93,
+   "official_em_gold": 0.93,
+   "official_em_alias": 0.93,
+   "official_f1_gold": 0.93,
+   "official_f1_alias": 0.93
+  },
+  "comparison": {
+   "n": 100,
+   "ours_em": 0.93,
+   "official_em_gold": 0.93,
+   "official_em_alias": 0.93,
+   "official_f1_gold": 0.93,
+   "official_f1_alias": 0.93
+  },
+  "compositional": {
+   "n": 100,
+   "ours_em": 0.41,
+   "official_em_gold": 0.41,
+   "official_em_alias": 0.48,
+   "official_f1_gold": 0.4968,
+   "official_f1_alias": 0.5272
+  },
+  "inference": {
+   "n": 100,
+   "ours_em": 0.42,
+   "official_em_gold": 0.42,
+   "official_em_alias": 0.46,
+   "official_f1_gold": 0.5271,
+   "official_f1_alias": 0.5508
+  }
+ },
+ "examples": {
+  "compositional": [
+   {
+    "q": "What is the place of birth of Princess Magdalena Augusta Of Anhalt-Zerbst's mother?",
+    "gold": "Halle",
+    "pred": "Halle an der Saale"
+   },
+   {
+    "q": "What is the place of birth of Sylvia Beach Whitman's father?",
+    "gold": "East Orange, New Jersey",
+    "pred": "East Orange"
+   },
+   {
+    "q": "Where did Sandra Howard's husband study at?",
+    "gold": "Peterhouse",
+    "pred": "Peterhouse, Cambridge"
+   },
+   {
+    "q": "What is the place of birth of the director of film The Fighting Hombre?",
+    "gold": "Memphis, Tennessee",
+    "pred": "Memphis"
+   },
+   {
+    "q": "What is the place of birth of the director of film Six Months Of Life?",
+    "gold": "Mexican",
+    "pred": "Mexico"
+   },
+   {
+    "q": "Where was the husband of Maude Smith born?",
+    "gold": "Toronto, Ontario",
+    "pred": "Toronto"
+   }
+  ],
+  "inference": [
+   {
+    "q": "Who is Bernhard V, Prince Of Anhalt-Bernburg's paternal grandfather?",
+    "gold": "Bernhard III",
+    "pred": "Bernhard III, Prince of Anhalt-Bernburg"
+   },
+   {
+    "q": "Who is the maternal grandfather of Claude Of France?",
+    "gold": "Francis II",
+    "pred": "Francis II, Duke of Brittany"
+   },
+   {
+    "q": "Who is the paternal grandfather of Agnes Of Meissen?",
+    "gold": "Henry III",
+    "pred": "Henry III, Margrave of Meissen"
+   },
+   {
+    "q": "Who is Clare Fitzroy, Countess Of Euston's paternal grandfather?",
+    "gold": "Captain Andrew William Kerr",
+    "pred": "Andrew William Kerr"
+   }
+  ]
+ }
+}

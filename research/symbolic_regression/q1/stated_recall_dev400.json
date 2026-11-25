@@ -1,0 +1,812 @@
+{
+ "<scratchpad>/q1data/read_r1full.jsonl": {
+  "questions": 400,
+  "stated_recall": [
+   746,
+   927,
+   0.8047
+  ],
+  "conflicts": [
+   93,
+   927,
+   0.1003
+  ],
+  "by_relation": {
+   "director": {
+    "hit": 224,
+    "n": 227,
+    "conflict": 4
+   },
+   "date of birth": {
+    "hit": 161,
+    "n": 162,
+    "conflict": 5
+   },
+   "father": {
+    "hit": 83,
+    "n": 97,
+    "conflict": 25
+   },
+   "date of death": {
+    "hit": 79,
+    "n": 79,
+    "conflict": 5
+   },
+   "publication date": {
+    "hit": 76,
+    "n": 77,
+    "conflict": 2
+   },
+   "country of citizenship": {
+    "hit": 8,
+    "n": 55,
+    "conflict": 11
+   },
+   "mother": {
+    "hit": 30,
+    "n": 52,
+    "conflict": 20
+   },
+   "spouse": {
+    "hit": 16,
+    "n": 34,
+    "conflict": 2
+   },
+   "place of birth": {
+    "hit": 16,
+    "n": 28,
+    "conflict": 6
+   },
+   "country of origin": {
+    "hit": 1,
+    "n": 28,
+    "conflict": 4
+   },
+   "country": {
+    "hit": 20,
+    "n": 23,
+    "conflict": 2
+   },
+   "place of death": {
+    "hit": 5,
+    "n": 14,
+    "conflict": 2
+   },
+   "performer": {
+    "hit": 11,
+    "n": 11,
+    "conflict": 0
+   },
+   "educated at": {
+    "hit": 2,
+    "n": 9,
+    "conflict": 3
+   },
+   "composer": {
+    "hit": 4,
+    "n": 7,
+    "conflict": 1
+   },
+   "sibling": {
+    "hit": 5,
+    "n": 7,
+    "conflict": 1
+   },
+   "employer": {
+    "hit": 0,
+    "n": 6,
+    "conflict": 0
+   },
+   "place of burial": {
+    "hit": 0,
+    "n": 3,
+    "conflict": 0
+   },
+   "award received": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 0
+   },
+   "inception": {
+    "hit": 2,
+    "n": 2,
+    "conflict": 0
+   },
+   "creator": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "cause of death": {
+    "hit": 1,
+    "n": 1,
+    "conflict": 0
+   },
+   "founded by": {
+    "hit": 1,
+    "n": 1,
+    "conflict": 0
+   },
+   "child": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   }
+  }
+ },
+ "<scratchpad>/r2/score_run1/read_kitR2run1.jsonl": {
+  "questions": 400,
+  "stated_recall": [
+   755,
+   927,
+   0.8145
+  ],
+  "conflicts": [
+   91,
+   927,
+   0.0982
+  ],
+  "by_relation": {
+   "director": {
+    "hit": 220,
+    "n": 227,
+    "conflict": 4
+   },
+   "date of birth": {
+    "hit": 160,
+    "n": 162,
+    "conflict": 4
+   },
+   "father": {
+    "hit": 53,
+    "n": 97,
+    "conflict": 24
+   },
+   "date of death": {
+    "hit": 79,
+    "n": 79,
+    "conflict": 5
+   },
+   "publication date": {
+    "hit": 75,
+    "n": 77,
+    "conflict": 1
+   },
+   "country of citizenship": {
+    "hit": 40,
+    "n": 55,
+    "conflict": 18
+   },
+   "mother": {
+    "hit": 35,
+    "n": 52,
+    "conflict": 16
+   },
+   "spouse": {
+    "hit": 17,
+    "n": 34,
+    "conflict": 4
+   },
+   "place of birth": {
+    "hit": 15,
+    "n": 28,
+    "conflict": 5
+   },
+   "country of origin": {
+    "hit": 23,
+    "n": 28,
+    "conflict": 6
+   },
+   "country": {
+    "hit": 20,
+    "n": 23,
+    "conflict": 0
+   },
+   "place of death": {
+    "hit": 3,
+    "n": 14,
+    "conflict": 1
+   },
+   "performer": {
+    "hit": 8,
+    "n": 11,
+    "conflict": 1
+   },
+   "educated at": {
+    "hit": 1,
+    "n": 9,
+    "conflict": 1
+   },
+   "composer": {
+    "hit": 4,
+    "n": 7,
+    "conflict": 0
+   },
+   "sibling": {
+    "hit": 1,
+    "n": 7,
+    "conflict": 0
+   },
+   "employer": {
+    "hit": 0,
+    "n": 6,
+    "conflict": 0
+   },
+   "place of burial": {
+    "hit": 0,
+    "n": 3,
+    "conflict": 0
+   },
+   "award received": {
+    "hit": 0,
+    "n": 2,
+    "conflict": 0
+   },
+   "inception": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 0
+   },
+   "creator": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "cause of death": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "founded by": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "child": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 1
+   }
+  }
+ },
+ "<scratchpad>/q1data/read_base2shot.jsonl": {
+  "questions": 400,
+  "stated_recall": [
+   775,
+   927,
+   0.836
+  ],
+  "conflicts": [
+   170,
+   927,
+   0.1834
+  ],
+  "by_relation": {
+   "director": {
+    "hit": 216,
+    "n": 227,
+    "conflict": 2
+   },
+   "date of birth": {
+    "hit": 161,
+    "n": 162,
+    "conflict": 5
+   },
+   "father": {
+    "hit": 79,
+    "n": 97,
+    "conflict": 31
+   },
+   "date of death": {
+    "hit": 75,
+    "n": 79,
+    "conflict": 6
+   },
+   "publication date": {
+    "hit": 75,
+    "n": 77,
+    "conflict": 4
+   },
+   "country of citizenship": {
+    "hit": 43,
+    "n": 55,
+    "conflict": 12
+   },
+   "mother": {
+    "hit": 32,
+    "n": 52,
+    "conflict": 29
+   },
+   "spouse": {
+    "hit": 26,
+    "n": 34,
+    "conflict": 19
+   },
+   "place of birth": {
+    "hit": 23,
+    "n": 28,
+    "conflict": 10
+   },
+   "country of origin": {
+    "hit": 2,
+    "n": 28,
+    "conflict": 26
+   },
+   "country": {
+    "hit": 10,
+    "n": 23,
+    "conflict": 7
+   },
+   "place of death": {
+    "hit": 8,
+    "n": 14,
+    "conflict": 6
+   },
+   "performer": {
+    "hit": 9,
+    "n": 11,
+    "conflict": 2
+   },
+   "educated at": {
+    "hit": 4,
+    "n": 9,
+    "conflict": 4
+   },
+   "composer": {
+    "hit": 4,
+    "n": 7,
+    "conflict": 2
+   },
+   "sibling": {
+    "hit": 1,
+    "n": 7,
+    "conflict": 1
+   },
+   "employer": {
+    "hit": 3,
+    "n": 6,
+    "conflict": 1
+   },
+   "place of burial": {
+    "hit": 2,
+    "n": 3,
+    "conflict": 0
+   },
+   "award received": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 1
+   },
+   "inception": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 0
+   },
+   "creator": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "cause of death": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "founded by": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 1
+   },
+   "child": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 1
+   }
+  }
+ },
+ "<scratchpad>/q1data/read_union.jsonl": {
+  "questions": 400,
+  "stated_recall": [
+   843,
+   927,
+   0.9094
+  ],
+  "conflicts": [
+   198,
+   927,
+   0.2136
+  ],
+  "by_relation": {
+   "director": {
+    "hit": 226,
+    "n": 227,
+    "conflict": 6
+   },
+   "date of birth": {
+    "hit": 162,
+    "n": 162,
+    "conflict": 7
+   },
+   "father": {
+    "hit": 93,
+    "n": 97,
+    "conflict": 37
+   },
+   "date of death": {
+    "hit": 79,
+    "n": 79,
+    "conflict": 7
+   },
+   "publication date": {
+    "hit": 76,
+    "n": 77,
+    "conflict": 4
+   },
+   "country of citizenship": {
+    "hit": 46,
+    "n": 55,
+    "conflict": 19
+   },
+   "mother": {
+    "hit": 43,
+    "n": 52,
+    "conflict": 33
+   },
+   "spouse": {
+    "hit": 27,
+    "n": 34,
+    "conflict": 19
+   },
+   "place of birth": {
+    "hit": 24,
+    "n": 28,
+    "conflict": 11
+   },
+   "country of origin": {
+    "hit": 3,
+    "n": 28,
+    "conflict": 26
+   },
+   "country": {
+    "hit": 20,
+    "n": 23,
+    "conflict": 7
+   },
+   "place of death": {
+    "hit": 9,
+    "n": 14,
+    "conflict": 7
+   },
+   "performer": {
+    "hit": 11,
+    "n": 11,
+    "conflict": 2
+   },
+   "educated at": {
+    "hit": 5,
+    "n": 9,
+    "conflict": 5
+   },
+   "composer": {
+    "hit": 4,
+    "n": 7,
+    "conflict": 2
+   },
+   "sibling": {
+    "hit": 5,
+    "n": 7,
+    "conflict": 2
+   },
+   "employer": {
+    "hit": 3,
+    "n": 6,
+    "conflict": 1
+   },
+   "place of burial": {
+    "hit": 2,
+    "n": 3,
+    "conflict": 0
+   },
+   "award received": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 1
+   },
+   "inception": {
+    "hit": 2,
+    "n": 2,
+    "conflict": 0
+   },
+   "creator": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "cause of death": {
+    "hit": 1,
+    "n": 1,
+    "conflict": 0
+   },
+   "founded by": {
+    "hit": 1,
+    "n": 1,
+    "conflict": 1
+   },
+   "child": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 1
+   }
+  }
+ },
+ "<scratchpad>/r2/score_run1/read_union_kit_b2.jsonl": {
+  "questions": 400,
+  "stated_recall": [
+   855,
+   927,
+   0.9223
+  ],
+  "conflicts": [
+   198,
+   927,
+   0.2136
+  ],
+  "by_relation": {
+   "director": {
+    "hit": 226,
+    "n": 227,
+    "conflict": 6
+   },
+   "date of birth": {
+    "hit": 162,
+    "n": 162,
+    "conflict": 6
+   },
+   "father": {
+    "hit": 88,
+    "n": 97,
+    "conflict": 37
+   },
+   "date of death": {
+    "hit": 79,
+    "n": 79,
+    "conflict": 7
+   },
+   "publication date": {
+    "hit": 76,
+    "n": 77,
+    "conflict": 4
+   },
+   "country of citizenship": {
+    "hit": 47,
+    "n": 55,
+    "conflict": 20
+   },
+   "mother": {
+    "hit": 46,
+    "n": 52,
+    "conflict": 32
+   },
+   "spouse": {
+    "hit": 29,
+    "n": 34,
+    "conflict": 21
+   },
+   "place of birth": {
+    "hit": 23,
+    "n": 28,
+    "conflict": 11
+   },
+   "country of origin": {
+    "hit": 23,
+    "n": 28,
+    "conflict": 26
+   },
+   "country": {
+    "hit": 20,
+    "n": 23,
+    "conflict": 7
+   },
+   "place of death": {
+    "hit": 9,
+    "n": 14,
+    "conflict": 7
+   },
+   "performer": {
+    "hit": 10,
+    "n": 11,
+    "conflict": 3
+   },
+   "educated at": {
+    "hit": 4,
+    "n": 9,
+    "conflict": 4
+   },
+   "composer": {
+    "hit": 4,
+    "n": 7,
+    "conflict": 2
+   },
+   "sibling": {
+    "hit": 2,
+    "n": 7,
+    "conflict": 1
+   },
+   "employer": {
+    "hit": 3,
+    "n": 6,
+    "conflict": 1
+   },
+   "place of burial": {
+    "hit": 2,
+    "n": 3,
+    "conflict": 0
+   },
+   "award received": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 1
+   },
+   "inception": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 0
+   },
+   "creator": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "cause of death": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "founded by": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 1
+   },
+   "child": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 1
+   }
+  }
+ },
+ "<scratchpad>/r2/score_run1/read_union_kit_r1.jsonl": {
+  "questions": 400,
+  "stated_recall": [
+   825,
+   927,
+   0.89
+  ],
+  "conflicts": [
+   117,
+   927,
+   0.1262
+  ],
+  "by_relation": {
+   "director": {
+    "hit": 225,
+    "n": 227,
+    "conflict": 5
+   },
+   "date of birth": {
+    "hit": 162,
+    "n": 162,
+    "conflict": 5
+   },
+   "father": {
+    "hit": 85,
+    "n": 97,
+    "conflict": 31
+   },
+   "date of death": {
+    "hit": 79,
+    "n": 79,
+    "conflict": 5
+   },
+   "publication date": {
+    "hit": 76,
+    "n": 77,
+    "conflict": 2
+   },
+   "country of citizenship": {
+    "hit": 40,
+    "n": 55,
+    "conflict": 18
+   },
+   "mother": {
+    "hit": 42,
+    "n": 52,
+    "conflict": 21
+   },
+   "spouse": {
+    "hit": 23,
+    "n": 34,
+    "conflict": 6
+   },
+   "place of birth": {
+    "hit": 17,
+    "n": 28,
+    "conflict": 6
+   },
+   "country of origin": {
+    "hit": 23,
+    "n": 28,
+    "conflict": 7
+   },
+   "country": {
+    "hit": 20,
+    "n": 23,
+    "conflict": 2
+   },
+   "place of death": {
+    "hit": 6,
+    "n": 14,
+    "conflict": 2
+   },
+   "performer": {
+    "hit": 11,
+    "n": 11,
+    "conflict": 1
+   },
+   "educated at": {
+    "hit": 2,
+    "n": 9,
+    "conflict": 3
+   },
+   "composer": {
+    "hit": 4,
+    "n": 7,
+    "conflict": 1
+   },
+   "sibling": {
+    "hit": 5,
+    "n": 7,
+    "conflict": 1
+   },
+   "employer": {
+    "hit": 0,
+    "n": 6,
+    "conflict": 0
+   },
+   "place of burial": {
+    "hit": 0,
+    "n": 3,
+    "conflict": 0
+   },
+   "award received": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 0
+   },
+   "inception": {
+    "hit": 2,
+    "n": 2,
+    "conflict": 0
+   },
+   "creator": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "cause of death": {
+    "hit": 1,
+    "n": 1,
+    "conflict": 0
+   },
+   "founded by": {
+    "hit": 1,
+    "n": 1,
+    "conflict": 0
+   },
+   "child": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 1
+   }
+  }
+ }
+}

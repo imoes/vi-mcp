@@ -1,0 +1,114 @@
+{
+ "tiebreak": true,
+ "title_anchor": true,
+ "scores": {
+  "ALL": {
+   "n": 400,
+   "ours_em": 0.7025,
+   "official_em_gold": 0.7,
+   "official_em_alias": 0.7475,
+   "official_f1_gold": 0.7622,
+   "official_f1_alias": 0.7879
+  },
+  "bridge_comparison": {
+   "n": 100,
+   "ours_em": 0.96,
+   "official_em_gold": 0.96,
+   "official_em_alias": 0.96,
+   "official_f1_gold": 0.96,
+   "official_f1_alias": 0.96
+  },
+  "comparison": {
+   "n": 100,
+   "ours_em": 0.98,
+   "official_em_gold": 0.98,
+   "official_em_alias": 0.98,
+   "official_f1_gold": 0.98,
+   "official_f1_alias": 0.98
+  },
+  "compositional": {
+   "n": 100,
+   "ours_em": 0.37,
+   "official_em_gold": 0.36,
+   "official_em_alias": 0.5,
+   "official_f1_gold": 0.4683,
+   "official_f1_alias": 0.5469
+  },
+  "inference": {
+   "n": 100,
+   "ours_em": 0.5,
+   "official_em_gold": 0.5,
+   "official_em_alias": 0.55,
+   "official_f1_gold": 0.6405,
+   "official_f1_alias": 0.6646
+  }
+ },
+ "examples": {
+  "compositional": [
+   {
+    "q": "Where was the director of film The Drivin' Fool born?",
+    "gold": "New York",
+    "pred": "New York, New York"
+   },
+   {
+    "q": "What nationality is the director of film The Wrecking Crew (2000 Film)?",
+    "gold": "America",
+    "pred": "American"
+   },
+   {
+    "q": "What is the place of birth of the director of film That French Lady?",
+    "gold": "New York",
+    "pred": "New York, New York"
+   },
+   {
+    "q": "What nationality is the performer of song The Ballad Of The Lonesome Cowboy?",
+    "gold": "America",
+    "pred": "the US"
+   },
+   {
+    "q": "What nationality is the composer of film Four Women (1975 Film)?",
+    "gold": "American",
+    "pred": "United States"
+   },
+   {
+    "q": "Where was the director of film Politics Of Love born?",
+    "gold": "Toronto, Ontario",
+    "pred": "Toronto"
+   }
+  ],
+  "lost:compositional": [
+   {
+    "q": "Where was the place of death of Helena (Empress)'s husband?",
+    "gold": "Eboracum",
+    "pred": "Eboracum (York)"
+   }
+  ],
+  "inference": [
+   {
+    "q": "Who is the father-in-law of Princess Amalia Of Nassau-Dietz?",
+    "gold": "Charles III William",
+    "pred": "Charles III William, Margrave of Baden-Durlach"
+   },
+   {
+    "q": "Who is the maternal grandfather of Margaret Of Holland, Countess Of Henneberg?",
+    "gold": "Henry I",
+    "pred": "Henry I, Duke of Brabant"
+   },
+   {
+    "q": "Who is the maternal grandfather of Princess Amalie Of Saxony?",
+    "gold": "Ferdinand",
+    "pred": "Ferdinand, Duke of Parma"
+   },
+   {
+    "q": "Who is the father-in-law of Empress Xiaojingxian?",
+    "gold": "Kangxi",
+    "pred": "Kangxi Emperor"
+   },
+   {
+    "q": "Who is John Of Luxembourg, Count Of Soissons's maternal grandfather?",
+    "gold": "Robert of Bar, Count of Marle and Soissons",
+    "pred": "Robert of Bar, Count of Marle"
+   }
+  ]
+ }
+}

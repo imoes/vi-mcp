@@ -1,0 +1,102 @@
+{
+ "tiebreak": true,
+ "title_anchor": true,
+ "scores": {
+  "ALL": {
+   "n": 400,
+   "ours_em": 0.7225,
+   "official_em_gold": 0.7225,
+   "official_em_alias": 0.755,
+   "official_f1_gold": 0.7792,
+   "official_f1_alias": 0.7991
+  },
+  "bridge_comparison": {
+   "n": 100,
+   "ours_em": 0.94,
+   "official_em_gold": 0.94,
+   "official_em_alias": 0.94,
+   "official_f1_gold": 0.94,
+   "official_f1_alias": 0.94
+  },
+  "comparison": {
+   "n": 100,
+   "ours_em": 0.93,
+   "official_em_gold": 0.93,
+   "official_em_alias": 0.93,
+   "official_f1_gold": 0.9328,
+   "official_f1_alias": 0.9328
+  },
+  "compositional": {
+   "n": 100,
+   "ours_em": 0.48,
+   "official_em_gold": 0.48,
+   "official_em_alias": 0.57,
+   "official_f1_gold": 0.5618,
+   "official_f1_alias": 0.6122
+  },
+  "inference": {
+   "n": 100,
+   "ours_em": 0.54,
+   "official_em_gold": 0.54,
+   "official_em_alias": 0.58,
+   "official_f1_gold": 0.682,
+   "official_f1_alias": 0.7114
+  }
+ },
+ "examples": {
+  "compositional": [
+   {
+    "q": "What is the place of birth of Princess Magdalena Augusta Of Anhalt-Zerbst's mother?",
+    "gold": "Halle",
+    "pred": "Halle an der Saale"
+   },
+   {
+    "q": "What is the place of birth of the director of film A Woman'S Face (1938 Film)?",
+    "gold": "Helsingfors",
+    "pred": "Helsinki"
+   },
+   {
+    "q": "Where was the husband of Maude Smith born?",
+    "gold": "Toronto, Ontario",
+    "pred": "Toronto"
+   },
+   {
+    "q": "What nationality is Thomas Wentworth, 2Nd Baron Wentworth's father?",
+    "gold": "English",
+    "pred": "England"
+   },
+   {
+    "q": "Where did Sandra Howard's husband study at?",
+    "gold": "Peterhouse",
+    "pred": "Peterhouse, Cambridge"
+   },
+   {
+    "q": "What is the place of birth of the director of film Six Months Of Life?",
+    "gold": "Mexican",
+    "pred": "Mexico"
+   }
+  ],
+  "inference": [
+   {
+    "q": "Who is Clare Fitzroy, Countess Of Euston's paternal grandfather?",
+    "gold": "Captain Andrew William Kerr",
+    "pred": "Andrew William Kerr"
+   },
+   {
+    "q": "Who is Bernhard V, Prince Of Anhalt-Bernburg's paternal grandfather?",
+    "gold": "Bernhard III",
+    "pred": "Bernhard III, Prince of Anhalt-Bernburg"
+   },
+   {
+    "q": "Who is the paternal grandfather of Agnes Of Meissen?",
+    "gold": "Henry III",
+    "pred": "Henry III, Margrave of Meissen"
+   },
+   {
+    "q": "Who is Catherine Woodville, Duchess Of Buckingham's maternal grandmother?",
+    "gold": "Margherita del Balzo",
+    "pred": "Margaret of Baux"
+   }
+  ]
+ }
+}

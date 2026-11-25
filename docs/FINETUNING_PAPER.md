@@ -1,5 +1,7 @@
 # Teaching a 0.6B Model to Work by a Philosophical Seed: Thirty Fine-Tuning Runs, Measured by a Solver
 
+> **Moved (25.11.2026).** This copy is no longer maintained. The canonical paper is `docs/FINETUNING_PAPER.md` on branch `built-for` (commit 9681fc5); §5.25 and §5.26 of this copy are §5.31 and §5.32 there. Do not edit this copy.
+
 *Working paper, vi-mcp project, 16.11.2026, updated 18.11.2026 (runs 27 and 30, §5.18–5.22). Companion to [PAPER.md](PAPER.md) section 6 and the guide [FINETUNING.md](FINETUNING.md).
 Every number below was measured in this project unless it carries a reference; every reference was read for this work (the PDFs are kept
 with the experiment files). What is not measured is marked as hypothesis or estimate.*
@@ -453,6 +455,30 @@ compute-ring timeouts that crashed an inference server (15 timeouts that day, tw
 the RTX 3060 instead. Large Vulkan submits on this APU near the lockup timeout are a reported issue; whether training alone causes it is
 a hypothesis (counter-check: no timeout in the hours after the stop).
 
+### 5.25 A paired ablation confirms the replay (run 13R)
+§5.3 showed forgetting and its repair across different runs. Run 13R repeats run 13 (official kit, kollektiv 1.3.0, the same stage A,
+seed 43, the same 290 evaluation items) with one change: 20 % clingo-object language rows replayed inside the seed stage (1,350 rows
+next to the unchanged 5,399). Run 13 answered "none" to all 30 held-out language items; 13R writes all 30 exactly (15 rule sets,
+15 translations; the base model 0/30) and no longer answers "none" to the seed explanations (12/13 → 0/13). On the judging sets the
+replay costs nothing measurable: world-exact over all judge/formalize items 214 vs 210, discordant 19:15, exact McNemar p = 0.61;
+the paraphrase set moves 37 → 31/40 (7:1, p = 0.07) and the longest worlds 29 → 32/40, both within what two seeds of one recipe
+differ by (§5.20). One seed; the long whole-seed explanation of 13R did not stop within the 8,192-token answer budget.
+
+### 5.26 A tiny model does not apply rules it is given — it applies rules it has memorised
+Plan R2 asks whether the rules found by symbolic regression and ILP can go into the model. Before any Qwen run, a 0.83 M-parameter
+GPT (pre-LN, RoPE, d 128, 4 layers) was trained on one-step derivations over synthetic worlds, 10 seeds per arm, 20,000 steps:
+arm *ctx* gets the rules in the prompt under fresh names per item, arm *mem* has to recall one fixed library; worlds, goals and
+answers are identical. In distribution (depth 1–3) mem writes 82.6 % faithful derivations (every step a clingo-checked ground
+instance, the answer following from them) and ctx 16.6 % (95 % CI of the difference −80 to −47 points); at depth 4–5, never trained,
+both are at 0 % in every seed, with answer-only accuracy at chance (15 % / 17 %, 8 entities). Even the first three steps of a
+four- or five-literal goal are valid in only 0.02 % / 1.1 % of items, although each of them alone is a problem the mem model solves:
+a longer goal derails the first step, not the fourth. Two published mechanisms predict the ctx failure. Fine-tuned transformers
+reason case-based, and making them recite a rule before applying it lifted length generalisation in addition from 5 to 12 digits
+(Hu et al. [63]); and the (un)embeddings of role-equivalent or unseen symbols collapse towards one vector during training, so several
+fresh names become indistinguishable (Lazić et al. [64]). Both are being tested as a follow-up on the identical items (recitation;
+fresh-name embeddings frozen at initialisation). Until one of them works, the solver applies the rules and the model's trace is
+explanation, not mechanism.
+
 ## 6 Open points
 
 1. **Reading unseen phrasings** — solved for this seed's test phrasings by run 19 (§5.11). Still open: the held-out phrasings come from
@@ -573,6 +599,8 @@ them are the abstracts' own. Reference 54's title and authors are not verified h
 60. Li, Xu, Tan, Murray, Khashabi. Upsample or Upweight? Balanced Training on Heavily Imbalanced Datasets (NAACL 2025). https://arxiv.org/abs/2410.04579
 61. Stoica et al. Model merging with SVD to tie the KnOTS (ICLR 2025). https://arxiv.org/abs/2410.19735 *(abstract level)*
 62. Wu, Geiger, Millière. How Do Transformers Learn Variable Binding in Symbolic Programs? (2025). https://arxiv.org/abs/2505.20896 *(abstract level)*
+63. Hu, Tang, Yang, Zhang. Case-Based or Rule-Based: How Do Transformers Do the Math? (arXiv 2024, v2 26 Jun 2024). https://arxiv.org/abs/2402.17709 *(abstract level)*
+64. Lazić, Fowl, György, Szepesvári. To See the Unseen: on the Generalization Ability of Transformers in Symbolic Reasoning (2026). https://arxiv.org/abs/2604.21632 *(abstract level)*
 
 *References 57–60 were read in their HTML full text on 18.11.2026 up to about half of each; numbers from appendices were not read
 verbatim and are not quoted.*

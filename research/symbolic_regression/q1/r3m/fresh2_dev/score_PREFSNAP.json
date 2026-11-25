@@ -1,0 +1,119 @@
+{
+ "tiebreak": true,
+ "title_anchor": true,
+ "scores": {
+  "ALL": {
+   "n": 400,
+   "ours_em": 0.7125,
+   "official_em_gold": 0.705,
+   "official_em_alias": 0.7525,
+   "official_f1_gold": 0.7671,
+   "official_f1_alias": 0.7958
+  },
+  "bridge_comparison": {
+   "n": 100,
+   "ours_em": 0.87,
+   "official_em_gold": 0.87,
+   "official_em_alias": 0.87,
+   "official_f1_gold": 0.8725,
+   "official_f1_alias": 0.8725
+  },
+  "comparison": {
+   "n": 100,
+   "ours_em": 0.95,
+   "official_em_gold": 0.94,
+   "official_em_alias": 0.95,
+   "official_f1_gold": 0.944,
+   "official_f1_alias": 0.95
+  },
+  "compositional": {
+   "n": 100,
+   "ours_em": 0.42,
+   "official_em_gold": 0.4,
+   "official_em_alias": 0.52,
+   "official_f1_gold": 0.4949,
+   "official_f1_alias": 0.571
+  },
+  "inference": {
+   "n": 100,
+   "ours_em": 0.61,
+   "official_em_gold": 0.61,
+   "official_em_alias": 0.67,
+   "official_f1_gold": 0.7572,
+   "official_f1_alias": 0.7898
+  }
+ },
+ "examples": {
+  "compositional": [
+   {
+    "q": "Where was the place of death of the director of film Madame Lu?",
+    "gold": "Mülheim an der Ruhr",
+    "pred": "Mülheim"
+   },
+   {
+    "q": "Where was the director of film The Flag Lieutenant (1932 Film) born?",
+    "gold": "Weston-super-Mare, Somerset",
+    "pred": "Weston-super-Mare"
+   },
+   {
+    "q": "What is the place of birth of the director of film Encino Man?",
+    "gold": "Albuquerque, New Mexico",
+    "pred": "Albuquerque"
+   },
+   {
+    "q": "Who is the father of the director of film Manasuku Nachindi?",
+    "gold": "Krishna",
+    "pred": "Krishna Ghattamaneni"
+   },
+   {
+    "q": "Where was the husband of Maria Muldaur born?",
+    "gold": "Pelham, New York",
+    "pred": "Pelham"
+   },
+   {
+    "q": "What is the place of birth of the director of film Side Sho?",
+    "gold": "Nashville, Tennessee",
+    "pred": "Nashville"
+   }
+  ],
+  "lost:compositional": [
+   {
+    "q": "Where does Babe Paley's husband work at?",
+    "gold": "Columbia Broadcasting System",
+    "pred": "Columbia Broadcasting System (CBS)"
+   }
+  ],
+  "inference": [
+   {
+    "q": "Who is Geoffrey Russell, 4Th Baron Ampthill's paternal grandfather?",
+    "gold": "Oliver Russell",
+    "pred": "Oliver Russell, 2nd Baron Ampthill"
+   },
+   {
+    "q": "Who is the father-in-law of Sophia Of Wittelsbach?",
+    "gold": "Louis II",
+    "pred": "Louis II, Landgrave of Thuringia"
+   },
+   {
+    "q": "Who is Louis I, Cardinal Of Guise's father?",
+    "gold": "Claude of Lorraine, duke of Guise",
+    "pred": "Claude, Duke of Guise"
+   },
+   {
+    "q": "Who is the maternal grandmother of John Woodville?",
+    "gold": "Margherita del Balzo",
+    "pred": "Margaret of Baux"
+   },
+   {
+    "q": "Who is Walter Butler, 11Th Earl Of Ormond's paternal grandfather?",
+    "gold": "James Butler",
+    "pred": "James Butler, 9th Earl of Ormond"
+   },
+   {
+    "q": "Who is Edward Watson, Viscount Sondes's paternal grandfather?",
+    "gold": "Edward Watson",
+    "pred": "Edward Watson, 2nd Baron Rockingham"
+   }
+  ]
+ }
+}

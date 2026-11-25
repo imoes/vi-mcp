@@ -1,0 +1,48 @@
+{
+ "n": 846,
+ "vms": 141,
+ "both4_base": 0.0638,
+ "both4_m1": 0.8109,
+ "diff_points": 74.71,
+ "ci95_points_vm_bootstrap": [
+  68.09,
+  80.97
+ ],
+ "m1_only": 637,
+ "base_only": 5,
+ "p_one_sided": 4.941600577598347e-182,
+ "H_Z6a_holds": true,
+ "H_Z6b_goal_10_points": true,
+ "by_relation_lang_base_m1_n": {
+  "gateway/de": [
+   2,
+   114,
+   141
+  ],
+  "gateway/en": [
+   46,
+   116,
+   141
+  ],
+  "ip/de": [
+   1,
+   114,
+   141
+  ],
+  "ip/en": [
+   0,
+   113,
+   141
+  ],
+  "os/de": [
+   3,
+   114,
+   141
+  ],
+  "os/en": [
+   2,
+   115,
+   141
+  ]
+ }
+}

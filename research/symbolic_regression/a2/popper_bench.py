@@ -147,10 +147,14 @@ class BenchTask:
 class Solver:
     def __init__(self, t, deadline):
         self.facts, self.head, self.deadline = t["facts"], t["head"], deadline
-        self.cache, self.solves, self.failed = {}, 0, 0
+        # amendment 2: a small LRU instead of every answer set ever solved (gp2 keeps its own score cache; this one only spares
+        # re-solving a program for each of its cases). The unbounded dict held up to ~10^5 atoms per program and hit the memory cap.
+        from collections import OrderedDict
+        self.cache, self.solves, self.failed, self.lru = OrderedDict(), 0, 0, 16
 
     def full(self, prog):
         if prog in self.cache:
+            self.cache.move_to_end(prog)
             return self.cache[prog]
         if time.time() > self.deadline:
             raise TimeoutError("wall-clock budget")
@@ -183,6 +187,8 @@ class Solver:
         if res is None:
             self.failed += 1
         self.cache[prog] = res
+        while len(self.cache) > self.lru:
+            self.cache.popitem(last=False)
         return res
 
 
@@ -211,8 +217,11 @@ def run(ex_dir, name, seed, out, seconds, evals):
         if best is None or f > best[0]:
             best = (f, size_, gp.render(prog))
     stats = {}
-    if best and sv.cache.get(best[2]) is not None:
-        got = sv.cache[best[2]]
+    got = None
+    if best:
+        sv.deadline = float("inf")  # the final statistics may re-solve the best program after the wall clock
+        got = sv.full(best[2])
+    if got is not None:
         tp, fp = len(got & t["pos"]), len(got & t["neg"])
         fn, tn = len(t["pos"]) - tp, len(t["neg"]) - fp
         stats = {"tp": tp, "fp": fp, "fn": fn, "tn": tn,

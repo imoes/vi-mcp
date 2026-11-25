@@ -1,0 +1,176 @@
+{
+ "H_BR1": {
+  "global_fewer": 448,
+  "enum_fewer": 1,
+  "p_one_sided": 3.0955973103669145e-133,
+  "holds": true
+ },
+ "H_BR2": {
+  "unseen_solved": 150,
+  "n": 150,
+  "cp_lower_95": 0.9802,
+  "holds": true
+ },
+ "by_family": {
+  "chain2": {
+   "enum": {
+    "solved": 75,
+    "n": 75,
+    "mean": 9.41,
+    "first_call": 0
+   },
+   "enum_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 1.23,
+    "first_call": 59
+   },
+   "grammar_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 1.23,
+    "first_call": 59
+   }
+  },
+  "chain3": {
+   "enum": {
+    "solved": 0,
+    "n": 75,
+    "mean": 0.0,
+    "first_call": 0
+   },
+   "enum_global": {
+    "solved": 0,
+    "n": 75,
+    "mean": 0.0,
+    "first_call": 0
+   },
+   "grammar_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 8.35,
+    "first_call": 0
+   }
+  },
+  "disj": {
+   "enum": {
+    "solved": 75,
+    "n": 75,
+    "mean": 51.19,
+    "first_call": 0
+   },
+   "enum_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 10.13,
+    "first_call": 0
+   },
+   "grammar_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 18.15,
+    "first_call": 0
+   }
+  },
+  "filter": {
+   "enum": {
+    "solved": 75,
+    "n": 75,
+    "mean": 113.33,
+    "first_call": 0
+   },
+   "enum_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 9.56,
+    "first_call": 0
+   },
+   "grammar_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 9.56,
+    "first_call": 0
+   }
+  },
+  "inverse": {
+   "enum": {
+    "solved": 75,
+    "n": 75,
+    "mean": 24.41,
+    "first_call": 0
+   },
+   "enum_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 1.88,
+    "first_call": 36
+   },
+   "grammar_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 1.88,
+    "first_call": 36
+   }
+  },
+  "join": {
+   "enum": {
+    "solved": 0,
+    "n": 75,
+    "mean": 0.0,
+    "first_call": 0
+   },
+   "enum_global": {
+    "solved": 0,
+    "n": 75,
+    "mean": 0.0,
+    "first_call": 0
+   },
+   "grammar_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 27.81,
+    "first_call": 0
+   }
+  },
+  "neg": {
+   "enum": {
+    "solved": 75,
+    "n": 75,
+    "mean": 141.43,
+    "first_call": 0
+   },
+   "enum_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 7.93,
+    "first_call": 0
+   },
+   "grammar_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 7.93,
+    "first_call": 0
+   }
+  },
+  "recursion": {
+   "enum": {
+    "solved": 75,
+    "n": 75,
+    "mean": 162.32,
+    "first_call": 0
+   },
+   "enum_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 3.67,
+    "first_call": 0
+   },
+   "grammar_global": {
+    "solved": 75,
+    "n": 75,
+    "mean": 3.67,
+    "first_call": 0
+   }
+  }
+ }
+}

@@ -226,6 +226,24 @@ Solutions found by search keep the origin's structure barely more often from the
 the search arrives at the same structures whichever start it had — they come from the task, not from the lineage. 40 first solutions
 had no recorded library origin (lineage lost, 13/17/10 in L/XR/XL) and 14 came from immigrants; both are left out and counted.
 
+### 5.11 G8d — the candidate itself tells which edit helps (G8d-0 passed)
+After G8c-0 (a static, even oracle, per-task operator prior saves too little: median ratio 1.40 < 1.5), the proposer must see the
+CANDIDATE. G8d asks which representation of the current program predicts the single edit that improves it. Text embeddings were ruled
+out by design: they embed names, and the proposer only sees anonymised identifiers. Candidates were computed, not trained: the
+program's behaviour on its training worlds (F0: score, true/false positives and negatives — free in the search), an exact 1-hop context
+encoding of its structure (S, name-free), and their combination; a vector-symbolic projection of S [22] and a contrastive encoder of
+our own [21] were held back until S or F proved informative. Program embeddings from execution traces [19, 20] are the closest prior
+work; ours are exact because the solver supplies the semantics.
+Step 0: the search was copied with an edit log and replays 12 of 12 stored runs bit-identically; 660 runs (33 tasks × 10 seeds × two
+arms) gave 1.12 M clean single-edit children. The gate was frozen before the data and measures the AUC **within the parent** — the
+pooled AUC (0.81 for F0) rewards parent headroom, which no proposer can use. Two computational amendments (memory; at most 300 records
+per run and an exact rank-based AUC, byte-identical on the pilot) came before any result. **Result:** within-parent AUC operator +
+size 0.632, wiring-blind signature 0.704, structure 0.720, behaviour 0.746, **structure + behaviour 0.770** — margin +0.066,
+task-bootstrap 95 % CI [0.017, 0.115], 83,733 edits from 31 tasks. Behaviour carries most of the signal; the information is real but
+moderate. Whether it pays in search is G8d-0b (an oracle that knows the improving edit must make the 12 hard tasks ≥ 1.5× cheaper),
+which is running. G8d-0 excludes names by design, so it says nothing about names; whether names act as retrieval keys is tested
+separately (fine-tuning paper §5.27–5.29, hypothesis H12/H13) [23, 24].
+
 ## 6 What the VI changes
 
 1. **built_for (implemented, branch built-for).** Every knowledge object records on its first save the context tags it was learned in,
@@ -272,3 +290,10 @@ significance.
 16. Bordes, A. et al. Translating Embeddings for Modeling Multi-relational Data. NIPS (2013) *(abstract level)*.
 17. Gu, X. & Krenn, M. Forecasting high-impact research topics via machine learning on evolving knowledge graphs. arXiv:2402.08640 *(dataset; G1)*.
 18. Si, C., Yang, D. & Hashimoto, T. Can LLMs Generate Novel Research Ideas? arXiv:2409.04109; Si, Hashimoto & Yang, The Ideation–Execution Gap, arXiv:2506.20803 *(dataset; G2)*.
+
+19. Wang, Su. Blended, precise semantic program embeddings (LiGer, 2019). https://arxiv.org/abs/1907.02136 ; Wang. Dynamic neural program embeddings (DYPRO). https://www.cs.columbia.edu/~suman/docs/similarity.pdf
+20. Pei et al. TREX: learning execution semantics from micro-traces. https://www.cs.columbia.edu/~suman/docs/trex_final.pdf
+21. Jain et al. Contrastive code representation learning (ContraCode). https://arxiv.org/abs/2007.04973
+22. Kleyko et al. A survey on hyperdimensional computing / vector symbolic architectures. https://arxiv.org/abs/2111.06077
+23. When Names Disappear: Revealing What LLMs Actually Understand About Code (arXiv 2510.03178, 2025). https://arxiv.org/abs/2510.03178
+24. Wei et al. Symbol tuning improves in-context learning in language models (EMNLP 2023). https://arxiv.org/abs/2305.08298

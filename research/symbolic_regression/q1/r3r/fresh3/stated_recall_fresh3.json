@@ -1,0 +1,392 @@
+{
+ "read_fresh3_ALONE.jsonl": {
+  "questions": 400,
+  "stated_recall": [
+   834,
+   935,
+   0.892
+  ],
+  "conflicts": [
+   106,
+   935,
+   0.1134
+  ],
+  "by_relation": {
+   "director": {
+    "hit": 224,
+    "n": 229,
+    "conflict": 7
+   },
+   "date of birth": {
+    "hit": 167,
+    "n": 167,
+    "conflict": 2
+   },
+   "father": {
+    "hit": 100,
+    "n": 111,
+    "conflict": 25
+   },
+   "date of death": {
+    "hit": 88,
+    "n": 90,
+    "conflict": 3
+   },
+   "country of citizenship": {
+    "hit": 61,
+    "n": 79,
+    "conflict": 18
+   },
+   "publication date": {
+    "hit": 66,
+    "n": 68,
+    "conflict": 3
+   },
+   "mother": {
+    "hit": 27,
+    "n": 33,
+    "conflict": 17
+   },
+   "spouse": {
+    "hit": 22,
+    "n": 30,
+    "conflict": 5
+   },
+   "place of birth": {
+    "hit": 12,
+    "n": 25,
+    "conflict": 5
+   },
+   "place of death": {
+    "hit": 14,
+    "n": 24,
+    "conflict": 8
+   },
+   "country": {
+    "hit": 19,
+    "n": 21,
+    "conflict": 2
+   },
+   "country of origin": {
+    "hit": 12,
+    "n": 13,
+    "conflict": 3
+   },
+   "performer": {
+    "hit": 8,
+    "n": 11,
+    "conflict": 1
+   },
+   "educated at": {
+    "hit": 3,
+    "n": 7,
+    "conflict": 1
+   },
+   "composer": {
+    "hit": 4,
+    "n": 6,
+    "conflict": 1
+   },
+   "sibling": {
+    "hit": 2,
+    "n": 6,
+    "conflict": 2
+   },
+   "inception": {
+    "hit": 2,
+    "n": 4,
+    "conflict": 1
+   },
+   "producer": {
+    "hit": 2,
+    "n": 4,
+    "conflict": 0
+   },
+   "place of burial": {
+    "hit": 0,
+    "n": 2,
+    "conflict": 0
+   },
+   "child": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 1
+   },
+   "employer": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 1
+   },
+   "founded by": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "award received": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   }
+  }
+ },
+ "read_fresh3_base2shot.jsonl": {
+  "questions": 400,
+  "stated_recall": [
+   783,
+   935,
+   0.8374
+  ],
+  "conflicts": [
+   143,
+   935,
+   0.1529
+  ],
+  "by_relation": {
+   "director": {
+    "hit": 210,
+    "n": 229,
+    "conflict": 6
+   },
+   "date of birth": {
+    "hit": 164,
+    "n": 167,
+    "conflict": 4
+   },
+   "father": {
+    "hit": 90,
+    "n": 111,
+    "conflict": 38
+   },
+   "date of death": {
+    "hit": 86,
+    "n": 90,
+    "conflict": 4
+   },
+   "country of citizenship": {
+    "hit": 60,
+    "n": 79,
+    "conflict": 14
+   },
+   "publication date": {
+    "hit": 62,
+    "n": 68,
+    "conflict": 7
+   },
+   "mother": {
+    "hit": 14,
+    "n": 33,
+    "conflict": 24
+   },
+   "spouse": {
+    "hit": 27,
+    "n": 30,
+    "conflict": 9
+   },
+   "place of birth": {
+    "hit": 22,
+    "n": 25,
+    "conflict": 5
+   },
+   "place of death": {
+    "hit": 11,
+    "n": 24,
+    "conflict": 9
+   },
+   "country": {
+    "hit": 9,
+    "n": 21,
+    "conflict": 3
+   },
+   "country of origin": {
+    "hit": 2,
+    "n": 13,
+    "conflict": 11
+   },
+   "performer": {
+    "hit": 10,
+    "n": 11,
+    "conflict": 0
+   },
+   "educated at": {
+    "hit": 3,
+    "n": 7,
+    "conflict": 1
+   },
+   "composer": {
+    "hit": 4,
+    "n": 6,
+    "conflict": 2
+   },
+   "sibling": {
+    "hit": 1,
+    "n": 6,
+    "conflict": 2
+   },
+   "inception": {
+    "hit": 3,
+    "n": 4,
+    "conflict": 0
+   },
+   "producer": {
+    "hit": 3,
+    "n": 4,
+    "conflict": 1
+   },
+   "place of burial": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 1
+   },
+   "child": {
+    "hit": 0,
+    "n": 2,
+    "conflict": 1
+   },
+   "employer": {
+    "hit": 1,
+    "n": 1,
+    "conflict": 0
+   },
+   "founded by": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "award received": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 1
+   }
+  }
+ },
+ "read_fresh3_UNION.jsonl": {
+  "questions": 400,
+  "stated_recall": [
+   882,
+   935,
+   0.9433
+  ],
+  "conflicts": [
+   177,
+   935,
+   0.1893
+  ],
+  "by_relation": {
+   "director": {
+    "hit": 226,
+    "n": 229,
+    "conflict": 10
+   },
+   "date of birth": {
+    "hit": 167,
+    "n": 167,
+    "conflict": 4
+   },
+   "father": {
+    "hit": 103,
+    "n": 111,
+    "conflict": 39
+   },
+   "date of death": {
+    "hit": 89,
+    "n": 90,
+    "conflict": 4
+   },
+   "country of citizenship": {
+    "hit": 70,
+    "n": 79,
+    "conflict": 26
+   },
+   "publication date": {
+    "hit": 66,
+    "n": 68,
+    "conflict": 7
+   },
+   "mother": {
+    "hit": 31,
+    "n": 33,
+    "conflict": 26
+   },
+   "spouse": {
+    "hit": 28,
+    "n": 30,
+    "conflict": 10
+   },
+   "place of birth": {
+    "hit": 22,
+    "n": 25,
+    "conflict": 9
+   },
+   "place of death": {
+    "hit": 19,
+    "n": 24,
+    "conflict": 13
+   },
+   "country": {
+    "hit": 19,
+    "n": 21,
+    "conflict": 3
+   },
+   "country of origin": {
+    "hit": 12,
+    "n": 13,
+    "conflict": 11
+   },
+   "performer": {
+    "hit": 10,
+    "n": 11,
+    "conflict": 1
+   },
+   "educated at": {
+    "hit": 4,
+    "n": 7,
+    "conflict": 2
+   },
+   "composer": {
+    "hit": 4,
+    "n": 6,
+    "conflict": 2
+   },
+   "sibling": {
+    "hit": 3,
+    "n": 6,
+    "conflict": 4
+   },
+   "inception": {
+    "hit": 3,
+    "n": 4,
+    "conflict": 1
+   },
+   "producer": {
+    "hit": 3,
+    "n": 4,
+    "conflict": 1
+   },
+   "place of burial": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 1
+   },
+   "child": {
+    "hit": 1,
+    "n": 2,
+    "conflict": 1
+   },
+   "employer": {
+    "hit": 1,
+    "n": 1,
+    "conflict": 1
+   },
+   "founded by": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 0
+   },
+   "award received": {
+    "hit": 0,
+    "n": 1,
+    "conflict": 1
+   }
+  }
+ }
+}
