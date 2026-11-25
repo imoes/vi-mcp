@@ -3,15 +3,60 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
-## Unreleased
+## 0.72.0 — 2026-11-25 — a question about two hosts finds both pages; the switch follows a preregistered gate
 
-### What has changed
+0.72.0 also contains 0.71.3 (below), which was not released on its own.
+
+### What is new: the search places the page of the host a question names, and the page of the host that page mentions
+
+- **`vi_recall` (hybrid) places a title anchor and one mention hop among the first hits** (`vi_mcp/anchor.py`, goal Z6). A question
+  that names a host is often about two pages: the host's documentation page and the page of a host it mentions (a VM and its Proxmox
+  node). The anchor is the page whose title names a host of the question; the hop is the page titled with the first other host that
+  page mentions. The hybrid list's first hit keeps rank 1; anchor and hop follow it (`anchor.AT` = 1, `anchor.HOPS` = 1).
+- **Filter and visibility hold:** anchor and hop pass the search's own filter and the viewer's visibility (`memory.admitted`); a
+  search in one index gets no anchor from another, and pages of search-scoped (external) indexes are never anchors. The search note
+  names what was placed (`anchor auto: app0042 → <id> (+1 hop)`), and the search kind reads `hybrid+anchor` where it was applied.
+- **Measured** (offline gate, preregistered and frozen before the gate data were searched, 25.11.2026, on a fresh copy of the
+  production database of 22.11.2026, commit 13e5f92):
+  - questions joining a VM and its node (826 development questions of goal Z6): both pages in the top 4 for **84.6 % instead of
+    14.4 %** (581 won, 1 lost; exact McNemar p < 0.001);
+  - the fixed question set `eval/recall.json`, held-out half (160 queries, page level as `vi_mcp/evaluation.py`): Hit@4 36.3 % and
+    Hit@1 25.0 % with and without the anchor — no query won or lost (13 of 160 got an anchor);
+  - logged real agent searches (188): 6 got an anchor, and in 4 of them the anchor page was already among the first four.
+  - The real switch shows exactly the measured lists (20 of 20 queries compared, off and on).
+  - Earlier, on 846 test questions (PREREG_Z6, 22.11.2026), the method reached 81.1 % instead of 6.4 %.
+- **Found and fixed on development data before the gate:** version numbers and IP-like strings had become title keys ("3.1.0", "08"):
+  a host name now needs at least three labels with an alphabetic last label, a short name a digit and a letter. With the anchor in
+  front of the first hit, Hit@1 on the development half of `eval/recall.json` fell from 41.7 % to 40.3 %; after the first hit, it
+  stays 41.7 % at the same Z6 result (84.5 %).
+
+### What has changed: config `search_anchor`, default `auto`
+
+- `search_anchor`: `auto` (default) | `off` | `on` | `ab`. **`auto` is on exactly when the offline gate shipped with the release
+  passed** (`anchor.GATE`; in 0.72.0: passed, 2026-11-25) — user decision, 25.11.2026. **`off` switches it off at once** (config and
+  restart). `on` forces it; `ab` gives it to a share of conversations (`search_anchor_share`). An unknown value is `off`.
+- `vi_stats` and the start-up log name the effective switch, since when, and the gate — e.g. `search anchor (0.72.0, goal Z6): auto →
+  on since 2026-11-25T… (gate passed 2026-11-25: …)`; a forced `on` without a passed gate is named as a WARNING (table `anchor_state`).
+- Tests: `tests/test_anchor.py`. Measurement and the gate decision: `scripts/anchor_eval.py` (`recall`, `agents`, `search`,
+  `switchcheck`, `score`, `gate`). Full suite with Python 3.12.3 and the gate set to passed: 1,460 passed, 8 skipped (25.11.2026).
+
+### What has changed: documentation
+
 - AGENTS.md now lists the exact commands to connect a client on another machine: create the instance on the server, install the
   served Claude Code plugin (`claude plugin marketplace add …/plugins/claude/marketplace.json`, `claude plugin install
   vi-mcp@vi-mcp`, token via `/plugin` → configure) or run `vi-mcp-setup.pyz` for Codex/Hermes, then the checks and the undo.
   Before, AGENTS.md only described the mechanism and the commands were in README.md alone. Documentation only.
 
-## 0.71.3 — 2026-11-24 — memory glibc keeps back goes back every five minutes
+### What is still missing
+
+- **The 7-day watch after deploy:** whether agents open anchored hits less, and whether Hit@1 of the nightly evaluation falls.
+  If either happens, `search_anchor = "off"` is the user's call.
+- The anchor reads documentation pages titled `LABEL: title — …` (`insight:doc-…`); host pages in another form are not anchors.
+- The gate's held-out recall half is small (160 queries, 13 with an anchor): it shows no harm, not the absence of a small one.
+- The recall baseline here (Hit@4 36.3 % on the gate half, 51.1 % on the development half, page level, as an agent with a token
+  searches) is not comparable with figures measured on other copies or settings (e.g. 0.963 on another copy); not investigated here.
+
+## 0.71.3 — 2026-11-24 — memory glibc keeps back goes back every five minutes (released as part of 0.72.0)
 
 ### What was fixed: RSS no longer creeps upward
 

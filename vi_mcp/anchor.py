@@ -50,7 +50,12 @@ DOC_PREFIXES = ("insight:doc-", "erkenntnis:doc-")  # 0.67.0 renamed the id pref
 #: The offline gate's result (PREREG_Z6_GATE), fixed in the release that ships the switch: pending | passed | failed. With the default
 #: mode auto this alone decides whether the anchor is on (user decision 25.11.2026: "automatic once the gate passes"); vi_stats and the
 #: start-up log name the switch, its effective state, since when, and the gate.
-GATE = {"state": "pending", "date": "", "summary": ""}
+#: PREREG_Z6_GATE (frozen 2026-11-25 18:07:45 UTC, sha256 3deb3738…a26), run 18:07–19:29 UTC on a fresh copy of the production database
+#: of 22.11.2026 with commit 13e5f92: switch check 20/20; recall.json gate half (160 queries, page level) Hit@4 36.25 → 36.25 % and
+#: Hit@1 25.0 → 25.0 % (no query won or lost); Z6 dev both@4 14.41 → 84.62 % (826, 581 won, 1 lost); 6 of 188 real agent searches
+#: got an anchor. Result sha256 c138208a…cfa6.
+GATE = {"state": "passed", "date": "2026-11-25",
+        "summary": "Z6 both@4 14.4 → 84.6 %, recall Hit@4 36.3 → 36.3 % and Hit@1 25.0 → 25.0 % (PREREG_Z6_GATE)"}
 
 _cache: dict = {"at": 0.0, "db": None, "index": {}}
 _build = threading.Lock()
