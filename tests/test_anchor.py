@@ -27,6 +27,7 @@ def docs(gd, monkeypatch):
     monkeypatch.setattr(anchor, "MODE", "off")
     monkeypatch.setattr(anchor, "SHARE", 0.0)
     monkeypatch.setattr(anchor, "HOPS", 1)
+    monkeypatch.setattr(anchor, "AT", 1)
     anchor.forget()
 
     def page(key, text, instance="a", visibility="internal", idx="global"):
@@ -59,6 +60,7 @@ def test_title_keys_follow_the_digit_rule():
     assert anchor._keys("app0042.example.org — x") == ["app0042.example.org", "app0042"]
     assert anchor._keys("system.example.org overview") == ["system.example.org"]  # an everyday first label is no key
     assert anchor._keys("example.org only two labels") == []
+    assert anchor._keys("release 3.1.0 on 192.0.2.10, room 08.15.de") == ["08.15.de"]  # no version or IP; "08" has no letter
     assert anchor.title_of("Confluence IT: pve0007.example.org — node") == "pve0007.example.org"
 
 
@@ -68,9 +70,20 @@ def test_off_changes_nothing_and_on_puts_anchor_and_hop_first(docs, monkeypatch)
     assert "anchor" not in note_off.splitlines()[0]
     monkeypatch.setattr(anchor, "MODE", "on")
     on, note_on = _search(q)
-    assert on[:2] == [docs["vm"], docs["node"]]
+    # AT = 1: the hybrid's first hit keeps rank 1, anchor and hop follow (whatever the hybrid order was)
+    want = anchor.place(off, [{"word": "app0042", "anchor": docs["vm"], "hops": [docs["node"]]}], hops=1, at=1)
+    assert on[0] == off[0] and on[:3] == want[:3] and {docs["vm"], docs["node"]} <= set(on[:3])
     head = note_on.splitlines()[0]
     assert f"anchor on: app0042 → {docs['vm']} (+1 hop)" in head and "hybrid" in head
+
+
+def test_placement_after_the_first_hits():
+    plan = [{"word": "app0042", "anchor": "A", "hops": ["H1", "H2"]}]
+    assert anchor.place(["x", "A", "y", "z"], plan, hops=1, at=0) == ["A", "H1", "x", "y", "z"]
+    assert anchor.place(["x", "A", "y", "z"], plan, hops=1, at=1) == ["x", "A", "H1", "y", "z"]
+    assert anchor.place(["A", "x", "y"], plan, hops=2, at=1) == ["A", "H1", "H2", "x", "y"]  # the first hit keeps rank 1, also the anchor
+    assert anchor.place(["H1", "x", "A"], plan, hops=1, at=1) == ["H1", "A", "x"]  # no id twice
+    assert anchor.place(["x", "y"], [], hops=1, at=1) == ["x", "y"]
 
 
 def test_the_hop_count_is_honoured(docs, monkeypatch):
@@ -78,7 +91,7 @@ def test_the_hop_count_is_honoured(docs, monkeypatch):
     monkeypatch.setattr(anchor, "HOPS", 0)
     on, note = _search("Which operating system runs on the node that hosts the VM app0042?")
     head = note.splitlines()[0]
-    assert on[0] == docs["vm"] and f"app0042 → {docs['vm']}" in head and "hop)" not in head  # the anchor alone, no hop placed
+    assert on[1] == docs["vm"] and docs["node"] not in on[:2] and f"app0042 → {docs['vm']}" in head and "hop)" not in head  # anchor alone
 
 
 def test_a_search_in_one_index_gets_no_anchor_from_another(docs, monkeypatch):
@@ -102,7 +115,7 @@ def test_an_anchor_or_hop_the_viewer_cannot_see_is_not_used(docs, monkeypatch):
         g.db().execute("UPDATE object SET visibility = 'private', instance = 'b' WHERE id = ?", (docs["node"],))
         g.db().commit()
     on, _ = _search("Which operating system runs on the node that hosts the VM app0042?")
-    assert on[0] == docs["vm"] and docs["node"] not in on
+    assert docs["vm"] in on[:2] and docs["node"] not in on
     with g.lock:  # and the VM page too: no anchor at all
         g.db().execute("UPDATE object SET visibility = 'private', instance = 'b' WHERE id = ?", (docs["vm"],))
         g.db().commit()
@@ -136,13 +149,39 @@ def test_ab_keeps_one_arm_per_conversation(monkeypatch):
     assert anchor.active("202611250001") == (False, "off")
 
 
+def test_auto_follows_the_gate_and_every_state_is_visible(gd, monkeypatch):
+    monkeypatch.setattr(anchor, "SHARE", 0.0)
+    monkeypatch.setattr(anchor, "MODE", "auto")
+    monkeypatch.setattr(anchor, "GATE", {"state": "pending", "date": "", "summary": ""})
+    assert anchor.active("202611250001") == (False, "off")
+    first = anchor.record_mode()
+    assert first["mode"] == "auto:off" and anchor.record_mode()["since"] == first["since"]  # a restart keeps the period
+    assert "auto → off since" in anchor.line() and "(gate pending)" in anchor.line()
+    monkeypatch.setattr(anchor, "GATE", {"state": "failed", "date": "2026-11-25", "summary": "Hit@1 dropped"})
+    assert anchor.active("202611250001") == (False, "off") and "auto → off" in anchor.line() and "gate failed 2026-11-25" in anchor.line()
+    monkeypatch.setattr(anchor, "GATE", {"state": "passed", "date": "2026-11-25", "summary": "G1, G2 passed"})
+    assert anchor.active("202611250001") == (True, "auto")
+    assert "since" not in anchor.line()  # the release switched it on, but this start has not recorded it yet: no period is claimed
+    on = anchor.record_mode()
+    assert on["mode"] == "auto:on" and f"auto → on since {on['since'][:16]} (gate passed 2026-11-25" in anchor.line()
+    monkeypatch.setattr(anchor, "MODE", "off")  # switched off in the config
+    anchor.record_mode()
+    assert anchor.active("202611250001") == (False, "off") and "off since" in anchor.line() and "switched off in the config" in anchor.line()
+    monkeypatch.setattr(anchor, "MODE", "on")
+    monkeypatch.setattr(anchor, "GATE", {"state": "failed", "date": "", "summary": ""})
+    assert "WARNING: on although the offline gate is failed" in anchor.line()
+    from vi_mcp import usage_stats
+    assert "search anchor (0.72.0, goal Z6)" in usage_stats.report()
+
+
 def test_config_reads_the_switch_safely(tmp_path, monkeypatch):
     import json
     p = tmp_path / "config.json"
     monkeypatch.setenv("VI_MCP_CONFIG", str(p))
     config.create_instance("a")
     raw = json.loads(p.read_text())
-    for value, share, want in (("on", 0.1, ("on", 0.1)), ("AB", 0.9, ("ab", 0.5)), ("yes", "x", ("off", 0.0)), (None, None, ("off", 0.0))):
+    for value, share, want in (("on", 0.1, ("on", 0.1)), ("AB", 0.9, ("ab", 0.5)), ("yes", "x", ("off", 0.0)), (None, None, ("auto", 0.0)),
+                               ("off", None, ("off", 0.0))):
         raw.pop("search_anchor", None), raw.pop("search_anchor_share", None)
         if value is not None:
             raw.update(search_anchor=value, search_anchor_share=share)

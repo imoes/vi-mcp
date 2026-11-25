@@ -1064,7 +1064,7 @@ options:
 | `hold_back` | 0.05 | Share of the actions with hints whose hints are held back at random (0.61.0, at most 0.25; 0 = off) — `vi_stats` C and the daily measurement compare them with the rest: the causal total effect of hints. |
 | `feedback_nudge_off` | 0.2 | Share of conversations in which the feedback request under the hints is left out (0.68.0, at most 0.5; 0 = always ask) — `vi_stats` C compares feedback and success of both arms: the A/B test of asking. |
 | `use_rate_share` | 0.0 | Share of conversations whose hints are ranked by the agents' use rate per hint instead of the bandit (Z7, at most 0.5; 0 = off) — the A/B test of `use_rate.py`; every decision logs `before.use_rate_arm` and the candidates' `before.use_rate_scores`. |
-| `search_anchor` | `"off"` | `off` \| `on` \| `ab` (0.72.0): `vi_recall` puts the documentation page whose title names a host of the question first, followed by the page of a host that page mentions (goal Z6: both pages in the top 4 for 81.1 % instead of 6.4 % of 846 test questions). Anchor and hop pass the search's filter and visibility; the search note names them. `ab` gives it to a share of conversations (`search_anchor_share`). Unknown values are `off`. |
+| `search_anchor` | `"auto"` | `auto` \| `on` \| `off` \| `ab` (0.72.0): `vi_recall` places the documentation page whose title names a host of the question, followed by the page of a host that page mentions, among the first hits (goal Z6: both pages in the top 4 for 81.1 % instead of 6.4 % of 846 test questions). `auto` is on exactly when the offline gate shipped with the release passed (`anchor.GATE`; vi_stats and the start-up log name it); `off` switches it off (config and restart), `on` forces it. Anchor and hop pass the search's filter and visibility; the search note names them. `ab` gives it to a share of conversations (`search_anchor_share`). Unknown values are `off`. |
 | `search_anchor_share` | 0.0 | With `search_anchor: ab`, the share of conversations that get the anchor (0.72.0, at most 0.5), by a hash of the conversation serial — one conversation keeps one arm; the search kind is `hybrid+anchor` (or `hybrid+rerank+anchor`) where it was applied. |
 | `local_models` | — | `auto`/`off` (0.60.0): whether the packages set up the own embedding service and reranker (`vi-mcp embed auto`); configure question `local_models`. |
 | `llm` | — | Language model `{url, token, model}` [`modell`]: OpenAI-compatible chat endpoint for sleep, scorer and reviewer. |
@@ -1211,7 +1211,7 @@ First line of each module's docstring.
 |---|---|
 | `__main__` | Usage (German command names are accepted as aliases): |
 | `agent_qualify` | The AI that uses the VI qualifies what it reads (0.69.3). |
-| `anchor` | 0.72.0: title anchor + one mention hop for vi_recall (goal Z6) — behind the switch `search_anchor` (config), off by default. |
+| `anchor` | 0.72.0: title anchor + one mention hop for vi_recall (goal Z6), switch `search_anchor`: auto (default) = on iff the release's gate passed. |
 | `anonymize` | Anonymisation — what leaves the network or comes from it carries no IPs, internal names, credentials, user names, proxy details. |
 | `api_en` | German aliases of the MCP interface (English since 0.22.0). |
 | `archive` | Long-term archive — housekeeping: entries no longer used leave the active store without vanishing. |

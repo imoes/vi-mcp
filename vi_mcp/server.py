@@ -483,6 +483,8 @@ def build(k: config.Config) -> list[Server]:
     intuition.HOLD_BACK = k.hold_back  # 0.61.0
     from . import anchor
     anchor.MODE, anchor.SHARE = k.search_anchor, k.search_anchor_share  # 0.72.0
+    anchor.record_mode()
+    log(anchor.line().strip())  # the switch and its gate at every start: "gate passed, switch still off" is not forgotten
     intuition.NUDGE_OFF = k.feedback_nudge_off  # 0.68.0
     from . import use_rate
     use_rate.SHARE = k.use_rate_share  # Z7

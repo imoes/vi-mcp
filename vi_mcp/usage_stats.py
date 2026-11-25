@@ -386,6 +386,8 @@ def report(days: float = 7) -> str:
     from . import query_adapter, search_questions  # 0.68.0
     z.append(query_adapter.line())
     z.append(search_questions.line())
+    from . import anchor  # 0.72.0
+    z.append(anchor.line())
     m = learning.model()
     z.append(f"F Cleanup: {a['schlaefe']} sleeps (median {a['schlaf_ms_median'] // 1000} s, {a['neue_erkenntnisse']} new insights, {a['fehler']} step errors) · "
              f"{on_demand.line()} · router AUC "

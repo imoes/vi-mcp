@@ -12,7 +12,7 @@ Path: $VI_MCP_CONFIG or ~/.config/vi-mcp/config.json. Content:
     "hold_back": 0.05,                                     share of actions whose hints are held back at random (0.61.0; 0 = off)
     "feedback_nudge_off": 0.2,                             share of conversations without the feedback request under the hints — its A/B test (0.68.0; 0 = always ask)
     "use_rate_share": 0.0,                                 share of conversations whose hints are ranked by the agents' use rate instead of the bandit — its A/B test (Z7; 0 = off)
-    "search_anchor": "off",                                vi_recall: the page titled with a host the question names first (0.72.0; off | on | ab)
+    "search_anchor": "auto",                               vi_recall: the page titled with a host the question names first (0.72.0; auto | on | off | ab — auto = on exactly when the release's offline gate passed)
     "search_anchor_share": 0.0,                            with ab: the share of conversations that get it (0.72.0; at most 0.5)
     "llm":   {"url": "https://host/qwen/v1/chat/completions", "token": "", "model": ""}  optional (stage 4, during sleep)
     "plugins": true,                                       serve the client integration under /plugins (0.71.0; false = 404)
@@ -162,7 +162,7 @@ class Config:
     hold_back: float = 0.05  # 0.61.0: hints held back at random to measure their total effect (intuition.HOLD_BACK)
     feedback_nudge_off: float = 0.2  # 0.68.0: conversations without the feedback request (intuition.NUDGE_OFF)
     use_rate_share: float = 0.0  # Z7: conversations ranked by the agents' use rate instead of the bandit (use_rate.SHARE)
-    search_anchor: str = "off"  # 0.72.0: title anchor + mention hop in vi_recall (anchor.MODE): off | on | ab
+    search_anchor: str = "auto"  # 0.72.0: title anchor + mention hop in vi_recall (anchor.MODE): auto | on | off | ab
     search_anchor_share: float = 0.0  # 0.72.0: with ab, the share of conversations that get it (anchor.SHARE)
     archive_days: dict[str, int] = field(default_factory=dict)
     p2p: dict = field(default_factory=dict)
@@ -228,8 +228,10 @@ def load(p: Path | None = None) -> Config:
         k.use_rate_share = min(0.5, max(0.0, float(raw.get("use_rate_share", 0.0))))
     except (TypeError, ValueError):
         k.use_rate_share = 0.0
-    mode = str(raw.get("search_anchor", "off")).strip().lower()
-    k.search_anchor = mode if mode in ("off", "on", "ab") else "off"  # an unknown value is off, never on by accident
+    mode = str(raw.get("search_anchor", "auto")).strip().lower()
+    # auto (default, user decision 25.11.2026): on exactly when the release's offline gate passed (anchor.GATE); an unknown value is
+    # off, never on by accident
+    k.search_anchor = mode if mode in ("auto", "off", "on", "ab") else "off"
     try:  # 0.72.0: at most half — an A/B test, the hybrid list stays the control arm
         k.search_anchor_share = min(0.5, max(0.0, float(raw.get("search_anchor_share", 0.0))))
     except (TypeError, ValueError):
