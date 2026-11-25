@@ -1,0 +1,265 @@
+{
+ "library_overdue": {
+  "grade": "none",
+  "kind": "a",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "kitchen_nut_label": {
+  "grade": "none",
+  "kind": "a",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "hospital_floor": {
+  "grade": "none",
+  "kind": "a",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "traffic_must_stop": {
+  "grade": "one_edit",
+  "kind": "a",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "school_passed": {
+  "grade": "none",
+  "kind": "a",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "bank_hold": {
+  "grade": "none",
+  "kind": "a",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "sports_available": {
+  "grade": "one_edit",
+  "kind": "a",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "garden_needs_water": {
+  "grade": "one_edit",
+  "kind": "a",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "office_projector": {
+  "grade": "none",
+  "kind": "a",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "logistics_express": {
+  "grade": "one_edit",
+  "kind": "a",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "family_grandparent": {
+  "grade": "none",
+  "kind": "a",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "library_lendable": {
+  "grade": "iso",
+  "kind": "b",
+  "rules": 1,
+  "rules_with_library_shape": 1,
+  "blocks": [
+   "messung:M3"
+  ]
+ },
+ "school_classmates": {
+  "grade": "none",
+  "kind": "b",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "hospital_triage": {
+  "grade": "none",
+  "kind": "b",
+  "rules": 2,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "kitchen_pan_clash": {
+  "grade": "none",
+  "kind": "b",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "traffic_red_light": {
+  "grade": "none",
+  "kind": "b",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "bank_loan": {
+  "grade": "none",
+  "kind": "b",
+  "rules": 2,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "sports_results": {
+  "grade": "none",
+  "kind": "b",
+  "rules": 4,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "garden_crowded": {
+  "grade": "none",
+  "kind": "b",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "office_signoff": {
+  "grade": "none",
+  "kind": "b",
+  "rules": 2,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "games_rps": {
+  "grade": "none",
+  "kind": "b",
+  "rules": 2,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "logistics_cold_chain": {
+  "grade": "none",
+  "kind": "b",
+  "rules": 1,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "family_ancestor": {
+  "grade": "none",
+  "kind": "c",
+  "rules": 2,
+  "rules_with_library_shape": 1,
+  "blocks": [
+   "code:P1",
+   "kollektiv:P8"
+  ]
+ },
+ "logistics_served": {
+  "grade": "none",
+  "kind": "c",
+  "rules": 2,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "office_top_manager": {
+  "grade": "composition",
+  "kind": "c",
+  "rules": 2,
+  "rules_with_library_shape": 2,
+  "blocks": [
+   "code:P1",
+   "code:P7",
+   "kollektiv:P10",
+   "kollektiv:P11",
+   "kollektiv:P3",
+   "kollektiv:P8"
+  ]
+ },
+ "kitchen_vegetarian": {
+  "grade": "none",
+  "kind": "c",
+  "rules": 2,
+  "rules_with_library_shape": 1,
+  "blocks": [
+   "kollektiv:P3"
+  ]
+ },
+ "school_eligible": {
+  "grade": "none",
+  "kind": "c",
+  "rules": 2,
+  "rules_with_library_shape": 0,
+  "blocks": []
+ },
+ "hospital_exposure": {
+  "grade": "none",
+  "kind": "c",
+  "rules": 2,
+  "rules_with_library_shape": 1,
+  "blocks": [
+   "code:P1"
+  ]
+ },
+ "traffic_gridlock": {
+  "grade": "none",
+  "kind": "c",
+  "rules": 3,
+  "rules_with_library_shape": 2,
+  "blocks": [
+   "code:P1",
+   "kollektiv:P8"
+  ]
+ },
+ "bank_fraud": {
+  "grade": "one_edit",
+  "kind": "c",
+  "rules": 3,
+  "rules_with_library_shape": 2,
+  "blocks": [
+   "code:P1",
+   "kollektiv:P8"
+  ]
+ },
+ "garden_irrigation": {
+  "grade": "none",
+  "kind": "c",
+  "rules": 3,
+  "rules_with_library_shape": 2,
+  "blocks": [
+   "kollektiv:P3",
+   "messung:M2"
+  ]
+ },
+ "sports_ranking": {
+  "grade": "none",
+  "kind": "c",
+  "rules": 4,
+  "rules_with_library_shape": 2,
+  "blocks": [
+   "code:P1",
+   "kollektiv:P11",
+   "kollektiv:P8"
+  ]
+ },
+ "games_levels": {
+  "grade": "none",
+  "kind": "c",
+  "rules": 3,
+  "rules_with_library_shape": 2,
+  "blocks": [
+   "kollektiv:P3",
+   "messung:M2"
+  ]
+ }
+}

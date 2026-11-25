@@ -1,0 +1,93 @@
+{
+ "test_base_rate": 0.012,
+ "no_rule_mdl": 59,
+ "single_rule": {
+  "chosen": "no rule",
+  "size": 0,
+  "valid_mdl": 59,
+  "valid": {
+   "tp": 0,
+   "fp": 0,
+   "fn": 59,
+   "n": 3228,
+   "precision": 0.0,
+   "recall": 0.0,
+   "f1": 0.0
+  },
+  "abstained": true,
+  "test": {
+   "tp": 0,
+   "fp": 0,
+   "fn": 77,
+   "n": 6423,
+   "precision": 0.0,
+   "recall": 0.0,
+   "f1": 0.0
+  },
+  "popper_gate_passed": false,
+  "lift": null
+ },
+ "tree": {
+  "chosen": "no rule",
+  "size": 0,
+  "valid_mdl": 59,
+  "valid": {
+   "tp": 0,
+   "fp": 0,
+   "fn": 59,
+   "n": 3228,
+   "precision": 0.0,
+   "recall": 0.0,
+   "f1": 0.0
+  },
+  "abstained": true,
+  "test": {
+   "tp": 0,
+   "fp": 0,
+   "fn": 77,
+   "n": 6423,
+   "precision": 0.0,
+   "recall": 0.0,
+   "f1": 0.0
+  },
+  "candidates": [
+   {
+    "name": "no rule",
+    "size": 0,
+    "valid_mdl": 59
+   },
+   {
+    "name": "tree depth 1",
+    "size": 2,
+    "valid_mdl": 2421
+   },
+   {
+    "name": "tree depth 2",
+    "size": 6,
+    "valid_mdl": 143
+   },
+   {
+    "name": "tree depth 3",
+    "size": 16,
+    "valid_mdl": 175
+   },
+   {
+    "name": "tree depth 4",
+    "size": 29,
+    "valid_mdl": 416
+   },
+   {
+    "name": "tree depth 5",
+    "size": 44,
+    "valid_mdl": 400
+   },
+   {
+    "name": "tree depth 6",
+    "size": 56,
+    "valid_mdl": 383
+   }
+  ],
+  "popper_gate_passed": false,
+  "lift": null
+ }
+}

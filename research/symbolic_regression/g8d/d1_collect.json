@@ -1,0 +1,2684 @@
+{
+ "runs": 1600,
+ "by_host": {
+  "workstation": 749,
+  "amd": 273,
+  "l02": 578
+ },
+ "duplicates": 297,
+ "duplicate_list": [
+  {
+   "job": "unrequited_follow 0 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:33:29Z",
+    "2026-11-21T22:09:04Z"
+   ]
+  },
+  {
+   "job": "travel_ready 4 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:33:30Z",
+    "2026-11-21T22:09:11Z"
+   ]
+  },
+  {
+   "job": "verdict_changed 2 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:33:44Z",
+    "2026-11-21T22:09:41Z"
+   ]
+  },
+  {
+   "job": "wine_color 8 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:33:33Z",
+    "2026-11-21T22:09:47Z"
+   ]
+  },
+  {
+   "job": "outage_risk 6 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:33:32Z",
+    "2026-11-21T22:09:51Z"
+   ]
+  },
+  {
+   "job": "vulnerable_dependency 4 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:34:07Z",
+    "2026-11-21T22:10:49Z"
+   ]
+  },
+  {
+   "job": "required_by 0 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:33:47Z",
+    "2026-11-21T22:12:57Z"
+   ]
+  },
+  {
+   "job": "task_readiness 3 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:37:11Z",
+    "2026-11-21T22:12:59Z"
+   ]
+  },
+  {
+   "job": "played_on 1 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:33:49Z",
+    "2026-11-21T22:13:00Z"
+   ]
+  },
+  {
+   "job": "barn_quarantine 2 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:37:13Z",
+    "2026-11-21T22:19:29Z"
+   ]
+  },
+  {
+   "job": "unrequited_follow 3 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:37:21Z",
+    "2026-11-21T22:19:41Z"
+   ]
+  },
+  {
+   "job": "gateway_reach 9 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:37:48Z",
+    "2026-11-21T22:20:27Z"
+   ]
+  },
+  {
+   "job": "reachable_port 5 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:42:11Z",
+    "2026-11-21T22:27:20Z"
+   ]
+  },
+  {
+   "job": "faction_ally 7 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:42:39Z",
+    "2026-11-21T22:28:08Z"
+   ]
+  },
+  {
+   "job": "frost_alert 1 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:42:41Z",
+    "2026-11-21T22:28:11Z"
+   ]
+  },
+  {
+   "job": "needs_transfer 2 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:42:53Z",
+    "2026-11-21T22:28:31Z"
+   ]
+  },
+  {
+   "job": "required_by 3 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:42:55Z",
+    "2026-11-21T22:28:34Z"
+   ]
+  },
+  {
+   "job": "required_by 2 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:42:58Z",
+    "2026-11-21T22:28:37Z"
+   ]
+  },
+  {
+   "job": "verdict_changed 2 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:43:02Z",
+    "2026-11-21T22:28:45Z"
+   ]
+  },
+  {
+   "job": "unsupervised_worker 2 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:43:06Z",
+    "2026-11-21T22:28:53Z"
+   ]
+  },
+  {
+   "job": "barn_quarantine 9 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:43:09Z",
+    "2026-11-21T22:28:57Z"
+   ]
+  },
+  {
+   "job": "frost_alert 4 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:43:11Z",
+    "2026-11-21T22:29:01Z"
+   ]
+  },
+  {
+   "job": "needs_transfer 9 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:43:25Z",
+    "2026-11-21T22:29:24Z"
+   ]
+  },
+  {
+   "job": "needs_transfer 2 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:43:42Z",
+    "2026-11-21T22:29:52Z"
+   ]
+  },
+  {
+   "job": "overdue_fire_door 9 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:43:46Z",
+    "2026-11-21T22:29:58Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 4 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:44:40Z",
+    "2026-11-21T22:32:30Z"
+   ]
+  },
+  {
+   "job": "unassignable_case 3 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:54:06Z",
+    "2026-11-21T22:48:36Z"
+   ]
+  },
+  {
+   "job": "non_standard_finish 7 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:05:12Z",
+    "2026-11-21T22:48:43Z"
+   ]
+  },
+  {
+   "job": "split_ticket 5 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:05:52Z",
+    "2026-11-21T22:49:49Z"
+   ]
+  },
+  {
+   "job": "safe_cabinet 4 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T21:58:52Z",
+    "2026-11-21T22:54:52Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 0 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:05:08Z",
+    "2026-11-21T22:57:42Z"
+   ]
+  },
+  {
+   "job": "non_standard_finish 2 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:14:34Z",
+    "2026-11-21T22:57:47Z"
+   ]
+  },
+  {
+   "job": "skipped_stop 6 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:14:41Z",
+    "2026-11-21T22:57:59Z"
+   ]
+  },
+  {
+   "job": "wine_color 7 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:14:45Z",
+    "2026-11-21T22:58:07Z"
+   ]
+  },
+  {
+   "job": "gateway_reach 4 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:15:06Z",
+    "2026-11-21T22:58:45Z"
+   ]
+  },
+  {
+   "job": "unrequited_follow 1 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:15:10Z",
+    "2026-11-21T22:58:50Z"
+   ]
+  },
+  {
+   "job": "same_rank 1 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:14:31Z",
+    "2026-11-21T23:03:48Z"
+   ]
+  },
+  {
+   "job": "ready_understudy 2 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:18:21Z",
+    "2026-11-21T23:03:51Z"
+   ]
+  },
+  {
+   "job": "hub_flight 4 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:18:22Z",
+    "2026-11-21T23:03:52Z"
+   ]
+  },
+  {
+   "job": "frost_alert 0 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:18:24Z",
+    "2026-11-21T23:03:55Z"
+   ]
+  },
+  {
+   "job": "overdue_fire_door 3 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:18:28Z",
+    "2026-11-21T23:04:01Z"
+   ]
+  },
+  {
+   "job": "hub_flight 7 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:18:30Z",
+    "2026-11-21T23:04:04Z"
+   ]
+  },
+  {
+   "job": "connection 1 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:18:46Z",
+    "2026-11-21T23:04:31Z"
+   ]
+  },
+  {
+   "job": "overdue_fire_door 2 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:18:50Z",
+    "2026-11-21T23:04:38Z"
+   ]
+  },
+  {
+   "job": "played_on 8 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:18:53Z",
+    "2026-11-21T23:04:41Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 7 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:18:19Z",
+    "2026-11-21T23:06:46Z"
+   ]
+  },
+  {
+   "job": "vulnerable_dependency 3 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:21:34Z",
+    "2026-11-21T23:06:54Z"
+   ]
+  },
+  {
+   "job": "travel_ready 4 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:21:39Z",
+    "2026-11-21T23:07:01Z"
+   ]
+  },
+  {
+   "job": "vulnerable_dependency 7 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:22:26Z",
+    "2026-11-21T23:08:21Z"
+   ]
+  },
+  {
+   "job": "required_by 4 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:22:29Z",
+    "2026-11-21T23:08:24Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 1 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:21:30Z",
+    "2026-11-21T23:09:49Z"
+   ]
+  },
+  {
+   "job": "unpaid_departure 5 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:24:35Z",
+    "2026-11-21T23:09:54Z"
+   ]
+  },
+  {
+   "job": "unassignable_case 2 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:11:27Z",
+    "2026-11-21T23:14:23Z"
+   ]
+  },
+  {
+   "job": "can_load 0 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:34:51Z",
+    "2026-11-21T23:14:25Z"
+   ]
+  },
+  {
+   "job": "final_delegate 7 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:34:50Z",
+    "2026-11-21T23:27:20Z"
+   ]
+  },
+  {
+   "job": "hub_flight 3 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:35:17Z",
+    "2026-11-21T23:27:22Z"
+   ]
+  },
+  {
+   "job": "needs_transfer 9 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:35:26Z",
+    "2026-11-21T23:27:37Z"
+   ]
+  },
+  {
+   "job": "unsupervised_worker 8 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:35:46Z",
+    "2026-11-21T23:28:03Z"
+   ]
+  },
+  {
+   "job": "non_standard_finish 3 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:35:49Z",
+    "2026-11-21T23:28:08Z"
+   ]
+  },
+  {
+   "job": "final_delegate 5 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:35:15Z",
+    "2026-11-21T23:29:52Z"
+   ]
+  },
+  {
+   "job": "same_rank 3 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:24:32Z",
+    "2026-11-21T23:34:12Z"
+   ]
+  },
+  {
+   "job": "frost_alert 9 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:48:02Z",
+    "2026-11-21T23:34:25Z"
+   ]
+  },
+  {
+   "job": "faction_ally 1 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:36:05Z",
+    "2026-11-21T23:34:30Z"
+   ]
+  },
+  {
+   "job": "skipped_stop 5 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:50:41Z",
+    "2026-11-21T23:34:38Z"
+   ]
+  },
+  {
+   "job": "final_delegate 6 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:50:35Z",
+    "2026-11-21T23:38:39Z"
+   ]
+  },
+  {
+   "job": "task_readiness 5 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:48:00Z",
+    "2026-11-21T23:41:18Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 7 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:59:24Z",
+    "2026-11-21T23:41:29Z"
+   ]
+  },
+  {
+   "job": "non_standard_finish 6 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:59:39Z",
+    "2026-11-21T23:42:00Z"
+   ]
+  },
+  {
+   "job": "wine_color 7 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:59:50Z",
+    "2026-11-21T23:42:18Z"
+   ]
+  },
+  {
+   "job": "travel_ready 0 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:59:54Z",
+    "2026-11-21T23:42:24Z"
+   ]
+  },
+  {
+   "job": "played_on 0 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:59:56Z",
+    "2026-11-21T23:42:27Z"
+   ]
+  },
+  {
+   "job": "unassignable_case 4 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:43:48Z",
+    "2026-11-21T23:42:47Z"
+   ]
+  },
+  {
+   "job": "gateway_reach 3 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:00:24Z",
+    "2026-11-21T23:43:15Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 3 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:02:23Z",
+    "2026-11-21T23:43:25Z"
+   ]
+  },
+  {
+   "job": "connection 9 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:02:35Z",
+    "2026-11-21T23:43:46Z"
+   ]
+  },
+  {
+   "job": "outage_risk 9 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:02:37Z",
+    "2026-11-21T23:43:48Z"
+   ]
+  },
+  {
+   "job": "non_standard_finish 6 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:02:40Z",
+    "2026-11-21T23:43:54Z"
+   ]
+  },
+  {
+   "job": "unrequited_follow 5 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:02:48Z",
+    "2026-11-21T23:44:06Z"
+   ]
+  },
+  {
+   "job": "dead_bus 9 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:52:34Z",
+    "2026-11-21T23:45:30Z"
+   ]
+  },
+  {
+   "job": "unrequited_follow 5 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:05:22Z",
+    "2026-11-21T23:45:36Z"
+   ]
+  },
+  {
+   "job": "frost_alert 3 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:05:24Z",
+    "2026-11-21T23:45:39Z"
+   ]
+  },
+  {
+   "job": "vulnerable_dependency 2 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:05:41Z",
+    "2026-11-21T23:46:08Z"
+   ]
+  },
+  {
+   "job": "split_ticket 7 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:06:22Z",
+    "2026-11-21T23:47:17Z"
+   ]
+  },
+  {
+   "job": "flammable_shelf 2 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:06:26Z",
+    "2026-11-21T23:47:22Z"
+   ]
+  },
+  {
+   "job": "safe_cabinet 4 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T22:59:17Z",
+    "2026-11-21T23:49:42Z"
+   ]
+  },
+  {
+   "job": "can_load 4 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:08:51Z",
+    "2026-11-21T23:49:44Z"
+   ]
+  },
+  {
+   "job": "same_rank 5 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:08:50Z",
+    "2026-11-21T23:56:11Z"
+   ]
+  },
+  {
+   "job": "frost_alert 7 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:13:43Z",
+    "2026-11-21T23:56:13Z"
+   ]
+  },
+  {
+   "job": "claim_decision 6 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:13:52Z",
+    "2026-11-21T23:56:28Z"
+   ]
+  },
+  {
+   "job": "claim_decision 1 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:14:02Z",
+    "2026-11-21T23:56:48Z"
+   ]
+  },
+  {
+   "job": "hub_flight 3 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:13:53Z",
+    "2026-11-21T23:56:50Z"
+   ]
+  },
+  {
+   "job": "verdict_changed 5 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:14:13Z",
+    "2026-11-21T23:57:22Z"
+   ]
+  },
+  {
+   "job": "verdict_changed 5 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:14:08Z",
+    "2026-11-21T23:57:31Z"
+   ]
+  },
+  {
+   "job": "claim_decision 6 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:14:13Z",
+    "2026-11-21T23:57:40Z"
+   ]
+  },
+  {
+   "job": "needs_coach 8 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:05:18Z",
+    "2026-11-21T23:59:46Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 5 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:14:23Z",
+    "2026-11-22T00:00:02Z"
+   ]
+  },
+  {
+   "job": "skipped_stop 1 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:14:28Z",
+    "2026-11-22T00:00:10Z"
+   ]
+  },
+  {
+   "job": "task_readiness 2 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:13:50Z",
+    "2026-11-22T00:00:13Z"
+   ]
+  },
+  {
+   "job": "barn_quarantine 8 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:15:34Z",
+    "2026-11-22T00:00:16Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 5 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:15:33Z",
+    "2026-11-22T00:00:48Z"
+   ]
+  },
+  {
+   "job": "overdue_fire_door 8 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:16:06Z",
+    "2026-11-22T00:00:54Z"
+   ]
+  },
+  {
+   "job": "needs_transfer 8 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:16:02Z",
+    "2026-11-22T00:01:00Z"
+   ]
+  },
+  {
+   "job": "same_rank 6 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:13:41Z",
+    "2026-11-22T00:01:02Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 5 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:23:39Z",
+    "2026-11-22T00:01:10Z"
+   ]
+  },
+  {
+   "job": "travel_ready 9 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:23:43Z",
+    "2026-11-22T00:01:15Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 2 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:02:16Z",
+    "2026-11-22T00:11:46Z"
+   ]
+  },
+  {
+   "job": "dead_bus 4 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:22:20Z",
+    "2026-11-22T00:12:09Z"
+   ]
+  },
+  {
+   "job": "required_by 4 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:32:10Z",
+    "2026-11-22T00:12:13Z"
+   ]
+  },
+  {
+   "job": "skipped_stop 8 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:32:21Z",
+    "2026-11-22T00:12:30Z"
+   ]
+  },
+  {
+   "job": "multi_homed 6 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:29:33Z",
+    "2026-11-22T00:13:08Z"
+   ]
+  },
+  {
+   "job": "outage_risk 6 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:39:49Z",
+    "2026-11-22T00:13:10Z"
+   ]
+  },
+  {
+   "job": "needs_coach 9 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:23:35Z",
+    "2026-11-22T00:13:50Z"
+   ]
+  },
+  {
+   "job": "final_delegate 9 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:39:47Z",
+    "2026-11-22T00:25:00Z"
+   ]
+  },
+  {
+   "job": "unsupervised_worker 9 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:45:26Z",
+    "2026-11-22T00:25:07Z"
+   ]
+  },
+  {
+   "job": "split_ticket 1 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:48:30Z",
+    "2026-11-22T00:30:19Z"
+   ]
+  },
+  {
+   "job": "rehab_status 7 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:48:34Z",
+    "2026-11-22T00:30:26Z"
+   ]
+  },
+  {
+   "job": "trapped_room 6 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:32:07Z",
+    "2026-11-22T00:30:41Z"
+   ]
+  },
+  {
+   "job": "outage_risk 9 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:49:33Z",
+    "2026-11-22T00:30:44Z"
+   ]
+  },
+  {
+   "job": "outage_risk 5 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:49:34Z",
+    "2026-11-22T00:30:46Z"
+   ]
+  },
+  {
+   "job": "unpaid_departure 6 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:49:31Z",
+    "2026-11-22T00:32:04Z"
+   ]
+  },
+  {
+   "job": "ready_understudy 6 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:54:55Z",
+    "2026-11-22T00:32:06Z"
+   ]
+  },
+  {
+   "job": "multi_homed 0 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:54:53Z",
+    "2026-11-22T00:38:29Z"
+   ]
+  },
+  {
+   "job": "multi_homed 9 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:57:05Z",
+    "2026-11-22T00:38:35Z"
+   ]
+  },
+  {
+   "job": "trapped_room 8 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:45:21Z",
+    "2026-11-22T00:38:56Z"
+   ]
+  },
+  {
+   "job": "rehab_status 2 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:02:41Z",
+    "2026-11-22T00:39:12Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 2 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:02:46Z",
+    "2026-11-22T00:39:19Z"
+   ]
+  },
+  {
+   "job": "faction_ally 9 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-21T23:56:27Z",
+    "2026-11-22T00:42:36Z"
+   ]
+  },
+  {
+   "job": "claim_decision 8 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:07:41Z",
+    "2026-11-22T00:42:48Z"
+   ]
+  },
+  {
+   "job": "played_on 2 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:09:27Z",
+    "2026-11-22T00:43:10Z"
+   ]
+  },
+  {
+   "job": "ready_understudy 0 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:09:30Z",
+    "2026-11-22T00:43:13Z"
+   ]
+  },
+  {
+   "job": "outage_risk 4 C",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:09:32Z",
+    "2026-11-22T00:43:16Z"
+   ]
+  },
+  {
+   "job": "needs_coach 0 U",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:02:31Z",
+    "2026-11-22T00:45:17Z"
+   ]
+  },
+  {
+   "job": "safe_cabinet 1 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:09:25Z",
+    "2026-11-22T00:50:35Z"
+   ]
+  },
+  {
+   "job": "trapped_room 4 P",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:14:31Z",
+    "2026-11-22T00:54:35Z"
+   ]
+  },
+  {
+   "job": "safe_cabinet 5 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:07:33Z",
+    "2026-11-22T00:56:59Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 8 Cs",
+   "kept": "workstation",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:12:33Z",
+    "2026-11-22T01:04:11Z"
+   ]
+  },
+  {
+   "job": "barn_quarantine 7 P",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:17:24Z",
+    "2026-11-21T21:23:06Z"
+   ]
+  },
+  {
+   "job": "outage_risk 3 C",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:17:21Z",
+    "2026-11-21T21:23:10Z"
+   ]
+  },
+  {
+   "job": "unpaid_departure 1 U",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:17:18Z",
+    "2026-11-21T21:23:17Z"
+   ]
+  },
+  {
+   "job": "played_on 1 Cs",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:17:12Z",
+    "2026-11-21T21:23:22Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 5 P",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:16:07Z",
+    "2026-11-21T21:26:20Z"
+   ]
+  },
+  {
+   "job": "unpaid_departure 1 P",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:14:53Z",
+    "2026-11-21T21:37:46Z"
+   ]
+  },
+  {
+   "job": "outage_risk 1 U",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:14:41Z",
+    "2026-11-21T21:37:48Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 8 U",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:14:46Z",
+    "2026-11-21T21:37:50Z"
+   ]
+  },
+  {
+   "job": "misshelved 9 Cs",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:14:39Z",
+    "2026-11-21T21:38:06Z"
+   ]
+  },
+  {
+   "job": "misshelved 1 P",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:12:00Z",
+    "2026-11-21T21:38:20Z"
+   ]
+  },
+  {
+   "job": "final_delegate 5 P",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:11:49Z",
+    "2026-11-21T21:41:52Z"
+   ]
+  },
+  {
+   "job": "ready_understudy 3 Cs",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:06:33Z",
+    "2026-11-21T21:41:55Z"
+   ]
+  },
+  {
+   "job": "hub_flight 2 U",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:06:30Z",
+    "2026-11-21T21:41:57Z"
+   ]
+  },
+  {
+   "job": "hub_flight 6 C",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:04:26Z",
+    "2026-11-21T21:45:40Z"
+   ]
+  },
+  {
+   "job": "hub_flight 2 Cs",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:04:24Z",
+    "2026-11-21T21:45:43Z"
+   ]
+  },
+  {
+   "job": "hub_flight 6 Cs",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:04:21Z",
+    "2026-11-21T21:45:47Z"
+   ]
+  },
+  {
+   "job": "vulnerable_dependency 1 U",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:04:18Z",
+    "2026-11-21T21:45:55Z"
+   ]
+  },
+  {
+   "job": "split_ticket 1 U",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:06:28Z",
+    "2026-11-21T21:48:42Z"
+   ]
+  },
+  {
+   "job": "hub_flight 8 Cs",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:04:08Z",
+    "2026-11-21T21:48:44Z"
+   ]
+  },
+  {
+   "job": "reachable_port 4 U",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:15:49Z",
+    "2026-11-21T21:52:51Z"
+   ]
+  },
+  {
+   "job": "split_ticket 6 P",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:03:40Z",
+    "2026-11-21T21:54:38Z"
+   ]
+  },
+  {
+   "job": "unsupervised_worker 6 U",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:02:11Z",
+    "2026-11-21T21:54:47Z"
+   ]
+  },
+  {
+   "job": "wine_color 8 C",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:57:09Z",
+    "2026-11-21T22:00:03Z"
+   ]
+  },
+  {
+   "job": "pen_exposure 1 P",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:14:24Z",
+    "2026-11-21T22:01:40Z"
+   ]
+  },
+  {
+   "job": "rehab_status 9 U",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:56:00Z",
+    "2026-11-21T22:01:44Z"
+   ]
+  },
+  {
+   "job": "dead_bus 3 Cs",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:04:05Z",
+    "2026-11-21T22:02:55Z"
+   ]
+  },
+  {
+   "job": "hub_flight 4 C",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:54:49Z",
+    "2026-11-21T22:02:58Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 6 C",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:54:47Z",
+    "2026-11-21T22:03:12Z"
+   ]
+  },
+  {
+   "job": "safe_cabinet 7 P",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:06:28Z",
+    "2026-11-21T22:16:01Z"
+   ]
+  },
+  {
+   "job": "wine_color 7 C",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:45:46Z",
+    "2026-11-21T22:16:13Z"
+   ]
+  },
+  {
+   "job": "same_rank 7 U",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:08:51Z",
+    "2026-11-21T22:16:30Z"
+   ]
+  },
+  {
+   "job": "claim_decision 9 C",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:45:36Z",
+    "2026-11-21T22:16:36Z"
+   ]
+  },
+  {
+   "job": "unrequited_follow 3 P",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:43:22Z",
+    "2026-11-21T22:16:44Z"
+   ]
+  },
+  {
+   "job": "outage_risk 4 C",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-22T00:09:32Z",
+    "2026-11-21T22:16:48Z"
+   ]
+  },
+  {
+   "job": "played_on 2 Cs",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-22T00:09:27Z",
+    "2026-11-21T22:16:52Z"
+   ]
+  },
+  {
+   "job": "ready_understudy 0 C",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-22T00:09:30Z",
+    "2026-11-21T22:16:52Z"
+   ]
+  },
+  {
+   "job": "claim_decision 8 U",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-22T00:07:41Z",
+    "2026-11-21T22:17:06Z"
+   ]
+  },
+  {
+   "job": "same_rank 9 P",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:02:03Z",
+    "2026-11-21T22:30:55Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 2 P",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-22T00:02:46Z",
+    "2026-11-21T22:31:04Z"
+   ]
+  },
+  {
+   "job": "safe_cabinet 1 P",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-22T00:09:25Z",
+    "2026-11-21T22:31:06Z"
+   ]
+  },
+  {
+   "job": "rehab_status 2 Cs",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-22T00:02:41Z",
+    "2026-11-21T22:31:24Z"
+   ]
+  },
+  {
+   "job": "trapped_room 4 P",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-22T00:14:31Z",
+    "2026-11-21T22:31:28Z"
+   ]
+  },
+  {
+   "job": "dead_bus 0 U",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T00:55:56Z",
+    "2026-11-21T22:32:06Z"
+   ]
+  },
+  {
+   "job": "ready_understudy 6 C",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:54:55Z",
+    "2026-11-21T22:32:11Z"
+   ]
+  },
+  {
+   "job": "needs_coach 9 C",
+   "kept": "amd",
+   "dropped": "l02",
+   "times": [
+    "2026-11-22T01:17:09Z",
+    "2026-11-21T22:36:13Z"
+   ]
+  },
+  {
+   "job": "outage_risk 5 U",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:49:34Z",
+    "2026-11-21T22:36:15Z"
+   ]
+  },
+  {
+   "job": "outage_risk 9 Cs",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:49:33Z",
+    "2026-11-21T22:36:18Z"
+   ]
+  },
+  {
+   "job": "unpaid_departure 6 C",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:49:31Z",
+    "2026-11-21T22:38:05Z"
+   ]
+  },
+  {
+   "job": "rehab_status 7 U",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:48:34Z",
+    "2026-11-21T22:38:12Z"
+   ]
+  },
+  {
+   "job": "split_ticket 1 Cs",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:48:30Z",
+    "2026-11-21T22:44:17Z"
+   ]
+  },
+  {
+   "job": "unsupervised_worker 9 U",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:45:26Z",
+    "2026-11-21T22:44:27Z"
+   ]
+  },
+  {
+   "job": "faction_ally 9 C",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:56:27Z",
+    "2026-11-21T22:46:13Z"
+   ]
+  },
+  {
+   "job": "needs_coach 0 U",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-22T00:02:31Z",
+    "2026-11-21T22:47:25Z"
+   ]
+  },
+  {
+   "job": "outage_risk 6 P",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:39:49Z",
+    "2026-11-21T22:47:28Z"
+   ]
+  },
+  {
+   "job": "safe_cabinet 5 Cs",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-22T00:07:33Z",
+    "2026-11-21T22:53:33Z"
+   ]
+  },
+  {
+   "job": "skipped_stop 8 Cs",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:32:21Z",
+    "2026-11-21T22:53:54Z"
+   ]
+  },
+  {
+   "job": "required_by 4 P",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:32:10Z",
+    "2026-11-21T22:53:59Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 8 Cs",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-22T00:12:33Z",
+    "2026-11-21T23:02:27Z"
+   ]
+  },
+  {
+   "job": "final_delegate 9 Cs",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:39:47Z",
+    "2026-11-21T23:02:39Z"
+   ]
+  },
+  {
+   "job": "travel_ready 9 U",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:23:43Z",
+    "2026-11-21T23:02:47Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 5 U",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:23:39Z",
+    "2026-11-21T23:02:56Z"
+   ]
+  },
+  {
+   "job": "multi_homed 9 Cs",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:57:05Z",
+    "2026-11-21T23:13:46Z"
+   ]
+  },
+  {
+   "job": "multi_homed 0 Cs",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:54:53Z",
+    "2026-11-21T23:16:30Z"
+   ]
+  },
+  {
+   "job": "overdue_fire_door 8 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:16:06Z",
+    "2026-11-21T23:16:38Z"
+   ]
+  },
+  {
+   "job": "multi_homed 6 P",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:29:33Z",
+    "2026-11-21T23:17:19Z"
+   ]
+  },
+  {
+   "job": "barn_quarantine 8 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:15:34Z",
+    "2026-11-21T23:17:21Z"
+   ]
+  },
+  {
+   "job": "needs_transfer 8 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:16:02Z",
+    "2026-11-21T23:17:30Z"
+   ]
+  },
+  {
+   "job": "skipped_stop 1 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:14:28Z",
+    "2026-11-21T23:17:39Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 5 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:14:23Z",
+    "2026-11-21T23:17:58Z"
+   ]
+  },
+  {
+   "job": "trapped_room 8 Cs",
+   "kept": "amd",
+   "dropped": "workstation",
+   "times": [
+    "2026-11-21T23:45:21Z",
+    "2026-11-21T23:26:05Z"
+   ]
+  },
+  {
+   "job": "claim_decision 6 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:14:13Z",
+    "2026-11-21T23:26:16Z"
+   ]
+  },
+  {
+   "job": "verdict_changed 5 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:14:08Z",
+    "2026-11-21T23:26:27Z"
+   ]
+  },
+  {
+   "job": "verdict_changed 5 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:14:13Z",
+    "2026-11-21T23:27:04Z"
+   ]
+  },
+  {
+   "job": "hub_flight 3 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:13:53Z",
+    "2026-11-21T23:27:07Z"
+   ]
+  },
+  {
+   "job": "claim_decision 1 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:14:02Z",
+    "2026-11-21T23:27:31Z"
+   ]
+  },
+  {
+   "job": "claim_decision 6 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:13:52Z",
+    "2026-11-21T23:27:49Z"
+   ]
+  },
+  {
+   "job": "frost_alert 7 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:13:43Z",
+    "2026-11-21T23:27:51Z"
+   ]
+  },
+  {
+   "job": "needs_coach 9 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:23:35Z",
+    "2026-11-21T23:29:24Z"
+   ]
+  },
+  {
+   "job": "can_load 4 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:08:51Z",
+    "2026-11-21T23:29:26Z"
+   ]
+  },
+  {
+   "job": "dead_bus 4 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:22:20Z",
+    "2026-11-21T23:34:50Z"
+   ]
+  },
+  {
+   "job": "flammable_shelf 2 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:06:26Z",
+    "2026-11-21T23:34:56Z"
+   ]
+  },
+  {
+   "job": "split_ticket 7 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:06:22Z",
+    "2026-11-21T23:36:15Z"
+   ]
+  },
+  {
+   "job": "vulnerable_dependency 2 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:05:41Z",
+    "2026-11-21T23:36:47Z"
+   ]
+  },
+  {
+   "job": "frost_alert 3 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:05:24Z",
+    "2026-11-21T23:36:50Z"
+   ]
+  },
+  {
+   "job": "unrequited_follow 5 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:05:22Z",
+    "2026-11-21T23:36:58Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 5 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:15:33Z",
+    "2026-11-21T23:40:52Z"
+   ]
+  },
+  {
+   "job": "unrequited_follow 5 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:02:48Z",
+    "2026-11-21T23:41:06Z"
+   ]
+  },
+  {
+   "job": "non_standard_finish 6 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:02:40Z",
+    "2026-11-21T23:41:13Z"
+   ]
+  },
+  {
+   "job": "outage_risk 9 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:02:37Z",
+    "2026-11-21T23:41:16Z"
+   ]
+  },
+  {
+   "job": "connection 9 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:02:35Z",
+    "2026-11-21T23:41:41Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 3 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:02:23Z",
+    "2026-11-21T23:41:54Z"
+   ]
+  },
+  {
+   "job": "task_readiness 2 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:13:50Z",
+    "2026-11-21T23:44:12Z"
+   ]
+  },
+  {
+   "job": "gateway_reach 3 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:00:24Z",
+    "2026-11-21T23:45:08Z"
+   ]
+  },
+  {
+   "job": "played_on 0 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:59:56Z",
+    "2026-11-21T23:45:12Z"
+   ]
+  },
+  {
+   "job": "travel_ready 0 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:59:54Z",
+    "2026-11-21T23:45:21Z"
+   ]
+  },
+  {
+   "job": "wine_color 7 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:59:50Z",
+    "2026-11-21T23:45:41Z"
+   ]
+  },
+  {
+   "job": "non_standard_finish 6 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:59:39Z",
+    "2026-11-21T23:46:09Z"
+   ]
+  },
+  {
+   "job": "recommendation_loop 7 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:59:24Z",
+    "2026-11-21T23:46:22Z"
+   ]
+  },
+  {
+   "job": "trapped_room 6 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:32:07Z",
+    "2026-11-21T23:52:53Z"
+   ]
+  },
+  {
+   "job": "same_rank 6 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:13:41Z",
+    "2026-11-21T23:57:40Z"
+   ]
+  },
+  {
+   "job": "skipped_stop 5 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:50:41Z",
+    "2026-11-21T23:57:50Z"
+   ]
+  },
+  {
+   "job": "same_rank 5 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:08:50Z",
+    "2026-11-21T23:57:56Z"
+   ]
+  },
+  {
+   "job": "frost_alert 9 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:48:02Z",
+    "2026-11-21T23:57:59Z"
+   ]
+  },
+  {
+   "job": "safe_cabinet 4 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:59:17Z",
+    "2026-11-21T23:59:00Z"
+   ]
+  },
+  {
+   "job": "final_delegate 6 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:50:35Z",
+    "2026-11-22T00:02:47Z"
+   ]
+  },
+  {
+   "job": "non_standard_finish 3 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:35:49Z",
+    "2026-11-22T00:05:16Z"
+   ]
+  },
+  {
+   "job": "unsupervised_worker 8 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:35:46Z",
+    "2026-11-22T00:05:48Z"
+   ]
+  },
+  {
+   "job": "needs_transfer 9 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:35:26Z",
+    "2026-11-22T00:06:03Z"
+   ]
+  },
+  {
+   "job": "hub_flight 3 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:35:17Z",
+    "2026-11-22T00:06:06Z"
+   ]
+  },
+  {
+   "job": "task_readiness 5 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:48:00Z",
+    "2026-11-22T00:06:12Z"
+   ]
+  },
+  {
+   "job": "can_load 0 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:34:51Z",
+    "2026-11-22T00:06:14Z"
+   ]
+  },
+  {
+   "job": "unassignable_case 4 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:43:48Z",
+    "2026-11-22T00:14:16Z"
+   ]
+  },
+  {
+   "job": "unpaid_departure 5 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:24:35Z",
+    "2026-11-22T00:14:24Z"
+   ]
+  },
+  {
+   "job": "needs_coach 8 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:05:18Z",
+    "2026-11-22T00:22:20Z"
+   ]
+  },
+  {
+   "job": "required_by 4 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:22:29Z",
+    "2026-11-22T00:22:24Z"
+   ]
+  },
+  {
+   "job": "vulnerable_dependency 7 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:22:26Z",
+    "2026-11-22T00:23:53Z"
+   ]
+  },
+  {
+   "job": "travel_ready 4 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:21:39Z",
+    "2026-11-22T00:24:02Z"
+   ]
+  },
+  {
+   "job": "vulnerable_dependency 3 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:21:34Z",
+    "2026-11-22T00:24:10Z"
+   ]
+  },
+  {
+   "job": "final_delegate 7 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:34:50Z",
+    "2026-11-22T00:26:19Z"
+   ]
+  },
+  {
+   "job": "played_on 8 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:18:53Z",
+    "2026-11-22T00:26:23Z"
+   ]
+  },
+  {
+   "job": "overdue_fire_door 2 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:18:50Z",
+    "2026-11-22T00:26:31Z"
+   ]
+  },
+  {
+   "job": "connection 1 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:18:46Z",
+    "2026-11-22T00:27:03Z"
+   ]
+  },
+  {
+   "job": "hub_flight 7 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:18:30Z",
+    "2026-11-22T00:27:06Z"
+   ]
+  },
+  {
+   "job": "overdue_fire_door 3 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:18:28Z",
+    "2026-11-22T00:27:13Z"
+   ]
+  },
+  {
+   "job": "frost_alert 0 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:18:24Z",
+    "2026-11-22T00:27:17Z"
+   ]
+  },
+  {
+   "job": "hub_flight 4 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:18:22Z",
+    "2026-11-22T00:27:19Z"
+   ]
+  },
+  {
+   "job": "ready_understudy 2 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:18:21Z",
+    "2026-11-22T00:27:22Z"
+   ]
+  },
+  {
+   "job": "final_delegate 5 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:35:15Z",
+    "2026-11-22T00:39:01Z"
+   ]
+  },
+  {
+   "job": "unrequited_follow 1 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:15:10Z",
+    "2026-11-22T00:39:08Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 1 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:21:30Z",
+    "2026-11-22T00:39:41Z"
+   ]
+  },
+  {
+   "job": "wine_color 7 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:14:45Z",
+    "2026-11-22T00:39:50Z"
+   ]
+  },
+  {
+   "job": "gateway_reach 4 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:15:06Z",
+    "2026-11-22T00:39:50Z"
+   ]
+  },
+  {
+   "job": "non_standard_finish 2 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:14:34Z",
+    "2026-11-22T00:39:56Z"
+   ]
+  },
+  {
+   "job": "skipped_stop 6 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:14:41Z",
+    "2026-11-22T00:40:03Z"
+   ]
+  },
+  {
+   "job": "dead_bus 9 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:52:34Z",
+    "2026-11-22T00:41:45Z"
+   ]
+  },
+  {
+   "job": "split_ticket 5 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:05:52Z",
+    "2026-11-22T00:43:03Z"
+   ]
+  },
+  {
+   "job": "non_standard_finish 7 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:05:12Z",
+    "2026-11-22T00:43:11Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 7 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:18:19Z",
+    "2026-11-22T00:53:38Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 2 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T23:02:16Z",
+    "2026-11-22T00:53:49Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 0 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:05:08Z",
+    "2026-11-22T00:55:54Z"
+   ]
+  },
+  {
+   "job": "same_rank 1 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:14:31Z",
+    "2026-11-22T00:57:09Z"
+   ]
+  },
+  {
+   "job": "overdue_fire_door 9 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:43:46Z",
+    "2026-11-22T00:57:16Z"
+   ]
+  },
+  {
+   "job": "needs_transfer 2 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:43:42Z",
+    "2026-11-22T00:57:50Z"
+   ]
+  },
+  {
+   "job": "needs_transfer 9 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:43:25Z",
+    "2026-11-22T00:58:19Z"
+   ]
+  },
+  {
+   "job": "frost_alert 4 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:43:11Z",
+    "2026-11-22T00:58:23Z"
+   ]
+  },
+  {
+   "job": "barn_quarantine 9 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:43:09Z",
+    "2026-11-22T00:58:27Z"
+   ]
+  },
+  {
+   "job": "unsupervised_worker 2 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:43:06Z",
+    "2026-11-22T00:58:35Z"
+   ]
+  },
+  {
+   "job": "verdict_changed 2 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:43:02Z",
+    "2026-11-22T00:58:44Z"
+   ]
+  },
+  {
+   "job": "required_by 2 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:42:58Z",
+    "2026-11-22T00:58:48Z"
+   ]
+  },
+  {
+   "job": "required_by 3 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:42:55Z",
+    "2026-11-22T00:58:51Z"
+   ]
+  },
+  {
+   "job": "needs_transfer 2 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:42:53Z",
+    "2026-11-22T00:59:13Z"
+   ]
+  },
+  {
+   "job": "frost_alert 1 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:42:41Z",
+    "2026-11-22T00:59:17Z"
+   ]
+  },
+  {
+   "job": "faction_ally 1 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T22:36:05Z",
+    "2026-11-22T00:59:38Z"
+   ]
+  },
+  {
+   "job": "faction_ally 7 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:42:39Z",
+    "2026-11-22T01:00:10Z"
+   ]
+  },
+  {
+   "job": "gateway_reach 9 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:37:48Z",
+    "2026-11-22T01:01:01Z"
+   ]
+  },
+  {
+   "job": "unrequited_follow 3 Cs",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:37:21Z",
+    "2026-11-22T01:01:16Z"
+   ]
+  },
+  {
+   "job": "barn_quarantine 2 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:37:13Z",
+    "2026-11-22T01:01:20Z"
+   ]
+  },
+  {
+   "job": "unassignable_case 3 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:54:06Z",
+    "2026-11-22T01:12:32Z"
+   ]
+  },
+  {
+   "job": "sighting_confirmation 4 U",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:44:40Z",
+    "2026-11-22T01:12:56Z"
+   ]
+  },
+  {
+   "job": "played_on 1 P",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:33:49Z",
+    "2026-11-22T01:13:00Z"
+   ]
+  },
+  {
+   "job": "required_by 0 C",
+   "kept": "workstation",
+   "dropped": "amd",
+   "times": [
+    "2026-11-21T21:33:47Z",
+    "2026-11-22T01:13:04Z"
+   ]
+  }
+ ]
+}

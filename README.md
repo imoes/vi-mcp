@@ -248,6 +248,36 @@ every value), `messung` (only an applicable measurement admits a statement) and 
 
 Step by step: [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) (also the initial skill `philosophy`).
 
+## Symbolic regression — new insight from experience (research)
+
+> **Status:** research, not yet part of the package. Measurements and limits: [docs/EXAPTATION_PAPER.md](docs/EXAPTATION_PAPER.md)
+> §5.8–5.9.
+
+**Well-known quotes with the same core idea**
+
+- **Arthur Schopenhauer** (often quoted, paraphrased): a closely related and widely quoted thought reads: "Talent hits a target no one
+  else can hit; genius hits a target no one else can see." Schopenhauer also defined genius as the capacity for pure, objective
+  contemplation that recognises the essence and the hidden ideas of things.
+- **Steve Jobs** (on creativity): asked about innovation and genius, the Apple co-founder said, in substance: "Creativity is just
+  connecting things." Whoever has many different experiences sees connections that stay hidden to others.
+- **Albert Einstein:** Einstein, too, is often linked to the thought that true insight does not lie in mere knowledge but in recognising
+  the patterns and connections behind the obvious facts.
+
+**What symbolic regression makes of it.** Instead of prescribing a formula, an evolutionary search (genetic programming) looks for the
+shortest rule that fits the data: mutation changes predicates, variables, constants and negation; crossover **connects** parts of two
+rules (Jobs); invented helper predicates are new concepts behind the facts (Einstein); selection favours fit **and** shortness. A
+candidate counts only if it answers alike on **every** world of an exhaustively enumerated domain and on large worlds with values never
+seen — otherwise it is talent, not genius (Schopenhauer): a solution that listed the known colours hit every training world and failed
+on a new party; only the general law "a supporter of party P and one not in P" holds.
+
+Measured (G8b-0, no template at all, 60 runs): 5 of 6 mechanisms recovered, among them a self-invented recursive closure, and once a
+**shorter** law than the human reference. A library of mechanisms from another purpose helps when a mechanism fits as it is (found
+in the start phase in 25.7 % vs 10.4 % of runs with the library rewired), but not as a seed for a modified one (G8b-1, pre-registered,
+1,320 runs). Rules searched over the VI's own experiences did not yet hold on later experiences (G9): the selection picked a rule that
+drifted. So far every failure was in the selection, not the search — which is what the next steps change. The limit stays: the search
+hits targets the data give it — which question is worth asking, it does not decide. The research log, with every step, result and
+file: [docs/SYMBOLIC_REGRESSION.md](docs/SYMBOLIC_REGRESSION.md).
+
 ## Install
 
 | System | How | Service |

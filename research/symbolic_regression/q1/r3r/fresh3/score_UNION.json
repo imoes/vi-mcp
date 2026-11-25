@@ -1,0 +1,109 @@
+{
+ "tiebreak": true,
+ "title_anchor": true,
+ "scores": {
+  "ALL": {
+   "n": 400,
+   "ours_em": 0.675,
+   "official_em_gold": 0.6725,
+   "official_em_alias": 0.71,
+   "official_f1_gold": 0.7272,
+   "official_f1_alias": 0.744
+  },
+  "bridge_comparison": {
+   "n": 100,
+   "ours_em": 0.96,
+   "official_em_gold": 0.96,
+   "official_em_alias": 0.96,
+   "official_f1_gold": 0.96,
+   "official_f1_alias": 0.96
+  },
+  "comparison": {
+   "n": 100,
+   "ours_em": 0.97,
+   "official_em_gold": 0.97,
+   "official_em_alias": 0.97,
+   "official_f1_gold": 0.97,
+   "official_f1_alias": 0.97
+  },
+  "compositional": {
+   "n": 100,
+   "ours_em": 0.35,
+   "official_em_gold": 0.34,
+   "official_em_alias": 0.45,
+   "official_f1_gold": 0.4336,
+   "official_f1_alias": 0.4861
+  },
+  "inference": {
+   "n": 100,
+   "ours_em": 0.42,
+   "official_em_gold": 0.42,
+   "official_em_alias": 0.46,
+   "official_f1_gold": 0.5452,
+   "official_f1_alias": 0.5599
+  }
+ },
+ "examples": {
+  "compositional": [
+   {
+    "q": "What is the place of birth of the founder of university Fundación Universidad Del Cine?",
+    "gold": "Las Palmas, Chaco",
+    "pred": "Las Palmas"
+   },
+   {
+    "q": "What is the place of birth of the director of film Une Si Jolie Petite Plage?",
+    "gold": "Asnières",
+    "pred": "Asnières-sur-Seine"
+   },
+   {
+    "q": "Where was the performer of song Where U Been? (Song) born?",
+    "gold": "College Park, Georgia",
+    "pred": "College Park"
+   },
+   {
+    "q": "Where was the director of film Politics Of Love born?",
+    "gold": "Toronto, Ontario",
+    "pred": "Toronto"
+   },
+   {
+    "q": "What is the place of birth of the director of film That French Lady?",
+    "gold": "New York",
+    "pred": "New York, New York"
+   },
+   {
+    "q": "Where did the director of film Death Of A Nation (2018 Film) graduate from?",
+    "gold": "Dartmouth",
+    "pred": "Dartmouth College"
+   }
+  ],
+  "lost:compositional": [
+   {
+    "q": "Where was the place of death of Helena (Empress)'s husband?",
+    "gold": "Eboracum",
+    "pred": "Eboracum (York)"
+   }
+  ],
+  "inference": [
+   {
+    "q": "Who is John Of Luxembourg, Count Of Soissons's maternal grandfather?",
+    "gold": "Robert of Bar, Count of Marle and Soissons",
+    "pred": "Robert of Bar, Count of Marle"
+   },
+   {
+    "q": "Who is Ferdinand, Count Of Flanders's maternal grandfather?",
+    "gold": "Ramon Berenguer IV",
+    "pred": "Ramon Berenguer IV, Count of Barcelona"
+   },
+   {
+    "q": "Who is the father-in-law of Empress Xiaojingxian?",
+    "gold": "Kangxi",
+    "pred": "Kangxi Emperor"
+   },
+   {
+    "q": "Who is the maternal grandfather of Princess Amalie Of Saxony?",
+    "gold": "Ferdinand",
+    "pred": "Ferdinand, Duke of Parma"
+   }
+  ]
+ }
+}

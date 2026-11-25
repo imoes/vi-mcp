@@ -1,0 +1,28 @@
+{
+ "H_R3r1": {
+  "new_only": 20,
+  "old_only": 23,
+  "p_one_sided": 0.728808,
+  "holds": false,
+  "em_old": 0.71,
+  "em_new": 0.7025
+ },
+ "by_type": {
+  "bridge_comparison": {
+   "old": 96.0,
+   "new": 95.0
+  },
+  "comparison": {
+   "old": 97.0,
+   "new": 95.0
+  },
+  "compositional": {
+   "old": 45.0,
+   "new": 40.0
+  },
+  "inference": {
+   "old": 46.0,
+   "new": 51.0
+  }
+ }
+}

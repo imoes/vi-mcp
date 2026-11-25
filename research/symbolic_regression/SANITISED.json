@@ -1,0 +1,89 @@
+{
+ "note": "files whose PATHS were made relative for the public repository; logic unchanged. The pre-registration hashes (prereg_*.sha256) name the ORIGINAL files; original_sha256 here matches them.",
+ "changed": [
+  {
+   "file": "symbolic_regression/g8/g8_eval.py",
+   "original_sha256": "343aff7e4ba6ecba941fececd7e21933ac17d20e4bf053198b305c2e46044149",
+   "repo_sha256": "95cf9fcd03d1c07bfdf7d2b9d99293b5fdff954fe8e0a8a2a090e19a92a5b3f6"
+  },
+  {
+   "file": "symbolic_regression/g8/g8_search.py",
+   "original_sha256": "82937e0bb28ebb0a12604286304f0fabff1b0868db7edb81c5b7ea85c34aa670",
+   "repo_sha256": "6a37f330704d9dba8ad697ad3decb6fab9c8cd88ddf8b3468aef4691b5d62c31"
+  },
+  {
+   "file": "symbolic_regression/g8b/grade.py",
+   "original_sha256": "979e209b55fcc8a786e300e919665d02c0e74fa3e1f996c1aa17de9ee137d37e",
+   "repo_sha256": "f214defa0f607db0da0fff12609c9b0f1abc764b1dbce53d00f1c85ffe5e3935"
+  },
+  {
+   "file": "symbolic_regression/g8b/run0.sh",
+   "original_sha256": "6e8ac239b1d6409e1b8863984808e58874e6a494f0a950fa731386b1b0af1a8b",
+   "repo_sha256": "bf8681ed6ba81018b5886f3fa13a7849429e8283cd08d3831a3c070e3313d584"
+  },
+  {
+   "file": "symbolic_regression/g8b/run1.sh",
+   "original_sha256": "a1863685ab7fc029069060e559972983ccdad3cf859391b4248c51665eb8a8ea",
+   "repo_sha256": "ace78b44ba3ce46bc24a91365635b73b5a702afec23cc06c18718dc99587d0cb"
+  },
+  {
+   "file": "symbolic_regression/a2/run_a2.sh",
+   "original_sha256": "ee341b3bc5c0d4132cbd84e918c15ac3a81d5c38213e313d438dc49e2a9255b1",
+   "repo_sha256": "c70271273a27740a9f45246730e322b9632c0d59e9d1eeaea517cea5e7a54099"
+  },
+  {
+   "file": "blind_tasks/check.py",
+   "original_sha256": "a14b7768c74614030097d10775c319ccfc12d7ad9684e4fddb985d1916048eb0",
+   "repo_sha256": "7ebea52ba1cceffd02f8b2c9e286d3a381fdfcee0f1d5e4e337a7f49c8255bdd"
+  },
+  {
+   "file": "blind_tasks/AUTHOR_REPORT.md",
+   "original_sha256": "76bf49070f988390da7616d09729e04e4a18fda16ecc4c47d06a126226b72905",
+   "repo_sha256": "889cd5201d868675bd1ddeef0388dc35740d80e40effa10c3841b7b7f92f2c2b"
+  },
+  {
+   "file": "symbolic_regression/g9/g9_data.py",
+   "original_sha256": "0aad0b8e8360b1062e2a10ffe0b15a862ac8ffb8f847ddffcc4194228a1b6b95",
+   "repo_sha256": "4be3ebe8ea2157e7416883755552469340fa98ced72ad4ff5bc753bc2e6c9bcc",
+   "why": "instance name replaced (19.11.2026)"
+  },
+  {
+   "file": "symbolic_regression/g9/g9b_data.py",
+   "original_sha256": "2753a0ff90169619338231f251874d4dc1c236c8a8581ca65e8bb36984fc97ee",
+   "repo_sha256": "a0e1de406e3650a31f67da5c0e19e2e0b7336b2049d3d55c388ed173552ebe09",
+   "why": "instance name replaced (19.11.2026)"
+  },
+  {
+   "file": "symbolic_regression/g9/prereg_G9b.md",
+   "original_sha256": "d154eed97636b9a899ffde212e268c036191c12a7ec0a4e2b73e1826fbc52306",
+   "repo_sha256": "21e6626d86c4f4dcd331014e5bc85d92f58c43e5971e9fab9cfb6d4c3df6b921",
+   "why": "instance name replaced (19.11.2026)"
+  },
+  {
+   "file": "symbolic_regression/g8d/gp2_log.py",
+   "original_sha256": "7457fb0d5f80984b121a3547bd1f3a47b65a06813c518413a02985e64f677b82",
+   "repo_sha256": "aef5f82252248f6deb07cfdd7ee360abd9798bf508a7b4a6e1f70ebb3b0b3db2"
+  },
+  {
+   "file": "symbolic_regression/g8d/gp2_arms.py",
+   "original_sha256": "32e33a053035dd29793d0c301d6263adbabe52250249ec38855c24a8e7d1730b",
+   "repo_sha256": "2869ed97eabfc57cd7f85dd0239346162ff2a3a8e6d0ff3ea9e87963635cd69e"
+  },
+  {
+   "file": "symbolic_regression/g8d/g8d0.py",
+   "original_sha256": "5dcf25dbd3fa5fdae90acc429bde18bdd40e6e26d48408c9701879f580752e30",
+   "repo_sha256": "db954b0b0458795d476cd568da830902064d425ead54cb14b6d185747f45c7d9"
+  },
+  {
+   "file": "symbolic_regression/g8d/replay_check.py",
+   "original_sha256": "5f34959dfe621c416866131f57e9bde95569337beb7c9548f85ca25bdfbc0682",
+   "repo_sha256": "cfc2b96efa2683bac4d413b9f6a779be9a5da458a1eebf3a87f27ea411cd08e0"
+  },
+  {
+   "file": "symbolic_regression/g8d/PLAN_G8d.md",
+   "original_sha256": "5bc96bc997460b2707d65e3298ecefc39731e89441cc2bc056d8308e0347235c",
+   "repo_sha256": "05d4c46c9d5b5eb07953f749ab477f436b7475457c3c384c9c669c6766fd548a"
+  }
+ ],
+ "log": []
+}

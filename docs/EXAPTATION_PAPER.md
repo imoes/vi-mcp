@@ -152,6 +152,98 @@ mechanism (the G5b replication). 994 deduplicated (query, candidate answer) item
   mechanisms than the plain hybrid search. Hope et al.'s gain came with crowd-annotated slots and a purpose gate inside one product
   domain; G7 does not reproduce it with LLM slots across Unix sub-domains.
 
+### 5.8 G8 — an evolutionary search over rule blocks, stopped as invalid by construction
+G8 (pre-registered 19.11.2026, sha256 f57c28bc…) asked whether a library of formal mechanisms — the rule blocks of the philosophy
+packages kollektiv, messung and code — helps an evolutionary search (genetic programming with the solver as fitness) solve six
+problems of other domains, against random start rules (Z), the text-nearest block (T) and mapping only (S). An independent review by
+a second model (Claude Fable, read-only, file:line evidence) found it unable to show exaptation, and the runs were stopped at 119 of
+240; no result is reported:
+- the six tasks were library blocks with renamed predicates (e.g. the package-cycle task equals code:P2 down to its variable names,
+  the bipartisan task equals kollektiv P10's `bridged`) — written by the experimenter, who knew the library;
+- the random arm could not build helper predicates or recursion and drew malformed rules (56–91 % with a repeated variable), so
+  "library beats random" would have compared well-formed with crippled rules;
+- the library arm's solutions were draws of the start phase (lookup by enumeration, not evolution);
+- "solved" was unsound: a non-recursive program passed the cycle task because no test world had a cycle of length 4;
+- a mapping operator shared one variable for every missing argument; origin labels survived crossover;
+- the unit of analysis is the task (n = 6; best two-sided sign test p = 0.031, 0.094 after Holm), not 60 (task, seed) pairs.
+Lesson kept for G8b: tasks written blind to the library and graded by structural distance, a scrambled-library control of equal
+shape, equal expressiveness for every arm (invented and recursive helper predicates), lexicase selection with a size archive,
+canonical forms with a cache, and "solved" as equivalence on an exhaustively enumerated domain plus a stress check.
+
+### 5.9 G8b-0 — symbolic regression over rules finds 5 of 6 mechanisms from data alone
+Symbolic regression searches the space of formulas for one that fits data and stays short (genetic programming: Koza 1992; AI Feynman,
+Udrescu & Tegmark 2020; PySR, Cranmer 2023; SRBench, La Cava et al. 2021). G8b transfers it to rule sets: candidates are ASP rules in
+clingo-object notation; mutation changes predicates, variables, constants, literals and negation; crossover exchanges parts of rule
+bodies with variable unification; the search may invent helper predicates, also recursive ones; selection is lexicase over the example
+worlds (Helmuth, Spector & Matheson 2015) with an archive of the best fit per size; every candidate is reduced to a canonical form and
+evaluated once. "Solved" means equal answers to a hidden reference on every world of an exhaustively enumerated small domain and on
+200 larger stress worlds that hold values never seen in training; a failure there adds the counterexample to the training worlds.
+
+Without any library (6 tasks, seeds 0–9, budget 20,000 evaluations): 42 of 60 runs solved —
+| task | solved | median evaluations | what was found |
+|---|---|---|---|
+| trusted reading | 10/10 | 102 | the reference |
+| dependency cycle | 10/10 | 107 | an invented recursive transitive closure, then the cycle test |
+| sensor state | 10/10 | 2,349 | four-valued state with negation |
+| release gate | 7/10 | 1,322 | ONE rule where the reference has two (size 7 vs 8) |
+| bipartisan | 5/10 | 4,054 | the general law "a supporter of party P and one not in P" |
+| lineage root | 0/10 | — | recursion plus a negated projection: not found |
+Two lessons: exactness on a closed set of values admits a "talent" program that lists the known colours (it failed 44 of 200 worlds
+with an unseen party once those were added); the search can find a SHORTER law than the human reference. Whether a library of
+mechanisms from another purpose helps (exaptation) is G8b-1 (§5.10).
+
+### 5.10 G8b-1 — a library of mechanisms helps by reuse as it is, not as a seed for modification
+Pre-registered after two independent reviews (hashes of protocol, search, arms and scoring frozen before the first run and verified
+before scoring). 33 everyday tasks written by an agent that never saw the library; four arms with the same search and the same budget
+(15,000 evaluations after the start phase): **L** library, **XR** library rewired (variable occurrences permuted inside each rule —
+same predicates, signs and lengths), **XL** library relinked (rules intact, references between rules redirected), **Z** random rules.
+Seeds 0–9, 1,320 runs, no setup failure. Ten tasks are trivial (random rules solve them in the start phase in ≥ 8 of 10 seeds); the
+tests run on the other 23. Unit = task; statistic = sum over tasks of mean rank differences, 10,000 sign flips, Holm over three tests.
+
+| hypothesis | measure | result | Holm p |
+|---|---|---|---|
+| H1 search path: the wiring of L makes the search AFTER the start phase cheaper than XR | evaluations to first verified solution, pairs without a start-phase hit | median cost ratio XR/L 1.10, 95 % CI [0.93, 1.24] — excludes the smallest effect of interest 1.5: **not supported** | 0.28 |
+| H2 lookup: L solves in the start phase more often | share of runs | L 25.7 % vs XR 10.4 % (XL 19.6 %, Z 0 %) | 0.0003 |
+| H3 total cost | evaluations from the first start candidate | ratio 1.12 [1.05, 1.53] in L's favour | 0.0003 |
+
+Solved within budget: L 94.3 %, XR 89.1 %, XL 93.9 %, Z 88.7 %. Secondary, without a claim: L vs random rules on total cost p = 0.49,
+L vs XL p = 0.06. Robustness (amendment 1): 1,238 of 1,242 first solutions also hold on 1,000 new larger worlds per task; counting the
+4 others as unsolved changes no conclusion (H1 p = 0.22, ratio 1.09 [0.95, 1.24]).
+
+Reading: the library pays off as **co-option without change** — a mechanism from another purpose, mapped onto the new vocabulary,
+solves the task as it is (Gould & Vrba's exaptation in the narrow sense). Its rule structure does not make the evolutionary search for
+a *modified* mechanism measurably faster, and over all tasks random rules are not worse in total cost.
+
+Provenance (the protocol's descriptive analysis; implemented after the data were seen, `provenance1.py`): share of first solutions
+with a non-trivial rule matching a rule of the origin block under the renaming-invariant key —
+| | found in the start phase | found by search |
+|---|---|---|
+| L vs its origin block | 87 % (n = 79) | 48 % (n = 219) |
+| XR vs its UNSCRAMBLED origin block | 78 % (n = 41) | 46 % (n = 244) |
+| XL vs its unscrambled origin block | 86 % (n = 65) | 46 % (n = 236) |
+| L vs the mean of all other blocks | 20 % | 33 % |
+Solutions found by search keep the origin's structure barely more often from the true block (48 %) than from its rewired copy (46 %):
+the search arrives at the same structures whichever start it had — they come from the task, not from the lineage. 40 first solutions
+had no recorded library origin (lineage lost, 13/17/10 in L/XR/XL) and 14 came from immigrants; both are left out and counted.
+
+### 5.11 G8d — the candidate itself tells which edit helps (G8d-0 passed)
+After G8c-0 (a static, even oracle, per-task operator prior saves too little: median ratio 1.40 < 1.5), the proposer must see the
+CANDIDATE. G8d asks which representation of the current program predicts the single edit that improves it. Text embeddings were ruled
+out by design: they embed names, and the proposer only sees anonymised identifiers. Candidates were computed, not trained: the
+program's behaviour on its training worlds (F0: score, true/false positives and negatives — free in the search), an exact 1-hop context
+encoding of its structure (S, name-free), and their combination; a vector-symbolic projection of S [22] and a contrastive encoder of
+our own [21] were held back until S or F proved informative. Program embeddings from execution traces [19, 20] are the closest prior
+work; ours are exact because the solver supplies the semantics.
+Step 0: the search was copied with an edit log and replays 12 of 12 stored runs bit-identically; 660 runs (33 tasks × 10 seeds × two
+arms) gave 1.12 M clean single-edit children. The gate was frozen before the data and measures the AUC **within the parent** — the
+pooled AUC (0.81 for F0) rewards parent headroom, which no proposer can use. Two computational amendments (memory; at most 300 records
+per run and an exact rank-based AUC, byte-identical on the pilot) came before any result. **Result:** within-parent AUC operator +
+size 0.632, wiring-blind signature 0.704, structure 0.720, behaviour 0.746, **structure + behaviour 0.770** — margin +0.066,
+task-bootstrap 95 % CI [0.017, 0.115], 83,733 edits from 31 tasks. Behaviour carries most of the signal; the information is real but
+moderate. Whether it pays in search is G8d-0b (an oracle that knows the improving edit must make the 12 hard tasks ≥ 1.5× cheaper),
+which is running. G8d-0 excludes names by design, so it says nothing about names; whether names act as retrieval keys is tested
+separately (fine-tuning paper §5.27–5.29, hypothesis H12/H13) [23, 24].
+
 ## 6 What the VI changes
 
 1. **built_for (implemented, branch built-for).** Every knowledge object records on its first save the context tags it was learned in,
@@ -198,3 +290,10 @@ significance.
 16. Bordes, A. et al. Translating Embeddings for Modeling Multi-relational Data. NIPS (2013) *(abstract level)*.
 17. Gu, X. & Krenn, M. Forecasting high-impact research topics via machine learning on evolving knowledge graphs. arXiv:2402.08640 *(dataset; G1)*.
 18. Si, C., Yang, D. & Hashimoto, T. Can LLMs Generate Novel Research Ideas? arXiv:2409.04109; Si, Hashimoto & Yang, The Ideation–Execution Gap, arXiv:2506.20803 *(dataset; G2)*.
+
+19. Wang, Su. Blended, precise semantic program embeddings (LiGer, 2019). https://arxiv.org/abs/1907.02136 ; Wang. Dynamic neural program embeddings (DYPRO). https://www.cs.columbia.edu/~suman/docs/similarity.pdf
+20. Pei et al. TREX: learning execution semantics from micro-traces. https://www.cs.columbia.edu/~suman/docs/trex_final.pdf
+21. Jain et al. Contrastive code representation learning (ContraCode). https://arxiv.org/abs/2007.04973
+22. Kleyko et al. A survey on hyperdimensional computing / vector symbolic architectures. https://arxiv.org/abs/2111.06077
+23. When Names Disappear: Revealing What LLMs Actually Understand About Code (arXiv 2510.03178, 2025). https://arxiv.org/abs/2510.03178
+24. Wei et al. Symbol tuning improves in-context learning in language models (EMNLP 2023). https://arxiv.org/abs/2305.08298

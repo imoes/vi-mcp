@@ -1,0 +1,199 @@
+{
+ "_doc": "Curated synonyms for the kollektiv 1.2.0 seed names (kit35, 22.11.2026). Candidates from Open English WordNet 2024 (GitHub release english-wordnet-2024.xml.gz sha256 e1f633b0...) and the English Wiktionary (kaikki raw dump on the 3070 host), plus derived forms (verify -> validated/unvalidated); senses that do not fit the seed's meaning removed by hand (e.g. verify -> swan, swear). Every name of the diagnostic sets p67ablate/p5ablate/p67prefix is excluded (writer, unchecked, confirmed_by, checked, check, quote, endorse, external, origin, flag, query, absorb, weighs, standing, grade, open, say_plainly, say_guardedly, pending, tally, state, verdict, ...). Frozen before any model answer on renamed-synonym items. Lists made disjoint 22.11.2026 before any model answer (support kept for pos, removed from confirm; corroborate kept for confirm, removed from verify).",
+ "author": [
+  "creator",
+  "originator",
+  "maker",
+  "producer"
+ ],
+ "line": [
+  "lineage",
+  "chain",
+  "strand",
+  "channel",
+  "path"
+ ],
+ "counts": [
+  "supports",
+  "backs",
+  "carries",
+  "matters"
+ ],
+ "pos": [
+  "support",
+  "pro",
+  "favour"
+ ],
+ "neg": [
+  "opposition",
+  "con",
+  "contra"
+ ],
+ "absent_pos": [
+  "missing_pos",
+  "lacking_pos",
+  "wanting_pos"
+ ],
+ "absent_neg": [
+  "missing_neg",
+  "lacking_neg",
+  "wanting_neg"
+ ],
+ "closed": [
+  "complete",
+  "sealed",
+  "finished",
+  "settled",
+  "final"
+ ],
+ "value": [
+  "rating",
+  "status",
+  "judgement",
+  "assessment",
+  "appraisal"
+ ],
+ "grund": [
+  "reason",
+  "ground",
+  "basis",
+  "justification",
+  "rationale"
+ ],
+ "reasoned": [
+  "justified",
+  "grounded",
+  "founded",
+  "explained",
+  "warranted"
+ ],
+ "snapshot": [
+  "capture",
+  "record",
+  "freeze",
+  "still",
+  "picture"
+ ],
+ "acceptance": [
+  "admission",
+  "approval",
+  "adoption",
+  "recognition",
+  "credence"
+ ],
+ "peer_offers": [
+  "peer_provides",
+  "peer_supplies",
+  "peer_proffers",
+  "peer_tenders",
+  "peer_presents"
+ ],
+ "foreign": [
+  "alien",
+  "outside",
+  "extraneous",
+  "strange",
+  "imported"
+ ],
+ "unreviewed": [
+  "unexamined",
+  "unvetted",
+  "uninspected",
+  "unaudited",
+  "unscrutinized"
+ ],
+ "source": [
+  "provenance",
+  "informant",
+  "root",
+  "wellspring",
+  "derivation"
+ ],
+ "verified": [
+  "validated",
+  "corroborated",
+  "substantiated",
+  "attested",
+  "proven"
+ ],
+ "unverified": [
+  "unvalidated",
+  "uncorroborated",
+  "unsubstantiated",
+  "unconfirmed",
+  "unattested",
+  "unproven"
+ ],
+ "confirm": [
+  "corroborate",
+  "affirm",
+  "substantiate",
+  "ratify"
+ ],
+ "adopt": [
+  "accept",
+  "embrace",
+  "espouse",
+  "take_up",
+  "assume"
+ ],
+ "report": [
+  "notify",
+  "announce",
+  "signal",
+  "raise",
+  "escalate"
+ ],
+ "ask": [
+  "inquire",
+  "request",
+  "enquire",
+  "petition",
+  "solicit"
+ ],
+ "verify": [
+  "validate",
+  "audit",
+  "inspect",
+  "test"
+ ],
+ "cite": [
+  "reference",
+  "mention",
+  "invoke",
+  "adduce",
+  "name"
+ ],
+ "assert_unqualified": [
+  "claim_outright",
+  "affirm_outright",
+  "state_flatly",
+  "declare_outright"
+ ],
+ "state_as_hypothesis": [
+  "state_as_conjecture",
+  "offer_as_guess",
+  "state_as_supposition",
+  "put_as_theory"
+ ],
+ "accepted": [
+  "approved",
+  "admitted",
+  "ratified"
+ ],
+ "tentative": [
+  "provisional",
+  "interim",
+  "probationary"
+ ],
+ "rejected": [
+  "refused",
+  "declined",
+  "dismissed"
+ ],
+ "unresolved": [
+  "undecided",
+  "unsettled",
+  "moot"
+ ]
+}

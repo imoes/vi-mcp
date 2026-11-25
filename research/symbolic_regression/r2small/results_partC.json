@@ -1,0 +1,80 @@
+{
+ "source": "pod analysis_C1.json / analysis_C2.json (analyze_r2b.py f66ac148\u2026), final step 20000, 10 seeds per arm; Part B arms from results/r2b_*",
+ "H_C1": {
+  "arms": [
+   "memI",
+   "mem"
+  ],
+  "testD_faithful_mean": {
+   "memI": 0.0,
+   "mem": 0.0
+  },
+  "mwu_U": 50.0,
+  "p_one_sided": 1.0,
+  "holds": false,
+  "testI_faithful_mean": {
+   "memI": 0.896,
+   "mem": 0.8262
+  },
+  "testI_diff_ci95": [
+   -0.0803,
+   0.2655
+  ],
+  "testD_first3_valid": {
+   "memI": 0.0093,
+   "mem": 0.0107
+  }
+ },
+ "H_C2": {
+  "arms": [
+   "ctxI",
+   "ctx"
+  ],
+  "testD_faithful_mean": {
+   "ctxI": 0.0,
+   "ctx": 0.0
+  },
+  "mwu_U": 50.0,
+  "p_one_sided": 1.0,
+  "holds": false,
+  "testI_faithful_mean": {
+   "ctxI": 0.1925,
+   "ctx": 0.1658
+  },
+  "testI_diff_ci95": [
+   -0.0333,
+   0.0892
+  ],
+  "testD_first3_valid": {
+   "ctxI": 0.0,
+   "ctx": 0.0002
+  }
+ },
+ "per_seed_testI_faithful": {
+  "memI": [
+   0.843,
+   0.998,
+   1.0,
+   0.883,
+   0.968,
+   0.962,
+   0.747,
+   0.767,
+   0.798,
+   0.993
+  ],
+  "ctxI": [
+   0.135,
+   0.175,
+   0.133,
+   0.14,
+   0.383,
+   0.31,
+   0.128,
+   0.242,
+   0.118,
+   0.16
+  ]
+ },
+ "decision": "step index not adopted in kit R2 (run 1 without index is the kit; no run 2, PREREG_R2_kit addendum 2); depth limit treated as architectural at this scale, the solver applies chains longer than trained"
+}

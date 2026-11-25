@@ -1,0 +1,45 @@
+
+===== ARM 34 =====
+  judge_same           40/40 = 100%  target 80%  MET
+  judge_paraphrase     39/40 = 98%  target 70%  MET
+  pressure_heldout     29/30 = 97%  target 80%  MET
+  formalize_heldout    20/20 = 100%  target 80%  MET
+  invented certainty: ['0/193', '0/25', '0/30', '0/40', '0/45', '0/9', '1/9']
+  language: {'write_rules': '16/18', 'explain_rules': '0/0'} (explain needs rt_lang_34.json)
+  ft/kit34s/eval/min_both_answers.jsonl minimal   all 25/30 | facts 18/21 | unknown 7/9 | groups 5/10
+  ft/kit34s/eval/min_both_answers.jsonl minimal2  all 27/35 | facts 9/10 | unknown 18/25 | without near_train 25/32
+  judge_long    39/40 exact worlds · statements line reaches the last statement in 40/40
+  judge_xlong   40/40 exact worlds · statements line reaches the last statement in 40/40
+  language_long  write 7/10 · explain 0/0 of 10 (back-translate the rest into rt_ll_34.json)
+
+===== ARM 35 =====
+  judge_same           40/40 = 100%  target 80%  MET
+  judge_paraphrase     36/40 = 90%  target 70%  MET
+  pressure_heldout     29/30 = 97%  target 80%  MET
+  formalize_heldout    17/20 = 85%  target 80%  MET
+  invented certainty: ['0/193', '0/25', '0/30', '0/40', '0/45', '0/9']
+  language: {'write_rules': '18/18', 'explain_rules': '0/0'} (explain needs rt_lang_35.json)
+  ft/kit35s/eval/min_both_answers.jsonl minimal   all 27/30 | facts 20/21 | unknown 7/9 | groups 7/10
+  ft/kit35s/eval/min_both_answers.jsonl minimal2  all 28/35 | facts 9/10 | unknown 19/25 | without near_train 26/32
+  judge_long    39/40 exact worlds · statements line reaches the last statement in 40/40
+  judge_xlong   39/40 exact worlds · statements line reaches the last statement in 40/40
+  language_long  write 8/10 · explain 0/0 of 10 (back-translate the rest into rt_ll_35.json)
+
+----- run 34 vs 35 (PREREG_kit35 no-harm): 34 vs 35 (paired, mid-p) -----
+  judge_long    34 39/40 · 35 39/40 · only 34: 0, only 35: 0, mid-p 1.000
+  judge_xlong   34 40/40 · 35 39/40 · only 34: 1, only 35: 0, mid-p 0.500
+  main eval per set:
+    set                          measure    n ft/kit34s ft/kit35s  +B/-B   p      mid-p
+    formalize_heldout            facts    20       20       17  +0/-3  0.25   0.125
+    judge_more                   facts   160      160      160  +0/-0  1      1
+    judge_more                   world   160      157      158  +2/-1  1      0.625
+    judge_paraphrase             facts    40       40       39  +0/-1  1      0.5
+    judge_paraphrase             world    40       39       36  +1/-4  0.375  0.2188
+    judge_same                   facts    40       40       40  +0/-0  1      1
+    judge_same                   world    40       40       40  +0/-0  1      1
+    judge_same_tagged            facts    20       20       20  +0/-0  1      1
+    judge_same_tagged            world    20       20       20  +0/-0  1      1
+    package_worlds               facts    16       15       16  +1/-0  1      0.5
+    package_worlds               world    16       13       13  +1/-1  1      1
+    pressure_heldout             facts    30       29       23  +0/-6  0.03125 0.01562
+    pressure_heldout             world    30       29       29  +1/-1  1      1

@@ -1,0 +1,38 @@
+{
+ "enum:trained6": {
+  "n": 450,
+  "solved": 450,
+  "mean_calls": 83.68,
+  "median_calls": 85.5
+ },
+ "enum:unseen2": {
+  "n": 150,
+  "solved": 0,
+  "mean_calls": null,
+  "median_calls": null
+ },
+ "enum_global:trained6": {
+  "n": 450,
+  "solved": 450,
+  "mean_calls": 5.73,
+  "median_calls": 3.0
+ },
+ "enum_global:unseen2": {
+  "n": 150,
+  "solved": 0,
+  "mean_calls": null,
+  "median_calls": null
+ },
+ "grammar_global:trained6": {
+  "n": 450,
+  "solved": 450,
+  "mean_calls": 7.07,
+  "median_calls": 3.0
+ },
+ "grammar_global:unseen2": {
+  "n": 150,
+  "solved": 150,
+  "mean_calls": 18.08,
+  "median_calls": 12.0
+ }
+}

@@ -1,0 +1,158 @@
+{
+ "seeds": {
+  "mem": 10,
+  "memCF": 10
+ },
+ "H_H1": {
+  "testCF_faithful_mean": {
+   "memCF": 0.45099999999999996,
+   "mem": 0.005333333333333334
+  },
+  "mwu_U": 100.0,
+  "p_one_sided": 5.412544112234515e-06,
+  "holds": true
+ },
+ "H_H2": {
+  "testI_faithful_mean": {
+   "memCF": 0.7474999999999999,
+   "mem": 0.9491666666666667
+  },
+  "diff_ci95": [
+   -0.2667,
+   -0.125
+  ],
+  "holds": false
+ },
+ "means": {
+  "mem:testI": {
+   "faithful": 0.9492,
+   "answer": 0.9637
+  },
+  "mem:testD": {
+   "faithful": 0.0,
+   "answer": 0.175
+  },
+  "mem:testCF": {
+   "faithful": 0.0053,
+   "answer": 0.152,
+   "memory_following": 0.0705,
+   "both": 0.0053
+  },
+  "memCF:testI": {
+   "faithful": 0.7475,
+   "answer": 0.8228
+  },
+  "memCF:testD": {
+   "faithful": 0.0,
+   "answer": 0.1867
+  },
+  "memCF:testCF": {
+   "faithful": 0.451,
+   "answer": 0.5595,
+   "memory_following": 0.003,
+   "both": 0.0097
+  }
+ },
+ "per_seed": {
+  "mem_s0": {
+   "testI": 0.9817,
+   "testD": 0.0,
+   "testCF": 0.005
+  },
+  "mem_s1": {
+   "testI": 0.72,
+   "testD": 0.0,
+   "testCF": 0.0033
+  },
+  "mem_s2": {
+   "testI": 0.9967,
+   "testD": 0.0,
+   "testCF": 0.005
+  },
+  "mem_s3": {
+   "testI": 0.9183,
+   "testD": 0.0,
+   "testCF": 0.005
+  },
+  "mem_s4": {
+   "testI": 0.9933,
+   "testD": 0.0,
+   "testCF": 0.0067
+  },
+  "mem_s5": {
+   "testI": 0.9883,
+   "testD": 0.0,
+   "testCF": 0.0067
+  },
+  "mem_s6": {
+   "testI": 0.9117,
+   "testD": 0.0,
+   "testCF": 0.0033
+  },
+  "mem_s7": {
+   "testI": 0.9917,
+   "testD": 0.0,
+   "testCF": 0.0067
+  },
+  "mem_s8": {
+   "testI": 0.9967,
+   "testD": 0.0,
+   "testCF": 0.005
+  },
+  "mem_s9": {
+   "testI": 0.9933,
+   "testD": 0.0,
+   "testCF": 0.0067
+  },
+  "memCF_s0": {
+   "testI": 0.7167,
+   "testD": 0.0,
+   "testCF": 0.5317
+  },
+  "memCF_s1": {
+   "testI": 0.8033,
+   "testD": 0.0,
+   "testCF": 0.1767
+  },
+  "memCF_s2": {
+   "testI": 0.7517,
+   "testD": 0.0,
+   "testCF": 0.6533
+  },
+  "memCF_s3": {
+   "testI": 0.7733,
+   "testD": 0.0,
+   "testCF": 0.1667
+  },
+  "memCF_s4": {
+   "testI": 0.7983,
+   "testD": 0.0,
+   "testCF": 0.615
+  },
+  "memCF_s5": {
+   "testI": 0.71,
+   "testD": 0.0,
+   "testCF": 0.1733
+  },
+  "memCF_s6": {
+   "testI": 0.645,
+   "testD": 0.0,
+   "testCF": 0.1383
+  },
+  "memCF_s7": {
+   "testI": 0.6983,
+   "testD": 0.0,
+   "testCF": 0.5983
+  },
+  "memCF_s8": {
+   "testI": 0.93,
+   "testD": 0.0,
+   "testCF": 0.81
+  },
+  "memCF_s9": {
+   "testI": 0.6483,
+   "testD": 0.0,
+   "testCF": 0.6467
+  }
+ }
+}

@@ -1,0 +1,5 @@
+{"source": "pod analysis_D_ctxR.json (sha256 db9cd1b1...), analysis_D_ctxF.json (sha256 3025b54b...), analyze_r2b.py f66ac148..., final step 20000, seeds 0-9 per arm, 21.11.2026",
+ "H_D1": {"testI_faithful_mean": {"ctxR": 0.1545, "ctx": 0.1658}, "mwu_U": 49.5, "p_one_sided": 0.5217, "holds": false, "testI_diff_ci95": [-0.0537, 0.0227]},
+ "H_D2": {"testI_faithful_mean": {"ctxF": 0.133, "ctx": 0.1658}, "mwu_U": 39.5, "p_one_sided": 0.7879, "holds": false, "testI_diff_ci95": [-0.0823, 0.005]},
+ "per_seed_testI_faithful": {"ctxR": [0.133, 0.145, 0.172, 0.232, 0.173, 0.105, 0.165, 0.112, 0.148, 0.16], "ctxF": [0.14, 0.18, 0.143, 0.003, 0.115, 0.173, 0.142, 0.163, 0.157, 0.113], "ctx": [0.162, 0.175, 0.162, 0.157, 0.315, 0.142, 0.147, 0.142, 0.125, 0.133]},
+ "testD_faithful_mean": {"ctxR": 0.0, "ctxF": 0.0, "ctx": 0.0}}

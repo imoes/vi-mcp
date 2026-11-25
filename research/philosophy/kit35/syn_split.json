@@ -1,0 +1,262 @@
+{
+ "train": {
+  "absent_neg": [
+   "missing_neg",
+   "lacking_neg"
+  ],
+  "absent_pos": [
+   "missing_pos",
+   "wanting_pos"
+  ],
+  "acceptance": [
+   "approval",
+   "adoption",
+   "recognition"
+  ],
+  "accepted": [
+   "approved",
+   "ratified"
+  ],
+  "adopt": [
+   "accept",
+   "embrace",
+   "take_up"
+  ],
+  "ask": [
+   "inquire",
+   "enquire",
+   "solicit"
+  ],
+  "assert_unqualified": [
+   "claim_outright",
+   "affirm_outright",
+   "state_flatly"
+  ],
+  "author": [
+   "creator",
+   "originator",
+   "maker"
+  ],
+  "cite": [
+   "reference",
+   "mention",
+   "name"
+  ],
+  "closed": [
+   "complete",
+   "sealed",
+   "finished",
+   "settled",
+   "final"
+  ],
+  "confirm": [
+   "corroborate",
+   "affirm",
+   "substantiate"
+  ],
+  "counts": [
+   "supports",
+   "backs",
+   "carries"
+  ],
+  "foreign": [
+   "alien",
+   "outside",
+   "strange",
+   "imported"
+  ],
+  "grund": [
+   "ground",
+   "basis",
+   "justification"
+  ],
+  "line": [
+   "lineage",
+   "chain",
+   "strand"
+  ],
+  "neg": [
+   "opposition",
+   "contra"
+  ],
+  "peer_offers": [
+   "peer_provides",
+   "peer_proffers",
+   "peer_tenders"
+  ],
+  "pos": [
+   "support",
+   "pro"
+  ],
+  "reasoned": [
+   "justified",
+   "founded",
+   "warranted"
+  ],
+  "rejected": [
+   "refused",
+   "declined"
+  ],
+  "report": [
+   "notify",
+   "signal",
+   "escalate"
+  ],
+  "snapshot": [
+   "record",
+   "still",
+   "picture"
+  ],
+  "source": [
+   "provenance",
+   "informant",
+   "derivation"
+  ],
+  "state_as_hypothesis": [
+   "state_as_conjecture",
+   "offer_as_guess",
+   "state_as_supposition"
+  ],
+  "tentative": [
+   "provisional",
+   "interim"
+  ],
+  "unresolved": [
+   "undecided",
+   "moot"
+  ],
+  "unreviewed": [
+   "unexamined",
+   "unvetted",
+   "unscrutinized"
+  ],
+  "unverified": [
+   "unvalidated",
+   "unsubstantiated",
+   "unattested",
+   "unproven"
+  ],
+  "value": [
+   "status",
+   "assessment",
+   "appraisal"
+  ],
+  "verified": [
+   "validated",
+   "corroborated",
+   "substantiated",
+   "proven"
+  ],
+  "verify": [
+   "validate",
+   "inspect",
+   "test"
+  ]
+ },
+ "held_out": {
+  "absent_neg": [
+   "wanting_neg"
+  ],
+  "absent_pos": [
+   "lacking_pos"
+  ],
+  "acceptance": [
+   "credence",
+   "admission"
+  ],
+  "accepted": [
+   "admitted"
+  ],
+  "adopt": [
+   "assume",
+   "espouse"
+  ],
+  "ask": [
+   "request",
+   "petition"
+  ],
+  "assert_unqualified": [
+   "declare_outright"
+  ],
+  "author": [
+   "producer"
+  ],
+  "cite": [
+   "adduce",
+   "invoke"
+  ],
+  "closed": [],
+  "confirm": [
+   "ratify"
+  ],
+  "counts": [
+   "matters"
+  ],
+  "foreign": [
+   "extraneous"
+  ],
+  "grund": [
+   "rationale",
+   "reason"
+  ],
+  "line": [
+   "path",
+   "channel"
+  ],
+  "neg": [
+   "con"
+  ],
+  "peer_offers": [
+   "peer_supplies",
+   "peer_presents"
+  ],
+  "pos": [
+   "favour"
+  ],
+  "reasoned": [
+   "explained",
+   "grounded"
+  ],
+  "rejected": [
+   "dismissed"
+  ],
+  "report": [
+   "announce"
+  ],
+  "snapshot": [
+   "capture",
+   "freeze"
+  ],
+  "source": [
+   "root",
+   "wellspring"
+  ],
+  "state_as_hypothesis": [
+   "put_as_theory"
+  ],
+  "tentative": [
+   "probationary"
+  ],
+  "unresolved": [
+   "unsettled"
+  ],
+  "unreviewed": [
+   "unaudited",
+   "uninspected"
+  ],
+  "unverified": [
+   "uncorroborated",
+   "unconfirmed"
+  ],
+  "value": [
+   "judgement",
+   "rating"
+  ],
+  "verified": [
+   "attested"
+  ],
+  "verify": [
+   "audit"
+  ]
+ }
+}

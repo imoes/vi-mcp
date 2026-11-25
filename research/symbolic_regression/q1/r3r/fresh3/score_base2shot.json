@@ -1,0 +1,101 @@
+{
+ "tiebreak": true,
+ "title_anchor": true,
+ "scores": {
+  "ALL": {
+   "n": 400,
+   "ours_em": 0.5525,
+   "official_em_gold": 0.545,
+   "official_em_alias": 0.575,
+   "official_f1_gold": 0.6139,
+   "official_f1_alias": 0.6313
+  },
+  "bridge_comparison": {
+   "n": 100,
+   "ours_em": 0.87,
+   "official_em_gold": 0.87,
+   "official_em_alias": 0.87,
+   "official_f1_gold": 0.87,
+   "official_f1_alias": 0.87
+  },
+  "comparison": {
+   "n": 100,
+   "ours_em": 0.81,
+   "official_em_gold": 0.79,
+   "official_em_alias": 0.8,
+   "official_f1_gold": 0.8039,
+   "official_f1_alias": 0.8067
+  },
+  "compositional": {
+   "n": 100,
+   "ours_em": 0.23,
+   "official_em_gold": 0.22,
+   "official_em_alias": 0.32,
+   "official_f1_gold": 0.37,
+   "official_f1_alias": 0.4336
+  },
+  "inference": {
+   "n": 100,
+   "ours_em": 0.3,
+   "official_em_gold": 0.3,
+   "official_em_alias": 0.31,
+   "official_f1_gold": 0.4117,
+   "official_f1_alias": 0.4151
+  }
+ },
+ "examples": {
+  "compositional": [
+   {
+    "q": "Where was the director of film The Drivin' Fool born?",
+    "gold": "New York",
+    "pred": "New York, New York"
+   },
+   {
+    "q": "What nationality is the director of film The Wrecking Crew (2000 Film)?",
+    "gold": "America",
+    "pred": "American"
+   },
+   {
+    "q": "What is the place of birth of the director of film That French Lady?",
+    "gold": "New York",
+    "pred": "New York, New York"
+   },
+   {
+    "q": "What nationality is the performer of song The Ballad Of The Lonesome Cowboy?",
+    "gold": "America",
+    "pred": "American"
+   },
+   {
+    "q": "Where does the director of film Sand And Sorrow work at?",
+    "gold": "Yale",
+    "pred": "Yale University"
+   },
+   {
+    "q": "Which country Catherine Zaccaria's husband is from?",
+    "gold": "Byzantine",
+    "pred": "Roman Empire"
+   }
+  ],
+  "lost:compositional": [
+   {
+    "q": "Where was the place of death of Helena (Empress)'s husband?",
+    "gold": "Eboracum",
+    "pred": "Eboracum (York)"
+   }
+  ],
+  "lost:comparison": [
+   {
+    "q": "Which film was released first, Par La Fenêtre or Semi-Tough?",
+    "gold": "Par La Fenêtre",
+    "pred": "Par la Fenetre"
+   }
+  ],
+  "inference": [
+   {
+    "q": "Who is Ferdinand, Count Of Flanders's maternal grandfather?",
+    "gold": "Ramon Berenguer IV",
+    "pred": "Ramon Berenguer IV, Count of Barcelona"
+   }
+  ]
+ }
+}

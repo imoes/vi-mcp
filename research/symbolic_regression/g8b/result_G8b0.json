@@ -1,0 +1,57 @@
+{
+ "runs": 60,
+ "per_task": {
+  "bipartisan": {
+   "solved": "5/10",
+   "median_evals_first_solve": 4054,
+   "cex_added_median": 1.0,
+   "shortest": {
+    "size": 5,
+    "program": "bipartisan(V0) <= party(V1, V2) & supports(V0, V1) & supports(V0, V3) & ~party(V3, V2)"
+   }
+  },
+  "dependency_cycle": {
+   "solved": "10/10",
+   "median_evals_first_solve": 106.5,
+   "cex_added_median": 3.0,
+   "shortest": {
+    "size": 8,
+    "program": "in_cycle(V0) <= inv1(V1, V0) & requires(V0, V1)\ninv1(V0, V1) <= inv1(V0, V2) & requires(V2, V1)\ninv1(V0, V1) <= requires(V0, V1)"
+   }
+  },
+  "lineage_root": {
+   "solved": "0/10",
+   "median_evals_first_solve": null,
+   "cex_added_median": 0.0,
+   "shortest": null
+  },
+  "release_gate": {
+   "solved": "7/10",
+   "median_evals_first_solve": 1322,
+   "cex_added_median": 0.0,
+   "shortest": {
+    "size": 7,
+    "program": "released(V0) <= (V1 != V2) & (V1 != V3) & (V2 != V3) & approves(V0, V1) & approves(V0, V2) & owner(V0, V3)"
+   }
+  },
+  "sensor_state": {
+   "solved": "10/10",
+   "median_evals_first_solve": 2349.0,
+   "cex_added_median": 1.0,
+   "shortest": {
+    "size": 15,
+    "program": "state(V0, down) <= ping(V0, fail) & polled(V0) & ~ping(V0, ok)\nstate(V0, flapping) <= ping(V0, fail) & ping(V0, ok)\nstate(V0, silent) <= polled(V0) & ~ping(V0, fail) & ~ping(V0, ok)\nstate(V0, up) <= ping(V0, ok) & polled(V0) & ~ping(V0, fail)"
+   }
+  },
+  "trusted_reading": {
+   "solved": "10/10",
+   "median_evals_first_solve": 101.5,
+   "cex_added_median": 1.0,
+   "shortest": {
+    "size": 6,
+    "program": "recalibrate(V0) <= reading(V1, V0) & ~calibrated(V0)\ntrusted(V0) <= calibrated(V1) & reading(V0, V1)"
+   }
+  }
+ },
+ "solved_total": 42
+}
