@@ -36,6 +36,16 @@ no-grad loss with unchanged parameters and zero optimizer steps. Neither starts 
 mentions, among the first hits (`anchor`, goal Z6). Config `search_anchor`: `auto` (default) is on exactly when the offline gate shipped
 with the release passed (`anchor.GATE`); `off` switches it off at once (config + restart); `on` forces it. vi_stats and the start-up
 log name the effective state, since when, and the gate. Anchor and hop pass the search's filter and visibility; the search note names them.
+0.73.0: a philosophy bound to an instance or its index (`vi_philosophy use`) reaches every session. The instructions carry a compact
+`[Philosophy]` block (`philosophy.instruction_block(compact=True)`: the evaluate duty, name, version, hash, the state of the checked prose);
+it stands right after the rules, the training notice and then the index yield room for it (`server.PHIL_INDEX_MIN`). The first prompt of a
+conversation carries the full block with the prose (`intuition.prompt_hints`, id `philosophy-bound:<instance>`). The prose is translated
+by the server's OWN model, never an external service (`philosophy.server_models`: classify model, else llm; the llm back-translates when
+it differs, else "weaker independence"), in sleep step 8o (`translate_bound`) or with `vi-mcp philosophy explain NAME --server-model`,
+and shown only when `philosophy.gate` passes: made by the server's model for this hash, ≥ 50 random worlds, ≥ 95 % agreement, every
+package world. Otherwise the block names the reason and points to the server-stored clingo skill. `philosophy_fit.context_line` suggests
+only unbound philosophies. The verdict always comes from `evaluate`.
+
 Since 0.53.0 a failed action brings what the memory knows about its error (`intuition.error_hints`, returned by `vi_after`), and the
 first prompt of a session carries the skill table (`capabilities`, `vi_capabilities`: system, tools, manual id).
 Since 0.44.0 the hook also searches before every user prompt (`vi_prompt_context`: Claude Code `UserPromptSubmit`, Hermes shell hook

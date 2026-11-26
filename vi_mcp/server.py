@@ -153,8 +153,21 @@ def _instructions(inst: config.Instance, s) -> str:
     # mid-sentence) — each tail part is capped with the tool that shows it whole, the index keeps at least INDEX_FLOOR
     tail = [_capped(x, TAIL_MAX, more) for x, more in ((_training_notice(), "vi_model"), (self_model.hint(), "vi_self"),
                                                         (_network_notice(), "vi_net_status")) if x]
+    # 0.73.0: the philosophies bound to this instance or its project's index, early (after the rules), in their compact form — the full
+    # checked prose comes with the first prompt. Room is made in this order: the training notice yields (a pointer to vi_model stays),
+    # then the index goes below its floor, never under PHIL_INDEX_MIN.
+    floor = INDEX_FLOOR
+    phil = _philosophy_block(inst.name, getattr(s, "project", None))
+    if phil:
+        fixed.append(phil + "\n")
+        over = sum(len(x) for x in fixed) + sum(len(x) + 1 for x in tail) + floor + INDEX_SLACK - INSTRUCTIONS_BUDGET
+        if over > 0 and tail and tail[0].startswith("[Training]"):
+            tail[0] = "[Training] the hint router's state: vi_model"
+            over = sum(len(x) for x in fixed) + sum(len(x) + 1 for x in tail) + floor + INDEX_SLACK - INSTRUCTIONS_BUDGET
+        if over > 0:
+            floor = max(PHIL_INDEX_MIN, floor - over)
     used = sum(len(x) for x in fixed) + sum(len(x) + 1 for x in tail)
-    ix = index.text(inst.name, max_chars=max(INDEX_FLOOR, min(index.MAX_CHARS, INSTRUCTIONS_BUDGET - used - INDEX_SLACK)))
+    ix = index.text(inst.name, max_chars=max(floor, min(index.MAX_CHARS, INSTRUCTIONS_BUDGET - used - INDEX_SLACK)))
     out = "".join(fixed) + (ix + "\n" if ix else "") + "\n".join(tail)
     if len(out) > INSTRUCTIONS_BUDGET:  # never silent: what is cut is named
         out = out[:INSTRUCTIONS_BUDGET - 60].rstrip() + " … (cut at the client limit — vi_capabilities)"
@@ -167,6 +180,18 @@ TAIL_MAX, INDEX_FLOOR, INDEX_SLACK = 280, 900, 120  # core ~2,300 + index >= 900
 def _capped(text: str, n: int, more: str) -> str:
     text = text.strip()
     return text if len(text) <= n else text[:n - len(more) - 12].rsplit(" ", 1)[0] + f" … (whole: {more})"
+
+
+PHIL_INDEX_MIN = 600  # 0.73.0: with a bound philosophy the index may shrink to this, not further
+
+
+def _philosophy_block(instance: str, project: str | None) -> str:
+    from . import indexes, philosophy
+    try:
+        return philosophy.instruction_block(instance, indexes.from_project(project) if project else None, compact=True)
+    except Exception as e:  # noqa: BLE001 — a broken binding must never cost the initialize; named in the log
+        log(f"philosophy block left out: {type(e).__name__}: {e}")
+        return ""
 
 
 def _training_notice() -> str:

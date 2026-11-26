@@ -3,6 +3,71 @@
 What a user of vi-mcp notices — grouped by effect, every entry with evidence. Entries before 0.22.0 are in German.
 Linked from [README.md](README.md).
 
+## 0.73.0 — 2026-11-26 — a bound philosophy reaches every session; two vi_recall fixes
+
+### What is new: a philosophy bound to you is in every session, and its prose comes from the server's own model
+
+- **The session instructions carry a short `[Philosophy]` block** for every philosophy bound to the instance or its project's index
+  (`vi_philosophy use`). The block names the duty: the binding verdict comes from `vi_philosophy(action="evaluate")` — claim → facts →
+  evaluate → act by it. It lists each philosophy's name, version and hash, and whether a checked prose exists. It stands right after
+  the rules. Measured in a test with a full index: 357 characters (≈ 103 tokens, estimated at 3.5 characters per token), instructions
+  3,855 of 4,000 characters.
+- **The first prompt of a conversation carries the full block** with the checked prose and its round-trip number (`vi_prompt_context`,
+  so with the hook: Claude Code, Hermes), once per conversation.
+- **The prose is translated by the server's own model, never an external service** — the user (26.11.2026): "Das muss auf jedem vi
+  Server funktionieren insofern muss das Übersetzen das Modell machen. Wir haben nicht überall Codex."
+  - Translator: the classify model, else the `llm`. Back-translator: the `llm` when it is another model.
+  - When one model does both, the report and the block say "same model translated and back-translated — weaker independence".
+  - It runs in sleep step 8o (only for bound philosophies; a failed translation is tried again after 7 days), or by hand with
+    `vi-mcp philosophy explain NAME --server-model [--store]`.
+- **The prose is shown only when it passes the gate:** made by the server's own model for exactly the bound hash, at least 50
+  random worlds besides the package's own, whole-seed agreement ≥ 95 %, and every package world agrees. The package description is
+  back-translated alike as the control and reported beside it, never as a pass condition. `philosophy_explain.agreement` now counts
+  the package worlds apart for this.
+- **Without a checked prose** (no model, the gate failed, or the translation is for another hash) the block names the reason and
+  points to the server-stored clingo skill (`insight:skill-clingo`) and `vi_philosophy show`, so the AI reads the seed itself.
+- `vi_philosophy(action="bound")` shows both blocks as a new session would see them, with their sizes.
+
+### What has changed
+
+- **The prompt suggestion `[Philosophy] This situation fits …` names only philosophies that are NOT bound to you** — a bound one is
+  in the instructions already.
+- **README and README.de:** the philosophy section starts in plain prose (what a philosophy is, why the rules are a checked seed and
+  the prose a checked translation), with one paragraph each on kollektiv, messung and code, and describes the new behaviour. The
+  reader model for situations in prose (goal Z4) is marked as planned, not released.
+
+### What was fixed
+
+- **A natural question that starts with an act word was refused** ("Do I still have a backup of web1?", "Tell me which host …",
+  "Rate the deploy …"): the VIL head was matched without regard to case, read as the act `do`/`tell`/`rate` and refused by vi_recall.
+  An act is now lower-case code, and a non-ask act without a `.type` that ends in "?" is a question. `do restart @web1` is still
+  refused. Found by reading the code (vi-bench study, 26.11.2026); test `tests/test_recall_pitfalls.py` failed in 6 of 6 cases
+  before the fix.
+- **`index:<name>` written in the filter did not restrict the meaning half of a hybrid search.** Measured in the test: 1 object in
+  the index and 5 outside — all 6 came back, while the search note said "only index project-x (AND)". The `index` argument was
+  correct. Now the named index also limits the nearest vectors, and the `index:` word no longer goes into the embedding text.
+
+### Measured: the production models and the gate (26.11.2026)
+
+- `vi-mcp philosophy explain kollektiv --server-model --random 50` with the production models (classify model Qwen3.8-27B, llm Qwen3.6-35B-A3B Q4_K_XL),
+  kollektiv 1.3.0, hash 1f205f4c…, 35 package worlds + 50 random:
+  - whole seed 0/85 worlds — the back-translated seed did not run after 4 repair rounds (`|` in a rule body, which the notation does
+    not have); control (the package description) 1/85; 292.8 s; the prose is 6,502 characters.
+  - The same-model run (Qwen3.8-27B translating and back-translating) did not finish: one call got no answer within the 600 s read
+    timeout (TimeoutError, 09:14 UTC). In sleep such a failure is named in step 8o and tried again after 7 days; no number.
+  - **So on production the block shows the fallback** (name, hash, the evaluate duty, the reason, the clingo skill) until a model
+    passes the gate.
+
+### What is still missing
+
+- No model has passed the gate for kollektiv yet. A syntax-only repair that splits `a <= b | c` into two rules would remove the first
+  error; whether the rest then passes is not measured.
+- A checked prose longer than the first prompt's room (6,000 characters) is not shown there either; `vi_philosophy show` prints it.
+- `evaluate` does not take a situation in prose yet (goal Z4, after its test I5).
+- Clients without the hook (Codex without it, other MCP clients) see only the compact block in the instructions.
+
+Full suite (Python 3.12.3): 1,480 passed, 8 skipped.
+
 ## 0.72.0 — 2026-11-25 — a question about two hosts finds both pages; the switch follows a preregistered gate
 
 0.72.0 also contains 0.71.3 (below), which was not released on its own.

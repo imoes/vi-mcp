@@ -240,26 +240,72 @@ Jede KI des Servers erbt sie: `vi_capabilities` listet sie, und der Hook bringt 
 
 ## Philosophien — Prinzipien, nach denen eine KI arbeitet, und wann welche gilt
 
-Eine Philosophie ist ein geprüftes [clingo-object](#logik-über-das-gedächtnis-clingo-object)-Regelwerk (der **Samen**) mit Testwelten,
-die es belegen: wann eine KI eine Aussage für wahr hält, was sie sagen darf, was sie tun muss. Prosa ist nur eine Übersetzung, geprüft
-durch ihre Rückübersetzung. Eingebaut: `kollektiv` (wie ein Mitglied eines KI-Kollektivs etwas für wahr hält — keine Selbstbestätigung,
-Stütze und Widerspruch getrennt, ein Grund für jeden Wert), `messung` (nur eine passende Messung lässt eine Aussage zu) und `code`
-(Architekturregeln über Code-Fakten).
+Eine Philosophie ist eine Menge von Prinzipien, nach denen eine KI arbeitet: wann sie eine Aussage für wahr halten darf, was sie
+sagen darf und was sie tun muss. Menschen schreiben solche Prinzipien als Prosa, und Prosa lässt sich leicht verschieden lesen. Hier
+sind die Prinzipien deshalb selbst ein kleines Regelwerk, der **Samen**, geschrieben in
+[clingo-object](#logik-über-das-gedächtnis-clingo-object) und durch Testwelten belegt. Ein Solver wendet den Samen an; zwei KIs mit
+denselben Fakten bekommen dasselbe Urteil. Prosa ist nur eine Übersetzung des Samens. Sie gilt als geprüft, wenn ein zweites Modell
+allein aus der Prosa den Samen wieder aufbauen kann und der wieder aufgebaute Samen auf Testwelten dieselben Urteile gibt (die
+**Rückübersetzung**).
+
+Drei Philosophien sind eingebaut:
+
+- **`kollektiv`** — wie ein Mitglied eines KI-Kollektivs eine Aussage für wahr hält. Gezählt werden unabhängige Herkünfte, keine
+  Stimmen: eine Kopie oder ein Modell zählt nicht mit, und ein Mitglied bestätigt nie seine eigene Aussage. Abgerufene oder
+  Web-Quellen zählen nur, wenn die Aussage an ihnen geprüft wurde. Stütze und Widerspruch bleiben getrennt; eine Aussage kann
+  wahr, falsch, beides oder unbekannt sein. Jeder Wert hat einen Grund, und Konflikte müssen gemeldet werden. Die Werte sagen,
+  wie gut eine Aussage gestützt ist, nie, dass sie wahr ist.
+- **`messung`** — nur Gemessenes gilt. Nur eine passende Messung lässt eine Aussage zu. Dokumentation und Hörensagen tun das nie;
+  sie begründen die Pflicht zu messen.
+- **`code`** — Architekturregeln über die Strukturfakten eines Code-Repositorys: keine Import-Zyklen, Schreiben in geschützte
+  Tabellen nur unter der Sperre, englische Werkzeugnamen, keine Duplikate. Ein entschuldigter Befund bleibt mit seinem Grund
+  sichtbar.
+
+`vi_philosophy(action="show", name=X)` zeigt den Samen einer Philosophie, ihre Eingaben und Antworten und ihre gespeicherte
+Übersetzung. `vi_philosophy(action="bound")` zeigt, welche Philosophien für dich gelten.
+
+**Eine gebundene Philosophie erreicht jede Sitzung von selbst (0.73.0).** Mit `use` wird sie an eine Instanz oder einen Index
+gebunden. Ab dann gilt:
+
+- Die Sitzungsanweisungen tragen einen kurzen Block `[Philosophy]`: die Pflicht, das Urteil von
+  `vi_philosophy(action="evaluate")` zu holen, und je Philosophie Name, Version, Hash und ob es eine geprüfte Prosa gibt. Clients
+  schneiden die Anweisungen bei 4.096 Zeichen ab; die Prosa selbst steht deshalb nicht dort.
+- Der erste Prompt eines Gesprächs bringt den vollen Block mit der geprüften Prosa und ihrer Rückübersetzungszahl (mit dem Hook:
+  Claude Code, Hermes).
+- Der Server übersetzt eine gebundene Philosophie mit **seinem eigenen konfigurierten Modell** (dem classify-Modell, sonst dem
+  `llm`). Es wird kein externer Dienst genutzt; das funktioniert also auf jedem Server. Das `llm` übersetzt zurück, wenn es ein
+  anderes Modell ist. Sonst macht ein Modell beides, und Bericht und Block sagen „schwächere Unabhängigkeit". Das läuft, während
+  die VI schläft, nie beim Start einer Sitzung.
+- Die Prosa erscheint nur, wenn sie die Schwelle besteht: Das eigene Modell des Servers hat sie für genau diesen Hash gemacht,
+  neben den Welten des Pakets wurden mindestens 50 Zufallswelten geprüft, mindestens 95 % aller Welten stimmen überein, und jede
+  Welt des Pakets stimmt überein. Die eigene Beschreibung des Pakets wird als Kontrolle genauso zurückübersetzt und daneben
+  berichtet.
+- Ohne geprüfte Prosa (kein Modell, Schwelle nicht bestanden oder Übersetzung für einen anderen Hash) nennt der Block den Grund.
+  Die KI liest den Samen dann selbst, mit dem im Server gespeicherten clingo-Skill (`insight:skill-clingo`) und
+  `vi_philosophy show`.
+- Das verbindliche Urteil kommt immer von `evaluate`, nie aus der Prosa. Die KI übersetzt eine Behauptung in die Fakten der
+  Philosophie, wertet sie aus, handelt nach dem Urteil und nennt es als das der Philosophie.
+- *Geplant, nicht veröffentlicht:* `evaluate` nimmt eine Lage als Prosa an — ein kleines Lesemodell zieht die Fakten heraus, der
+  Solver entscheidet, nur verschärfend. Das kommt mit Ziel Z4, sobald dessen vorregistrierter Test I5 bestanden ist.
+
+So wird mit Paketen gearbeitet:
 
 1. **Übergeben** — `vi_philosophy(action="install", package={manifest, seed, worlds})` (die Inhalte von philosophy.json, seed.co und
    worlds.jsonl). Es entscheiden dieselben Prüfungen: Vokabular, keine Default-Negation außerhalb einer geschlossenen Sicht, jede Regel
    in einem markierten Block, die Testwelten. `export` gibt ein Paket ganz zurück; `list`, `show` und `check` lesen sie.
 2. **Sagen, wofür sie ist** — das Manifest kann seine Situationen als Hashtags nennen: `"situations": ["topic:incident", "task:judge-claims"]`.
-3. **Wann sie angewendet wird** — nicht automatisch. Passt die Lage einer Frage zu einer Philosophie (dafür deklariert oder dort
-   gemessen hilfreich), steht im Prompt-Kontext eine Zeile `[Philosophy] This situation fits the philosophy X …`. Die KI übersetzt die
-   Lage dann in die Fakten der Philosophie, holt ihr Urteil mit `vi_philosophy(action="evaluate", name=X, facts=…)`, handelt danach und
-   sagt es — das Urteil ist Beleg *gefolgert*.
+3. **Nicht gebundene Philosophien werden vorgeschlagen** — passt die Lage einer Frage zu einer Philosophie, die nicht an dich
+   gebunden ist (dafür deklariert oder dort gemessen hilfreich), steht im Prompt-Kontext einmal je Gespräch eine Zeile
+   `[Philosophy] This situation fits the philosophy X …`. Die KI übersetzt die Lage dann in die Fakten der Philosophie, holt ihr
+   Urteil mit `vi_philosophy(action="evaluate", name=X, facts=…)`, handelt danach und sagt es — das Urteil ist Beleg *gefolgert*.
 4. **Welche wann passt, wird gelernt** — danach bewertet die KI: `vi_philosophy(action="rate", name=X, tags=[…], helped=true|false,
    reason=…)`. `vi_philosophy(action="suggest", situation=…)` ordnet die Philosophien für eine Lage nach dem, was deklariert ist (ein
    Vorsprung), und dem, was bewertet wurde (die Entscheidung), mit den Zählungen.
-5. **Binden** an eine Instanz oder einen Index (`use`); ein Modell darauf **trainieren**: `vi_philosophy(action="kit", name=X, base_model=…)`
+5. **Binden** an eine Instanz oder einen Index (`use`; siehe oben); ein Modell darauf **trainieren**: `vi_philosophy(action="kit", name=X, base_model=…)`
    (oder `vi-mcp philosophy kit X DIR --base …`) schreibt das Kit nur für den Samen-Pfad — nichts aus dem Gedächtnis darin; der Server
    wählt das Verzeichnis und nennt es, das Training startet ein Mensch auf einem GPU-Rechner ([docs/FINETUNING.md](docs/FINETUNING.md) Abschnitt 4b). Eine Philosophie ändert nie Sichtbarkeit, Prüfung oder Werkzeugrechte.
+6. **Von Hand übersetzen** — `vi-mcp philosophy explain NAME --server-model [--store]` macht dieselbe Rückübersetzung wie der
+   Schlaf und zeigt das Ergebnis der Schwelle.
 
 Schritt für Schritt: [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) (auch der erste Skill `philosophy`).
 
@@ -576,7 +622,7 @@ Befehle, Betriebsarten und jede Regel: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 | `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | Problem → Lösung, Skills |
 | `vi_ask` · `vi_answer` · `vi_questions` | Fragen zwischen Instanzen (und ans Netz) |
 | `vi_prompt_context` · `vi_context` · `vi_capabilities` · `vi_tools_register` · `vi_vocabulary` | Wissen zu einem Prompt, die Skills der Installation (knowledge_kind:skill, mit vi_learn erweiterbar; initial: clingo, finetune, philosophy), die Wörter des Gedächtnisses |
-| `vi_finetune` · `vi_incubator` · `vi_philosophy` | ein Modell aus dem Gedächtnis trainieren: Reife, Kit, Runbook; Philosophie-Pakete — per MCP übergeben, für die passende Situation vorgeschlagen, nach Gebrauch bewertet |
+| `vi_finetune` · `vi_incubator` · `vi_philosophy` | ein Modell aus dem Gedächtnis trainieren: Reife, Kit, Runbook; Philosophie-Pakete — per MCP übergeben, gebundene in jeder Sitzung (0.73.0), nicht gebundene für die passende Situation vorgeschlagen, nach Gebrauch bewertet |
 | `vi_logic` · `vi_machine` | clingo-object-Logik über das Gedächtnis; dauerhafte VIL-Maschinen |
 | `vi_model` · `vi_why` · `vi_feature_propose` · `vi_scorer` · `vi_stats` · `vi_status` · `vi_experience` | das gelernte Modell, warum ein Hinweis kam, Vorschläge dafür, Bewertungen und Messungen |
 | `vi_self` · `vi_self_propose` · `vi_sleep` | Selbstbild und Verdichtung |

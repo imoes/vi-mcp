@@ -226,25 +226,64 @@ Every AI of the server inherits them: `vi_capabilities` lists them, and the hook
 
 ## Philosophies — principles an AI works by, and when to apply which
 
-A philosophy is a checked [clingo-object](#logic-over-the-memory-clingo-object) rule set (the **seed**) with test worlds that prove it:
-when an AI holds a statement true, what it may say, what it must do. Prose is only a translation, checked by its round trip. Built in:
-`kollektiv` (how a member of an AI collective holds something true — no self-confirmation, support and opposition apart, a reason for
-every value), `messung` (only an applicable measurement admits a statement) and `code` (architecture rules over code facts).
+A philosophy is a set of principles an AI works by: when it may hold a statement true, what it may say, and what it must do. People
+write such principles in prose, and prose is easy to read differently. So here the principles themselves are a small rule set, the
+**seed**, written in [clingo-object](#logic-over-the-memory-clingo-object) and proven by test worlds. A solver applies the seed, so
+two AIs with the same facts get the same verdict. Prose is only a translation of the seed. It counts as checked when a second model
+can rebuild the seed from the prose alone and the rebuilt seed gives the same verdicts on test worlds (the **round trip**).
+
+Three philosophies are built in:
+
+- **`kollektiv`** — how a member of an AI collective holds a statement true. It counts independent origins, not votes: a copy or
+  a model adds none, and a member never confirms its own statement. Retrieved or web sources count only when the statement was
+  checked against them. Support and opposition are kept apart, so a statement can be true, false, both, or unknown. Every value
+  has a reason, and conflicts must be reported. The values say how well a statement is supported, never that it is true.
+- **`messung`** — measured-only acceptance. Only an applicable measurement admits a statement. Documentation and hearsay never
+  do; they create the duty to measure.
+- **`code`** — architecture rules over the structure facts of a code repository: no import cycles, writes to guarded tables only
+  under the lock, English tool names, no duplicates. An excused finding stays visible with its reason.
+
+`vi_philosophy(action="show", name=X)` prints a philosophy's seed, its inputs and answers, and its stored translation.
+`vi_philosophy(action="bound")` shows which philosophies apply to you.
+
+**A bound philosophy reaches every session by itself (0.73.0).** Bind one to an instance or an index with `use`. From then on:
+
+- The session instructions carry a short `[Philosophy]` block: the duty to get the verdict from `vi_philosophy(action="evaluate")`,
+  and per philosophy its name, version, hash and whether a checked prose exists. Clients cut the instructions at 4,096 characters,
+  so the prose itself does not go there.
+- The first prompt of a conversation carries the full block with the checked prose and its round-trip number (with the hook:
+  Claude Code, Hermes).
+- The server translates a bound philosophy with **its own configured model** (the classify model, else the `llm`). No external
+  service is used, so this works on every server. The `llm` back-translates when it is another model. Otherwise one model does
+  both, and the report and the block say "weaker independence". This runs while the VI sleeps, never while a session starts.
+- The prose is shown only when it passes the gate: the server's own model made it for exactly this hash, at least 50 random worlds
+  were tested besides the package's own, at least 95 % of all worlds agree, and every package world agrees. The package's own
+  description is back-translated alike as a control and reported beside it.
+- Without a checked prose (no model, the gate failed, or the translation is for another hash), the block names the reason. The AI
+  then reads the seed itself with the server-stored clingo skill (`insight:skill-clingo`) and `vi_philosophy show`.
+- The binding verdict always comes from `evaluate`, never from the prose. The AI translates a claim into the philosophy's facts,
+  evaluates it, acts by the verdict and names it as the philosophy's.
+- *Planned, not released:* `evaluate` accepting a situation in prose — a small reader model extracts the facts and the solver
+  decides, tightening only. It comes with goal Z4 once its preregistered test I5 passes.
+
+How to work with packages:
 
 1. **Hand one over** — `vi_philosophy(action="install", package={manifest, seed, worlds})` (the contents of philosophy.json, seed.co and
    worlds.jsonl). The same checks decide: vocabulary, no default negation outside a closed view, every rule in a marked block, the
    test worlds. `export` gives a package back whole; `list`, `show` and `check` read them.
 2. **Say what it is for** — the manifest may declare its situations as hashtags: `"situations": ["topic:incident", "task:judge-claims"]`.
-3. **When it is applied** — not automatically. When the situation of a prompt fits a philosophy (declared for it, or measured to have
-   helped there), the prompt context carries one line `[Philosophy] This situation fits the philosophy X …`. The AI then translates the
-   situation into the philosophy's facts, gets its verdict with `vi_philosophy(action="evaluate", name=X, facts=…)`, acts by it and
-   says so — the verdict is evidence *inferred*.
+3. **Unbound philosophies are suggested** — when the situation of a prompt fits a philosophy that is not bound to you (declared for
+   it, or measured to have helped there), the prompt context carries one line `[Philosophy] This situation fits the philosophy X …`,
+   once per conversation. The AI then translates the situation into the philosophy's facts, gets its verdict with
+   `vi_philosophy(action="evaluate", name=X, facts=…)`, acts by it and says so — the verdict is evidence *inferred*.
 4. **Which one fits when is learned** — afterwards the AI rates it: `vi_philosophy(action="rate", name=X, tags=[…], helped=true|false,
    reason=…)`. `vi_philosophy(action="suggest", situation=…)` ranks the philosophies for a situation from what is declared (a head
    start) and what was rated (the decision), with the counts.
-5. **Bind** one to an instance or an index (`use`); **train** a model on it: `vi_philosophy(action="kit", name=X, base_model=…)` (or
+5. **Bind** one to an instance or an index (`use`; see above); **train** a model on it: `vi_philosophy(action="kit", name=X, base_model=…)` (or
    `vi-mcp philosophy kit X DIR --base …`) writes the kit for the seed path alone — nothing of the memory in it; the server picks the
    directory and returns it, a person runs the training on a GPU host ([docs/FINETUNING.md](docs/FINETUNING.md) section 4b). A philosophy never changes visibility, review or tool rights.
+6. **Translate by hand** — `vi-mcp philosophy explain NAME --server-model [--store]` runs the same round trip as sleep and prints
+   the gate's result.
 
 Step by step: [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) (also the initial skill `philosophy`).
 
@@ -558,7 +597,7 @@ Commands, modes and every rule: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
 | `vi_solved` · `vi_skills` · `vi_skill` · `vi_skill_merge` | problem → solution, skills |
 | `vi_ask` · `vi_answer` · `vi_questions` | questions between instances (and to the network) |
 | `vi_prompt_context` · `vi_context` · `vi_capabilities` · `vi_tools_register` · `vi_vocabulary` | knowledge for a prompt, the installation's skills (knowledge_kind:skill, extensible with vi_learn; initial: clingo, finetune, philosophy), the memory's words |
-| `vi_finetune` · `vi_incubator` · `vi_philosophy` | train a model from the memory: maturity, kit, runbook; philosophy packages — handed over MCP, suggested for the situation that fits, rated after use |
+| `vi_finetune` · `vi_incubator` · `vi_philosophy` | train a model from the memory: maturity, kit, runbook; philosophy packages — handed over MCP, bound ones in every session (0.73.0), unbound ones suggested for the situation that fits, rated after use |
 | `vi_logic` · `vi_machine` | clingo-object logic over the memory; persistent VIL machines |
 | `vi_model` · `vi_why` · `vi_feature_propose` · `vi_scorer` · `vi_stats` · `vi_status` · `vi_experience` | the learned model, why a hint was shown, proposals for it, scores and measurements |
 | `vi_self` · `vi_self_propose` · `vi_sleep` | self-image and consolidation |

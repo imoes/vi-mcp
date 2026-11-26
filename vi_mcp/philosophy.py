@@ -251,6 +251,214 @@ def binding_lines(rows: list[dict]) -> list[str]:
     return [f"  {b['name']} {b['version']} → {b['target_kind']} {b['target']}: hash {b['hash'][:16]}… ({b['state']}) [{b['binding']}]" for b in rows]
 
 
+# ── 0.73.0: a bound philosophy in the session instructions ─────────────────────────────────────────────────────────────────────────
+# The user (26.11.2026): "Das muss auf jedem vi Server funktionieren insofern muss das Übersetzen das Modell machen. Wir haben nicht
+# überall Codex. Ansonsten nehmen wir einen clingo Skill der im Server gespeichert ist." So the prose a session sees is translated by
+# the server's OWN model (the classify model, else the llm), checked by the round trip, and shown only when it passes the gate; otherwise
+# the session gets the name, the hash, the evaluate duty, the reason, and the server-stored clingo skill to read the seed itself.
+
+GATE_AGREEMENT = 0.95  # whole-seed agreement over package + random worlds
+GATE_RANDOM = 50       # at least this many random worlds besides the package's own
+RETRY_DAYS = 7         # a translation that failed the gate is tried again by sleep after this many days, not every night
+SAME_MODEL_NOTE = "same model translated and back-translated — weaker independence"
+CLINGO_SKILL = "insight:skill-clingo"
+
+
+def _model_cfg(section: dict | None) -> dict | None:
+    return {k: section.get(k) for k in ("url", "token", "model")} if section and section.get("url") else None
+
+
+def server_models() -> tuple[dict | None, dict | None]:
+    """(translator, back-translator) from the server's own configuration — never an external service. Translator: the classify model,
+    else the llm. Back-translator: the llm when it is a different model (url or model name), else the translator itself."""
+    from . import config, reflection
+    try:
+        raw = config.read_raw(config.fpath())
+    except Exception:  # noqa: BLE001
+        raw = {}
+    llm = _model_cfg(raw.get("llm") or reflection.config)
+    translator = _model_cfg(raw.get("classify")) or llm  # as classify._config: its own section, else the server's llm
+    if translator is None:
+        return None, None
+    other = llm is not None and (llm["url"], llm.get("model")) != (translator["url"], translator.get("model"))
+    return translator, (llm if other else translator)
+
+
+def model_label(cfg: dict) -> str:
+    """How a server model is named in a report: its model name, else the path segment before /v1 of its URL (no host)."""
+    if cfg.get("model"):
+        return str(cfg["model"])
+    m = re.search(r"/([^/]+)/v1/", str(cfg.get("url") or ""))
+    return m.group(1) if m else "server model"
+
+
+#: tests replace this: cfg -> (messages -> text)
+client_fn = None
+
+
+def model_client(cfg: dict):
+    """A `messages -> text` function for a server model: temperature 0, thinking off, NO token cap (project rule), no proxy."""
+    if client_fn is not None:
+        return client_fn(cfg)
+    import urllib.request
+    from clingo_object import philosophy_explain as pe
+    from clingo_object.agent import chat_post
+    url = cfg["url"] if cfg["url"].rstrip("/").endswith("/chat/completions") else cfg["url"].rstrip("/") + "/chat/completions"
+    header = {"Authorization": f"Bearer {cfg['token']}"} if cfg.get("token") else {}
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+    def chat(messages: list[dict]) -> str:
+        body = {"messages": messages, "temperature": 0, "chat_template_kwargs": {"enable_thinking": False},
+                **({"model": cfg["model"]} if cfg.get("model") else {})}
+        return pe.clean(chat_post(url, body, header, 600, opener)["choices"][0]["message"]["content"] or "")
+    return chat
+
+
+def gate(t: dict | None, pkg: dict) -> tuple[bool, str]:
+    """Whether a stored translation may stand in the instructions, with the reason when not. Passes only with: made by the server's
+    own model, for this package hash, ≥ GATE_RANDOM random worlds, whole-seed agreement ≥ GATE_AGREEMENT, and every package world."""
+    if not t:
+        return False, "no translation stored yet (sleep makes one with the server's model)"
+    if t.get("seed_hash") != ph.package_hash(pkg):
+        return False, f"the translation is stale: made for hash {str(t.get('seed_hash'))[:12]}…"
+    if not t.get("server_model"):
+        return False, "the stored translation was not made by this server's own model"
+    w, whole = t.get("worlds") or {}, t.get("whole") or {}
+    if whole.get("error"):
+        return False, f"the back-translated seed did not run ({str(whole['error'])[:80]})"
+    if int(w.get("random") or 0) < GATE_RANDOM:
+        return False, f"only {w.get('random') or 0} random worlds (the gate needs {GATE_RANDOM})"
+    if "package_same" not in whole:
+        return False, "the report does not count the package worlds apart (made before 0.73.0)"
+    if whole["package_same"] < whole["package_worlds"]:
+        return False, f"{whole['package_worlds'] - whole['package_same']} of {whole['package_worlds']} package worlds disagree"
+    if float(whole.get("agreement") or 0) < GATE_AGREEMENT:
+        return False, (f"round trip {whole.get('same')}/{whole.get('worlds')} worlds ({float(whole.get('agreement') or 0):.0%}, "
+                       f"the gate needs {GATE_AGREEMENT:.0%})")
+    return True, ""
+
+
+def explain_server(pkg: dict, random_n: int = GATE_RANDOM, control: str | None = None) -> dict:
+    """The round trip with the server's own models (whole seed only — the instructions show the whole prose). The control is the
+    package's own description unless another reference prose is given; it is reported beside the agreement, never a pass condition."""
+    from clingo_object import philosophy_explain as pe
+    tr, back = server_models()
+    if tr is None:
+        raise ValueError("no language model configured on this server (config classify or llm) — no translation; a session reads "
+                         "the seed with the clingo skill")
+    same = back is tr
+    r = pe.round_trip(pkg, model_client(tr), model_client(back), control=control if control is not None else (pkg.get("description") or None),
+                      per_block=False, random_n=random_n, names={"translator": model_label(tr), "back_translator": model_label(back)})
+    r["server_model"], r["same_model"] = True, same
+    if same:
+        r["warning"] = SAME_MODEL_NOTE
+    r["gate"] = dict(zip(("passed", "reason"), gate(r, pkg)))
+    return r
+
+
+def _installed_with(name: str, h: str) -> g.MemoryObject | None:
+    return next((x for x in _installed_all(name) if x.data["philosophy"]["hash"] == h), None)
+
+
+def translate_bound(who: str = "sleep", now=None) -> dict:
+    """Sleep step: for every bound philosophy (its bound hash) without a translation that passes the gate, translate it with the
+    server's model and store the report on the installed object — passed or not, so the block can name the reason. A failed one is
+    tried again after RETRY_DAYS. Nothing bound or no model: nothing to do, named."""
+    import datetime as dt
+    now = now or dt.datetime.now(dt.timezone.utc)
+    bound = {(o.data["philosophy_binding"]["name"], o.data["philosophy_binding"]["hash"]) for o in _active_bindings()}
+    if not bound:
+        return {"state": "no philosophy bound"}
+    if server_models()[0] is None:
+        return {"state": "no model configured"}
+    from . import logic  # the round trip runs the seed: clingo may live in the logic layer's own directory
+    if not logic.available():
+        return {"state": f"logic layer off ({logic.unavailable_reason()})"}
+    done: dict[str, str] = {}
+    for name, h in sorted(bound):
+        key = f"{name}@{h[:12]}"
+        o = _installed_with(name, h)
+        if o is None:
+            done[key] = "installed package missing"
+            continue
+        pkg, t = _package_of(o), o.data.get("translation")
+        if gate(t, pkg)[0]:
+            done[key] = "passed earlier"
+            continue
+        if t and t.get("server_model") and t.get("seed_hash") == h:
+            try:
+                age = now - dt.datetime.fromisoformat(str(t.get("time")).replace("Z", "+00:00"))
+            except ValueError:
+                age = dt.timedelta(days=RETRY_DAYS)
+            if age < dt.timedelta(days=RETRY_DAYS):
+                done[key] = f"failed {str(t.get('time'))[:10]}, next try after {RETRY_DAYS} days"
+                continue
+        try:
+            r = explain_server(pkg)
+        except Exception as e:  # noqa: BLE001 — a model error is named, never a broken sleep
+            done[key] = f"error: {type(e).__name__}: {str(e)[:160]}"
+            continue
+        store_translation(r, who)
+        done[key] = ("passed" if r["gate"]["passed"] else "failed: " + r["gate"]["reason"]) + f" ({r['whole']['same']}/{r['whole']['worlds']})"
+    return done
+
+
+def instruction_block(instance: str | None, index: str | None = None, room: int = 6000, compact: bool = False) -> str:
+    """The [Philosophy] block: every philosophy bound to the instance or its index, with name, version and hash, and the duty to get
+    verdicts from evaluate. Full form (the first prompt of a session): the checked prose when it passes the gate and fits the room.
+    Compact form (the session instructions, which a client cuts at 4,096 characters): one short line per philosophy with the state
+    of its prose and where to read it. Without a checked prose: the reason, and the way to read the seed itself — the server-stored
+    clingo skill and vi_philosophy show. Empty when nothing is bound."""
+    rows = bindings(instance, index if index and index != "global" else None)
+    if not rows:
+        return ""
+    if compact:
+        head = ("[Philosophy] Bound to you; its verdict comes only from vi_philosophy(action=\"evaluate\"): claim → facts → evaluate → "
+                "act by the verdict, name it as the philosophy's.")
+    else:
+        head = ("[Philosophy] Bound to you. The binding verdict comes from vi_philosophy(action=\"evaluate\"), not from prose: before you "
+                "assert a claim the philosophy covers, translate it into its facts, evaluate, act by the verdict and name it as the "
+                "philosophy's. Prose below is a checked translation.")
+    out, left = [head], room - len(head)
+    for i, b in enumerate(rows):
+        who = f"{b['name']} {b['version']} (hash {b['hash'][:12]}…" + ("" if compact else f", {b['target_kind']} {b['target']}")
+        who += ", a newer version is installed — the bound hash decides)" if b["state"] == "stale" else ")"
+        show = f"vi_philosophy(action=\"show\", name=\"{b['name']}\")"
+        o = _installed_with(b["name"], b["hash"]) if b["state"] != "missing" else None
+        if o is None:
+            out.append(f"- {who}: the installed package is missing — no verdict until it is installed again.")
+            left -= len(out[-1]) + 1
+            continue
+        t = o.data.get("translation")
+        ok, why = gate(t, _package_of(o))
+        line = ""
+        if ok:
+            w, prose = t["whole"], " ".join(str(t["whole"].get("prose") or "").split())
+            check = (f"round trip {w['same']}/{w['worlds']} worlds incl. every package world, by {t.get('translator')} and "
+                     f"{t.get('back_translator')}" + (f" ({SAME_MODEL_NOTE})" if t.get("same_model") else ""))
+            reserve = 260 * (len(rows) - i - 1)  # room for the short lines of the philosophies after this one
+            line = f"- {who}, checked prose ({check}): {prose}"
+            if compact or len(line) + 1 > left - reserve:
+                line = f"- {who}: checked prose ({check}) — {show} prints it."
+        else:
+            line = (f"- {who}: no checked prose — {why}. Read the seed yourself: vi_object {CLINGO_SKILL} (the notation) and {show}.")
+        out.append(line)
+        left -= len(line) + 1
+    return "\n".join(out)
+
+
+def block_report(instance: str | None, index: str | None = None) -> list[str]:
+    """What a new session of this instance gets, with sizes (characters, and tokens as an estimate): the compact block in the
+    instructions and the full block with the first prompt."""
+    from .context_budget import CHARS_PER_TOKEN, estimate_tokens
+    full, compact = instruction_block(instance, index), instruction_block(instance, index, compact=True)
+    if not full:
+        return []
+    size = (lambda t: f"{len(t)} characters, ≈ {estimate_tokens(t)} tokens")
+    return ["", f"In the session instructions ({size(compact)} — tokens estimated at {CHARS_PER_TOKEN} characters per token):", compact,
+            "", f"With the first prompt of a session ({size(full)}):", full]
+
+
 def tool(args: dict, instance: str) -> str:
     """vi_philosophy: guide (default) · list · show · check · evaluate · install · use · bound · explain · kit."""
     action = args.get("action") or "guide"
@@ -269,7 +477,7 @@ def tool(args: dict, instance: str) -> str:
         return "\n".join(lines)
     if action == "bound":
         return "\n".join([f"Philosophies that apply to instance {instance}" + (f" and index {args['index']}" if args.get("index") else "") + ":"]
-                         + binding_lines(bindings(instance, args.get("index"))))
+                         + binding_lines(bindings(instance, args.get("index"))) + block_report(instance, args.get("index")))
     if action in ("suggest", "rate"):  # 0.69.6: which philosophy fits which situation — declared, measured, learned
         from . import philosophy_fit as pf
         if action == "suggest":
@@ -340,9 +548,18 @@ def kit_lines(r: dict, built: bool = True) -> list[str]:
             "philosophy, optionally --stage grpo; python phil_answers.py; python phil_score.py; vi-mcp finetune record DIR."]
 
 
+def _cli_installed(name: str, k) -> dict:
+    g.open_db(k.db)
+    try:
+        return resolve(name)
+    finally:
+        g.close_db()
+
+
 def main(argv: list[str]) -> int:
     """vi-mcp philosophy guide | list | show REF | check REF | new DIR --name N [--author A] | evaluate REF --facts FILE | install REF
     | explain REF --url U --model M --judge-url U2 --judge-model M2 [--random N] [--prose F] [--control F] [--store]
+    | explain REF --server-model [--random N] [--control F] [--store]
     | shadow kollektiv [--limit N] [--db COPY] [--json F]
     | use NAME --instance I | --index X [--off] | bound --instance I | --index X"""
     import argparse
@@ -365,6 +582,9 @@ def main(argv: list[str]) -> int:
     ex.add_argument("--model", help="translator model name")
     jx = ex.add_mutually_exclusive_group(required=True)
     jx.add_argument("--judge-url", help="independent back-translator endpoint (preferably another model family)")
+    jx.add_argument("--server-model", action="store_true", help="0.73.0: translate AND back-translate with this server's own models (config "
+                                                                 "classify, else llm; the llm back-translates when it is another model) — what "
+                                                                 "sleep does for a bound philosophy; the control is the package description")
     jx.add_argument("--judge-cmd", help="a command-line back-translator, e.g. \"codex exec -s read-only --skip-git-repo-check\" "
                                         "(command line only — the MCP tool never runs a command a caller names)")
     ex.add_argument("--judge-model", help="back-translator model name")
@@ -414,9 +634,17 @@ def main(argv: list[str]) -> int:
         from pathlib import Path
         from clingo_object import philosophy_explain as pe
         read = (lambda f: Path(f).read_text(encoding="utf-8") if f else None)
-        r = explain(o.ref, o.url, o.model, o.judge_url, o.judge_model, random_n=o.random, per_block=not o.whole_only,
-                    prose=read(o.prose), control=read(o.control), proxy=not o.no_proxy, judge_cmd=o.judge_cmd)
-        print("\n".join(pe.summary_lines(r) + ([f"  ! {r['warning']}"] if r.get("warning") else [])))
+        if o.server_model:
+            from . import config, reflection
+            k = config.load()
+            reflection.config = k.llm or {}
+            r = explain_server(ph.load(o.ref) if o.ref in ph.BUILTIN or "/" in o.ref else _cli_installed(o.ref, k), o.random, read(o.control))
+            print("\n".join(pe.summary_lines(r) + ([f"  ! {r['warning']}"] if r.get("warning") else [])
+                             + [f"  gate: {'passed' if r['gate']['passed'] else 'failed — ' + r['gate']['reason']}"]))
+        else:
+            r = explain(o.ref, o.url, o.model, o.judge_url, o.judge_model, random_n=o.random, per_block=not o.whole_only,
+                        prose=read(o.prose), control=read(o.control), proxy=not o.no_proxy, judge_cmd=o.judge_cmd)
+            print("\n".join(pe.summary_lines(r) + ([f"  ! {r['warning']}"] if r.get("warning") else [])))
         if o.json:
             Path(o.json).write_text(json.dumps(r, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
             print(f"report: {o.json}")

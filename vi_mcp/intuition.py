@@ -919,7 +919,27 @@ def _specific(w: str) -> bool:
     return bool(re.search(r"\d", w) and re.search(r"[a-zA-Z]", w)) or "." in w.strip(".")
 
 
+#: 0.73.0: the full block of the philosophies bound to an instance, once per conversation with the first prompt (the instructions carry
+#: only what fits their 4,096-character cut: the duty, name, version, hash and the state of the checked prose)
+PHILOSOPHY_ROOM = 6000
+
+
 def prompt_hints(text: str, instance: str | None, shown: list[str] | None = None) -> dict:
+    r = _prompt_hints(text, instance, shown)
+    key = f"philosophy-bound:{instance}"
+    if instance and key not in (shown or []) and (text or "").strip():
+        try:
+            from . import philosophy
+            block = philosophy.instruction_block(instance, g.current_index.get(), PHILOSOPHY_ROOM)
+        except Exception:  # noqa: BLE001 — a broken binding must never stop the context
+            block = ""
+        if block:
+            r["hinweise"] = [block] + list(r.get("hinweise") or [])
+            r["ids"] = [key] + list(r.get("ids") or [])
+    return r
+
+
+def _prompt_hints(text: str, instance: str | None, shown: list[str] | None = None) -> dict:
     """Hints for a user prompt: knowledge whose text or hashtags share at least two of its words (one if it has only one)."""
     from . import p2p
     words = prompt_words(text)

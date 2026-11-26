@@ -70,8 +70,13 @@ def context_line(text: str, instance: str | None, shown: list | None = None) -> 
     fits a philosophy — declared for it, or measured to have helped more often than not. Returns (line, id) or (None, None). Each
     philosophy at most once per conversation (its id philosophy:<name> joins the ids the hook already showed)."""
     r = suggest(text, None, instance)
+    try:  # 0.73.0: a bound philosophy is in the instructions already — the suggestion is only for unbound ones
+        from . import philosophy
+        bound = {b["name"] for b in philosophy.bindings(instance, g.current_index.get())}
+    except Exception:  # noqa: BLE001
+        bound = set()
     for x in r["ranking"]:
-        if f"philosophy:{x['name']}" in (shown or []):
+        if f"philosophy:{x['name']}" in (shown or []) or x["name"] in bound:
             continue
         good = [m for m in x["matched"] if m["declared"] or m["helped"] > m["not_helped"]]
         if not good:

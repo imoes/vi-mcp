@@ -274,18 +274,23 @@ def worlds(pkg: dict, random_n: int = 50, rnd_seed: int = 77) -> list[str]:
     return out
 
 
-def agreement(pkg: dict, rebuilt_seed: str, facts_list: list[str], gold: list | None = None) -> dict:
+def agreement(pkg: dict, rebuilt_seed: str, facts_list: list[str], gold: list | None = None, package_n: int = 0) -> dict:
     """Share of worlds where the rebuilt seed gives the original's answers and duties. A rebuilt seed that does not run agrees with
-    nothing (named)."""
+    nothing (named). package_n (0.73.0): the first package_n worlds are the package's own — counted apart (package_same), because a
+    gate may demand that every one of them agrees, not only a share of all."""
     gold = gold if gold is not None else [verdict(pkg, f) for f in facts_list]
     rebuilt = {**pkg, "seed": rebuilt_seed}
-    same = 0
+    same = in_package = 0
     try:
-        for f, g in zip(facts_list, gold):
-            same += verdict(rebuilt, f) == g
+        for i, (f, g) in enumerate(zip(facts_list, gold)):
+            ok = verdict(rebuilt, f) == g
+            same += ok
+            in_package += ok and i < package_n
     except Exception as e:  # noqa: BLE001
-        return {"agreement": 0.0, "same": 0, "worlds": len(facts_list), "error": f"{type(e).__name__}: {str(e)[:200]}"}
-    return {"agreement": round(same / len(facts_list), 3) if facts_list else 0.0, "same": same, "worlds": len(facts_list)}
+        return {"agreement": 0.0, "same": 0, "worlds": len(facts_list), "package_same": 0, "package_worlds": package_n,
+                "error": f"{type(e).__name__}: {str(e)[:200]}"}
+    return {"agreement": round(same / len(facts_list), 3) if facts_list else 0.0, "same": same, "worlds": len(facts_list),
+            "package_same": in_package, "package_worlds": package_n}
 
 
 # ── the round trip ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -308,6 +313,7 @@ def round_trip(pkg: dict, translator=None, back_translator=None, *, prose: str |
     t0 = time.monotonic()
     facts = worlds(pkg, random_n, rnd_seed)
     gold = [verdict(pkg, f) for f in facts]
+    n_pkg = len(pkg.get("worlds", []))  # worlds() puts the package's own worlds first
     if prose is None:
         if translator is None:
             raise ValueError("a translator is needed (or give the prose to measure)")
@@ -319,15 +325,15 @@ def round_trip(pkg: dict, translator=None, back_translator=None, *, prose: str |
               "translator": (names or {}).get("translator"), "back_translator": (names or {}).get("back_translator"),
               "worlds": {"package": len(pkg.get("worlds", [])), "random": len(facts) - len(pkg.get("worlds", [])), "rnd_seed": rnd_seed},
               "whole": {"prose": tr["whole"], "rebuilt": whole["seed"], "repair_rounds": whole["rounds"], "errors": whole["errors"],
-                        **agreement(pkg, whole["seed"], facts, gold)},
+                        **agreement(pkg, whole["seed"], facts, gold, n_pkg)},
               "blocks": {}}
     for b, text in tr["blocks"].items():
         bt = back_translate(pkg, text, back_translator, block=b)
         report["blocks"][b] = {"prose": text, "rebuilt": bt["seed"], "repair_rounds": bt["rounds"], "errors": bt["errors"],
-                               **agreement(pkg, _with_block(pkg, b, bt["seed"]), facts, gold)}
+                               **agreement(pkg, _with_block(pkg, b, bt["seed"]), facts, gold, n_pkg)}
     if control is not None:
         c = back_translate(pkg, control, back_translator)
-        report["control"] = {"rebuilt": c["seed"], "repair_rounds": c["rounds"], "errors": c["errors"], **agreement(pkg, c["seed"], facts, gold)}
+        report["control"] = {"rebuilt": c["seed"], "repair_rounds": c["rounds"], "errors": c["errors"], **agreement(pkg, c["seed"], facts, gold, n_pkg)}
     report["seconds"] = round(time.monotonic() - t0, 1)
     report["time"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     return report

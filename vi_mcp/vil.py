@@ -35,7 +35,9 @@ from datetime import datetime, timedelta, timezone
 
 ACTS = ("ask", "tell", "do", "promise", "def", "rate")
 QTYPES = ("how", "why", "what", "who", "where", "rule")
-_HEAD = re.compile(r"^\s*(" + "|".join(ACTS) + r")(?:\.([a-z]+))?(?=\s|$)", re.I)
+#: 0.73.0: an act is lower-case code ("ask.how …", "tell.fact …", "do restart @web1"). Case-insensitive, natural questions such as
+#: "Do I still have …?" or "Rate the deploy" were read as acts and refused by vi_recall; and a non-ask act ending in "?" is a question.
+_HEAD = re.compile(r"^\s*(" + "|".join(ACTS) + r")(?:\.([a-z]+))?(?=\s|$)")
 _SINCE = re.compile(r"(?<!\S)since:(\d+)([dhw])(?!\S)|(?<!\S)since:(\d{4}-\d{2}-\d{2})(?!\S)")
 _SHORT = re.compile(r"(?<![\w:])([!(]*)([@#])([A-Za-z0-9][\w.\-:/]*)")
 
@@ -63,7 +65,7 @@ def parse(text: str, now: datetime | None = None) -> Utterance:
     """Pure. A VIL utterance → act, question type and the vi_recall filter. Never raises: what it cannot read it names in notes."""
     raw = text or ""
     m = _HEAD.match(raw)
-    if not m:
+    if not m or (m.group(1) != "ask" and not m.group(2) and raw.rstrip().endswith("?")):
         return Utterance(None, None, raw)
     act, sub = m.group(1).lower(), (m.group(2) or "").lower() or None
     rest = raw[m.end():]

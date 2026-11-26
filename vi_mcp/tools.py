@@ -942,6 +942,10 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
             raise Rejected("semantic needs free text in the filter (words without kind:)")
         # candidates: only the hashtag conditions (without free text), then order by closeness of meaning
         tags_only = " ".join(["(" + " OR ".join(gr) + ")" if len(gr) > 1 else gr[0] for gr in groups] + [f"!{w}" for w in remove])
+        # 0.73.0: index:<name> written in the filter restricts the vector half too (it was a free word: the full-text half kept to the
+        # index, the nearest vectors came from everywhere — while the note said "only index … (AND)")
+        named = g.split_index(" ".join(words))[1]
+        tags_only = " ".join([tags_only] + [f"index:{n}" for n in named]).strip()
         kinds_ = () if groups else ("insight", "rule", "search", "image", "page")
         bound = min(int(args.get("limit") or 10), 50)
         pool = max(bound, vector.RERANK_TOP if vector.rerank_available() else bound)
@@ -949,7 +953,7 @@ def search(args: dict, only: str | None, first: str | None) -> tuple[list, str, 
         try:
             # 24.11.2026: the nearest vectors first, then the filter and visibility for them only — the same hits as listing every
             # visible id first (197,036 per query on a production copy, 1.46 s of 3.05 s under the database lock)
-            near, checked = vector.nearest(" ".join(words), lambda ids: g.admitted(ids, tags_only, kinds=kinds_), limit=pool * 3,
+            near, checked = vector.nearest(g.split_index(" ".join(words))[0] or " ".join(words), lambda ids: g.admitted(ids, tags_only, kinds=kinds_), limit=pool * 3,
                                            timeout=None if explicit else vector.QUERY_TIMEOUT_S)
         except Exception as ex:  # noqa: BLE001 — the default must never cost the search: full text, named
             if explicit:
