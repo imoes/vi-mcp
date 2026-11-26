@@ -65,14 +65,21 @@ def test_title_keys_follow_the_digit_rule():
 
 
 def test_off_changes_nothing_and_on_puts_anchor_and_hop_first(docs, monkeypatch):
+    # Each search is compared with ITS OWN hybrid list (anchor.CAPTURE), never with a second search: the full-text score has a
+    # recency term computed from the clock (memory.recall), so near-tied pages created milliseconds apart can swap places between
+    # two searches — measured 26.11.2026: three identical reinforce=false searches gave three different orders of the noise pages.
     q = "Which operating system runs on the node that hosts the VM app0042?"
+    monkeypatch.setattr(anchor, "CAPTURE", [])
     off, note_off = _search(q)
     assert "anchor" not in note_off.splitlines()[0]
+    assert off == anchor.CAPTURE[-1]["ranked"][:4]  # off: exactly the hybrid list
     monkeypatch.setattr(anchor, "MODE", "on")
     on, note_on = _search(q)
+    cap = anchor.CAPTURE[-1]
+    assert cap["plan"] and cap["plan"][0]["anchor"] == docs["vm"] and docs["node"] in cap["plan"][0]["hops"]
     # AT = 1: the hybrid's first hit keeps rank 1, anchor and hop follow (whatever the hybrid order was)
-    want = anchor.place(off, [{"word": "app0042", "anchor": docs["vm"], "hops": [docs["node"]]}], hops=1, at=1)
-    assert on[0] == off[0] and on[:3] == want[:3] and {docs["vm"], docs["node"]} <= set(on[:3])
+    want = anchor.place(cap["ranked"], cap["plan"], hops=1, at=1)
+    assert on == want[:4] and on[0] == cap["ranked"][0] and on[1:3] == [docs["vm"], docs["node"]]
     head = note_on.splitlines()[0]
     assert f"anchor on: app0042 → {docs['vm']} (+1 hop)" in head and "hybrid" in head
 
