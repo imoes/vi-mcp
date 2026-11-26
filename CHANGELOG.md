@@ -46,6 +46,9 @@ Linked from [README.md](README.md).
   served Claude Code plugin (`claude plugin marketplace add …/plugins/claude/marketplace.json`, `claude plugin install
   vi-mcp@vi-mcp`, token via `/plugin` → configure) or run `vi-mcp-setup.pyz` for Codex/Hermes, then the checks and the undo.
   Before, AGENTS.md only described the mechanism and the commands were in README.md alone. Documentation only.
+- The documentation index `docs/README.md` now lists the 25 research documents that came with the research merge (division-of-labour
+  paper, plans R2/R3, the R2-small, reader, binder, kit35/36 and Z6 pre-registrations, symbolic-regression log, goals). Before,
+  `tests/test_reference.py::test_every_document_is_listed_in_the_index` failed on main (found in the full suite, 26.11.2026).
 
 ### What is still missing
 
